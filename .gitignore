@@ -35,3 +35,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Local reference data (not tracked)
+*.k
