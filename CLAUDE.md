@@ -35,7 +35,7 @@ Read these files, in order, before any work begins:
 
 Then, conditionally based on the session's task:
 
-- `ARCHITECTURE.md` — if the task touches the package structure, module interfaces, or the asset model schema.
+- `ARCHITECTURE.md` — if the task touches the package structure, module interfaces, or the case schema.
 - Specific ADRs from the index — whichever are relevant to the task.
 - `ROADMAP.md` — if the session is about planning or scoping.
 
@@ -79,7 +79,7 @@ Three tiers govern what Claude Code can do. When in doubt, default to the more r
 
 - Adding, removing, or upgrading any dependency.
 - Modifying the public API of any module.
-- Modifying the asset model schema in any way.
+- Modifying the case schema in any way.
 - Creating new top-level modules or new files at repo root.
 - Drafting or modifying an ADR (the human finalises).
 - Architectural changes affecting how modules interact.
@@ -117,7 +117,7 @@ Small corrections that don't warrant an ADR are logged in `CORRECTIONS.md`. Form
 
 - **Coding conventions** (Python version, style, testing, documentation, logging, git): `PRINCIPLES.md`.
 - **Repository structure and package layout**: `ARCHITECTURE.md`.
-- **Asset model schema**: `ARCHITECTURE.md`.
+- **Case schema**: `ARCHITECTURE.md`.
 - **Dependency policy and approved list**: `PRINCIPLES.md`, with individual additions recorded as ADRs.
 - **ADR format and process**: `decisions/README.md`.
 - **Long-term trajectory**: `ROADMAP.md`.

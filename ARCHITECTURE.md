@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-*The technical spine of StructBench: package layout, module responsibilities, and the asset model schema. Decisions in this document are durable unless explicitly marked otherwise.*
+*The technical spine of StructBench: package layout, module responsibilities, and the case schema. Decisions in this document are durable unless explicitly marked otherwise.*
 
 ---
 
@@ -16,7 +16,7 @@ For coding conventions (style, testing, documentation expectations), see PRINCIP
 
 ```
 src/structbench/
-├── core/          # asset model, graph utilities, I/O primitives
+├── core/          # case schema, graph utilities, I/O primitives
 ├── benchmarks/    # benchmark problem definitions
 ├── models/        # reference ML models
 ├── datasets/      # data loaders and dataset registry
@@ -39,7 +39,7 @@ Reserved namespaces are declared here so the long-term shape of the package is v
 
 ### `core/`
 
-Holds the foundational data structures and primitives that other modules depend on. The asset model schema lives here, along with graph manipulation utilities, file I/O for the canonical HDF5 format, custom exceptions, and any logic that is genuinely cross-cutting.
+Holds the foundational data structures and primitives that other modules depend on. The case schema lives here, along with graph manipulation utilities, file I/O for the canonical HDF5 format, custom exceptions, and any logic that is genuinely cross-cutting.
 
 This module has no upstream dependencies within the package. Every other module may depend on `core/`; `core/` may not depend on any of them.
 
@@ -67,7 +67,7 @@ The schema for what's *inside* the data files lives in `core/`. The mechanics of
 
 Metrics and evaluation protocols. Each benchmark declares its own evaluation metrics; this module implements them in a model-agnostic way. Also contains the leaderboard submission validator and any cross-benchmark evaluation utilities.
 
-`eval/` depends on `core/` (for the asset model) and `datasets/` (for ground truth access). It does not depend on `models/` — evaluation is a property of the benchmark, not the model.
+`eval/` depends on `core/` (for the case schema) and `datasets/` (for ground truth access). It does not depend on `models/` — evaluation is a property of the benchmark, not the model.
 
 ### `cli/`
 
@@ -124,7 +124,7 @@ Cycles are not permitted. If a proposed dependency would create a cycle, the des
 
 ## Position of the FEM solver
 
-StructBench treats the FEM solver as an external data source rather than as a package component. The package consumes data in a canonical format (the asset model schema, persisted as HDF5); how that data was originally produced — by which solver, with what input deck, on what compute resource — is upstream of the package's concerns.
+StructBench treats the FEM solver as an external data source rather than as a package component. The package consumes data in a canonical format (the case schema, persisted as HDF5); how that data was originally produced — by which solver, with what input deck, on what compute resource — is upstream of the package's concerns.
 
 Solver-related code is split across two locations:
 
@@ -135,12 +135,29 @@ This separation enforces the solver-agnostic posture committed to in ADR-0004. T
 
 ---
 
-## Asset model schema
+## Case schema
 
-The asset model schema is the central data structure that all modules read or write — it represents a structure (geometry, topology, materials, sensors, state) in a form that is common to data generation, surrogate training, and evaluation.
+The case schema is the central data structure that all modules read or write — it represents one record (a specimen under a scenario, with the resulting response) in a form that is common to data generation, surrogate training, and evaluation. The vocabulary used here is fixed in ADR-0011.
 
 Designing the schema well is one of the highest-stakes architectural decisions in the project. A well-designed schema enables modules to compose cleanly and accommodates future scope expansion (multi-modal SHM, deployment workflows). A poorly-designed schema forces every downstream component to work around its limitations.
 
-The schema's design is treated as its own focused exercise, separate from the rest of this document. When the schema is settled, its specification — including the conceptual model, field-level definitions, type requirements, and HDF5 layout — will be added below this section.
+The schema's design is treated as its own focused exercise, separate from the rest of this document. The conceptual model below is settled; field-level definitions and HDF5 layout are still pending and will be added as they are decided.
 
-*(Schema specification: to be added.)*
+### Conceptual model
+
+A **case** is one record — one file, one ML data example. Conceptually it has three parts:
+
+- **Specimen** — the structure being studied: geometry, topology, materials, boundary conditions, sensor placements where present.
+- **Scenario** — the loading or event applied: impact, blast, observed earthquake/wind, and so on.
+- **Response** — the resulting temporal evolution: per-node, per-element, and global state under that scenario, plus any sensor readings.
+
+`case = specimen + scenario + response` is **vocabulary, not layout**. The schema's actual groups follow the data's natural structure, not the conceptual split — solver inputs interleave specimen and scenario, and forcing them apart in storage would be an artificial cut. The vocabulary exists to keep documentation and discussion consistent.
+
+Inside `response`, the temporal axis uses two further terms:
+
+- **Frame** — a single time slice of the response (one image in the "video" of state evolution).
+- **Transition** — a pair of consecutive frames `(frame_t, frame_{t+1})`, the natural unit for auto-regressive ML training.
+
+The word **asset** is reserved for the physical-structure / deployment meaning (see `deploy/`). A case that came from real-world observation may carry an `asset_id` field linking it to the physical structure it was observed on; many such cases on the same asset link via that field.
+
+*(Field-level specification — group layout, dtypes, units conventions: to be added.)*

@@ -59,6 +59,7 @@ What becomes easier, harder, or constrained as a result.
 | 0008 | Principle/mechanism separation between HARNESS and CLAUDE | Durable | Accepted |
 | 0009 | Session-start reading list | Ephemeral | Accepted |
 | 0010 | FEM solver code lives outside the importable package | Durable | Accepted |
+| 0011 | Case vocabulary for the data record | Durable | Proposed |
 
 ---
 

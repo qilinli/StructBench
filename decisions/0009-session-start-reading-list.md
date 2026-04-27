@@ -21,7 +21,7 @@ At the start of every session, Claude Code reads the following files, in order:
 6. `decisions/README.md` — the ADR index
 
 **Conditionally read** (based on the session's task):
-- `ARCHITECTURE.md` — if the task touches package structure, module interfaces, or the asset model schema.
+- `ARCHITECTURE.md` — if the task touches package structure, module interfaces, or the case schema.
 - Specific ADRs from the index — whichever are relevant to the task.
 - `ROADMAP.md` — if the session is about planning or scoping.
 
