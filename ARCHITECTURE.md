@@ -141,7 +141,7 @@ The case schema is the central data structure that all modules read or write —
 
 Designing the schema well is one of the highest-stakes architectural decisions in the project. A well-designed schema enables modules to compose cleanly and accommodates future scope expansion (multi-modal SHM, deployment workflows). A poorly-designed schema forces every downstream component to work around its limitations.
 
-The schema's design is treated as its own focused exercise, separate from the rest of this document. The conceptual model below is settled; field-level definitions and HDF5 layout are still pending and will be added as they are decided.
+The schema's design is treated as its own focused exercise, separate from the rest of this document. The conceptual model and field-level structure below are settled (ADR-0011 and ADR-0012); the HDF5 layout — group spelling, dtypes, attribute conventions — is still pending and will be added when decided.
 
 ### Conceptual model
 
@@ -160,4 +160,59 @@ Inside `response`, the temporal axis uses two further terms:
 
 The word **asset** is reserved for the physical-structure / deployment meaning (see `deploy/`). A case that came from real-world observation may carry an `asset_id` field linking it to the physical structure it was observed on; many such cases on the same asset link via that field.
 
-*(Field-level specification — group layout, dtypes, units conventions: to be added.)*
+### Field-level structure
+
+A case file contains the following kinds of data. The specimen / scenario / response triple is documentation only; the file does not separate them structurally. ADR-0012 carries the full rationale and validity rules.
+
+**Geometry and topology**
+- `nodes` — `coords` and `node_id`.
+- `elements/<type>` — for each element type present (`sph`, `solid`, `beam`, `shell`, `discrete`, …): `connectivity` (0-indexed into `nodes`), `element_id`, `part_id`.
+- `parts` — links elements to a section and a material.
+- `sections` — cross-section, shell-thickness, or SPH parameters.
+
+**Materials**
+- `materials` — hybrid representation: `canonical_model` from a small enum (populated when a clean mapping exists) plus `source_model` and `source_params` verbatim from the solver.
+
+**Constraints, loading, IC**
+- `boundary_conditions` — constraints.
+- `loading` — applied loads, body forces, contacts, rigid walls.
+- `initial_conditions` — optional; preserved IC spec from the source. The actual t=0 state is at `response/` frame 0.
+- `time_curves` — named `(t, value)` curves.
+- `sets` — named node / element sets.
+
+**Response**
+- `response/time/t` — single time array, one global time axis.
+- `response/node` — `displacement`, `velocity`, `acceleration` of shape `(n_frames, n_nodes, dim)`.
+- `response/element/<type>` — `stress`, `strain`, `damage`, …; tensor fields in Voigt-symmetric components.
+- `response/global` — per-frame scalars (energies, contact force, reactions).
+- `response/sensor` — slot reserved (SHM scope).
+
+**Sensors**
+- `sensors` — slot reserved (SHM scope).
+
+**Metadata**
+- `case_id`, `schema_version`, `units_convention` (= `"SI"`), `dimension` (`2` or `3`).
+- `provenance` — solver name / version / generation date when solver-generated.
+- `source_units` — original convention when not natively SI.
+- `source_deck` — verbatim source blob, optional.
+- `asset_id`, `dataset_id` — workflow-level identifiers, optional.
+
+**Cross-cutting conventions**
+
+- *Units*: strict SI canonical; adapters convert on write.
+- *Identity*: 0-indexed sequential connectivity; original solver IDs preserved in `*_id` columns.
+- *Time*: single `response/time/t` array; one global axis.
+- *t=0 state*: frame 0 of `response/`, not duplicated in a separate group.
+- *Tensors*: Voigt-symmetric (6 components in 3D, 4 in 2D).
+
+**Validity tiers**
+
+| Tier | Required content |
+|---|---|
+| Always required | `nodes`, at least one `elements/<type>`, `materials`, `metadata` (`case_id`, `schema_version`, `units_convention`, `dimension`); `provenance` when solver-generated |
+| Required when applicable | `parts`, `sections`, `boundary_conditions`, `loading`, `time_curves`, `sets`, `initial_conditions`; `response` (with `time/t` and `node/displacement`) when the case has been simulated |
+| Always optional | `sensors`, `response/sensor`, `response/global`, `response/element/*`, `metadata/source_deck`, `metadata/asset_id`, `metadata/dataset_id` |
+
+A case file with no `response` group is a valid "stub" — specimen + scenario specified, simulation not yet run.
+
+*(HDF5 layout — group spelling, dtypes, attribute conventions: to be added.)*
