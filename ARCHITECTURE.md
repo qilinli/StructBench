@@ -126,7 +126,7 @@ Cycles are not permitted. If a proposed dependency would create a cycle, the des
 
 StructBench treats the FEM solver as an external data source rather than as a package component. The package consumes data in a canonical format (the asset model schema, persisted as HDF5); how that data was originally produced — by which solver, with what input deck, on what compute resource — is upstream of the package's concerns.
 
-Solver-related code therefore sits in two places, neither of which is inside the importable package proper:
+Solver-related code is split across two locations:
 
 - **`data_generation/`** at repo root holds the solver-specific scripts: input deck templates, parameter sweep configurations, Pawsey job submission scripts, and any glue code needed to orchestrate batch simulations. For v0.1, this folder contains LS-DYNA-specific content. As contributions arrive from groups using other solvers (Kratos, OpenSees, Abaqus), each solver's content lives in its own subfolder here. None of this is importable as part of `structbench`; users who only consume datasets never touch it.
 - **`core/io/`** inside the package holds the readers and writers for the canonical HDF5 format, and (when needed) adapters that convert raw solver outputs into the canonical format. These adapters are the bridge: they let data produced by any solver be consumed by the rest of the package uniformly.

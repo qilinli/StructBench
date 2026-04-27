@@ -12,7 +12,7 @@ Three options were considered: (a) inside the package as a first-class module li
 
 ## Decision
 
-Solver-related code is split across two locations, neither of which is part of the importable package:
+Solver-related code is split across two locations:
 
 - **`data_generation/`** at repo root holds solver-specific scripts: input deck templates, parameter sweep configurations, Pawsey job submission scripts, and any glue code needed to orchestrate batch simulations. Each solver gets its own subfolder as contributions arrive (e.g., `data_generation/lsdyna/`, `data_generation/kratos/`). This folder is not part of `pip install structbench`; users who consume only datasets never touch it.
 - **`core/io/`** inside the package holds the canonical HDF5 format readers/writers and solver-output adapters that convert raw solver outputs into the canonical format. These adapters are the interoperability bridge between any solver and the rest of the package.
