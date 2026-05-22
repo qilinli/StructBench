@@ -61,6 +61,7 @@ What becomes easier, harder, or constrained as a result.
 | 0010 | FEM solver code lives outside the importable package | Durable | Accepted |
 | 0011 | Case vocabulary for the data record | Durable | Accepted |
 | 0012 | Case schema field-level structure | Durable | Accepted |
+| 0013 | HDF5 persistence layout for the case schema | Durable | Accepted |
 
 ---
 

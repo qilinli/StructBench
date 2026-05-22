@@ -86,9 +86,8 @@ A dependency is a long-term commitment, not a convenience. The bar to add one is
 
 | Package | Purpose | ADR |
 |---------|---------|-----|
-| *(none yet)* | | |
-
-Anticipated near-term additions, not yet approved: an array core (`numpy`) and an HDF5 library — the latter decided as part of the Stage 3 persistence ADR.
+| numpy | Array core; the case schema's arrays are NumPy arrays | ADR-0013 |
+| h5py | Canonical reader/writer for the HDF5 case format | ADR-0013 |
 
 **Development** *(established by this document)*:
 

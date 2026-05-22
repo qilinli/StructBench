@@ -141,7 +141,7 @@ The case schema is the central data structure that all modules read or write —
 
 Designing the schema well is one of the highest-stakes architectural decisions in the project. A well-designed schema enables modules to compose cleanly and accommodates future scope expansion (multi-modal SHM, deployment workflows). A poorly-designed schema forces every downstream component to work around its limitations.
 
-The schema's design is treated as its own focused exercise, separate from the rest of this document. The conceptual model and field-level structure below are settled (ADR-0011 and ADR-0012); the HDF5 layout — group spelling, dtypes, attribute conventions — is still pending and will be added when decided.
+The schema's design is treated as its own focused exercise, separate from the rest of this document. The conceptual model and field-level structure below are settled (ADR-0011 and ADR-0012), as is the HDF5 persistence layout — group spelling, dtypes, attribute conventions (ADR-0013).
 
 ### Conceptual model
 
@@ -215,4 +215,15 @@ A case file contains the following kinds of data. The specimen / scenario / resp
 
 A case file with no `response` group is a valid "stub" — specimen + scenario specified, simulation not yet run.
 
-*(HDF5 layout — group spelling, dtypes, attribute conventions: to be added.)*
+### HDF5 layout
+
+The field set above is persisted as a single HDF5 file per case (ADR-0013), read and written through `h5py`. Salient points:
+
+- **Paths** are lowercase `snake_case` matching the field names: `/metadata`, `/nodes`, `/elements/<type>`, `/parts`, `/sections`, `/materials`, `/boundary_conditions`, `/loading`, `/initial_conditions`, `/time_curves`, `/sets/{node,element}/<id>`, `/response/{time,node,element,global,sensor}`, `/sensors`.
+- **Attributes vs datasets**: small scalars (the `/metadata` fields, `provenance`) are HDF5 attributes; arrays and anything possibly large (notably `/metadata/source_deck`) are datasets.
+- **Dtypes**: float64 for geometry and the time axis, float32 for bulk response fields, int64 for ids and connectivity, variable-length UTF-8 for strings.
+- **Compression**: response arrays and the source deck are gzip-compressed (level 4) and chunked along the frame axis, so transitions can be streamed without loading whole arrays.
+- **Heterogeneous solver-native data**: `materials`/`sections` `source_params` and `metadata/source_deck` are stored as JSON strings; solver sub-models (EOS, hourglass) nest inside the owning material's `source_params`.
+- **Version**: the initial `schema_version` is `"0.1.0"`; additive changes bump the minor version, structural changes the major version (with a superseding ADR).
+
+ADR-0013 carries the full layout, dtype, and convention rationale.
