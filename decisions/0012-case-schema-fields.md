@@ -1,6 +1,6 @@
 # 0012 — Case schema field-level structure
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-04-28
 

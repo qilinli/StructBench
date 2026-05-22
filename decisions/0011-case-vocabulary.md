@@ -1,6 +1,6 @@
 # 0011 — Case vocabulary for the data record
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-04-27
 
