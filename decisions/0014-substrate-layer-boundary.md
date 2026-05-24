@@ -1,6 +1,6 @@
 # 0014 — StructBench is the substrate layer of a broader research program
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-05-23
 
