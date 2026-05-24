@@ -15,10 +15,11 @@ At the start of every session, Claude Code reads the following files, in order:
 **Always read**:
 1. `CLAUDE.md`
 2. `VISION.md`
-3. `HARNESS.md`
-4. `PRINCIPLES.md` (once it exists)
-5. `CORRECTIONS.md` — all entries marked `active`
-6. `decisions/README.md` — the ADR index
+3. `RESEARCH-PROGRAM.md` — *context-only; does not define StructBench scope (see ADR-0014)*
+4. `HARNESS.md`
+5. `PRINCIPLES.md` (once it exists)
+6. `CORRECTIONS.md` — all entries marked `active`
+7. `decisions/README.md` — the ADR index
 
 **Conditionally read** (based on the session's task):
 - `ARCHITECTURE.md` — if the task touches package structure, module interfaces, or the case schema.
@@ -44,4 +45,4 @@ This ADR is marked **Ephemeral** because the list is expected to change as the p
 
 ## Revision log
 
-*(Dated notes go here as the list is revised.)*
+- 2026-05-23 — Added `RESEARCH-PROGRAM.md` as item 3, marked context-only. See ADR-0014.

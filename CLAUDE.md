@@ -28,10 +28,11 @@ Read these files, in order, before any work begins:
 
 1. `CLAUDE.md` (this file).
 2. `VISION.md`.
-3. `HARNESS.md`.
-4. `PRINCIPLES.md` (when it exists).
-5. `CORRECTIONS.md` — all entries marked `active`.
-6. `decisions/README.md` — the ADR index.
+3. `RESEARCH-PROGRAM.md` — *context-only; explains the research program StructBench serves but does not define its scope (see ADR-0014)*.
+4. `HARNESS.md`.
+5. `PRINCIPLES.md` (when it exists).
+6. `CORRECTIONS.md` — all entries marked `active`.
+7. `decisions/README.md` — the ADR index.
 
 Then, conditionally based on the session's task:
 

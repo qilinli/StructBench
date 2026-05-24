@@ -62,6 +62,7 @@ What becomes easier, harder, or constrained as a result.
 | 0011 | Case vocabulary for the data record | Durable | Accepted |
 | 0012 | Case schema field-level structure | Durable | Accepted |
 | 0013 | HDF5 persistence layout for the case schema | Durable | Accepted |
+| 0014 | StructBench is the substrate layer of a broader research program | Durable | Proposed |
 
 ---
 
