@@ -1,6 +1,6 @@
 # 0003 — v0.1 anchor problem is impact on RC beams
 
-**Status**: Accepted
+**Status**: Superseded by 0015
 **Type**: Durable
 **Date**: 2026-04-24
 

@@ -16,7 +16,7 @@ HARNESS.md carries the principles (*why* rules exist); this file carries the mec
 
 StructBench is an open platform for data-driven structural engineering — benchmarks, reference models, and eventually deployment tools. Run by Qilin Li (human) and Claude Code (agent) together under the philosophy in HARNESS.md.
 
-Current stage: pre-v0.1. Foundational documents are being written; v0.1 benchmark problem is being scoped around impact/blast on RC beams. No code has been written yet.
+Current stage: pre-v0.1. Foundational documents and ADRs are largely in place; the case schema and canonical HDF5 I/O have a first slice in `core/`. v0.1 will ship a portfolio of existing LS-DYNA datasets (Taylor 2D, RC beam, segmented beam) as benchmarks, with prior-paper GNNs as baselines, ingested via a general `core/io/lsdyna.py` adapter built on `lasso-python` (see ADR-0015 and ADR-0016).
 
 ---
 
