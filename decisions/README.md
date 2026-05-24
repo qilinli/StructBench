@@ -63,6 +63,8 @@ What becomes easier, harder, or constrained as a result.
 | 0012 | Case schema field-level structure | Durable | Accepted |
 | 0013 | HDF5 persistence layout for the case schema | Durable | Accepted |
 | 0014 | StructBench is the substrate layer of a broader research program | Durable | Accepted |
+| 0015 | v0.1 ships existing LS-DYNA datasets as benchmarks with prior-paper GNN baselines (supersedes 0003) | Durable | Accepted |
+| 0016 | LS-DYNA d3plot is the canonical ingestion path; general adapter on lasso-python | Durable | Accepted |
 
 ---
 
