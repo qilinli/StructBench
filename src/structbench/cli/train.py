@@ -229,9 +229,12 @@ def build_simulator(
     Parameters
     ----------
     stats : dict
-        Mapping ``{"velocity": {"mean": Tensor, "std": Tensor}, "acceleration":
-        {"mean": Tensor, "std": Tensor}}`` with per-dimension stats, shape
-        ``(dim,)`` each.
+        Mapping ``{"velocity": ..., "acceleration": ..., "aux": ...}`` where
+        each value is ``{"mean": Tensor, "std": Tensor}``. Velocity and
+        acceleration stats are per-dimension (shape ``(dim,)``); the ``"aux"``
+        stats are scalar (shape ``(1,)``). Velocity/acceleration std is inflated
+        by the training noise; the auxiliary stats are passed through unchanged
+        (the auxiliary target carries no input noise).
     gns : GNSConfig
         Architecture and noise configuration.
     n_particle_types : int
@@ -257,6 +260,13 @@ def build_simulator(
         mean = stats[key]["mean"].to(device)
         std = torch.sqrt(stats[key]["std"].to(device) ** 2 + noise_var)
         normalization_stats[key] = {"mean": mean, "std": std}
+
+    # The auxiliary (von Mises) target carries no input noise, so its stats are
+    # passed through without the sqrt(std^2 + noise^2) inflation applied above.
+    normalization_stats["aux"] = {
+        "mean": stats["aux"]["mean"].to(device),
+        "std": stats["aux"]["std"].to(device),
+    }
 
     return LearnedSimulator(
         particle_dimensions=gns.dim,
@@ -295,6 +305,10 @@ def _stats_to_dict(stats: NormalizationStats) -> dict[str, dict[str, Tensor]]:
         "acceleration": {
             "mean": torch.tensor(stats.acceleration_mean, dtype=torch.float32),
             "std": torch.tensor(stats.acceleration_std, dtype=torch.float32),
+        },
+        "aux": {
+            "mean": torch.tensor(stats.aux_mean, dtype=torch.float32),
+            "std": torch.tensor(stats.aux_std, dtype=torch.float32),
         },
     }
 
@@ -353,7 +367,9 @@ def train(
     Builds the TRAIN trajectories, normalization stats, and the simulator (with
     the Taylor wall boundary feature), then optimizes with Adam under an
     exponential learning-rate decay and the dual MSE loss
-    ``w_pos * ||Δacc||^2 + w_aux * (Δaux)^2``. Every ``val_every`` steps it runs
+    ``w_pos * ||Δacc||^2 + w_aux * (Δaux)^2``, where both the acceleration and
+    the auxiliary (von Mises) targets are normalized so the two terms are O(1)
+    and balanced. Every ``val_every`` steps it runs
     a validation rollout over ``VAL`` and saves the model when the mean RMSE
     improves. The resolved config and normalization stats are written under
     ``out_dir``.
@@ -396,6 +412,12 @@ def train(
     )
     simulator.to(device)
 
+    # Auxiliary (von Mises) normalization: the decoder predicts the auxiliary
+    # channel in normalized space, so the target is normalized to match before
+    # the loss, keeping it O(1) and balanced against the position loss.
+    aux_mean = torch.tensor(stats.aux_mean, dtype=torch.float32, device=device)
+    aux_std = torch.tensor(stats.aux_std, dtype=torch.float32, device=device)
+
     _write_resolved_config(out_dir, gns, train_cfg, n_types, data_root)
 
     dataset = WindowDataset(train_trajs, gns.window)
@@ -437,7 +459,8 @@ def train(
                 particle_types=particle_type,
             )
             loss_pos = ((pred_acc - target_acc) ** 2).sum(dim=-1)
-            loss_aux = (pred_aux[:, 0] - next_aux) ** 2
+            next_aux_norm = (next_aux - aux_mean) / aux_std
+            loss_aux = (pred_aux[:, 0] - next_aux_norm) ** 2
             loss = (train_cfg.w_pos * loss_pos + train_cfg.w_aux * loss_aux).mean()
 
             loss.backward()

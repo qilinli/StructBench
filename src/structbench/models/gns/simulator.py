@@ -71,9 +71,13 @@ class LearnedSimulator(nn.Module):
         Radius (in working units) within which particles are connected by an
         edge.
     normalization_stats : dict[str, dict[str, Tensor]]
-        Mapping with keys ``"velocity"`` and ``"acceleration"``, each mapping
-        to ``{"mean": Tensor, "std": Tensor}`` of shape
-        ``(particle_dimensions,)``.
+        Mapping with keys ``"velocity"``, ``"acceleration"``, and ``"aux"``,
+        each mapping to ``{"mean": Tensor, "std": Tensor}``. The velocity and
+        acceleration stats are per-dimension (shape ``(particle_dimensions,)``);
+        the ``"aux"`` stats are scalar (shape ``(1,)``) and normalize the
+        auxiliary (von Mises) channel. The decoder emits the auxiliary channel
+        in normalized space; :meth:`predict_positions` de-normalizes it as
+        ``pred_aux * aux_std + aux_mean`` before returning.
     nparticle_types : int
         Number of distinct particle types.
     particle_type_embedding_size : int
@@ -373,6 +377,8 @@ class LearnedSimulator(nn.Module):
         tuple[Tensor, Tensor]
             ``(next_positions, predicted_aux)`` with shapes
             ``(nparticles, particle_dimensions)`` and ``(nparticles, n_aux)``.
+            The auxiliary output is de-normalized into raw (e.g. MPa) units, as
+            rollout and metrics expect.
         """
         node_features, edge_index, edge_features = self._encoder_preprocessor(
             current_positions, nparticles_per_example, particle_types
@@ -381,10 +387,14 @@ class LearnedSimulator(nn.Module):
         # The first ``particle_dimensions`` channels are accelerations; the
         # remaining ``n_aux`` channels are auxiliary outputs (kept 2-D).
         predicted_normalized_acceleration = pred[:, : self._particle_dimensions]
-        predicted_aux = pred[:, self._particle_dimensions :]
+        predicted_normalized_aux = pred[:, self._particle_dimensions :]
         next_positions = self._decoder_postprocessor(
             predicted_normalized_acceleration, current_positions
         )
+        # The decoder emits the auxiliary channel in normalized space; recover
+        # raw units (e.g. MPa) so rollout/metrics operate on physical values.
+        aux_stats = self._normalization_stats["aux"]
+        predicted_aux = predicted_normalized_aux * aux_stats["std"] + aux_stats["mean"]
 
         return next_positions, predicted_aux
 
@@ -420,6 +430,9 @@ class LearnedSimulator(nn.Module):
             ``(predicted_normalized_acceleration, target_normalized_acceleration,
             predicted_aux)`` with shapes ``(nparticles, particle_dimensions)``,
             ``(nparticles, particle_dimensions)``, and ``(nparticles, n_aux)``.
+            ``predicted_aux`` is left in normalized space (unlike
+            :meth:`predict_positions`); the training loss compares it against the
+            normalized auxiliary target.
         """
         # Add noise to the input position sequence.
         noisy_position_sequence = position_sequence + position_sequence_noise

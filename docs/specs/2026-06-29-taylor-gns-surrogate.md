@@ -87,7 +87,16 @@ and tracks `n_particles_per_example` (matching the sgnn graph batching).
 (first difference) and acceleration (second difference) mean/std over the train
 split, in mm/frame and mm/frame². Combined with `noise_std` at model build time
 (`std ← sqrt(std² + noise_std²)`), exactly as the sgnn does. Cached to disk
-keyed by the split so it is computed once.
+keyed by the split so it is computed once. The auxiliary (von Mises) field is
+also normalized: its scalar mean/std are pooled over the raw values (no finite
+difference) of the train split. The decoder predicts the auxiliary channel in
+normalized space, the training target is normalized to match
+(`next_aux_norm = (next_aux − mean) / std`), and `predict_positions`
+de-normalizes the output back to MPa for rollout/metrics. This keeps the
+auxiliary loss O(1) and balanced against the position loss — a deliberate
+improvement over the SGNN's raw-MPa auxiliary loss, which (with `w_aux = 1`)
+over-weighted stress. The auxiliary stats carry no `noise_std` inflation (the
+auxiliary target has no input noise).
 
 ## `models/gns/`
 

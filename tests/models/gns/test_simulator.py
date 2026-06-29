@@ -3,12 +3,19 @@ import torch
 from structbench.models.gns.simulator import LearnedSimulator
 
 
-def _stats(dim=2):
+def _stats(dim=2, aux_mean=0.0, aux_std=1.0):
     z, o = torch.zeros(dim), torch.ones(dim)
-    return {"velocity": {"mean": z, "std": o}, "acceleration": {"mean": z, "std": o}}
+    return {
+        "velocity": {"mean": z, "std": o},
+        "acceleration": {"mean": z, "std": o},
+        "aux": {
+            "mean": torch.tensor([aux_mean]),
+            "std": torch.tensor([aux_std]),
+        },
+    }
 
 
-def _sim(n_aux=1, boundary_feature_fn=None, window=3):
+def _sim(n_aux=1, boundary_feature_fn=None, window=3, aux_mean=0.0, aux_std=1.0):
     nnode_in = (window - 1) * 2  # velocities only; +embedding handled internally
     return LearnedSimulator(
         particle_dimensions=2,
@@ -19,7 +26,7 @@ def _sim(n_aux=1, boundary_feature_fn=None, window=3):
         nmlp_layers=1,
         mlp_hidden_dim=16,
         connectivity_radius=5.0,
-        normalization_stats=_stats(),
+        normalization_stats=_stats(aux_mean=aux_mean, aux_std=aux_std),
         nparticle_types=1,
         particle_type_embedding_size=4,
         n_aux=n_aux,
@@ -37,6 +44,33 @@ def test_predict_positions_shapes():
     next_pos, aux = sim.predict_positions(pos_seq, npp, ptype)
     assert next_pos.shape == (P, 2)
     assert aux.shape == (P, 1)
+
+
+def test_predict_positions_denormalizes_aux():
+    # predict_positions must return aux in raw (MPa) units, i.e. the normalized
+    # decoder output (as returned by predict_accelerations) scaled by std and
+    # shifted by mean. With identical inputs (zero training noise) the two
+    # forward passes produce the same decoder output, so we can assert the
+    # exact denormalization transform.
+    mean, std = 5.0, 2.0
+    sim = _sim(n_aux=1, aux_mean=mean, aux_std=std)
+    sim.eval()
+    P, window = 4, 3
+    pos_seq = torch.randn(P, window, 2)
+    npp = torch.tensor([P])
+    ptype = torch.zeros(P, dtype=torch.long)
+
+    _, _, pred_aux_norm = sim.predict_accelerations(
+        next_positions=torch.zeros(P, 2),
+        position_sequence_noise=torch.zeros(P, window, 2),
+        position_sequence=pos_seq,
+        nparticles_per_example=npp,
+        particle_types=ptype,
+    )
+    _, aux = sim.predict_positions(pos_seq, npp, ptype)
+
+    expected = pred_aux_norm * std + mean
+    torch.testing.assert_close(aux, expected)
 
 
 def test_boundary_feature_fn_changes_node_input_width():
