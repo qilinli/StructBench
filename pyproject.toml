@@ -18,6 +18,9 @@ dependencies = [
     "torch-geometric>=2.3",
 ]
 
+[project.scripts]
+structbench-train = "structbench.cli.train:main"
+
 [project.optional-dependencies]
 dev = [
     "ruff>=0.5",

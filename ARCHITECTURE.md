@@ -65,6 +65,8 @@ Data loading and dataset management. Provides the abstractions that turn an HDF5
 
 The schema for what's *inside* the data files lives in `core/`. The mechanics of loading and serving that data live here.
 
+**ML data flow.** A canonical case (strict SI, HDF5) is loaded and converted to a `CaseTrajectory` — positions in mm and stress in MPa (ADR-0019) — so that ported GNS hyperparameters transfer without rescaling. The trajectory is then split into overlapping windows (`WindowDataset`) and normalised via velocity/acceleration statistics (`compute_stats`). The windowed, normalised samples feed the GNS simulator (`models/gns`), whose autoregressive predictions are compared to ground truth by `eval.rollout`, which returns a `RolloutResult` containing per-step RMSE and QoI metrics. The benchmark module is responsible for supplying the train/val/test split and for encoding the boundary-condition feature that conditions each particle's neighbourhood message.
+
 ### `eval/`
 
 Metrics and evaluation protocols. Each benchmark declares its own evaluation metrics; this module implements them in a model-agnostic way. Also contains the leaderboard submission validator and any cross-benchmark evaluation utilities.
