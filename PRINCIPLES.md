@@ -89,6 +89,8 @@ A dependency is a long-term commitment, not a convenience. The bar to add one is
 | numpy | Array core; the case schema's arrays are NumPy arrays | ADR-0013 |
 | h5py | Canonical reader/writer for the HDF5 case format | ADR-0013 |
 | lasso-python | LS-DYNA d3plot parsing in the canonical adapter | ADR-0016 |
+| torch | Autograd + tensors for the reference ML models | ADR-0018 |
+| torch-geometric | Message-passing + radius_graph for the GNS | ADR-0018 |
 
 **Development** *(established by this document)*:
 
