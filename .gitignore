@@ -38,3 +38,6 @@ Thumbs.db
 
 # Local reference data (not tracked)
 *.k
+
+# Subagent-driven-development scratch (ledger, briefs)
+.superpowers/
