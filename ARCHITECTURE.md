@@ -43,6 +43,8 @@ Holds the foundational data structures and primitives that other modules depend 
 
 This module has no upstream dependencies within the package. Every other module may depend on `core/`; `core/` may not depend on any of them.
 
+`core/` also stays free of the ML stack: it imports neither `torch` nor `torch_geometric`. Those are hard runtime dependencies of the package (ADR-0018) but are used only in the ML-facing layers (`datasets/`, `models/`, `eval/`). Keeping the substrate a pure `numpy`/`h5py` layer preserves the option to re-split the ML stack out later without touching `core/`.
+
 ### `benchmarks/`
 
 Contains the definitions of benchmark problems. Each benchmark is a self-contained submodule that specifies: the problem statement, the parametric space, the data generation protocol, the train/val/test split, and references to its associated dataset.

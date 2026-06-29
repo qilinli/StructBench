@@ -66,6 +66,8 @@ What becomes easier, harder, or constrained as a result.
 | 0015 | v0.1 ships existing LS-DYNA datasets as benchmarks with prior-paper GNN baselines (supersedes 0003) | Durable | Accepted |
 | 0016 | LS-DYNA d3plot is the canonical ingestion path; general adapter on lasso-python | Durable | Accepted |
 | 0017 | Relationship to NVIDIA PhysicsNeMo: independent substrate, opt-in model-edge interop | Durable | Accepted |
+| 0018 | PyTorch + PyG are hard runtime dependencies of the ML layer | Durable | Proposed |
+| 0019 | v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol | Durable | Proposed |
 
 ---
 
