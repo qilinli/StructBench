@@ -196,7 +196,7 @@ class LearnedSimulator(nn.Module):
                 torch.LongTensor([i for _ in range(n)])
                 for i, n in enumerate(nparticles_per_example)
             ]
-        ).to(self._device)
+        ).to(positions.device)
 
         # Native radius graph: edge_index[0] is the central node i, edge_index[1]
         # its neighbour j (distance <= radius); shape (2, nedges).

@@ -1,6 +1,9 @@
 # Scratch / unfinished work
 scratch/
 
+# Training run outputs (checkpoints, configs — not tracked)
+runs/
+
 # Python
 __pycache__/
 *.py[cod]

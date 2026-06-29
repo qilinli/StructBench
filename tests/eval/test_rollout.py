@@ -22,8 +22,13 @@ def test_rollout_is_exact_for_constant_velocity():
     T, P = 6, 4
     pos = np.zeros((T, P, 2), dtype=np.float32)
     pos[:, :, 0] = np.arange(T)[:, None]  # const velocity +1 in x
-    traj = CaseTrajectory("a", pos, np.ones(P, np.int64),
-                          np.zeros((T, P), np.float32), np.arange(T, dtype=float))
+    traj = CaseTrajectory(
+        "a",
+        pos,
+        np.ones(P, np.int64),
+        np.zeros((T, P), np.float32),
+        np.arange(T, dtype=float),
+    )
     res = rollout(_ConstVelSim(), traj, window=3)
     assert isinstance(res, RolloutResult)
     assert res.predicted_positions.shape == (T, P, 2)

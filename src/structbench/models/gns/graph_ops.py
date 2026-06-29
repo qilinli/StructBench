@@ -43,10 +43,14 @@ def radius_graph(
     are kept per ``i``; when more candidates qualify, the *nearest* ones are
     retained.  A self-loop ``(i, i)`` is included when ``loop`` is ``True``.
 
-    This replicates the convention of ``torch_geometric.nn.radius_graph`` as
-    consumed by :class:`~structbench.models.gns.simulator.LearnedSimulator`:
-    ``edge_index[0]`` holds the central node ``i`` (the row / receiver) and
-    ``edge_index[1]`` holds its neighbour ``j`` (the column / sender).
+    The returned orientation is ``edge_index[0] = query node i`` (receiver) and
+    ``edge_index[1] = neighbour j`` (sender), as consumed by
+    :class:`~structbench.models.gns.simulator.LearnedSimulator`.  Note that
+    ``torch_geometric.nn.radius_graph`` returns the *transpose* of this
+    convention, and under ``max_num_neighbors`` truncation the two are not
+    identical (nearest-neighbour selection depends on the query direction).
+    PyG-trained weights should therefore **not** be loaded into a model trained
+    with this operator, and vice versa.
 
     Parameters
     ----------
@@ -124,9 +128,7 @@ def radius_graph(
         # so query nodes with fewer than ``keep`` neighbours contribute fewer
         # edges (and isolated nodes contribute none).
         valid = torch.isfinite(nearest_dist)
-        rows = (
-            torch.arange(start, end, device=device).unsqueeze(1).expand(-1, keep)
-        )
+        rows = torch.arange(start, end, device=device).unsqueeze(1).expand(-1, keep)
         row_blocks.append(rows[valid])
         col_blocks.append(nearest_col[valid])
 

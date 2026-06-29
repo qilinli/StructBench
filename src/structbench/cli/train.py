@@ -300,12 +300,15 @@ def _stats_to_dict(stats: NormalizationStats) -> dict[str, dict[str, Tensor]]:
 
 
 def _n_particle_types(trajectories: list[CaseTrajectory]) -> int:
-    """Particle-type count as ``max(type) + 1`` over all trajectories.
+    """Particle-type count as ``max(part_id) + 1`` over all trajectories.
 
     Using ``max + 1`` (rather than the number of distinct values) keeps every
-    raw LS-DYNA ``part_id`` a valid embedding index. For the single-material
-    Taylor benchmark this yields a single effective type and no embedding when
-    the ids are zero-based.
+    raw LS-DYNA ``part_id`` a valid embedding index without remapping.  An
+    embedding is created whenever any ``part_id`` is greater than zero — i.e.
+    ``n_particle_types > 1`` — so the Taylor benchmark (whose raw LS-DYNA part
+    ids are *not* zero-based) does use an embedding.  Non-contiguous or
+    large raw part ids will oversize the embedding table; remapping ids to a
+    compact range is a known deferred robustness item.
     """
     global_max = 0
     for tr in trajectories:
@@ -497,9 +500,7 @@ def _write_resolved_config(
 
 def _find_checkpoint(out_dir: Path) -> Path | None:
     """Return the most recently modified ``model-*.pt`` in ``out_dir``."""
-    checkpoints = sorted(
-        out_dir.glob("model-*.pt"), key=lambda p: p.stat().st_mtime
-    )
+    checkpoints = sorted(out_dir.glob("model-*.pt"), key=lambda p: p.stat().st_mtime)
     return checkpoints[-1] if checkpoints else None
 
 

@@ -10,8 +10,9 @@ def _traj(case_id, P, T=6):
     pos = np.zeros((T, P, 2), dtype=np.float32)
     pos[:, :, 0] = np.arange(T)[:, None]  # moves +1 mm/frame in x
     vm = np.zeros((T, P), dtype=np.float32)
-    return CaseTrajectory(case_id, pos, np.ones(P, np.int64), vm,
-                          np.arange(T, dtype=np.float64))
+    return CaseTrajectory(
+        case_id, pos, np.ones(P, np.int64), vm, np.arange(T, dtype=np.float64)
+    )
 
 
 def test_window_dataset_sample_shapes_and_target():
@@ -31,6 +32,4 @@ def test_collate_concatenates_particles():
     batch = next(iter(loader))
     # two examples with 5 and 4 particles -> 9 rows
     assert batch["position_seq"].shape == (9, 3, 2)
-    torch.testing.assert_close(
-        batch["n_particles_per_example"], torch.tensor([5, 4])
-    )
+    torch.testing.assert_close(batch["n_particles_per_example"], torch.tensor([5, 4]))

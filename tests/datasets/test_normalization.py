@@ -10,8 +10,13 @@ def _const_accel_traj():
     t = np.arange(T)
     pos = np.zeros((T, P, 2), dtype=np.float32)
     pos[:, :, 0] = (0.5 * 2.0 * t**2)[:, None]
-    return CaseTrajectory("c", pos, np.ones(P, np.int64),
-                          np.zeros((T, P), np.float32), t.astype(np.float64))
+    return CaseTrajectory(
+        "c",
+        pos,
+        np.ones(P, np.int64),
+        np.zeros((T, P), np.float32),
+        t.astype(np.float64),
+    )
 
 
 def test_compute_stats_constant_acceleration():

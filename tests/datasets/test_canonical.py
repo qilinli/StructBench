@@ -59,7 +59,7 @@ def _sph_case(tmp_path):
 def test_load_case_trajectory_sph_only_in_mm_and_mpa(tmp_path):
     traj = load_case_trajectory(_sph_case(tmp_path))
     assert isinstance(traj, CaseTrajectory)
-    assert traj.positions.shape == (2, 3, 2)          # SPH particles only
+    assert traj.positions.shape == (2, 3, 2)  # SPH particles only
     np.testing.assert_allclose(traj.positions[0, 1], [1.0, 0.0])  # 1 mm
     np.testing.assert_allclose(traj.positions[1, 0], [2.0, 0.0])  # +2 mm disp
     assert traj.von_mises.shape == (2, 3)

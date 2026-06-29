@@ -24,7 +24,7 @@ def test_field_rmse_per_frame():
 
 def test_qois_use_last_frame_extents():
     pos = np.zeros((1, 4, 2))
-    pos[0, :, 0] = [0, 10, 5, 5]   # x extent 10
-    pos[0, :, 1] = [-3, 3, 0, 0]   # y extent 6
+    pos[0, :, 0] = [0, 10, 5, 5]  # x extent 10
+    pos[0, :, 1] = [-3, 3, 0, 0]  # y extent 6
     assert final_length(pos) == 10.0
     assert mushroom_width(pos) == 6.0

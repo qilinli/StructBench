@@ -35,8 +35,10 @@ class NormalizationStats:
         """Read stats back from a ``.npz`` file written by :meth:`save`."""
         d = np.load(path)
         return cls(
-            d["velocity_mean"], d["velocity_std"],
-            d["acceleration_mean"], d["acceleration_std"],
+            d["velocity_mean"],
+            d["velocity_std"],
+            d["acceleration_mean"],
+            d["acceleration_std"],
         )
 
 
@@ -70,6 +72,8 @@ def compute_stats(trajectories: list[CaseTrajectory]) -> NormalizationStats:
     v_all = np.concatenate(vels, axis=0)
     a_all = np.concatenate(accs, axis=0)
     return NormalizationStats(
-        velocity_mean=v_all.mean(0), velocity_std=v_all.std(0),
-        acceleration_mean=a_all.mean(0), acceleration_std=a_all.std(0),
+        velocity_mean=v_all.mean(0),
+        velocity_std=v_all.std(0),
+        acceleration_mean=a_all.mean(0),
+        acceleration_std=a_all.std(0),
     )
