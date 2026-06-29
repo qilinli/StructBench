@@ -13,6 +13,7 @@ authors = [{ name = "Qilin Li" }]
 dependencies = [
     "numpy>=1.26",
     "h5py>=3.10",
+    "lasso-python>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -45,7 +46,7 @@ warn_redundant_casts = true
 ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
-module = ["h5py.*"]
+module = ["h5py.*", "lasso.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

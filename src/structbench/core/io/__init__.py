@@ -33,6 +33,27 @@ from ..schema import (
     Response,
 )
 from ..validation import validate
+from .lsdyna import (
+    build_case,
+    extract_geometry,
+    extract_response,
+    lsdyna_to_case,
+    parse_deck_materials,
+    read_d3plot,
+    unit_factors,
+)
+
+__all__ = [
+    "read_case",
+    "write_case",
+    "lsdyna_to_case",
+    "read_d3plot",
+    "build_case",
+    "extract_geometry",
+    "extract_response",
+    "parse_deck_materials",
+    "unit_factors",
+]
 
 _STR_DT = h5py.string_dtype(encoding="utf-8")
 _GZIP_LEVEL = 4

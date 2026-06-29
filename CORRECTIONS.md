@@ -29,4 +29,5 @@ Append-only log, one entry per line:
 
 ## Entries
 
-*(none yet)*
+- 2026-06-29 | active | Don't run recursive filesystem scans (`find`, `Get-ChildItem -Recurse`, broad globs) over the OneDrive `../data` tree — they force OneDrive to hydrate/download cloud-only files (d3plots are 100+ MB each). Access only specific, known paths.
+- 2026-06-29 | active | Ingestion keeps the solver's full tensor component count (6-component Voigt stress/strain) even for 2D cases — extract-everything (ADR-0016 §4) overrides ADR-0012's "4 in 2D" prose. Reconcile the ADR-0012 text in a later distillation pass.
