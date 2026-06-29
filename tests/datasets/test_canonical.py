@@ -1,0 +1,67 @@
+import numpy as np
+
+from structbench.core import (
+    Case,
+    ElementBlock,
+    Material,
+    Metadata,
+    Nodes,
+    Response,
+    write_case,
+)
+from structbench.datasets.canonical import (
+    CaseTrajectory,
+    load_case_trajectory,
+    von_mises_from_voigt,
+)
+
+
+def test_von_mises_uniaxial_equals_axial_stress():
+    s = np.zeros((1, 6))
+    s[0, 0] = 250.0  # pure sigma_xx
+    np.testing.assert_allclose(von_mises_from_voigt(s), [250.0], rtol=1e-6)
+
+
+def _sph_case(tmp_path):
+    # 3 SPH particles + 1 shell node, 2 frames, SI units.
+    coords = np.array([[0.0, 0.0], [1e-3, 0.0], [0.0, 1e-3], [5e-3, 5e-3]])
+    disp = np.zeros((2, 4, 2), dtype=np.float32)
+    disp[1, :3, 0] = 2e-3  # +2 mm in x at frame 1, SPH particles only
+    stress = np.zeros((2, 3, 6), dtype=np.float32)
+    stress[1, :, 0] = 300e6  # 300 MPa sigma_xx at frame 1
+    case = Case(
+        metadata=Metadata(case_id="T-test", dimension=2, source_units="g-mm-ms"),
+        nodes=Nodes(coords=coords, node_id=np.arange(1, 5, dtype=np.int64)),
+        elements={
+            "sph": ElementBlock(
+                connectivity=np.arange(3, dtype=np.int64).reshape(3, 1),
+                element_id=np.arange(1, 4, dtype=np.int64),
+                part_id=np.ones(3, dtype=np.int64),
+            ),
+            "shell": ElementBlock(
+                connectivity=np.array([[3, 3, 3, 3]], dtype=np.int64),
+                element_id=np.array([99], dtype=np.int64),
+                part_id=np.array([2], dtype=np.int64),
+            ),
+        },
+        materials=[Material(2, "MAT_ELASTIC_PLASTIC_HYDRO", {"data": [[2]]}, None)],
+        response=Response(
+            time=np.array([0.0, 2e-6]),
+            node={"displacement": disp},
+            element={"sph": {"stress": stress}},
+        ),
+    )
+    path = tmp_path / "case.h5"
+    write_case(case, path)
+    return path
+
+
+def test_load_case_trajectory_sph_only_in_mm_and_mpa(tmp_path):
+    traj = load_case_trajectory(_sph_case(tmp_path))
+    assert isinstance(traj, CaseTrajectory)
+    assert traj.positions.shape == (2, 3, 2)          # SPH particles only
+    np.testing.assert_allclose(traj.positions[0, 1], [1.0, 0.0])  # 1 mm
+    np.testing.assert_allclose(traj.positions[1, 0], [2.0, 0.0])  # +2 mm disp
+    assert traj.von_mises.shape == (2, 3)
+    np.testing.assert_allclose(traj.von_mises[1], [300.0, 300.0, 300.0])  # MPa
+    np.testing.assert_array_equal(traj.particle_type, [1, 1, 1])
