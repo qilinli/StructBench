@@ -1,6 +1,6 @@
 # 0020 — Native radius_graph; no graph-backend binary dependency
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-06-29
 

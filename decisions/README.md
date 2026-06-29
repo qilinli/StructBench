@@ -68,7 +68,7 @@ What becomes easier, harder, or constrained as a result.
 | 0017 | Relationship to NVIDIA PhysicsNeMo: independent substrate, opt-in model-edge interop | Durable | Accepted |
 | 0018 | PyTorch + PyG are hard runtime dependencies of the ML layer | Durable | Accepted |
 | 0019 | v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol | Durable | Accepted |
-| 0020 | Native radius_graph; no graph-backend binary dependency | Durable | Proposed |
+| 0020 | Native radius_graph; no graph-backend binary dependency | Durable | Accepted |
 
 ---
 
