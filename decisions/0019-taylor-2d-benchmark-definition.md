@@ -1,6 +1,6 @@
 # 0019 — v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-06-29
 

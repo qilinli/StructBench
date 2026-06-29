@@ -1,6 +1,6 @@
 # 0018 — PyTorch + PyG are hard runtime dependencies of the ML layer
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-06-29
 

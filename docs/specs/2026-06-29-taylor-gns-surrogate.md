@@ -1,7 +1,7 @@
 # Design spec — Taylor 2D autoregressive GNS surrogate
 
-*Status: draft for review. Implements ADR-0018 (ML stack deps) and ADR-0019
-(Taylor 2D benchmark). Feeds the implementation plan (writing-plans).*
+*Status: approved; feeds the implementation plan. Implements ADR-0018 (ML stack
+deps) and ADR-0019 (Taylor 2D benchmark), both Accepted.*
 
 ---
 
