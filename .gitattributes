@@ -1,0 +1,5 @@
+# Shell and SLURM scripts must keep LF endings so they run on Linux (DUG).
+# Without this, Windows autocrlf checks them out as CRLF and Linux rejects the
+# shebang ("/bin/bash^M: bad interpreter").
+*.sh    text eol=lf
+*.slurm text eol=lf
