@@ -10,7 +10,12 @@
 set -euo pipefail
 
 # uv is the project's package manager; install it if the login node lacks it.
-command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
+# The installer drops uv in ~/.local/bin, which is NOT on this shell's PATH
+# yet -- export it, or every following uv call dies under `set -e`.
+if ! command -v uv >/dev/null; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+fi
 
 uv venv .venv --python 3.11
 # Linux CUDA torch, same version validated locally (cu126 ships a Linux wheel):

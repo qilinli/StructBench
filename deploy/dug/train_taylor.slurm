@@ -3,20 +3,24 @@
 #   mkdir -p runs/taylor-baseline
 #   sbatch deploy/dug/train_taylor.slurm
 #
-# Fill the three <...> placeholders first (partition, data path, and account if
-# your DUG project needs one). Confirm the partition + GPU gres string with:
+# Fill the <...> placeholders first (partition, GPU gres, data path, and
+# account if your DUG project needs one). Confirm partition + gres with:
 #   sinfo -o "%P %G"      # partitions and their gres (e.g. gpu:a100:2, gpu:v100:4)
 
 #SBATCH --job-name=taylor-gns
 #SBATCH --partition=<GPU_PARTITION>        # <-- from `sinfo`
-#SBATCH --gres=gpu:1                        # ONE GPU: the training loop is single-GPU (no DDP).
+#SBATCH --gres=<GPU_GRES>                   # <-- e.g. gpu:a100:1 -- ONE typed A100 80G (single-GPU
+                                            # loop, no DDP). Use untyped gpu:1 ONLY on an A100-only
+                                            # partition: a mixed partition can hand you a 16 GB V100,
+                                            # which is marginal for the batch-32 run (~14 GB) and slow.
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
-#SBATCH --time=24:00:00                     # generous; best checkpoint is saved every 2000 steps,
-                                            # so an early stop / timeout still yields a usable model.
+#SBATCH --time=24:00:00                     # hard budget: training has NO resume. The best checkpoint
+                                            # (saved whenever validation improves; first at step 2000)
+                                            # survives a timeout, but a rerun needs a FRESH --out
+                                            # (train refuses a dir that already holds checkpoints).
 #SBATCH --output=slurm-taylor-%j.out        # written to the submit dir (always exists)
 # #SBATCH --account=<PROJECT>              # uncomment if your DUG project requires it
-# #SBATCH --gres=gpu:a100:1                # prefer the A100 80G if GPUs are typed (confirm the string)
 
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
@@ -31,6 +35,9 @@ python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.ge
 
 # train -> best checkpoint + config.json + normalization_stats.npz
 python -m structbench.cli.train --mode train   --config configs/taylor_2d.toml --data-root "$DATA" --out runs/taylor-baseline
-# eval on the held-out splits (numbers go to the slurm log)
-python -m structbench.cli.train --mode valid   --config configs/taylor_2d.toml --data-root "$DATA" --out runs/taylor-baseline
-python -m structbench.cli.train --mode rollout --config configs/taylor_2d.toml --data-root "$DATA" --out runs/taylor-baseline
+# eval on the held-out splits: ADR-0019 metrics go to the slurm log AND to
+# runs/taylor-baseline/metrics-*.json + rollouts/*.npz. The architecture is
+# rebuilt from the run's own config.json, so no --config here. If the train
+# step is killed by walltime these never run -- rerun just these two lines.
+python -m structbench.cli.train --mode valid   --data-root "$DATA" --out runs/taylor-baseline
+python -m structbench.cli.train --mode rollout --data-root "$DATA" --out runs/taylor-baseline
