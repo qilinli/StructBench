@@ -62,6 +62,30 @@ def test_radius_graph_loop_false_drops_self_edges():
     assert all(i != j for i, j in edges)
 
 
+def test_radius_graph_batched_equals_per_example_union():
+    # The batched call must produce exactly the union of per-example calls
+    # (with indices offset back to global) — the invariant that lets the
+    # implementation compute distances per example instead of across the
+    # whole concatenated batch. Examples differ in size, and one batch id is
+    # non-contiguous to pin the general contract, not just collate's layout.
+    torch.manual_seed(0)
+    examples = [torch.rand(7, 2), torch.rand(3, 2), torch.rand(5, 2)]
+    pos = torch.cat(examples)
+    batch = torch.tensor([0] * 7 + [2] * 3 + [1] * 5)  # ids not consecutive
+
+    batched = _edge_set(radius_graph(pos, r=0.4, batch=batch, max_num_neighbors=4))
+
+    expected = set()
+    offset = 0
+    for example in examples:
+        zeros = torch.zeros(example.shape[0], dtype=torch.long)
+        local = radius_graph(example, r=0.4, batch=zeros, max_num_neighbors=4)
+        expected |= {(i + offset, j + offset) for i, j in _edge_set(local)}
+        offset += example.shape[0]
+
+    assert batched == expected
+
+
 def test_radius_graph_max_num_neighbors_keeps_nearest():
     # Node 0 has three candidates within r (0.5, 1.0, 1.4 away). With a cap of
     # 2 it keeps the two nearest: itself (distance 0) and node 1 (distance 0.5).

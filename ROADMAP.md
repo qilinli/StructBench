@@ -40,10 +40,9 @@ committed (ADR-0015) but move to v0.2+.
       code + protocol complete, 65 tests green
 - [x] **Config-driven pipeline** (`structbench-train`: train/valid/rollout,
       run-dir contract, metrics artifacts)
-- [ ] **radius_graph batch-partition fix** (identified 2026-07-02: the op is
-      O((B·N)²) across the concatenated batch — 224× slower than per-example
-      at batch 32; ~20 lines behind the same interface; must land before the
-      training run)
+- [x] **radius_graph batch-partition fix** (landed 2026-07-02: search now
+      grouped per example — 50.9 s → 0.22 s per batch-32 graph build,
+      identical edges, same interface)
 - [ ] **Trained single-scale GNS baseline** with checkpoint + recorded
       ADR-0019 metrics (DUG run; human-gated SSH-side steps)
 - [ ] **Public GitHub release** (out-of-session human action)

@@ -7,23 +7,27 @@ torch build this project pins; building the neighbour graph in plain ``torch``
 keeps StructBench installable from wheels on both CPU and CUDA without any extra
 dependency (see Task 7).
 
-The implementation is brute-force: it materialises pairwise distances between a
-chunk of query nodes and *all* nodes, so compute scales as ``O(N**2)`` in the
-number of nodes ``N``.  Memory is bounded by processing the query nodes in
-chunks (see :data:`_QUERY_CHUNK_SIZE`), giving a peak of ``O(chunk * N)`` rather
-than ``O(N**2)``.  For datasets beyond roughly ``1e6`` nodes this quadratic
-compute becomes the bottleneck; the remedy is to swap in a spatial-grid /
-cell-list backend *behind this exact interface* so callers are unaffected.  That
-acceleration is intentionally not built yet (YAGNI): the v0.1 benchmark cases
-are far smaller, and a premature spatial index would add complexity with no
-present payoff.
+The implementation is brute-force *within each example*: nodes are grouped by
+their ``batch`` id and pairwise distances are materialised only inside each
+example, so compute scales as ``O(sum_i n_i**2)`` over the per-example node
+counts ``n_i`` — not ``O(N_total**2)`` over the concatenated batch.  Since
+cross-example edges are forbidden by contract, distances across examples are
+never computed at all (computing and masking them cost ~224x at training batch
+32, measured 2026-07-02).  Memory is bounded by processing each example's query
+nodes in chunks (see :data:`_QUERY_CHUNK_SIZE`), giving a peak of
+``O(chunk * max_i n_i)``.  For per-example node counts beyond roughly ``1e6``
+the quadratic compute becomes the bottleneck; the remedy is to swap in a
+spatial-grid / cell-list backend *behind this exact interface* so callers are
+unaffected.  That acceleration is intentionally not built yet (YAGNI): the v0.1
+benchmark cases are far smaller, and a premature spatial index would add
+complexity with no present payoff.
 """
 
 import torch
 from torch import Tensor
 
 # Number of query nodes processed per distance-matrix block.  Caps peak memory
-# at ``O(_QUERY_CHUNK_SIZE * N)`` regardless of the total node count ``N``.
+# at ``O(_QUERY_CHUNK_SIZE * n_i)`` where ``n_i`` is the example's node count.
 _QUERY_CHUNK_SIZE = 4096
 
 
@@ -80,12 +84,14 @@ def radius_graph(
 
     Notes
     -----
-    Compute is ``O(n_nodes**2)`` because distances to all nodes are evaluated
-    for every query node; peak memory is bounded to ``O(_QUERY_CHUNK_SIZE *
-    n_nodes)`` by chunking the query nodes.  For ``n_nodes`` beyond roughly
-    ``1e6`` replace this brute-force backend with a spatial-grid / cell-list
-    implementation behind the same signature.  Edge ordering is unspecified;
-    consumers must not rely on it.
+    Nodes are grouped by ``batch`` id and searched within their example only —
+    cross-example distances are never computed (they can never be edges).
+    Compute is ``O(sum_i n_i**2)`` over per-example node counts; peak memory is
+    bounded to ``O(_QUERY_CHUNK_SIZE * max_i n_i)`` by chunking each example's
+    query nodes.  For per-example counts beyond roughly ``1e6`` replace this
+    brute-force backend with a spatial-grid / cell-list implementation behind
+    the same signature.  Edge ordering is unspecified; consumers must not rely
+    on it.
     """
     if pos.dim() != 2:
         raise ValueError(
@@ -97,39 +103,42 @@ def radius_graph(
     if n_nodes == 0:
         return torch.empty((2, 0), dtype=torch.long, device=device)
 
-    # Cannot keep more neighbours than there are nodes.
-    keep = min(max_num_neighbors, n_nodes)
-
     row_blocks: list[Tensor] = []
     col_blocks: list[Tensor] = []
 
-    for start in range(0, n_nodes, _QUERY_CHUNK_SIZE):
-        end = min(start + _QUERY_CHUNK_SIZE, n_nodes)
-        chunk = end - start
+    for example_id in torch.unique(batch):
+        # Global node indices of this example; all search happens inside it.
+        (example_idx,) = torch.where(batch == example_id)
+        example_pos = pos[example_idx]
+        n_example = example_idx.numel()
+        # Cannot keep more neighbours than the example has nodes.
+        keep = min(max_num_neighbors, n_example)
 
-        # Pairwise Euclidean distances from this block of query nodes to all
-        # nodes: shape (chunk, n_nodes).  This is the O(chunk * n_nodes) term.
-        dist = torch.cdist(pos[start:end], pos)
+        for start in range(0, n_example, _QUERY_CHUNK_SIZE):
+            end = min(start + _QUERY_CHUNK_SIZE, n_example)
+            chunk = end - start
 
-        # A query may only connect to nodes in the same example.
-        same_example = batch[start:end].unsqueeze(1) == batch.unsqueeze(0)
-        within = (dist <= r) & same_example
+            # Pairwise distances from this block of query nodes to the
+            # example's nodes: shape (chunk, n_example) — the O(chunk * n_i)
+            # term. Other examples are never touched.
+            dist = torch.cdist(example_pos[start:end], example_pos)
+            within = dist <= r
 
-        if not loop:
-            local = torch.arange(chunk, device=device)
-            within[local, torch.arange(start, end, device=device)] = False
+            if not loop:
+                local = torch.arange(chunk, device=device)
+                within[local, torch.arange(start, end, device=device)] = False
 
-        # Push invalid candidates to +inf so the nearest valid neighbours are
-        # the smallest entries; take the closest ``keep`` per query node.
-        masked = torch.where(within, dist, torch.full_like(dist, float("inf")))
-        nearest_dist, nearest_col = torch.topk(masked, k=keep, dim=1, largest=False)
+            # Push invalid candidates to +inf so the nearest valid neighbours
+            # are the smallest entries; take the closest ``keep`` per query.
+            masked = torch.where(within, dist, torch.full_like(dist, float("inf")))
+            nearest_dist, nearest_col = torch.topk(masked, k=keep, dim=1, largest=False)
 
-        # Finite distances mark genuine neighbours; +inf padding is discarded,
-        # so query nodes with fewer than ``keep`` neighbours contribute fewer
-        # edges (and isolated nodes contribute none).
-        valid = torch.isfinite(nearest_dist)
-        rows = torch.arange(start, end, device=device).unsqueeze(1).expand(-1, keep)
-        row_blocks.append(rows[valid])
-        col_blocks.append(nearest_col[valid])
+            # Finite distances mark genuine neighbours; +inf padding is
+            # discarded, so query nodes with fewer than ``keep`` neighbours
+            # contribute fewer edges (and isolated nodes contribute none).
+            valid = torch.isfinite(nearest_dist)
+            rows = example_idx[start:end].unsqueeze(1).expand(-1, keep)
+            row_blocks.append(rows[valid])
+            col_blocks.append(example_idx[nearest_col[valid]])
 
     return torch.stack([torch.cat(row_blocks), torch.cat(col_blocks)], dim=0)
