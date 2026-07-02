@@ -37,7 +37,7 @@ committed (ADR-0015) but move to v0.2+.
 - [x] **General LS-DYNA adapter** (ADR-0016) — proven on two dataset families
       (Taylor 2D sweep; NB concrete-beam case ingested unchanged 2026-07-02)
 - [x] **Taylor 2D benchmark** (ADR-0019): fixed split, eval protocol, QoIs —
-      code + protocol complete, 65 tests green
+      code + protocol complete, 66 tests green
 - [x] **Config-driven pipeline** (`structbench-train`: train/valid/rollout,
       run-dir contract, metrics artifacts)
 - [x] **radius_graph batch-partition fix** (landed 2026-07-02: search now

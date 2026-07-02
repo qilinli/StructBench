@@ -14,8 +14,8 @@ account). Find the partition + GPU gres string with `sinfo -o "%P %G"`.
 ## 1. Copy code + data up (from your Windows machine, Git Bash)
 
 ```bash
-REPO="C:/Users/kylin/OneDrive - Curtin/research/civil_engineering/StructBench"
-DATA="C:/Users/kylin/OneDrive - Curtin/research/civil_engineering/data/2D-Copper-Bar-Taylor-Impact/h5_canonical"
+REPO="<path-to-local>/StructBench"
+DATA="<path-to-local>/data/2D-Copper-Bar-Taylor-Impact/h5_canonical"
 
 rsync -avP "$REPO/" <user>@<dug-host>:<proj>/structbench/ \
   --exclude '.venv' --exclude 'runs' --exclude '.git' \
@@ -27,7 +27,7 @@ For the data, `rclone` on the DUG side is the alternative that avoids hydrating
 the OneDrive files locally first — with a OneDrive remote configured there:
 
 ```bash
-rclone copy onedrive:"research/civil_engineering/data/2D-Copper-Bar-Taylor-Impact/h5_canonical" \
+rclone copy onedrive:"<path-to>/2D-Copper-Bar-Taylor-Impact/h5_canonical" \
   <proj>/data/h5_canonical --progress --transfers=8
 ```
 
