@@ -1,6 +1,6 @@
 # 0021 — v0.1 narrows to Taylor 2D; the portfolio spreads across releases
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-07-02
 

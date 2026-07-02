@@ -16,7 +16,7 @@ HARNESS.md carries the principles (*why* rules exist); this file carries the mec
 
 StructBench is an open platform for data-driven structural engineering — benchmarks, reference models, and eventually deployment tools. Run by Qilin Li (human) and Claude Code (agent) together under the philosophy in HARNESS.md.
 
-Current stage: pre-v0.1. Foundational documents and ADRs are largely in place; the case schema and canonical HDF5 I/O have a first slice in `core/`. v0.1 will ship a portfolio of existing LS-DYNA datasets (Taylor 2D, RC beam, segmented beam) as benchmarks, with prior-paper GNNs as baselines, ingested via a general `core/io/lsdyna.py` adapter built on `lasso-python` (see ADR-0015 and ADR-0016).
+Current stage: pre-v0.1, release imminent. The substrate is built end to end: canonical case schema + HDF5 I/O in `core/`, the general LS-DYNA adapter (`core/io/lsdyna.py`, on `lasso-python`, ADR-0016), the Taylor 2D benchmark (ADR-0019) with its single-scale GNS baseline, and the config-driven pipeline (`structbench-train`). Per ADR-0021 (amending ADR-0015's release sequencing), **v0.1 ships the Taylor 2D benchmark only**, as a public GitHub repository — remaining items are the trained baseline (DUG run) and publication, both human actions. The RC beam and segmented-beam benchmarks with their prior-paper GNN baselines follow in v0.2+ (ADR-0015's portfolio stands). See ROADMAP.md for sequencing.
 
 ---
 

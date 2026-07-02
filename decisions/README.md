@@ -63,13 +63,13 @@ What becomes easier, harder, or constrained as a result.
 | 0012 | Case schema field-level structure | Durable | Accepted |
 | 0013 | HDF5 persistence layout for the case schema | Durable | Accepted |
 | 0014 | StructBench is the substrate layer of a broader research program | Durable | Accepted |
-| 0015 | v0.1 ships existing LS-DYNA datasets as benchmarks with prior-paper GNN baselines (supersedes 0003) | Durable | Accepted |
+| 0015 | v0.1 ships existing LS-DYNA datasets as benchmarks with prior-paper GNN baselines (supersedes 0003) | Durable | Accepted (amended by 0021) |
 | 0016 | LS-DYNA d3plot is the canonical ingestion path; general adapter on lasso-python | Durable | Accepted |
 | 0017 | Relationship to NVIDIA PhysicsNeMo: independent substrate, opt-in model-edge interop | Durable | Accepted |
 | 0018 | PyTorch + PyG are hard runtime dependencies of the ML layer | Durable | Accepted |
 | 0019 | v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol | Durable | Accepted |
 | 0020 | Native radius_graph; no graph-backend binary dependency | Durable | Accepted |
-| 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Proposed |
+| 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
 
 ---
 

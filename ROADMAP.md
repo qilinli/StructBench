@@ -6,9 +6,8 @@ git history is the record. Decisions and their rationale live in `decisions/`
 — this file only sequences them and tracks status. Read at session start when
 the session is about planning or scoping (CLAUDE.md).*
 
-*Last revised: 2026-07-02 — v0.1 scope settled by the maintainer (Taylor-only,
-GitHub release, no paper; ADR-0021 Proposed); MS-GNS confirmed out of v0.1;
-dataset hosting still open.*
+*Last revised: 2026-07-02 — ADR-0021 **Accepted** (v0.1 = Taylor-only, GitHub
+release, no paper); MS-GNS confirmed out of v0.1; dataset hosting still open.*
 
 ---
 
@@ -112,7 +111,6 @@ Sequenced roughly; each becomes its own ADR/spec when picked up.
 
 | Item | Waiting on |
 |---|---|
-| ADR-0021 finalisation | human accepts (or amends) the Proposed draft |
 | Taylor baseline DUG run | SSH-side steps (partition/gres via `sinfo`, placeholders, rclone/rsync, smoke, sbatch) |
 | v0.1 GitHub publication | out-of-session human action (after the trained baseline lands) |
 | MS-GNS implementation | approval (or amendment) of the Proposed spec |
