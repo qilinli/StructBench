@@ -6,7 +6,9 @@ git history is the record. Decisions and their rationale live in `decisions/`
 — this file only sequences them and tracks status. Read at session start when
 the session is about planning or scoping (CLAUDE.md).*
 
-*Last revised: 2026-07-02 (drafted by Claude Code; pending human review).*
+*Last revised: 2026-07-02 — v0.1 scope settled by the maintainer (Taylor-only,
+GitHub release, no paper; ADR-0021 Proposed); MS-GNS confirmed out of v0.1;
+dataset hosting still open.*
 
 ---
 
@@ -21,44 +23,36 @@ they live in separate repositories and consume StructBench artefacts.
 
 ---
 
-## Milestone: v0.1 — the substrate proof (current focus)
+## Milestone: v0.1 — the Taylor substrate proof (current focus)
 
-Per ADR-0015: a portfolio of existing LS-DYNA datasets shipped as benchmarks,
-each paired with a prior-paper GNN baseline, ingested through the general
-adapter into the canonical format.
+Per ADR-0021 (amending ADR-0015's release sequencing): **v0.1 is a running,
+provable pipeline for the Taylor 2D impact benchmark**, released as a public
+GitHub repository. No paper. The RC beam and segmented-beam benchmarks remain
+committed (ADR-0015) but move to v0.2+.
 
-### Definition of done (proposed — confirm or amend)
+### Definition of done (per ADR-0021)
 
-- [ ] **Three benchmarks** with fixed splits, eval protocols, and QoIs:
-  - [x] Taylor 2D (ADR-0019; code + protocol complete, 65 tests green)
-  - [ ] RC beam — *data located, designation pending (see Parked)*
-  - [ ] Segmented beam — *dataset not yet identified in the archive*
-- [ ] **One trained baseline per benchmark**, with training code, config,
-  checkpoint, and reported ADR-0019-style metrics:
-  - [ ] Taylor 2D single-scale GNS — code complete; full training run parked
-        (DUG); **blocked by the radius_graph batch-partition fix** (identified
-        2026-07-02: current op is O((B·N)²) across the concatenated batch,
-        224× slower than per-example at batch 32 — must land first)
-  - [ ] RC beam baseline (port of its prior-paper GNN — repo TBC)
-  - [ ] Segmented beam baseline (ditto)
 - [x] **Canonical case format** (ADR-0011/0012/0013) with round-trip-tested
       HDF5 I/O
-- [x] **General LS-DYNA adapter** (ADR-0016) — proven on two datasets
+- [x] **General LS-DYNA adapter** (ADR-0016) — proven on two dataset families
       (Taylor 2D sweep; NB concrete-beam case ingested unchanged 2026-07-02)
-- [ ] **Batch-conversion glue** per dataset under `data_generation/lsdyna/`
-      (Taylor done; others follow designation)
-- [ ] **Release form** — *open question below: what does "ship" mean for
-      v0.1 (public repo? PyPI? checkpoint hosting? a paper?)*
+- [x] **Taylor 2D benchmark** (ADR-0019): fixed split, eval protocol, QoIs —
+      code + protocol complete, 65 tests green
+- [x] **Config-driven pipeline** (`structbench-train`: train/valid/rollout,
+      run-dir contract, metrics artifacts)
+- [ ] **radius_graph batch-partition fix** (identified 2026-07-02: the op is
+      O((B·N)²) across the concatenated batch — 224× slower than per-example
+      at batch 32; ~20 lines behind the same interface; must land before the
+      training run)
+- [ ] **Trained single-scale GNS baseline** with checkpoint + recorded
+      ADR-0019 metrics (DUG run; human-gated SSH-side steps)
+- [ ] **Public GitHub release** (out-of-session human action)
 
-### In-flight / proposed within v0.1
+### Explicitly not in v0.1
 
-| Item | Status | Gate |
-|---|---|---|
-| radius_graph batch-partition fix | identified, ~20 lines, TDD | none — next code slice |
-| Taylor full baseline run on DUG | recipe ready (`deploy/dug/`) | human: SSH, placeholders, data transfer, smoke, sbatch |
-| MS-GNS second Taylor baseline | spec + plan committed (Proposed) | human approval of `docs/specs/2026-07-02-taylor-multiscale-gns.md` |
-| RC beam ingestion + benchmark ADR | adapter proven; glue is quick | human: designate dataset + prior-model repo |
-| Segmented beam | not started | human: identify dataset |
+MS-GNS second baseline (Proposed spec stands on its own); RC beam and
+segmented-beam benchmarks (v0.2+); a paper; PyPI packaging (undecided,
+not required).
 
 ---
 
@@ -66,6 +60,15 @@ adapter into the canonical format.
 
 Sequenced roughly; each becomes its own ADR/spec when picked up.
 
+- **RC beam benchmark** (moved from v0.1 by ADR-0021): designate the dataset
+  + prior-model repo (evidence so far:
+  `Concrete-Beam/Concrete_simulation_constantV1-16` + `2DNotchBeam`, prior
+  model likely `code/gns-errosion`); the adapter already ingests the data
+  unchanged, so glue + benchmark ADR + baseline port is the work.
+- **Segmented beam benchmark** (moved from v0.1 by ADR-0021): dataset not
+  yet identified in the archive.
+- **MS-GNS second Taylor baseline**: spec + plan committed (Proposed),
+  awaiting approval — confirmed out of v0.1.
 - **Data-generation autonomy** (ADR-0015 §3 deferral): deck-templating with
   collaborator buy-in for scripted batch runs, or a Python-native solver.
   Unblocks dataset expansion beyond what collaborators have produced.
@@ -110,19 +113,22 @@ Sequenced roughly; each becomes its own ADR/spec when picked up.
 
 | Item | Waiting on |
 |---|---|
+| ADR-0021 finalisation | human accepts (or amends) the Proposed draft |
 | Taylor baseline DUG run | SSH-side steps (partition/gres via `sinfo`, placeholders, rclone/rsync, smoke, sbatch) |
+| v0.1 GitHub publication | out-of-session human action (after the trained baseline lands) |
 | MS-GNS implementation | approval (or amendment) of the Proposed spec |
-| RC beam benchmark | which dataset + which prior-model repo (evidence so far: `Concrete-Beam/Concrete_simulation_constantV1-16` + `2DNotchBeam`, prior model likely `code/gns-errosion`) |
-| Segmented beam benchmark | dataset identification in `../data/` |
-| v0.1 release form | open questions below |
+| RC beam benchmark (v0.2) | dataset + prior-model designation |
+| Segmented beam benchmark (v0.2) | dataset identification in `../data/` |
 | ADR-0012 Voigt-component prose reconciliation | CORRECTIONS.md distillation pass |
 
-## Open scoping questions (nobody has decided these yet)
+## Open scoping questions
 
-1. **What does "ship v0.1" concretely mean?** Public GitHub repo? PyPI
-   package? Zenodo dataset DOIs? Hosted checkpoints? A datasets/benchmarks
-   paper (ADR-0015 hints the paper positions StructBench as substrate)?
-2. **Dataset hosting**: the canonical HDF5 sets are GB-scale — where do
-   released benchmarks live (Zenodo, HuggingFace datasets, institutional)?
-3. **Is MS-GNS in or out of v0.1?** ADR-0015 requires one baseline per
-   benchmark; a second Taylor baseline is enrichment, not a requirement.
+1. **Dataset hosting for released benchmarks.** All data currently lives in
+   the maintainer's OneDrive; the canonical HDF5 sets are GB-scale. How the
+   public release points at data (Zenodo DOIs, HuggingFace datasets,
+   institutional storage, on-request) is an open discussion — to be settled
+   before the GitHub release, since a benchmark repo without reachable data
+   is not usable by others.
+
+*(Resolved 2026-07-02: v0.1 release form — GitHub repo, no paper, Taylor-only
+running pipeline → ADR-0021. MS-GNS out of v0.1 → ADR-0021 §4.)*

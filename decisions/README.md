@@ -69,6 +69,7 @@ What becomes easier, harder, or constrained as a result.
 | 0018 | PyTorch + PyG are hard runtime dependencies of the ML layer | Durable | Accepted |
 | 0019 | v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol | Durable | Accepted |
 | 0020 | Native radius_graph; no graph-backend binary dependency | Durable | Accepted |
+| 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Proposed |
 
 ---
 
