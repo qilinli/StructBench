@@ -4,6 +4,7 @@ from .benchmark import (
     ALL_BENCHMARK_CASES,
     AUX_FIELD,
     HELD_ASIDE,
+    QOIS,
     TEST_EXTRAP,
     TEST_INTERP,
     TRAIN,
@@ -20,6 +21,7 @@ __all__ = [
     "HELD_ASIDE",
     "ALL_BENCHMARK_CASES",
     "AUX_FIELD",
+    "QOIS",
     "WALL_X_MM",
     "wall_distance_feature",
 ]

@@ -1,7 +1,9 @@
+import numpy as np
 import torch
 
 from structbench.benchmarks.taylor_impact_2d import (
     HELD_ASIDE,
+    QOIS,
     TEST_EXTRAP,
     TEST_INTERP,
     TRAIN,
@@ -33,3 +35,14 @@ def test_wall_distance_feature_clamps_to_radius():
     feat = wall_distance_feature(pos, radius=0.6)
     assert feat.shape == (3, 1)
     torch.testing.assert_close(feat[:, 0], torch.tensor([0.0, 0.5, 0.6]))
+
+
+def test_qois_bind_the_adr_0019_quantities():
+    # ADR-0019 §5: final bar length and mushroom width, evaluated on the last
+    # frame of a (T, P, dim) trajectory.
+    assert set(QOIS) == {"final_length", "mushroom_width"}
+    pos = np.zeros((2, 4, 2))
+    pos[-1, :, 0] = [0.0, 10.0, 5.0, 5.0]
+    pos[-1, :, 1] = [-3.0, 3.0, 0.0, 0.0]
+    assert QOIS["final_length"](pos) == 10.0
+    assert QOIS["mushroom_width"](pos) == 6.0
