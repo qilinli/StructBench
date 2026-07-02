@@ -127,5 +127,10 @@ Sequenced roughly; each becomes its own ADR/spec when picked up.
    before the GitHub release, since a benchmark repo without reachable data
    is not usable by others.
 
+*Release-history note (2026-07-02): `RESEARCH-PROGRAM.md` is untracked from
+here on, but it remains in commits before this date — so if this repository
+is ever made public directly, publish a fresh clean-cut repo from the release
+state instead of flipping this one's visibility.*
+
 *(Resolved 2026-07-02: v0.1 release form — GitHub repo, no paper, Taylor-only
 running pipeline → ADR-0021. MS-GNS out of v0.1 → ADR-0021 §4.)*

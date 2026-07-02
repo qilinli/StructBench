@@ -44,3 +44,6 @@ Thumbs.db
 
 # Subagent-driven-development scratch (ledger, briefs)
 .superpowers/
+
+# Private program-level strategy: kept local-only, never tracked (2026-07-02)
+RESEARCH-PROGRAM.md

@@ -46,3 +46,4 @@ This ADR is marked **Ephemeral** because the list is expected to change as the p
 ## Revision log
 
 - 2026-05-23 — Added `RESEARCH-PROGRAM.md` as item 3, marked context-only. See ADR-0014.
+- 2026-07-02 — `RESEARCH-PROGRAM.md` is now **local-only and untracked** (private program strategy; pre-publication decision). The reading item stands on the maintainer's machine; sessions on a clone skip it without error.

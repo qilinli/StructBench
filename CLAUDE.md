@@ -28,7 +28,7 @@ Read these files, in order, before any work begins:
 
 1. `CLAUDE.md` (this file).
 2. `VISION.md`.
-3. `RESEARCH-PROGRAM.md` — *context-only; explains the research program StructBench serves but does not define its scope (see ADR-0014)*.
+3. `RESEARCH-PROGRAM.md` — *context-only; explains the research program StructBench serves but does not define its scope (see ADR-0014). **Local-only and untracked** (private strategy, 2026-07-02): present on the maintainer's machine but absent from clones — skip without error if missing.*
 4. `HARNESS.md`.
 5. `PRINCIPLES.md` (when it exists).
 6. `CORRECTIONS.md` — all entries marked `active`.
