@@ -1,7 +1,11 @@
 import numpy as np
 
 from structbench.datasets.canonical import CaseTrajectory
-from structbench.datasets.normalization import NormalizationStats, compute_stats
+from structbench.datasets.normalization import (
+    NormalizationStats,
+    cached_compute_stats,
+    compute_stats,
+)
 
 
 def _const_accel_traj():
@@ -59,3 +63,66 @@ def test_normalization_stats_roundtrip(tmp_path):
     np.testing.assert_array_equal(back.acceleration_mean, stats.acceleration_mean)
     np.testing.assert_array_equal(back.aux_mean, stats.aux_mean)
     np.testing.assert_array_equal(back.aux_std, stats.aux_std)
+
+
+def _doctored(stats):
+    """A visibly-wrong copy of ``stats`` to plant in the cache."""
+    return NormalizationStats(
+        velocity_mean=stats.velocity_mean + 99.0,
+        velocity_std=stats.velocity_std,
+        acceleration_mean=stats.acceleration_mean,
+        acceleration_std=stats.acceleration_std,
+        aux_mean=stats.aux_mean,
+        aux_std=stats.aux_std,
+    )
+
+
+def test_cached_stats_writes_then_reuses_the_cache(tmp_path):
+    traj = _known_vm_traj()
+    first = cached_compute_stats([traj], dataset_root=tmp_path)
+    np.testing.assert_array_equal(first.aux_mean, compute_stats([traj]).aux_mean)
+
+    cache_files = list((tmp_path / "derived").glob("norm_*.npz"))
+    assert len(cache_files) == 1
+
+    # Plant doctored stats in the cache: a second call with the same case-id
+    # list must return them, proving the cache is read instead of recomputed.
+    _doctored(first).save(cache_files[0])
+    second = cached_compute_stats([traj], dataset_root=tmp_path)
+    np.testing.assert_array_equal(second.velocity_mean, first.velocity_mean + 99.0)
+
+
+def test_cached_stats_recomputes_when_case_ids_change(tmp_path):
+    traj = _known_vm_traj()  # case_id "c"
+    first = cached_compute_stats([traj], dataset_root=tmp_path)
+    cache_files = list((tmp_path / "derived").glob("norm_*.npz"))
+    _doctored(first).save(cache_files[0])
+
+    other = _known_vm_traj()
+    other.case_id = "d"  # different split -> different cache key
+    fresh = cached_compute_stats([other], dataset_root=tmp_path)
+    np.testing.assert_array_equal(fresh.velocity_mean, first.velocity_mean)
+    assert len(list((tmp_path / "derived").glob("norm_*.npz"))) == 2
+
+
+def test_cached_stats_recovers_from_corrupt_cache_file(tmp_path):
+    traj = _known_vm_traj()
+    good = cached_compute_stats([traj], dataset_root=tmp_path)
+    [cache_file] = (tmp_path / "derived").glob("norm_*.npz")
+    cache_file.write_bytes(b"truncated garbage, not a zip")
+
+    # A corrupt cache must degrade to recompute (and heal the file), not crash.
+    recovered = cached_compute_stats([traj], dataset_root=tmp_path)
+    np.testing.assert_array_equal(recovered.aux_mean, good.aux_mean)
+    healed = NormalizationStats.load(cache_file)
+    np.testing.assert_array_equal(healed.aux_mean, good.aux_mean)
+
+
+def test_cached_stats_survives_unwritable_cache(tmp_path, monkeypatch):
+    def _raise(self, path):
+        raise OSError("read-only dataset root")
+
+    monkeypatch.setattr(NormalizationStats, "save", _raise)
+    traj = _known_vm_traj()
+    stats = cached_compute_stats([traj], dataset_root=tmp_path)  # must not raise
+    np.testing.assert_array_equal(stats.aux_mean, compute_stats([traj]).aux_mean)

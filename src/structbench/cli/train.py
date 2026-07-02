@@ -50,8 +50,8 @@ from ..datasets import (
     CaseTrajectory,
     NormalizationStats,
     WindowDataset,
+    cached_compute_stats,
     collate_samples,
-    compute_stats,
     load_case_trajectory,
 )
 from ..eval import one_step_position_rmse, rollout
@@ -418,7 +418,9 @@ def train(
     train_trajs = _load_trajectories(TRAIN, data_root)
     val_trajs = _load_trajectories(VAL, data_root)
 
-    stats = compute_stats(train_trajs)
+    # Dataset-level cache (spec resolved-choice 2); the run-dir copy below is
+    # the self-contained record evaluate() reads.
+    stats = cached_compute_stats(train_trajs, dataset_root=data_root)
     stats.save(out_dir / "normalization_stats.npz")
     n_types = _n_particle_types(train_trajs)
 
