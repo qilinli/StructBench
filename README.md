@@ -89,7 +89,7 @@ filled from that run's artifacts before release.*
 ## Quickstart
 
 ```bash
-git clone https://github.com/<org>/StructBench
+git clone https://github.com/qilinli/StructBench
 cd StructBench
 pip install -e .
 ```

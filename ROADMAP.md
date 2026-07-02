@@ -44,7 +44,10 @@ committed (ADR-0015) but move to v0.2+.
       identical edges, same interface)
 - [ ] **Trained single-scale GNS baseline** with checkpoint + recorded
       ADR-0019 metrics (DUG run; human-gated SSH-side steps)
-- [ ] **Public GitHub release** (out-of-session human action)
+- [x] **Public GitHub repository** — live at
+      github.com/qilinli/StructBench (2026-07-02, pre-release)
+- [ ] **v0.1 release proper**: baseline metrics into the README table,
+      prediction-vs-truth hero GIF, dataset link, version tag (human action)
 
 ### Explicitly not in v0.1
 
@@ -112,7 +115,7 @@ Sequenced roughly; each becomes its own ADR/spec when picked up.
 | Item | Waiting on |
 |---|---|
 | Taylor baseline DUG run | SSH-side steps (partition/gres via `sinfo`, placeholders, rclone/rsync, smoke, sbatch) |
-| v0.1 GitHub publication | out-of-session human action (after the trained baseline lands) |
+| v0.1 tag + release | trained baseline metrics landing first |
 | MS-GNS implementation | approval (or amendment) of the Proposed spec |
 | RC beam benchmark (v0.2) | dataset + prior-model designation |
 | Segmented beam benchmark (v0.2) | dataset identification in `../data/` |
