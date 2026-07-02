@@ -33,11 +33,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
 from ..benchmarks.taylor_impact_2d import (
+    QOIS,
     TEST_EXTRAP,
     TEST_INTERP,
     TRAIN,
@@ -52,7 +54,7 @@ from ..datasets import (
     compute_stats,
     load_case_trajectory,
 )
-from ..eval import rollout
+from ..eval import one_step_position_rmse, rollout
 from ..models.gns import LearnedSimulator
 from ..models.gns.simulator import time_diff
 
@@ -337,7 +339,11 @@ def _validate(
     window: int,
     device: str,
 ) -> float:
-    """Mean (position + auxiliary) rollout RMSE over validation trajectories."""
+    """Mean (position + auxiliary) rollout RMSE over validation trajectories.
+
+    This is the in-training checkpoint-selection score only (a single scalar,
+    mm + MPa summed); the ADR-0019 reported metrics come from :func:`evaluate`.
+    """
     simulator.eval()
     losses: list[float] = []
     for tr in trajectories:
@@ -392,8 +398,21 @@ def train(
     pathlib.Path or None
         Path to the best (or fallback final) checkpoint, or ``None`` if no
         checkpoint was written.
+
+    Raises
+    ------
+    FileExistsError
+        If ``out_dir`` already holds ``model-*.pt`` checkpoints. Training has
+        no resume, and :func:`evaluate` picks the newest checkpoint by mtime,
+        so a fresh run into an old directory would shadow a better model.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
+    existing = sorted(out_dir.glob("model-*.pt"))
+    if existing:
+        raise FileExistsError(
+            f"{out_dir} already contains checkpoints (e.g. {existing[0].name}); "
+            "training has no resume — use a fresh --out directory per attempt"
+        )
 
     logger.info("loading %d TRAIN trajectories from %s", len(TRAIN), data_root)
     train_trajs = _load_trajectories(TRAIN, data_root)
@@ -528,48 +547,69 @@ def _find_checkpoint(out_dir: Path) -> Path | None:
 
 
 def evaluate(
-    gns: GNSConfig,
     case_ids: list[str],
     data_root: Path,
     out_dir: Path,
     device: str,
-) -> float:
-    """Load the best checkpoint and roll out over ``case_ids``.
+    *,
+    split_name: str = "eval",
+    save_artifacts: bool = True,
+) -> dict[str, Any]:
+    """Roll out the run's checkpoint over ``case_ids`` and report ADR-0019 §5.
 
-    Stats are read from ``out_dir/normalization_stats.npz`` when present, else
-    recomputed from the ``TRAIN`` split, and ``n_particle_types`` from
-    ``out_dir/config.json`` when present, so the architecture matches the
-    trained checkpoint.
+    The simulator is rebuilt entirely from the run directory's own record —
+    architecture and ``n_particle_types`` from ``config.json``, stats from
+    ``normalization_stats.npz`` — so evaluation always matches the trained
+    checkpoint; no caller-supplied architecture is accepted. Both files are
+    written by :func:`train`.
+
+    Per case, reports the one-step (teacher-forced) position RMSE, the
+    full-rollout position RMSE (mm), the rollout von Mises RMSE (MPa), and the
+    benchmark QoIs with signed errors; the split mean aggregates each metric
+    (QoIs as mean absolute error). When ``save_artifacts`` is true the report
+    is written to ``out_dir/metrics-<split_name>.json`` and each predicted
+    trajectory to ``out_dir/rollouts/<split_name>-<case_id>.npz``.
 
     Parameters
     ----------
-    gns : GNSConfig
-        Architecture and noise configuration.
     case_ids : list of str
-        Cases to roll out over (validation or test split).
+        Cases to roll out over (validation or test split); must be non-empty.
     data_root : pathlib.Path
         Directory containing ``<case_id>.h5`` canonical cases.
     out_dir : pathlib.Path
         Run directory holding the checkpoint, stats, and resolved config.
     device : str
         Torch device string.
+    split_name : str
+        Label recorded in the report and used in artifact filenames.
+    save_artifacts : bool
+        Write the metrics JSON and per-case rollout ``.npz`` files.
 
     Returns
     -------
-    float
-        Mean (position + auxiliary) rollout RMSE over ``case_ids``.
-    """
-    stats_path = out_dir / "normalization_stats.npz"
-    if stats_path.exists():
-        stats = NormalizationStats.load(stats_path)
-    else:
-        stats = compute_stats(_load_trajectories(TRAIN, data_root))
+    dict
+        ``{"split", "checkpoint", "cases": {case_id: ...}, "mean": ...}`` with
+        plain JSON-serializable values.
 
+    Raises
+    ------
+    FileNotFoundError
+        If ``config.json``, ``normalization_stats.npz``, or a checkpoint is
+        missing from ``out_dir``.
+    """
+    if not case_ids:
+        raise ValueError("case_ids must be non-empty")
     config_path = out_dir / "config.json"
-    if config_path.exists():
-        n_types = int(json.loads(config_path.read_text())["n_particle_types"])
-    else:
-        n_types = _n_particle_types(_load_trajectories(TRAIN, data_root))
+    if not config_path.exists():
+        raise FileNotFoundError(f"missing run config: {config_path}")
+    stats_path = out_dir / "normalization_stats.npz"
+    if not stats_path.exists():
+        raise FileNotFoundError(f"missing normalization stats: {stats_path}")
+
+    resolved = json.loads(config_path.read_text(encoding="utf-8"))
+    gns = GNSConfig(**resolved["gns"])
+    n_types = int(resolved["n_particle_types"])
+    stats = NormalizationStats.load(stats_path)
 
     simulator = build_simulator(
         _stats_to_dict(stats),
@@ -583,9 +623,67 @@ def evaluate(
         raise FileNotFoundError(f"no checkpoint found under {out_dir}")
     simulator.load(str(checkpoint))
     simulator.to(device)
+    simulator.eval()
 
-    trajectories = _load_trajectories(case_ids, data_root)
-    return _validate(simulator, trajectories, gns.window, device)
+    rollout_dir = out_dir / "rollouts"
+    if save_artifacts:
+        rollout_dir.mkdir(parents=True, exist_ok=True)
+
+    cases: dict[str, dict[str, Any]] = {}
+    for case_id in case_ids:
+        trajectory = load_case_trajectory(data_root / f"{case_id}.h5")
+        result = rollout(simulator, trajectory, gns.window, device, qois=QOIS)
+        one_step = one_step_position_rmse(simulator, trajectory, gns.window, device)
+        cases[case_id] = {
+            "one_step_position_rmse": float(one_step.mean()),
+            "rollout_position_rmse": result.mean_position_rmse,
+            "rollout_von_mises_rmse": result.mean_aux_rmse,
+            "qoi_pred": result.qoi_pred,
+            "qoi_true": result.qoi_true,
+            "qoi_error": result.qoi_error,
+        }
+        logger.info(
+            "[%s] %s: one-step %.4f mm | rollout %.4f mm | von Mises %.4f MPa",
+            split_name,
+            case_id,
+            cases[case_id]["one_step_position_rmse"],
+            result.mean_position_rmse,
+            result.mean_aux_rmse,
+        )
+        if save_artifacts:
+            np.savez(
+                rollout_dir / f"{split_name}-{case_id}.npz",
+                predicted_positions=result.predicted_positions,
+                predicted_aux=result.predicted_aux,
+                position_rmse=result.position_rmse,
+                aux_rmse=result.aux_rmse,
+                one_step_position_rmse=one_step,
+            )
+
+    def _mean_over_cases(key: str) -> float:
+        return float(np.mean([case[key] for case in cases.values()]))
+
+    metrics: dict[str, Any] = {
+        "split": split_name,
+        "checkpoint": checkpoint.name,
+        "cases": cases,
+        "mean": {
+            "one_step_position_rmse": _mean_over_cases("one_step_position_rmse"),
+            "rollout_position_rmse": _mean_over_cases("rollout_position_rmse"),
+            "rollout_von_mises_rmse": _mean_over_cases("rollout_von_mises_rmse"),
+            "qoi_abs_error": {
+                name: float(
+                    np.mean([abs(case["qoi_error"][name]) for case in cases.values()])
+                )
+                for name in QOIS
+            },
+        },
+    }
+    if save_artifacts:
+        (out_dir / f"metrics-{split_name}.json").write_text(
+            json.dumps(metrics, indent=2), encoding="utf-8"
+        )
+    return metrics
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -608,7 +706,13 @@ def main(argv: list[str] | None = None) -> int:
         default="train",
         help="train, validate (VAL), or roll out (TEST).",
     )
-    parser.add_argument("--config", type=str, default=None, help="TOML config path.")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="TOML config path (train mode only; valid/rollout rebuild the "
+        "architecture from the run directory's config.json).",
+    )
     parser.add_argument("--out", type=str, default=None, help="Run output directory.")
     parser.add_argument(
         "--data-root", type=str, default=None, help="Directory of <case_id>.h5 cases."
@@ -643,12 +747,32 @@ def main(argv: list[str] | None = None) -> int:
         ckpt = train(gns, train_cfg, data_root, out_dir, device)
         print(f"training complete; best checkpoint: {ckpt}")
     elif args.mode == "valid":
-        score = evaluate(gns, VAL, data_root, out_dir, device)
-        print(f"validation mean RMSE: {score:.6f}")
-    else:  # rollout
-        score = evaluate(gns, TEST_INTERP + TEST_EXTRAP, data_root, out_dir, device)
-        print(f"rollout mean RMSE: {score:.6f}")
+        metrics = evaluate(VAL, data_root, out_dir, device, split_name="val")
+        _print_split_report(metrics)
+    else:  # rollout: interpolation is the headline; extrapolation separate
+        for split_name, split_cases in (
+            ("test_interp", TEST_INTERP),
+            ("test_extrap", TEST_EXTRAP),
+        ):
+            metrics = evaluate(
+                split_cases, data_root, out_dir, device, split_name=split_name
+            )
+            _print_split_report(metrics)
     return 0
+
+
+def _print_split_report(metrics: dict[str, Any]) -> None:
+    """Print one split's ADR-0019 metrics (mm / MPa) to stdout."""
+    split, mean = metrics["split"], metrics["mean"]
+    print(
+        f"[{split}] one-step position RMSE {mean['one_step_position_rmse']:.4f} mm"
+        f" | rollout position RMSE {mean['rollout_position_rmse']:.4f} mm"
+        f" | rollout von Mises RMSE {mean['rollout_von_mises_rmse']:.4f} MPa"
+    )
+    qoi = ", ".join(
+        f"{name} {value:.4f} mm" for name, value in mean["qoi_abs_error"].items()
+    )
+    print(f"[{split}] QoI mean |error|: {qoi}")
 
 
 if __name__ == "__main__":
