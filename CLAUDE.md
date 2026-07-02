@@ -27,16 +27,16 @@ Current stage: pre-v0.1, release imminent. The substrate is built end to end: ca
 Read these files, in order, before any work begins:
 
 1. `CLAUDE.md` (this file).
-2. `VISION.md`.
+2. `docs/VISION.md`.
 3. `RESEARCH-PROGRAM.md` — *context-only; explains the research program StructBench serves but does not define its scope (see ADR-0014). **Local-only and untracked** (private strategy, 2026-07-02): present on the maintainer's machine but absent from clones — skip without error if missing.*
-4. `HARNESS.md`.
-5. `PRINCIPLES.md` (when it exists).
-6. `CORRECTIONS.md` — all entries marked `active`.
+4. `docs/HARNESS.md`.
+5. `docs/PRINCIPLES.md`.
+6. `docs/CORRECTIONS.md` — all entries marked `active`.
 7. `decisions/README.md` — the ADR index.
 
 Then, conditionally based on the session's task:
 
-- `ARCHITECTURE.md` — if the task touches the package structure, module interfaces, or the case schema.
+- `docs/ARCHITECTURE.md` — if the task touches the package structure, module interfaces, or the case schema.
 - Specific ADRs from the index — whichever are relevant to the task.
 - `ROADMAP.md` — if the session is about planning or scoping.
 
@@ -116,10 +116,10 @@ Small corrections that don't warrant an ADR are logged in `CORRECTIONS.md`. Form
 
 ## Where other rules live
 
-- **Coding conventions** (Python version, style, testing, documentation, logging, git): `PRINCIPLES.md`.
-- **Repository structure and package layout**: `ARCHITECTURE.md`.
-- **Case schema**: `ARCHITECTURE.md`.
-- **Dependency policy and approved list**: `PRINCIPLES.md`, with individual additions recorded as ADRs.
+- **Coding conventions** (Python version, style, testing, documentation, logging, git): `docs/PRINCIPLES.md`.
+- **Repository structure and package layout**: `docs/ARCHITECTURE.md`.
+- **Case schema**: `docs/ARCHITECTURE.md`.
+- **Dependency policy and approved list**: `docs/PRINCIPLES.md`, with individual additions recorded as ADRs.
 - **ADR format and process**: `decisions/README.md`.
 - **Long-term trajectory**: `ROADMAP.md`.
 

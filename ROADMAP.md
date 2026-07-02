@@ -1,7 +1,7 @@
 # ROADMAP.md
 
 *Where StructBench is going, in what order, and what is currently parked.
-**Ephemeral** (HARNESS.md tenet 3): revised in place as priorities move; the
+**Ephemeral** (docs/HARNESS.md tenet 3): revised in place as priorities move; the
 git history is the record. Decisions and their rationale live in `decisions/`
 — this file only sequences them and tracks status. Read at session start when
 the session is about planning or scoping (CLAUDE.md).*
@@ -75,7 +75,7 @@ Sequenced roughly; each becomes its own ADR/spec when picked up.
   (needed before any dataset with large/sparse LS-DYNA part ids — a design
   call because it changes the Taylor embedding).
 - **Checkpoint publishing**: a baseline-checkpoint release workflow
-  (ARCHITECTURE.md promises "a published checkpoint" per model; spec marked
+  (docs/ARCHITECTURE.md promises "a published checkpoint" per model; spec marked
   it out of the first slice).
 - **Second auxiliary target**: `effective_plastic_strain` (ADR-0019 noted;
   data already ingested).
@@ -96,7 +96,7 @@ Sequenced roughly; each becomes its own ADR/spec when picked up.
 - **SHM expansion** (VISION's second phase): sensor schema slots
   (`response/sensor`, reserved in ADR-0012/0013) get field-level definitions;
   multi-modal SHM benchmark datasets; the reserved `vision/` and `sensing/`
-  namespaces (ARCHITECTURE.md) open when this begins.
+  namespaces (docs/ARCHITECTURE.md) open when this begins.
 - **Deployment tools** (`deploy/` namespace): asset-onboarding workflows —
   the substrate side of the program's body layer.
 - **Packaging options**: `structbench[train]` extra for a data-only light
@@ -116,7 +116,7 @@ Sequenced roughly; each becomes its own ADR/spec when picked up.
 | MS-GNS implementation | approval (or amendment) of the Proposed spec |
 | RC beam benchmark (v0.2) | dataset + prior-model designation |
 | Segmented beam benchmark (v0.2) | dataset identification in `../data/` |
-| ADR-0012 Voigt-component prose reconciliation | CORRECTIONS.md distillation pass |
+| ADR-0012 Voigt-component prose reconciliation | docs/CORRECTIONS.md distillation pass |
 
 ## Open scoping questions
 

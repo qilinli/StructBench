@@ -62,7 +62,7 @@ tests/cli/test_model_dispatch.py             # NEW
 
 ### Task 6 — Whole-branch verification & docs
 - [ ] Full suite + ruff + mypy green; CPU smoke-train (synthetic fixture) for both models.
-- [ ] ARCHITECTURE.md `models/` section: mention the two baselines; data-flow note stays accurate.
+- [ ] docs/ARCHITECTURE.md `models/` section: mention the two baselines; data-flow note stays accurate.
 - [ ] Whole-branch adversarial review (workflow) before the final commit; fix confirmed findings.
 - [ ] Update `docs/specs/2026-07-02-taylor-multiscale-gns.md` status → Implemented.
 

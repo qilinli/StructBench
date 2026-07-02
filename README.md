@@ -175,7 +175,7 @@ Sequencing in [ROADMAP.md](ROADMAP.md); reasoning in [`decisions/`](decisions/).
 
 StructBench is co-developed by its maintainer and an AI agent under an
 explicit written harness: a decision log (21 ADRs), tiered agent authority,
-and a corrections log — [HARNESS.md](HARNESS.md) explains the philosophy.
+and a corrections log — [HARNESS.md](docs/HARNESS.md) explains the philosophy.
 Agent-assisted research needs the same auditability we demand of the
 benchmarks themselves; whatever you think of the arrangement, the side effect
 is useful to you as a reader: the *why* behind every choice in this repo is

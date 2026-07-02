@@ -14,15 +14,15 @@ At the start of every session, Claude Code reads the following files, in order:
 
 **Always read**:
 1. `CLAUDE.md`
-2. `VISION.md`
+2. `docs/VISION.md`
 3. `RESEARCH-PROGRAM.md` — *context-only; does not define StructBench scope (see ADR-0014)*
-4. `HARNESS.md`
-5. `PRINCIPLES.md` (once it exists)
-6. `CORRECTIONS.md` — all entries marked `active`
+4. `docs/HARNESS.md`
+5. `docs/PRINCIPLES.md`
+6. `docs/CORRECTIONS.md` — all entries marked `active`
 7. `decisions/README.md` — the ADR index
 
 **Conditionally read** (based on the session's task):
-- `ARCHITECTURE.md` — if the task touches package structure, module interfaces, or the case schema.
+- `docs/ARCHITECTURE.md` — if the task touches package structure, module interfaces, or the case schema.
 - Specific ADRs from the index — whichever are relevant to the task.
 - `ROADMAP.md` — if the session is about planning or scoping.
 
@@ -47,3 +47,4 @@ This ADR is marked **Ephemeral** because the list is expected to change as the p
 
 - 2026-05-23 — Added `RESEARCH-PROGRAM.md` as item 3, marked context-only. See ADR-0014.
 - 2026-07-02 — `RESEARCH-PROGRAM.md` is now **local-only and untracked** (private program strategy; pre-publication decision). The reading item stands on the maintainer's machine; sessions on a clone skip it without error.
+- 2026-07-02 — Root reorganisation: `VISION.md`, `HARNESS.md`, `PRINCIPLES.md`, `CORRECTIONS.md`, and `ARCHITECTURE.md` moved to `docs/` (contents unchanged). Paths above updated; older ADRs referring to these files at the root describe the layout at their time of writing.
