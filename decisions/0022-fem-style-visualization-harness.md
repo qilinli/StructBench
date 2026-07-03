@@ -1,6 +1,6 @@
 # 0022 — FEM-convention visualization harness (`viz/`, matplotlib as optional extra)
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-07-03
 
