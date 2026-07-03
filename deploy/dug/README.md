@@ -6,10 +6,12 @@ we request **one** A100 80 GB — the full `configs/taylor_2d.toml` (batch 32,
 ~14 GB) fits with room to spare. The extra GPUs would sit idle unless the model
 is extended with DistributedDataParallel (a separate change).
 
-Placeholders to fill in `train_taylor.slurm`: `<GPU_PARTITION>`, `<GPU_GRES>`
-(e.g. `gpu:a100:1` — request the typed A100 unless the partition is A100-only),
-`<PATH_TO_h5_canonical>`, and `<PROJECT>` (only if your DUG project requires an
-account). Find the partition + GPU gres string with `sinfo -o "%P %G"`.
+`train_taylor.slurm` carries live values verified 2026-07-03: partition
+`curtin_eecms` (one 2× A100-80GB node, `TIMELIMIT infinite`), `gpu:a100:1`,
+data at `/data/curtin_eecms/curtin_qilin/data/taylor_impact`. Two operational
+facts: **`sbatch` only works from a login node** (the JupyterHub container has
+no munge socket), and the partition's A100 node is shared with JupyterHub
+sessions — a submitted GPU job PENDs until any session holding the GPUs ends.
 
 ## 1. Copy code + data up (from your Windows machine, Git Bash)
 
@@ -46,27 +48,24 @@ ADR-0020).
 
 ```bash
 # quick sanity that CUDA + the pipeline work on DUG's GPU, using the tiny config:
-srun --partition=<GPU_PARTITION> --gres=gpu:1 --time=00:15:00 --pty bash -lc '
+srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:15:00 --pty bash -lc '
   source .venv/bin/activate && export PYTHONPATH=src
   python -m structbench.cli.train --mode train --config configs/taylor_2d_smoke.toml \
-    --data-root <proj>/data/h5_canonical --out runs/smoke'
+    --data-root /data/curtin_eecms/curtin_qilin/data/taylor_impact --out runs/smoke'
 
-# full baseline as a batch job:
-mkdir -p runs/taylor-baseline
+# full baseline as a batch job (from a login node; OUT defaults to
+# runs/taylor-full-adr0024 and must be fresh per attempt):
 sbatch deploy/dug/train_taylor.slurm
 squeue --me                     # watch the queue
-tail -f slurm-taylor-*.out      # watch progress; logs train_loss / val_loss each val_every
+tail -f slurm-taylor-*.out      # progress: val_pos (mm) / val_aux (MPa) each val_every
 ```
 
-The full run is 100k steps at batch 32. Runtime is uncertain until measured
-(the per-example graph build is O(N²) over 4800 particles); expect on the order
-of hours-to-half-a-day on one A100. The best checkpoint is written whenever
-validation improves (checked every 2000 steps, so the first save lands at step
-2000), meaning a timeout or early stop still leaves a usable model. To get a
-real ETA before committing the walltime, watch the first few `val_every`
-intervals in the smoke/full log and extrapolate — if 100k steps clearly won't
-fit in 24 h, `scancel` early: **training has no resume**, so the walltime is a
-hard compute budget.
+The full run is 100k steps at batch 32. Measured 2026-07-03 with the ADR-0024
+recipe (radius 1.5): **~4.6k steps/h on one A100 → ~22 h**, well inside the
+36 h ceiling in the script (the partition's time limit is `infinite`). The
+best checkpoint is written whenever the validation **position** RMSE improves
+(ADR-0024; checked every 2000 steps), so an early stop still leaves a usable
+model — but **training has no resume**, so a killed run restarts from scratch.
 
 Two rules the entry point now enforces / expects:
 
