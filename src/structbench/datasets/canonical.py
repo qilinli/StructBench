@@ -17,6 +17,35 @@ from numpy.typing import NDArray
 from ..core import read_case
 
 
+def n_valid_frames(time: NDArray[np.floating]) -> int:
+    """Frames to keep after dropping a terminal solver-output dt artifact.
+
+    LS-DYNA writes a final d3plot state at the exact termination time, which
+    can land a fraction of the regular output interval after the previous
+    state (measured 0.077 µs vs ~2 µs on the Taylor cases). Index-based
+    velocity/acceleration targets assume uniform dt, so that terminal frame
+    injects a spurious deceleration into training targets and biases
+    final-frame metrics (ADR-0024). The frame is dropped when the final
+    interval is under half the median interval.
+
+    Parameters
+    ----------
+    time:
+        Frame times in seconds, shape ``(T,)``.
+
+    Returns
+    -------
+    int
+        ``T`` or ``T - 1``.
+    """
+    t = np.asarray(time, dtype=np.float64)
+    if t.shape[0] >= 3:
+        intervals = np.diff(t)
+        if intervals[-1] < 0.5 * float(np.median(intervals)):
+            return t.shape[0] - 1
+    return t.shape[0]
+
+
 def von_mises_from_voigt(stress: NDArray[np.floating]) -> NDArray[np.float64]:
     """von Mises stress from a Voigt tensor ``[xx, yy, zz, xy, yz, zx]``.
 
@@ -76,12 +105,13 @@ def load_case_trajectory(
     sph = case.elements["sph"]
     idx = sph.connectivity[:, 0]  # node indices of the SPH particles
     dim = case.metadata.dimension
+    n_frames = n_valid_frames(np.asarray(case.response.time))
 
     coords0 = case.nodes.coords[idx][:, :dim]  # (P, dim) SI
-    disp = case.response.node["displacement"][:, idx, :]  # (T, P, dim) SI
+    disp = case.response.node["displacement"][:n_frames, idx, :]  # (T, P, dim) SI
     positions = ((coords0[None] + disp) * length_scale).astype(np.float32)
 
-    stress = case.response.element["sph"]["stress"]  # (T, P, 6) Pa
+    stress = case.response.element["sph"]["stress"][:n_frames]  # (T, P, 6) Pa
     von_mises = (von_mises_from_voigt(stress) * stress_scale).astype(np.float32)
 
     return CaseTrajectory(
@@ -89,5 +119,5 @@ def load_case_trajectory(
         positions=positions,
         particle_type=np.asarray(sph.part_id, dtype=np.int64),
         von_mises=von_mises,
-        time=np.asarray(case.response.time, dtype=np.float64),
+        time=np.asarray(case.response.time[:n_frames], dtype=np.float64),
     )

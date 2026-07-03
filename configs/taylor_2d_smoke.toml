@@ -5,7 +5,8 @@
 
 # --- architecture + training noise (GNSConfig) ---
 window = 11
-connectivity_radius = 0.6
+connectivity_radius = 1.5
+max_neighbors = 48
 hidden_dim = 64
 message_passing_steps = 5
 nmlp_layers = 1

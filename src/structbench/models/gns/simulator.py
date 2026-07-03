@@ -6,7 +6,7 @@ Sanchez-Gonzalez et al., *Learning to Simulate Complex Physics with Graph
 Networks* (https://arxiv.org/abs/2002.09405).
 
 The port preserves the reference behaviour -- graph connectivity
-(``radius_graph`` with ``max_num_neighbors=20`` and self-loops),
+(``radius_graph`` with a configurable ``max_neighbors`` cap and self-loops),
 velocity-history normalisation, the Euler integrator of the decoder
 post-processor, its inverse, the GNS noise handling, and ``save``/``load`` --
 with three deliberate generalisations relative to the source:
@@ -86,6 +86,10 @@ class LearnedSimulator(nn.Module):
         Number of auxiliary output channels predicted alongside the
         acceleration (default ``1``). The decoder produces
         ``particle_dimensions + n_aux`` outputs.
+    max_neighbors : int, optional
+        Per-node neighbour cap passed to ``radius_graph`` (default ``20``).
+        Size it above the true maximum degree at the chosen
+        ``connectivity_radius`` so it never binds on physical configurations.
     boundary_feature_fn : Callable[[Tensor], Tensor] | None, optional
         Maps the most-recent position ``(nparticles, particle_dimensions)`` to
         a node feature block ``(nparticles, n_boundary)`` appended after the
@@ -110,11 +114,13 @@ class LearnedSimulator(nn.Module):
         particle_type_embedding_size: int,
         *,
         n_aux: int = 1,
+        max_neighbors: int = 20,
         boundary_feature_fn: Callable[[Tensor], Tensor] | None = None,
         device: str = "cpu",
     ) -> None:
         super().__init__()
         self._connectivity_radius = connectivity_radius
+        self._max_neighbors = max_neighbors
         self._normalization_stats = normalization_stats
         self._nparticle_types = nparticle_types
         self._particle_dimensions = particle_dimensions
@@ -209,7 +215,7 @@ class LearnedSimulator(nn.Module):
             r=radius,
             batch=batch_ids,
             loop=add_self_edges,
-            max_num_neighbors=20,
+            max_num_neighbors=self._max_neighbors,
         )
 
         # The flow direction when combined with message passing is

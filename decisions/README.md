@@ -72,6 +72,7 @@ What becomes easier, harder, or constrained as a result.
 | 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
 | 0022 | FEM-convention visualization harness (`viz/`, matplotlib as optional extra) | Durable | Accepted |
 | 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted |
+| 0024 | GNS baseline training-recipe rework after the first full run | Ephemeral | Accepted |
 
 ---
 

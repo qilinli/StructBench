@@ -65,3 +65,15 @@ def test_load_case_trajectory_sph_only_in_mm_and_mpa(tmp_path):
     assert traj.von_mises.shape == (2, 3)
     np.testing.assert_allclose(traj.von_mises[1], [300.0, 300.0, 300.0])  # MPa
     np.testing.assert_array_equal(traj.particle_type, [1, 1, 1])
+
+
+def test_n_valid_frames_drops_terminal_dt_artifact():
+    from structbench.datasets.canonical import n_valid_frames
+
+    uniform = np.array([0.0, 2e-6, 4e-6, 6e-6])
+    assert n_valid_frames(uniform) == 4
+    # LS-DYNA termination state a fraction of an interval after the last dump:
+    artifact = np.array([0.0, 2e-6, 4e-6, 4.077e-6])
+    assert n_valid_frames(artifact) == 3
+    # too short to judge — keep everything
+    assert n_valid_frames(np.array([0.0, 2e-6])) == 2
