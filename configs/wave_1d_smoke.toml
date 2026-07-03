@@ -1,0 +1,7 @@
+# configs/wave_1d_smoke.toml — 10-step smoke of the wave-1d pipeline
+benchmark = "wave_propagation_1d"
+dim = 2
+connectivity_radius = 4.8
+training_steps = 10
+val_every = 5
+batch_size = 2

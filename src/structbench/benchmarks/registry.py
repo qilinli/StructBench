@@ -21,6 +21,7 @@ from .card import BenchmarkCard
 #: Registered benchmark modules; each must define a module-level ``SPEC``.
 _MODULES: dict[str, str] = {
     "taylor_impact_2d": "structbench.benchmarks.taylor_impact_2d",
+    "wave_propagation_1d": "structbench.benchmarks.wave_propagation_1d",
 }
 
 

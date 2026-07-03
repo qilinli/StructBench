@@ -1,0 +1,5 @@
+# configs/wave_1d.toml — wave-1d GNS baseline (ADR-0025)
+benchmark = "wave_propagation_1d"
+dim = 2
+connectivity_radius = 4.8   # ~2.4x the 2.0 mm particle spacing
+training_steps = 50000      # 16 small cases; half the Taylor budget
