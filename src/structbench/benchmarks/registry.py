@@ -8,8 +8,9 @@ A benchmark module exposes one frozen :class:`BenchmarkSpec` named
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 from torch import Tensor
 
@@ -51,10 +52,10 @@ class BenchmarkSpec:
     """
 
     card: BenchmarkCard
-    splits: dict[str, tuple[str, ...]]
+    splits: Mapping[str, tuple[str, ...]]
     eval_splits: tuple[str, ...]
     aux_field: str
-    qois: dict[str, QoiFn] = field(default_factory=dict)
+    qois: Mapping[str, QoiFn] = field(default_factory=dict)
     boundary_feature_fn: Callable[[Tensor, float], Tensor] | None = None
     dataset_id: str = ""
 
@@ -75,6 +76,11 @@ class BenchmarkSpec:
                 f"aux_field {self.aux_field!r} not in "
                 f"{sorted(available_aux_fields())}"
             )
+        # Wrap in read-only proxies to prevent accidental mutation
+        object.__setattr__(
+            self, "splits", MappingProxyType(dict(self.splits))
+        )
+        object.__setattr__(self, "qois", MappingProxyType(dict(self.qois)))
 
 
 def available_benchmarks() -> tuple[str, ...]:

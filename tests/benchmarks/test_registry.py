@@ -38,3 +38,11 @@ def test_spec_validates_card_split_sizes():
     with pytest.raises(ValueError, match="split"):
         replace(spec, card=replace(spec.card, n_cases=spec.card.n_cases + 1,
                                    splits=bad_card_splits))
+
+
+def test_spec_split_mappings_are_read_only():
+    spec = get_benchmark("taylor_impact_2d")
+    with pytest.raises(TypeError):
+        spec.splits["val"] = ()  # type: ignore[index]
+    with pytest.raises(TypeError):
+        spec.qois["extra"] = len  # type: ignore[index]
