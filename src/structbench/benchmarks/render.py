@@ -21,7 +21,19 @@ def _yesno(flag: bool) -> str:
 
 
 def render_index(specs: list[BenchmarkSpec]) -> str:
-    """The full ``docs/benchmarks.md`` content for the given specs."""
+    """The full ``docs/benchmarks.md`` content for the given specs.
+
+    Parameters
+    ----------
+    specs : list of BenchmarkSpec
+        Ordered list of benchmarks to render as a comparison table.
+
+    Returns
+    -------
+    str
+        Markdown document containing the generation marker, a 9-column
+        comparison table, and one ## section per benchmark.
+    """
     lines = [
         _MARKER,
         "",
@@ -65,7 +77,18 @@ def _section(spec: BenchmarkSpec) -> list[str]:
 
 
 def render_archive_readme(spec: BenchmarkSpec) -> str:
-    """A standalone README for the hosted dataset archive."""
+    """A standalone README for the hosted dataset archive.
+
+    Parameters
+    ----------
+    spec : BenchmarkSpec
+        The benchmark specification whose card describes the hosted dataset.
+
+    Returns
+    -------
+    str
+        Standalone README markdown for the dataset archive.
+    """
     c = spec.card
     splits_str = ", ".join(f"{k} {v}" for k, v in c.splits.items())
     return "\n".join(
@@ -91,5 +114,16 @@ def render_archive_readme(spec: BenchmarkSpec) -> str:
 
 
 def card_json(card: BenchmarkCard) -> str:
-    """The card as pretty-printed JSON for the dataset archive."""
-    return json.dumps(card.to_json_dict(), indent=2)
+    """The card as pretty-printed JSON for the dataset archive.
+
+    Parameters
+    ----------
+    card : BenchmarkCard
+        The benchmark card to serialize.
+
+    Returns
+    -------
+    str
+        Pretty-printed JSON with 2-space indentation and a trailing newline.
+    """
+    return json.dumps(card.to_json_dict(), indent=2) + "\n"
