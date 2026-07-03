@@ -50,3 +50,8 @@ def test_spec_split_mappings_are_read_only():
         spec.splits["val"] = ()  # type: ignore[index]
     with pytest.raises(TypeError):
         spec.qois["extra"] = len  # type: ignore[index]
+
+
+def test_spec_kinematic_types_default_empty():
+    spec = get_benchmark("taylor_impact_2d")
+    assert spec.kinematic_types == ()

@@ -343,6 +343,7 @@ def _validate(
     trajectories: list[CaseTrajectory],
     window: int,
     device: str,
+    kinematic_types: tuple[int, ...] = (),
 ) -> tuple[float, float]:
     """Mean rollout position RMSE (mm) and von Mises RMSE (MPa) over VAL.
 
@@ -350,12 +351,18 @@ def _validate(
     in-training score 98% stress and let checkpoint selection ignore position
     quality entirely. Selection uses the position channel; the ADR-0019
     reported metrics come from :func:`evaluate`.
+
+    Parameters
+    ----------
+    kinematic_types:
+        Forwarded to :func:`rollout`; kinematic particles are excluded from
+        the reported RMSE (ADR-0026).
     """
     simulator.eval()
     pos_losses: list[float] = []
     aux_losses: list[float] = []
     for tr in trajectories:
-        result = rollout(simulator, tr, window, device)
+        result = rollout(simulator, tr, window, device, kinematic_types=kinematic_types)
         pos_losses.append(float(result.position_rmse.mean()))
         aux_losses.append(float(result.aux_rmse.mean()))
     if not pos_losses:
@@ -520,7 +527,17 @@ def train(
             loss_pos = ((pred_acc - target_acc) ** 2).sum(dim=-1)
             next_aux_norm = (next_aux - aux_mean) / aux_std
             loss_aux = (pred_aux[:, 0] - next_aux_norm) ** 2
-            loss = (train_cfg.w_pos * loss_pos + train_cfg.w_aux * loss_aux).mean()
+            per_particle = train_cfg.w_pos * loss_pos + train_cfg.w_aux * loss_aux
+            if spec.kinematic_types:
+                free = ~torch.isin(
+                    particle_type,
+                    torch.as_tensor(
+                        list(spec.kinematic_types), dtype=torch.long, device=device
+                    ),
+                )
+                loss = per_particle[free].mean()
+            else:
+                loss = per_particle.mean()
 
             loss.backward()
             # The unclipped run showed ~5x loss spikes (steps 28k, 42k);
@@ -540,7 +557,9 @@ def train(
             step += 1
 
             if step % train_cfg.val_every == 0:
-                val_pos, val_aux = _validate(simulator, val_trajs, gns.window, device)
+                val_pos, val_aux = _validate(
+                    simulator, val_trajs, gns.window, device, spec.kinematic_types
+                )
                 logger.info(
                     "step %d: train_loss %.6f val_pos %.4f mm val_aux %.4f MPa "
                     "(best_pos %.4f)",
@@ -710,9 +729,28 @@ def evaluate(
         trajectory = load_case_trajectory(
             data_root / f"{case_id}.h5", aux_field=spec.aux_field
         )
-        result = rollout(simulator, trajectory, gns.window, device, qois=spec.qois)
-        one_step = one_step_position_rmse(simulator, trajectory, gns.window, device)
-        one_step_aux = one_step_aux_rmse(simulator, trajectory, gns.window, device)
+        result = rollout(
+            simulator,
+            trajectory,
+            gns.window,
+            device,
+            qois=spec.qois,
+            kinematic_types=spec.kinematic_types,
+        )
+        one_step = one_step_position_rmse(
+            simulator,
+            trajectory,
+            gns.window,
+            device,
+            kinematic_types=spec.kinematic_types,
+        )
+        one_step_aux = one_step_aux_rmse(
+            simulator,
+            trajectory,
+            gns.window,
+            device,
+            kinematic_types=spec.kinematic_types,
+        )
         cases[case_id] = {
             "one_step_position_rmse": float(one_step.mean()),
             "one_step_aux_rmse": float(one_step_aux.mean()),

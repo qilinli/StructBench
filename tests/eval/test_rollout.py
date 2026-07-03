@@ -1,3 +1,5 @@
+import dataclasses
+
 import numpy as np
 import torch
 
@@ -33,6 +35,43 @@ class _FrozenSim:
         last = position_sequence[:, -1]
         aux = torch.zeros(position_sequence.shape[0], 1)
         return last, aux
+
+
+class _ZeroSim:
+    """Predicts zeros for every particle position and aux."""
+
+    def predict_positions(
+        self, position_sequence, nparticles_per_example, particle_types
+    ):
+        n_particles = position_sequence.shape[0]
+        dim = position_sequence.shape[2]
+        return torch.zeros(n_particles, dim), torch.zeros(n_particles, 1)
+
+
+class _PerfectSim:
+    """Returns ground-truth next positions/aux by counting prediction steps.
+
+    Parameters
+    ----------
+    traj:
+        The ground-truth trajectory used by rollout; positions and aux are
+        read at increasing frame indices starting from ``window``.
+    window:
+        History length passed to :func:`rollout`; sets the starting frame.
+    """
+
+    def __init__(self, traj: CaseTrajectory, window: int = 2) -> None:
+        self._pos = traj.positions  # (T, P, dim)
+        self._aux = traj.aux  # (T, P)
+        self._step = window
+
+    def predict_positions(
+        self, position_sequence, nparticles_per_example, particle_types
+    ):
+        pos = torch.from_numpy(self._pos[self._step])  # (P, dim)
+        aux = torch.from_numpy(self._aux[self._step]).unsqueeze(1)  # (P, 1)
+        self._step += 1
+        return pos, aux
 
 
 def _const_vel_traj(T: int = 6, P: int = 4) -> CaseTrajectory:
@@ -138,3 +177,30 @@ def test_rollout_qoi_inputs_carry_particle_type():
 
     result = rollout(sim, traj, window=2, qois={"tc": type_checker})
     assert result.qoi_true["tc"] == float(traj.particle_type.sum())
+
+
+def test_rollout_prescribes_kinematic_particles():
+    """Kinematic particle follows ground truth despite a zero predictor."""
+    traj = _const_vel_traj()
+    ptype = traj.particle_type.copy()
+    ptype[0] = 7
+    traj = dataclasses.replace(traj, particle_type=ptype)
+    sim = _ZeroSim()
+    result = rollout(sim, traj, window=2, kinematic_types=(7,))
+    # particle 0 follows ground truth exactly despite the zero predictor
+    np.testing.assert_allclose(
+        result.predicted_positions[:, 0, :], traj.positions[:, 0, :]
+    )
+    # reported RMSE shape covers only free steps (time dimension)
+    assert result.position_rmse.shape[0] == traj.positions.shape[0] - 2
+
+
+def test_rollout_metrics_exclude_kinematic_particles():
+    """With a perfect predictor, RMSE over free particles is zero."""
+    traj = _const_vel_traj()
+    ptype = traj.particle_type.copy()
+    ptype[0] = 7
+    traj = dataclasses.replace(traj, particle_type=ptype)
+    sim = _PerfectSim(traj, window=2)
+    result = rollout(sim, traj, window=2, kinematic_types=(7,))
+    assert np.allclose(result.position_rmse, 0.0)

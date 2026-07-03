@@ -56,6 +56,7 @@ def rollout(
     window: int,
     device: str = "cpu",
     qois: Mapping[str, QoiFn] | None = None,
+    kinematic_types: tuple[int, ...] = (),
 ) -> RolloutResult:
     """Seed with ``window`` ground-truth frames, then autoregress to the end.
 
@@ -76,6 +77,13 @@ def rollout(
         :class:`~structbench.eval.metrics.QoiInputs` (e.g. the Taylor
         benchmark's ``QOIS``).  Each is evaluated on the predicted and the
         ground-truth inputs and recorded with its signed error.
+    kinematic_types:
+        Particle part-ids whose motion is prescribed (ADR-0026).  At every
+        autoregressive step their predicted positions are overwritten with the
+        ground-truth position at that frame.  They are also excluded from the
+        reported ``position_rmse`` and ``aux_rmse`` (``keep`` mask).  Defaults
+        to ``()`` (no prescribed particles), which is bit-identical to the
+        previous behaviour.
 
     Returns
     -------
@@ -86,23 +94,33 @@ def rollout(
     ptype = torch.from_numpy(trajectory.particle_type).to(device)
     npp = torch.tensor([n_particles], device=device)
 
+    # Kinematic-particle book-keeping (ADR-0026).
+    kin_mask_np = np.isin(trajectory.particle_type, np.asarray(kinematic_types))
+    keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
+    kin_idx = torch.from_numpy(np.nonzero(kin_mask_np)[0]).to(device)
+
     seq = pos[:window].clone()  # (window, P, dim)
     predicted = [pos[i] for i in range(window)]
     aux_true = torch.from_numpy(trajectory.aux).to(device)
     aux_pred = [aux_true[i] for i in range(window)]
 
     with torch.no_grad():
-        for _ in range(window, n_frames):
+        for t in range(window, n_frames):
             seq_pw = seq.permute(1, 0, 2).contiguous()  # (P, window, dim)
             next_pos, aux = simulator.predict_positions(seq_pw, npp, ptype)
+            if kin_idx.numel():
+                next_pos = next_pos.clone()
+                next_pos[kin_idx] = pos[t][kin_idx]
             predicted.append(next_pos)
             aux_pred.append(aux[:, 0])
             seq = torch.cat([seq[1:], next_pos[None]], dim=0)
 
     pred_pos = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     pred_aux = torch.stack(aux_pred, dim=0).cpu().numpy().astype(np.float32)
-    pos_rmse = position_rmse(pred_pos[window:], trajectory.positions[window:])
-    aux_rmse = field_rmse(pred_aux[window:], trajectory.aux[window:])
+    pos_rmse = position_rmse(
+        pred_pos[window:], trajectory.positions[window:], keep=keep
+    )
+    aux_rmse = field_rmse(pred_aux[window:], trajectory.aux[window:], keep=keep)
 
     pred_inputs = QoiInputs(
         time=trajectory.time,
@@ -136,6 +154,7 @@ def one_step_position_rmse(
     trajectory: CaseTrajectory,
     window: int,
     device: str = "cpu",
+    kinematic_types: tuple[int, ...] = (),
 ) -> NDArray[np.float64]:
     """Teacher-forced next-step position RMSE per predicted frame (ADR-0019 §5).
 
@@ -155,6 +174,10 @@ def one_step_position_rmse(
         History length used for each prediction.
     device:
         Torch device string.
+    kinematic_types:
+        Particle part-ids excluded from the reported RMSE (ADR-0026).
+        Teacher-forced evaluation already uses ground-truth history, so no
+        position overwrite is needed; only the metric mask is applied.
 
     Returns
     -------
@@ -169,6 +192,9 @@ def one_step_position_rmse(
     ptype = torch.from_numpy(trajectory.particle_type).to(device)
     npp = torch.tensor([n_particles], device=device)
 
+    kin_mask_np = np.isin(trajectory.particle_type, np.asarray(kinematic_types))
+    keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
+
     predicted = []
     with torch.no_grad():
         for t in range(window, n_frames):
@@ -177,7 +203,7 @@ def one_step_position_rmse(
             predicted.append(next_pos)
 
     pred = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
-    return position_rmse(pred, trajectory.positions[window:])
+    return position_rmse(pred, trajectory.positions[window:], keep=keep)
 
 
 def one_step_aux_rmse(
@@ -185,6 +211,7 @@ def one_step_aux_rmse(
     trajectory: CaseTrajectory,
     window: int,
     device: str = "cpu",
+    kinematic_types: tuple[int, ...] = (),
 ) -> NDArray[np.float64]:
     """Teacher-forced next-step aux-field RMSE per predicted frame (ADR-0025).
 
@@ -203,6 +230,10 @@ def one_step_aux_rmse(
         History length used for each prediction.
     device:
         Torch device string.
+    kinematic_types:
+        Particle part-ids excluded from the reported RMSE (ADR-0026).
+        Teacher-forced evaluation already uses ground-truth history, so no
+        position overwrite is needed; only the metric mask is applied.
 
     Returns
     -------
@@ -216,6 +247,9 @@ def one_step_aux_rmse(
     ptype = torch.from_numpy(trajectory.particle_type).to(device)
     npp = torch.tensor([n_particles], device=device)
 
+    kin_mask_np = np.isin(trajectory.particle_type, np.asarray(kinematic_types))
+    keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
+
     predicted = []
     with torch.no_grad():
         for t in range(window, n_frames):
@@ -224,4 +258,4 @@ def one_step_aux_rmse(
             predicted.append(aux[:, 0])
 
     pred = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
-    return field_rmse(pred, trajectory.aux[window:])
+    return field_rmse(pred, trajectory.aux[window:], keep=keep)

@@ -59,6 +59,10 @@ class BenchmarkSpec:
     qois: Mapping[str, QoiFn] = field(default_factory=dict)
     boundary_feature_fn: Callable[[Tensor, float], Tensor] | None = None
     dataset_id: str = ""
+    kinematic_types: tuple[int, ...] = ()
+    """Particle part-ids whose motion is prescribed (kinematic loaders, fixed
+    supports); excluded from training loss and rollout metrics, and driven by
+    ground truth during rollout (ADR-0026)."""
 
     def __post_init__(self) -> None:
         for required in ("train", "val"):
