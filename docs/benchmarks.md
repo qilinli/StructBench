@@ -6,7 +6,7 @@ One row per benchmark; see each section for the full card.
 
 | Benchmark | Solver | Discretisation | Erosion | Loading | Cases | Particles | Frames | Aux target |
 |---|---|---|---|---|---|---|---|---|
-| Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4804-8004 | 152 | von_mises_stress (MPa) |
+| Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4800-8004 | 152 | von_mises_stress (MPa) |
 
 ## Taylor2D-Impact (v0.1)
 
