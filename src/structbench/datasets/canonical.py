@@ -67,8 +67,30 @@ def _aux_von_mises(
     return (vm * stress_scale).astype(np.float32)
 
 
+def _aux_axial_stress(
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
+) -> NDArray[np.float32]:
+    """Axial stress: Voigt component 0 (sigma_xx), scaled to the working frame.
+
+    Parameters
+    ----------
+    sph:
+        Mapping of SPH response fields with a ``"stress"`` key holding a
+        ``(T, P, 6)`` Voigt array (Pa).
+    stress_scale:
+        Multiplier to the working stress unit (1e-6 for Pa -> MPa).
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T, P)``, float32, working-frame units (MPa by default).
+    """
+    return (sph["stress"][...][..., 0] * stress_scale).astype(np.float32)
+
+
 _AUX_EXTRACTORS: dict[str, AuxExtractor] = {
     "von_mises_stress": _aux_von_mises,
+    "axial_stress": _aux_axial_stress,
 }
 
 

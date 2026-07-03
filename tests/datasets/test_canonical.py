@@ -84,3 +84,19 @@ def test_available_aux_fields_lists_von_mises():
     from structbench.datasets import available_aux_fields
 
     assert "von_mises_stress" in available_aux_fields()
+
+
+def test_axial_stress_extractor_takes_voigt_xx(tmp_path):
+    h5_path = _sph_case(tmp_path)
+    tr_axial = load_case_trajectory(h5_path, aux_field="axial_stress")
+    import h5py
+
+    with h5py.File(h5_path) as f:
+        sxx_pa = f["response/element/sph/stress"][...][..., 0]
+    np.testing.assert_allclose(tr_axial.aux, sxx_pa * 1e-6, rtol=1e-6)  # Pa -> MPa
+
+
+def test_available_aux_fields_lists_axial_stress():
+    from structbench.datasets import available_aux_fields
+
+    assert "axial_stress" in available_aux_fields()
