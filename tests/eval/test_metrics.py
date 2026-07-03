@@ -72,6 +72,17 @@ def test_arrival_time_saturates_when_no_crossing():
     assert arrival_time(0.5)(quiet) == pytest.approx(inputs.time[-1] * 1e3)
 
 
-def test_peak_stress_is_global_abs_max():
+def test_peak_stress_reads_late_half():
     inputs = _plane_wave_inputs()
+    # frames 0-10; late half = 5-10; front fills to 5.0 by frame 5 and stays
     assert peak_stress(inputs) == pytest.approx(5.0)
+
+
+def test_peak_stress_ignores_early_only_spike():
+    base = _plane_wave_inputs()
+    aux = base.aux.copy()
+    aux[:] = 0.0
+    aux[0, :] = 99.0  # early-only spike, inside the would-be seeded frames
+    aux[8, 3] = 2.0  # late-half signal
+    spiked = QoiInputs(time=base.time, positions=base.positions, aux=aux)
+    assert peak_stress(spiked) == pytest.approx(2.0)

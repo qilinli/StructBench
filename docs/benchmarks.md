@@ -7,7 +7,7 @@ One row per benchmark; see each section for the full card.
 | Benchmark | Solver | Discretisation | Erosion | Loading | Cases | Particles | Frames | Aux target |
 |---|---|---|---|---|---|---|---|---|
 | Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4800-8000 | 152 | von_mises_stress (MPa) |
-| Wave1D-Propagation | LS-DYNA | SPH | no | initial velocity 1-8 mm/ms; elastic wave propagation | 16 | 500-1250 | 302 | axial_stress (MPa) |
+| Wave1D-Propagation | LS-DYNA | SPH | no | initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (~10 traversals per trajectory) | 16 | 500-1250 | 302 | axial_stress (MPa) |
 
 ## Taylor2D-Impact (v0.1)
 
@@ -27,7 +27,7 @@ Autoregressive next-step surrogate of a 2D SPH copper bar under Taylor impact ag
 Autoregressive next-step surrogate of an elastic stress wave in a 2D SPH bar strip under initial-velocity excitation (ADR-0025). Entry tier: onboarding, tutorial, and fast CI.
 
 - **Task**: autoregressive transition (ADR-0025)
-- **Materials**: *MAT_ELASTIC
+- **Materials**: *MAT_ELASTIC (scaled toy constants: E=0.01 MPa, rho=2e-6 g/mm3)
 - **Geometry**: 2D strip, 5 particle rows, {200, 300, 400, 500} mm x 8 mm; source units g-mm-ms
 - **Splits**: train 12, val 2, test_interp 2
 - **QoIs**: arrival_time_25, arrival_time_50, arrival_time_75, peak_stress

@@ -131,16 +131,13 @@ def arrival_time(station_frac: float, *, threshold_frac: float = 0.1) -> QoiFn:
 
 
 def peak_stress(inputs: QoiInputs) -> float:
-    """Global peak ``|aux|`` over all frames and particles (working unit).
+    """Peak ``|aux|`` over the second half of the trajectory (working unit).
 
-    Parameters
-    ----------
-    inputs:
-        Rollout inputs; only ``aux`` is read.
-
-    Returns
-    -------
-    float
-        The maximum absolute value of the auxiliary field.
+    The late window is the reflection regime: it tests whether a surrogate
+    sustains the correct wave amplitude through repeated traversals. The
+    early-time global peak sits at excitation onset, inside the frames a
+    rollout seeds with ground truth, and would be trivially matched by any
+    model (maintainer decision, 2026-07-03).
     """
-    return float(np.abs(np.asarray(inputs.aux, float)).max())
+    aux = np.abs(np.asarray(inputs.aux, float))
+    return float(aux[aux.shape[0] // 2 :].max())
