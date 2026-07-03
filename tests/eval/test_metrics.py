@@ -86,3 +86,20 @@ def test_peak_stress_ignores_early_only_spike():
     aux[8, 3] = 2.0  # late-half signal
     spiked = QoiInputs(time=base.time, positions=base.positions, aux=aux)
     assert peak_stress(spiked) == pytest.approx(2.0)
+
+
+def test_position_rmse_keep_mask_excludes_particles():
+    pred = np.zeros((2, 3, 2), np.float32)
+    true = np.zeros((2, 3, 2), np.float32)
+    true[:, 2, :] = 10.0  # particle 2 is wildly wrong
+    keep = np.array([True, True, False])
+    full = position_rmse(pred, true)
+    masked = position_rmse(pred, true, keep=keep)
+    assert full[0] > 0 and np.allclose(masked, 0.0)
+
+
+def test_field_rmse_keep_mask():
+    pred = np.zeros((2, 3), np.float32)
+    true = np.zeros((2, 3), np.float32)
+    true[:, 0] = 4.0
+    assert np.allclose(field_rmse(pred, true, keep=np.array([False, True, True])), 0.0)

@@ -21,24 +21,33 @@ class QoiInputs:
         ``(T, P, dim)`` particle positions, working frame (mm).
     aux:
         ``(T, P)`` auxiliary field, working frame (the card's aux unit).
+    particle_type:
+        ``(P,)`` particle part-ids, when the caller provides them.
     """
 
     time: NDArray[np.float64]
     positions: NDArray[np.float32]
     aux: NDArray[np.float32]
+    particle_type: NDArray[np.int64] | None = None
 
 
 #: A quantity of interest maps rollout arrays to one scalar.
 QoiFn = Callable[[QoiInputs], float]
 
 
-def position_rmse(pred: NDArray, true: NDArray) -> NDArray[np.float64]:
+def position_rmse(
+    pred: NDArray, true: NDArray, keep: NDArray[np.bool_] | None = None
+) -> NDArray[np.float64]:
     """Per-frame position RMSE over particles and dimensions.
 
     Parameters
     ----------
     pred, true:
         Arrays of shape ``(T, P, dim)``.
+    keep:
+        Optional boolean particle mask ``(P,)``; when given, the mean runs
+        over kept particles only (e.g. excluding kinematically prescribed
+        particles, ADR-0026).
 
     Returns
     -------
@@ -46,12 +55,33 @@ def position_rmse(pred: NDArray, true: NDArray) -> NDArray[np.float64]:
         Shape ``(T,)``.
     """
     d = (np.asarray(pred, float) - np.asarray(true, float)) ** 2
+    if keep is not None:
+        d = d[:, keep, :]
     return np.sqrt(d.mean(axis=(1, 2)))
 
 
-def field_rmse(pred: NDArray, true: NDArray) -> NDArray[np.float64]:
-    """Per-frame RMSE of a scalar per-particle field, shapes ``(T, P)``."""
+def field_rmse(
+    pred: NDArray, true: NDArray, keep: NDArray[np.bool_] | None = None
+) -> NDArray[np.float64]:
+    """Per-frame RMSE of a scalar per-particle field, shapes ``(T, P)``.
+
+    Parameters
+    ----------
+    pred, true:
+        Arrays of shape ``(T, P)``.
+    keep:
+        Optional boolean particle mask ``(P,)``; when given, the mean runs
+        over kept particles only (e.g. excluding kinematically prescribed
+        particles, ADR-0026).
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T,)``.
+    """
     d = (np.asarray(pred, float) - np.asarray(true, float)) ** 2
+    if keep is not None:
+        d = d[:, keep]
     return np.sqrt(d.mean(axis=1))
 
 

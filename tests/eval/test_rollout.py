@@ -126,3 +126,15 @@ def test_one_step_aux_rmse_shape_and_finiteness():
     per_frame = one_step_aux_rmse(sim, traj, window=2)
     assert per_frame.shape == (traj.positions.shape[0] - 2,)
     assert np.all(np.isfinite(per_frame))
+
+
+def test_rollout_qoi_inputs_carry_particle_type():
+    traj = _const_vel_traj()
+    sim = _ConstVelSim()
+
+    def type_checker(inputs: QoiInputs) -> float:
+        assert inputs.particle_type is not None
+        return float(inputs.particle_type.sum())
+
+    result = rollout(sim, traj, window=2, qois={"tc": type_checker})
+    assert result.qoi_true["tc"] == float(traj.particle_type.sum())

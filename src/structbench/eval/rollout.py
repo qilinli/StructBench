@@ -104,9 +104,17 @@ def rollout(
     pos_rmse = position_rmse(pred_pos[window:], trajectory.positions[window:])
     aux_rmse = field_rmse(pred_aux[window:], trajectory.aux[window:])
 
-    pred_inputs = QoiInputs(time=trajectory.time, positions=pred_pos, aux=pred_aux)
+    pred_inputs = QoiInputs(
+        time=trajectory.time,
+        positions=pred_pos,
+        aux=pred_aux,
+        particle_type=trajectory.particle_type,
+    )
     true_inputs = QoiInputs(
-        time=trajectory.time, positions=trajectory.positions, aux=trajectory.aux
+        time=trajectory.time,
+        positions=trajectory.positions,
+        aux=trajectory.aux,
+        particle_type=trajectory.particle_type,
     )
     qoi_pred = {name: float(fn(pred_inputs)) for name, fn in (qois or {}).items()}
     qoi_true = {name: float(fn(true_inputs)) for name, fn in (qois or {}).items()}
