@@ -21,7 +21,7 @@
 - Library code logs via `logging.getLogger(__name__)`; `print` only in `cli/` and `tools/`.
 - Commits: Conventional Commits, imperative mood, `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` trailer.
 - Branch: `feat/benchmark-registry-cards`, branched from `main` if `adr/v02-benchmark-scope` has been merged, else from `adr/v02-benchmark-scope`. Never commit to `main`.
-- Verification before completion: `python -m pytest -q`, `ruff check src tests tools`, `ruff format --check src tests tools`, `python -m mypy src` — all clean. Interpreter: `C:\Users\272766h\AppData\Local\miniconda3\envs\structbench\python.exe`.
+- Verification before completion: `python -m pytest -q`, `ruff check src tests tools`, `ruff format --check src tests tools`, `python -m mypy src` — all clean. Interpreter: the `structbench` conda env's `python.exe`.
 - **Split lists, QoI sets, and aux fields are ADR-frozen contract** (ADR-0019/0023/0024): this plan must not change any Taylor split/QoI value, only relocate access to them.
 
 ## File Structure
