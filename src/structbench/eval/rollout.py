@@ -102,7 +102,7 @@ def rollout(
     pred_pos = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     pred_aux = torch.stack(aux_pred, dim=0).cpu().numpy().astype(np.float32)
     pos_rmse = position_rmse(pred_pos[window:], trajectory.positions[window:])
-    aux_rmse = field_rmse(pred_aux[window:], trajectory.von_mises[window:])
+    aux_rmse = field_rmse(pred_aux[window:], trajectory.aux[window:])
 
     qoi_pred = {name: float(fn(pred_pos)) for name, fn in (qois or {}).items()}
     qoi_true = {

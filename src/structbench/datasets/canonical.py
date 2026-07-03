@@ -8,6 +8,7 @@ visualization shell nodes are dropped.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -67,6 +68,50 @@ def von_mises_from_voigt(stress: NDArray[np.floating]) -> NDArray[np.float64]:
     )
 
 
+AuxExtractor = Callable[
+    [Mapping[str, NDArray[np.floating]], float], NDArray[np.float32]
+]
+"""Maps (mapping of SPH response fields, stress_scale) to a (T, P) aux array."""
+
+
+def _aux_von_mises(
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
+) -> NDArray[np.float32]:
+    """von Mises stress derived from the 6-component Voigt stress, scaled.
+
+    Parameters
+    ----------
+    sph:
+        Mapping of SPH response fields with a ``"stress"`` key holding a
+        ``(T, P, 6)`` array (Pa).
+    stress_scale:
+        Multiplier applied to SI stress (e.g. 1e-6: Pa -> MPa).
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T, P)``, dtype ``float32``.
+    """
+    vm = von_mises_from_voigt(sph["stress"][...])
+    return (vm * stress_scale).astype(np.float32)
+
+
+_AUX_EXTRACTORS: dict[str, AuxExtractor] = {
+    "von_mises_stress": _aux_von_mises,
+}
+
+
+def available_aux_fields() -> frozenset[str]:
+    """Names accepted by :func:`load_case_trajectory`'s ``aux_field``.
+
+    Returns
+    -------
+    frozenset of str
+        The set of valid ``aux_field`` strings.
+    """
+    return frozenset(_AUX_EXTRACTORS)
+
+
 @dataclass
 class CaseTrajectory:
     """One case as a particle trajectory in the ML working frame (mm, MPa)."""
@@ -74,13 +119,14 @@ class CaseTrajectory:
     case_id: str
     positions: NDArray[np.float32]  # (T, P, dim), mm
     particle_type: NDArray[np.int64]  # (P,)
-    von_mises: NDArray[np.float32]  # (T, P), MPa
+    aux: NDArray[np.float32]  # (T, P); units depend on aux_field
     time: NDArray[np.float64]  # (T,), s
 
 
 def load_case_trajectory(
     h5_path: str | Path,
     *,
+    aux_field: str = "von_mises_stress",
     length_scale: float = 1e3,
     stress_scale: float = 1e-6,
 ) -> CaseTrajectory:
@@ -90,6 +136,11 @@ def load_case_trajectory(
     ----------
     h5_path:
         Path to a canonical ``.h5`` case.
+    aux_field:
+        Name of the auxiliary extraction strategy to apply.  Must be one of
+        :func:`available_aux_fields`.  Stress-like extractors receive
+        ``stress_scale`` to convert from SI to the working unit.  Defaults to
+        ``"von_mises_stress"``.
     length_scale:
         Multiplier applied to SI positions (default 1e3: m -> mm).
     stress_scale:
@@ -98,7 +149,22 @@ def load_case_trajectory(
     Returns
     -------
     CaseTrajectory
+
+    Raises
+    ------
+    KeyError
+        If ``aux_field`` is not in :func:`available_aux_fields`.
+    ValueError
+        If the case has no response data.
     """
+    try:
+        extractor = _AUX_EXTRACTORS[aux_field]
+    except KeyError:
+        raise KeyError(
+            f"unknown aux_field {aux_field!r}; available: "
+            f"{', '.join(sorted(_AUX_EXTRACTORS))}"
+        ) from None
+
     case = read_case(h5_path)
     if case.response is None:
         raise ValueError(f"case {case.metadata.case_id} has no response")
@@ -111,13 +177,14 @@ def load_case_trajectory(
     disp = case.response.node["displacement"][:n_frames, idx, :]  # (T, P, dim) SI
     positions = ((coords0[None] + disp) * length_scale).astype(np.float32)
 
-    stress = case.response.element["sph"]["stress"][:n_frames]  # (T, P, 6) Pa
-    von_mises = (von_mises_from_voigt(stress) * stress_scale).astype(np.float32)
+    # The extractor sees the full response; the terminal-artifact trim
+    # (ADR-0028) is applied to its output alongside positions and time.
+    aux = extractor(case.response.element["sph"], stress_scale)[:n_frames]
 
     return CaseTrajectory(
         case_id=case.metadata.case_id,
         positions=positions,
         particle_type=np.asarray(sph.part_id, dtype=np.int64),
-        von_mises=von_mises,
+        aux=aux,
         time=np.asarray(case.response.time[:n_frames], dtype=np.float64),
     )

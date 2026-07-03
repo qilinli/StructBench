@@ -3,6 +3,8 @@
 # anything. Same architecture as taylor_2d.toml, tiny schedule so it finishes in
 # a few minutes on CPU.
 
+benchmark = "taylor_impact_2d"
+
 # --- architecture + training noise (GNSConfig) ---
 window = 11
 connectivity_radius = 1.5

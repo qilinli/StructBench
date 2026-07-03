@@ -21,9 +21,9 @@ class NormalizationStats:
     """Mean/std of velocity, acceleration, and the auxiliary field.
 
     Velocity and acceleration carry a per-dimension mean/std (mm/frame,
-    mm/frame^2). The auxiliary (von Mises stress) field carries a scalar
-    mean/std (shape ``(1,)``, MPa) so its training target can be normalized to
-    O(1), balancing the dual position/auxiliary loss.
+    mm/frame^2). The auxiliary target field (e.g. von Mises stress for Taylor)
+    carries a scalar mean/std (shape ``(1,)``) so its training target can be
+    normalized to O(1), balancing the dual position/auxiliary loss.
     """
 
     velocity_mean: NDArray[np.float64]
@@ -63,10 +63,10 @@ def compute_stats(trajectories: list[CaseTrajectory]) -> NormalizationStats:
     """Pool velocity/acceleration/aux stats over all particles, frames, and cases.
 
     Velocity is the first finite difference of positions along the frame axis;
-    acceleration is the second. The auxiliary (von Mises stress) field is a
-    direct quantity, so its stats are pooled over the raw values with no finite
-    difference. Statistics are stacked over every particle in every frame of
-    every trajectory.
+    acceleration is the second. The auxiliary target field (e.g. von Mises
+    stress for Taylor) is a direct quantity, so its stats are pooled over the
+    raw values with no finite difference. Statistics are stacked over every
+    particle in every frame of every trajectory.
 
     Parameters
     ----------
@@ -89,7 +89,7 @@ def compute_stats(trajectories: list[CaseTrajectory]) -> NormalizationStats:
         a = v[1:] - v[:-1]  # (T-2, P, dim)
         vels.append(v.reshape(-1, p.shape[-1]))
         accs.append(a.reshape(-1, p.shape[-1]))
-        auxs.append(tr.von_mises.astype(np.float64).reshape(-1))  # (T*P,)
+        auxs.append(tr.aux.astype(np.float64).reshape(-1))  # (T*P,)
     v_all = np.concatenate(vels, axis=0)
     a_all = np.concatenate(accs, axis=0)
     aux_all = np.concatenate(auxs, axis=0)

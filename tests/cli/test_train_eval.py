@@ -15,6 +15,9 @@ import numpy as np
 import pytest
 import torch
 
+from structbench.benchmarks import get_benchmark
+from structbench.benchmarks.card import BenchmarkCard
+from structbench.benchmarks.registry import BenchmarkSpec
 from structbench.cli.train import (
     GNSConfig,
     TrainConfig,
@@ -141,9 +144,10 @@ def test_evaluate_rebuilds_architecture_from_run_config(tmp_path):
     for per_case in metrics["cases"].values():
         assert np.isfinite(per_case["one_step_position_rmse"])
         assert np.isfinite(per_case["rollout_position_rmse"])
-        assert np.isfinite(per_case["rollout_von_mises_rmse"])
+        assert np.isfinite(per_case["rollout_aux_rmse"])
         assert set(per_case["qoi_error"]) == {"final_length", "mushroom_width"}
     assert np.isfinite(metrics["mean"]["rollout_position_rmse"])
+    assert np.isfinite(metrics["mean"]["rollout_aux_rmse"])
     assert set(metrics["mean"]["qoi_abs_error"]) == {
         "final_length",
         "mushroom_width",
@@ -185,4 +189,66 @@ def test_train_refuses_out_dir_with_existing_checkpoints(tmp_path):
     data_root = tmp_path / "data"
     data_root.mkdir()
     with pytest.raises(FileExistsError):
-        train(GNSConfig(**SMALL_GNS), TrainConfig(), data_root, out_dir, "cpu")
+        train(
+            get_benchmark("taylor_impact_2d"),
+            GNSConfig(**SMALL_GNS),
+            TrainConfig(),
+            data_root,
+            out_dir,
+            "cpu",
+        )
+
+
+def test_train_raises_on_spec_config_benchmark_mismatch(tmp_path):
+    """train() raises ValueError when train_cfg.benchmark names a different spec.
+
+    The guard fires before any filesystem work: it detects that the spec passed
+    to train() is not the object get_benchmark(train_cfg.benchmark) would return,
+    which would cause config.json to misrecord the benchmark name.
+    """
+    minimal_card = BenchmarkCard(
+        name="Minimal",
+        version="0",
+        description="test-only spec not in the registry",
+        provenance="test",
+        data_license="CC0",
+        solver="test",
+        discretisation="SPH",
+        materials=("MAT_TEST",),
+        erosion=False,
+        loading="none",
+        source_units="SI",
+        geometry="unit box",
+        n_cases=2,
+        splits={"train": 1, "val": 1},
+        task="test",
+        aux_field="von_mises_stress",
+        aux_unit="MPa",
+        qois=(),
+        fields=("positions",),
+        particles_per_case="1",
+        n_frames=3,
+        output_dt_ms=1.0,
+    )
+    local_spec = BenchmarkSpec(
+        card=minimal_card,
+        splits={"train": ("T-local-1",), "val": ("V-local-1",)},
+        eval_splits=("val",),
+        aux_field="von_mises_stress",
+    )
+    # Passing TrainConfig(benchmark="taylor_impact_2d") while local_spec is a
+    # different object triggers the mismatch guard before any filesystem work.
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    out_dir = tmp_path / "run"
+    with pytest.raises(ValueError, match="does not resolve to the spec"):
+        train(
+            local_spec,
+            GNSConfig(**SMALL_GNS),
+            TrainConfig(benchmark="taylor_impact_2d"),
+            data_root,
+            out_dir,
+            "cpu",
+        )
+    # Guard fires before out_dir is created.
+    assert not out_dir.exists()

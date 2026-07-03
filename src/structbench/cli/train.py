@@ -3,22 +3,24 @@
 This module ties together the StructBench ML layer: the canonical data
 pipeline (:mod:`structbench.datasets`), the learned simulator
 (:mod:`structbench.models.gns`), the rollout evaluation
-(:mod:`structbench.eval`), and the v0.1 Taylor 2D benchmark
-(:mod:`structbench.benchmarks.taylor_impact_2d`).
+(:mod:`structbench.eval`), and the benchmark registry
+(:mod:`structbench.benchmarks`).
 
 The training loop is ported from the sgnn reference
 (``sgnn/single_scale/train.py``) and the random-walk position noise from
 ``sgnn/noise_utils.py``. The reference's npz/metadata data path is replaced by
 the canonical pipeline: train trajectories come from
-:func:`~structbench.datasets.load_case_trajectory` over the benchmark ``TRAIN``
+:func:`~structbench.datasets.load_case_trajectory` over the spec's train
 split, batched through :class:`~structbench.datasets.WindowDataset` and
 :func:`~structbench.datasets.collate_samples`, with normalization from
-:func:`~structbench.datasets.compute_stats`. The simulator is built with the
-Taylor :func:`~structbench.benchmarks.taylor_impact_2d.wall_distance_feature`
-as its boundary feature and a single auxiliary (von Mises) channel.
+:func:`~structbench.datasets.compute_stats`. The active benchmark is resolved
+via :data:`TrainConfig.benchmark` → :func:`~structbench.benchmarks.get_benchmark`
+→ a :class:`~structbench.benchmarks.BenchmarkSpec` that supplies the splits,
+auxiliary field, QoIs, and optional boundary feature.
 
-Positions are in the millimetre working frame and the auxiliary field in MPa
-(ADR-0019). Library functions log via :mod:`logging`; only :func:`main` prints.
+Positions are in the millimetre working frame; the auxiliary field's unit is
+specified by the benchmark card (MPa for the Taylor default). Library functions
+log via :mod:`logging`; only :func:`main` prints.
 """
 
 from __future__ import annotations
@@ -38,14 +40,7 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from ..benchmarks.taylor_impact_2d import (
-    QOIS,
-    TEST_EXTRAP,
-    TEST_INTERP,
-    TRAIN,
-    VAL,
-    wall_distance_feature,
-)
+from ..benchmarks import BenchmarkSpec, available_benchmarks, get_benchmark
 from ..datasets import (
     CaseTrajectory,
     NormalizationStats,
@@ -123,6 +118,8 @@ class TrainConfig:
 
     Attributes
     ----------
+    benchmark : str
+        Registry name resolved via :func:`structbench.benchmarks.get_benchmark`.
     batch_size : int
         Number of trajectory windows per optimizer step.
     lr_init : float
@@ -138,9 +135,10 @@ class TrainConfig:
     w_pos : float
         Weight on the acceleration (position) loss term.
     w_aux : float
-        Weight on the auxiliary (von Mises) loss term.
+        Weight on the auxiliary loss term.
     """
 
+    benchmark: str = "taylor_impact_2d"
     batch_size: int = 32
     lr_init: float = 1e-3
     lr_decay: float = 0.1
@@ -268,7 +266,7 @@ def build_simulator(
         std = torch.sqrt(stats[key]["std"].to(device) ** 2 + noise_var)
         normalization_stats[key] = {"mean": mean, "std": std}
 
-    # The auxiliary (von Mises) target carries no input noise, so its stats are
+    # The auxiliary target carries no input noise, so its stats are
     # passed through without the sqrt(std^2 + noise^2) inflation applied above.
     normalization_stats["aux"] = {
         "mean": stats["aux"]["mean"].to(device),
@@ -294,13 +292,14 @@ def build_simulator(
     )
 
 
-def _load_trajectories(case_ids: list[str], data_root: Path) -> list[CaseTrajectory]:
+def _load_trajectories(
+    case_ids: list[str], data_root: Path, aux_field: str
+) -> list[CaseTrajectory]:
     """Load each ``<data_root>/<case_id>.h5`` into a :class:`CaseTrajectory`."""
-    trajectories: list[CaseTrajectory] = []
-    for case_id in case_ids:
-        h5_path = data_root / f"{case_id}.h5"
-        trajectories.append(load_case_trajectory(h5_path))
-    return trajectories
+    return [
+        load_case_trajectory(data_root / f"{case_id}.h5", aux_field=aux_field)
+        for case_id in case_ids
+    ]
 
 
 def _stats_to_dict(stats: NormalizationStats) -> dict[str, dict[str, Tensor]]:
@@ -367,16 +366,22 @@ def _validate(
     )
 
 
-def _wall_feature_fn(gns: GNSConfig) -> Callable[[Tensor], Tensor]:
-    """Bind the Taylor wall feature to the configured connectivity radius."""
+def _bind_boundary_feature(
+    spec: BenchmarkSpec, gns: GNSConfig
+) -> Callable[[Tensor], Tensor] | None:
+    """Bind the spec's boundary feature to the configured radius, if any."""
+    fn = spec.boundary_feature_fn
+    if fn is None:
+        return None
 
     def feature(positions: Tensor) -> Tensor:
-        return wall_distance_feature(positions, gns.connectivity_radius)
+        return fn(positions, gns.connectivity_radius)
 
     return feature
 
 
 def train(
+    spec: BenchmarkSpec,
     gns: GNSConfig,
     train_cfg: TrainConfig,
     data_root: Path,
@@ -385,18 +390,20 @@ def train(
 ) -> Path | None:
     """Run config-driven training with periodic validation and checkpoint-best.
 
-    Builds the TRAIN trajectories, normalization stats, and the simulator (with
-    the Taylor wall boundary feature), then optimizes with Adam under an
-    exponential learning-rate decay and the dual MSE loss
+    Builds the benchmark spec's train trajectories, normalization stats, and the
+    simulator (using the spec's boundary feature if any), then optimizes with
+    Adam under an exponential learning-rate decay and the dual MSE loss
     ``w_pos * ||Δacc||^2 + w_aux * (Δaux)^2``, where both the acceleration and
-    the auxiliary (von Mises) targets are normalized so the two terms are O(1)
-    and balanced. Every ``val_every`` steps it runs
-    a validation rollout over ``VAL`` and saves the model when the mean RMSE
-    improves. The resolved config and normalization stats are written under
-    ``out_dir``.
+    the auxiliary targets are normalized so the two terms are O(1) and balanced.
+    Every ``val_every`` steps it runs a validation rollout over the spec's val
+    split and saves the model when the mean RMSE improves. The resolved config
+    and normalization stats are written under ``out_dir``.
 
     Parameters
     ----------
+    spec : BenchmarkSpec
+        Benchmark spec supplying splits, auxiliary field, QoIs, and boundary
+        feature.
     gns : GNSConfig
         Architecture and noise configuration.
     train_cfg : TrainConfig
@@ -420,7 +427,18 @@ def train(
         If ``out_dir`` already holds ``model-*.pt`` checkpoints. Training has
         no resume, and :func:`evaluate` picks the newest checkpoint by mtime,
         so a fresh run into an old directory would shadow a better model.
+    ValueError
+        If ``train_cfg.benchmark`` names a registered benchmark that is not
+        ``spec``; this would misrecord the benchmark in ``config.json``.
     """
+    if (
+        train_cfg.benchmark in available_benchmarks()
+        and get_benchmark(train_cfg.benchmark) is not spec
+    ):
+        raise ValueError(
+            f"train_cfg.benchmark {train_cfg.benchmark!r} does not resolve to the "
+            "spec passed to train(); config.json would misrecord the benchmark"
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
     existing = sorted(out_dir.glob("model-*.pt"))
     if existing:
@@ -429,9 +447,10 @@ def train(
             "training has no resume — use a fresh --out directory per attempt"
         )
 
-    logger.info("loading %d TRAIN trajectories from %s", len(TRAIN), data_root)
-    train_trajs = _load_trajectories(TRAIN, data_root)
-    val_trajs = _load_trajectories(VAL, data_root)
+    train_ids = list(spec.splits["train"])
+    logger.info("loading %d TRAIN trajectories from %s", len(train_ids), data_root)
+    train_trajs = _load_trajectories(train_ids, data_root, spec.aux_field)
+    val_trajs = _load_trajectories(list(spec.splits["val"]), data_root, spec.aux_field)
 
     # Dataset-level cache (spec resolved-choice 2); the run-dir copy below is
     # the self-contained record evaluate() reads.
@@ -443,18 +462,20 @@ def train(
         _stats_to_dict(stats),
         gns,
         n_particle_types=n_types,
-        boundary_feature_fn=_wall_feature_fn(gns),
+        boundary_feature_fn=_bind_boundary_feature(spec, gns),
         device=device,
     )
     simulator.to(device)
 
-    # Auxiliary (von Mises) normalization: the decoder predicts the auxiliary
+    # Auxiliary-target normalization: the decoder predicts the auxiliary
     # channel in normalized space, so the target is normalized to match before
     # the loss, keeping it O(1) and balanced against the position loss.
     aux_mean = torch.tensor(stats.aux_mean, dtype=torch.float32, device=device)
     aux_std = torch.tensor(stats.aux_std, dtype=torch.float32, device=device)
 
-    _write_resolved_config(out_dir, gns, train_cfg, n_types, data_root)
+    _write_resolved_config(
+        out_dir, gns, train_cfg, n_types, data_root, train_cfg.benchmark
+    )
 
     dataset = WindowDataset(train_trajs, gns.window)
     loader = DataLoader(
@@ -550,11 +571,18 @@ def _write_resolved_config(
     train_cfg: TrainConfig,
     n_types: int,
     data_root: Path,
+    benchmark: str,
 ) -> None:
-    """Dump the fully-resolved run configuration to ``out_dir/config.json``."""
+    """Dump the fully-resolved run configuration to ``out_dir/config.json``.
+
+    Top-level keys: "benchmark", "gns", "train", "n_particle_types", "data_root".
+    The "benchmark" key is top-level only; it is excluded from the nested "train"
+    section to avoid duplication.
+    """
     resolved = {
+        "benchmark": benchmark,
         "gns": asdict(gns),
-        "train": asdict(train_cfg),
+        "train": {k: v for k, v in asdict(train_cfg).items() if k != "benchmark"},
         "n_particle_types": n_types,
         "data_root": str(data_root),
     }
@@ -567,6 +595,31 @@ def _find_checkpoint(out_dir: Path) -> Path | None:
     """Return the most recently modified ``model-*.pt`` in ``out_dir``."""
     checkpoints = sorted(out_dir.glob("model-*.pt"), key=lambda p: p.stat().st_mtime)
     return checkpoints[-1] if checkpoints else None
+
+
+def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
+    """Resolve the run directory's benchmark spec and resolved config.
+
+    Parameters
+    ----------
+    out_dir : pathlib.Path
+        Run directory holding ``config.json``.
+
+    Returns
+    -------
+    tuple of (BenchmarkSpec, dict)
+        The benchmark spec and the parsed config dict.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``config.json`` is missing from ``out_dir``.
+    """
+    config_path = out_dir / "config.json"
+    if not config_path.exists():
+        raise FileNotFoundError(f"missing run config: {config_path}")
+    resolved = json.loads(config_path.read_text(encoding="utf-8"))
+    return get_benchmark(resolved.get("benchmark", "taylor_impact_2d")), resolved
 
 
 def evaluate(
@@ -587,7 +640,8 @@ def evaluate(
     written by :func:`train`.
 
     Per case, reports the one-step (teacher-forced) position RMSE, the
-    full-rollout position RMSE (mm), the rollout von Mises RMSE (MPa), and the
+    full-rollout position RMSE (mm), the rollout auxiliary-field RMSE (in the
+    card's aux unit), and the
     benchmark QoIs with signed errors; the split mean aggregates each metric
     (QoIs as mean absolute error). When ``save_artifacts`` is true the report
     is written to ``out_dir/metrics-<split_name>.json`` and each predicted
@@ -622,14 +676,11 @@ def evaluate(
     """
     if not case_ids:
         raise ValueError("case_ids must be non-empty")
-    config_path = out_dir / "config.json"
-    if not config_path.exists():
-        raise FileNotFoundError(f"missing run config: {config_path}")
+    spec, resolved = _resolve_run_spec(out_dir)
     stats_path = out_dir / "normalization_stats.npz"
     if not stats_path.exists():
         raise FileNotFoundError(f"missing normalization stats: {stats_path}")
 
-    resolved = json.loads(config_path.read_text(encoding="utf-8"))
     gns = GNSConfig(**resolved["gns"])
     n_types = int(resolved["n_particle_types"])
     stats = NormalizationStats.load(stats_path)
@@ -638,7 +689,7 @@ def evaluate(
         _stats_to_dict(stats),
         gns,
         n_particle_types=n_types,
-        boundary_feature_fn=_wall_feature_fn(gns),
+        boundary_feature_fn=_bind_boundary_feature(spec, gns),
         device=device,
     )
     checkpoint = _find_checkpoint(out_dir)
@@ -654,24 +705,28 @@ def evaluate(
 
     cases: dict[str, dict[str, Any]] = {}
     for case_id in case_ids:
-        trajectory = load_case_trajectory(data_root / f"{case_id}.h5")
-        result = rollout(simulator, trajectory, gns.window, device, qois=QOIS)
+        trajectory = load_case_trajectory(
+            data_root / f"{case_id}.h5", aux_field=spec.aux_field
+        )
+        result = rollout(simulator, trajectory, gns.window, device, qois=spec.qois)
         one_step = one_step_position_rmse(simulator, trajectory, gns.window, device)
         cases[case_id] = {
             "one_step_position_rmse": float(one_step.mean()),
             "rollout_position_rmse": result.mean_position_rmse,
-            "rollout_von_mises_rmse": result.mean_aux_rmse,
+            "rollout_aux_rmse": result.mean_aux_rmse,
             "qoi_pred": result.qoi_pred,
             "qoi_true": result.qoi_true,
             "qoi_error": result.qoi_error,
         }
         logger.info(
-            "[%s] %s: one-step %.4f mm | rollout %.4f mm | von Mises %.4f MPa",
+            "[%s] %s: one-step %.4f mm | rollout %.4f mm | %s %.4f %s",
             split_name,
             case_id,
             cases[case_id]["one_step_position_rmse"],
             result.mean_position_rmse,
+            spec.aux_field,
             result.mean_aux_rmse,
+            spec.card.aux_unit,
         )
         if save_artifacts:
             np.savez(
@@ -689,16 +744,18 @@ def evaluate(
     metrics: dict[str, Any] = {
         "split": split_name,
         "checkpoint": checkpoint.name,
+        "aux_field": spec.aux_field,
+        "aux_unit": spec.card.aux_unit,
         "cases": cases,
         "mean": {
             "one_step_position_rmse": _mean_over_cases("one_step_position_rmse"),
             "rollout_position_rmse": _mean_over_cases("rollout_position_rmse"),
-            "rollout_von_mises_rmse": _mean_over_cases("rollout_von_mises_rmse"),
+            "rollout_aux_rmse": _mean_over_cases("rollout_aux_rmse"),
             "qoi_abs_error": {
                 name: float(
                     np.mean([abs(case["qoi_error"][name]) for case in cases.values()])
                 )
-                for name in QOIS
+                for name in spec.qois
             },
         },
     }
@@ -767,30 +824,47 @@ def main(argv: list[str] | None = None) -> int:
     print(f"mode={args.mode} device={device} out={out_dir}")
 
     if args.mode == "train":
-        ckpt = train(gns, train_cfg, data_root, out_dir, device)
+        spec = get_benchmark(train_cfg.benchmark)
+        ckpt = train(spec, gns, train_cfg, data_root, out_dir, device)
         print(f"training complete; best checkpoint: {ckpt}")
-    elif args.mode == "valid":
-        metrics = evaluate(VAL, data_root, out_dir, device, split_name="val")
-        _print_split_report(metrics)
-    else:  # rollout: interpolation is the headline; extrapolation separate
-        for split_name, split_cases in (
-            ("test_interp", TEST_INTERP),
-            ("test_extrap", TEST_EXTRAP),
-        ):
+    else:
+        spec, _resolved = _resolve_run_spec(out_dir)
+        if args.mode == "valid":
             metrics = evaluate(
-                split_cases, data_root, out_dir, device, split_name=split_name
+                list(spec.splits["val"]),
+                data_root,
+                out_dir,
+                device,
+                split_name="val",
             )
             _print_split_report(metrics)
+        else:  # rollout: every eval split except val, in spec order
+            for split_name in spec.eval_splits:
+                if split_name == "val":
+                    continue
+                metrics = evaluate(
+                    list(spec.splits[split_name]),
+                    data_root,
+                    out_dir,
+                    device,
+                    split_name=split_name,
+                )
+                _print_split_report(metrics)
     return 0
 
 
 def _print_split_report(metrics: dict[str, Any]) -> None:
-    """Print one split's ADR-0019 metrics (mm / MPa) to stdout."""
+    """Print one split's ADR-0019 metrics (mm / aux unit) to stdout."""
     split, mean = metrics["split"], metrics["mean"]
+    aux_field = metrics.get("aux_field", "aux")
+    aux_unit = metrics.get("aux_unit", "")
+    aux_rmse_str = f"rollout {aux_field} RMSE {mean['rollout_aux_rmse']:.4f}"
+    if aux_unit:
+        aux_rmse_str = f"{aux_rmse_str} {aux_unit}"
     print(
         f"[{split}] one-step position RMSE {mean['one_step_position_rmse']:.4f} mm"
         f" | rollout position RMSE {mean['rollout_position_rmse']:.4f} mm"
-        f" | rollout von Mises RMSE {mean['rollout_von_mises_rmse']:.4f} MPa"
+        f" | {aux_rmse_str}"
     )
     qoi = ", ".join(
         f"{name} {value:.4f} mm" for name, value in mean["qoi_abs_error"].items()

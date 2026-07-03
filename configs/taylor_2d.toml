@@ -8,6 +8,8 @@
 # Recipe revised per ADR-0028 after the first full baseline run: wider graph,
 # reference learning rate, gradient clipping, position-based model selection.
 
+benchmark = "taylor_impact_2d"
+
 # --- architecture + training noise (GNSConfig) ---
 window = 11                       # input history length (frames per sample)
 connectivity_radius = 1.5         # graph radius, mm = 3x particle spacing (ADR-0028;

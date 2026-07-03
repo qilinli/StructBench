@@ -63,7 +63,7 @@ What becomes easier, harder, or constrained as a result.
 | 0012 | Case schema field-level structure | Durable | Accepted |
 | 0013 | HDF5 persistence layout for the case schema | Durable | Accepted |
 | 0014 | StructBench is the substrate layer of a broader research program | Durable | Accepted |
-| 0015 | v0.1 ships existing LS-DYNA datasets as benchmarks with prior-paper GNN baselines (supersedes 0003) | Durable | Accepted (amended by 0021) |
+| 0015 | v0.1 ships existing LS-DYNA datasets as benchmarks with prior-paper GNN baselines (supersedes 0003) | Durable | Accepted (amended by 0021, 0024) |
 | 0016 | LS-DYNA d3plot is the canonical ingestion path; general adapter on lasso-python | Durable | Accepted |
 | 0017 | Relationship to NVIDIA PhysicsNeMo: independent substrate, opt-in model-edge interop | Durable | Accepted |
 | 0018 | PyTorch + PyG are hard runtime dependencies of the ML layer | Durable | Accepted |
@@ -72,6 +72,10 @@ What becomes easier, harder, or constrained as a result.
 | 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
 | 0022 | FEM-convention visualization harness (`viz/`, matplotlib as optional extra) | Durable | Accepted |
 | 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted |
+| 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Durable | Accepted |
+| 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted |
+| 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted |
+| 0027 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Accepted |
 | 0028 | GNS baseline training-recipe rework after the first full run | Ephemeral | Accepted |
 
 ---
