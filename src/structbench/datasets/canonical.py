@@ -117,9 +117,36 @@ def _aux_axial_stress(
     return (sph["stress"][...][..., 0] * stress_scale).astype(np.float32)
 
 
+def _aux_damage(
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
+) -> NDArray[np.float32]:
+    """K&C scaled damage measure from the effective-plastic-strain slot.
+
+    For ``*MAT_CONCRETE_DAMAGE_REL3`` the d3plot effective-plastic-strain
+    slot records the scaled damage measure (0..2), unitless — so
+    ``stress_scale`` is ignored (ADR-0026).
+
+    Parameters
+    ----------
+    sph:
+        Mapping of SPH response fields with an
+        ``"effective_plastic_strain"`` key holding a ``(T, P)`` array.
+    stress_scale:
+        Unused; present for the :data:`AuxExtractor` signature.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T, P)``, float32, unitless.
+    """
+    del stress_scale
+    return sph["effective_plastic_strain"][...].astype(np.float32)
+
+
 _AUX_EXTRACTORS: dict[str, AuxExtractor] = {
     "von_mises_stress": _aux_von_mises,
     "axial_stress": _aux_axial_stress,
+    "damage": _aux_damage,
 }
 
 

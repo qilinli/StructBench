@@ -30,6 +30,8 @@ def _sph_case(tmp_path):
     disp[1, :3, 0] = 2e-3  # +2 mm in x at frame 1, SPH particles only
     stress = np.zeros((2, 3, 6), dtype=np.float32)
     stress[1, :, 0] = 300e6  # 300 MPa sigma_xx at frame 1
+    effective_plastic_strain = np.zeros((2, 3), dtype=np.float32)
+    effective_plastic_strain[1, :] = 0.15  # K&C scaled damage measure
     case = Case(
         metadata=Metadata(case_id="T-test", dimension=2, source_units="g-mm-ms"),
         nodes=Nodes(coords=coords, node_id=np.arange(1, 5, dtype=np.int64)),
@@ -49,7 +51,12 @@ def _sph_case(tmp_path):
         response=Response(
             time=np.array([0.0, 2e-6]),
             node={"displacement": disp},
-            element={"sph": {"stress": stress}},
+            element={
+                "sph": {
+                    "stress": stress,
+                    "effective_plastic_strain": effective_plastic_strain,
+                }
+            },
         ),
     )
     path = tmp_path / "case.h5"
@@ -112,3 +119,19 @@ def test_available_aux_fields_lists_axial_stress():
     from structbench.datasets import available_aux_fields
 
     assert "axial_stress" in available_aux_fields()
+
+
+def test_damage_extractor_reads_eff_plastic_strain_unscaled(tmp_path):
+    h5_path = _sph_case(tmp_path)
+    tr = load_case_trajectory(h5_path, aux_field="damage")
+    import h5py
+
+    with h5py.File(h5_path) as f:
+        expected = f["response/element/sph/effective_plastic_strain"][...]
+    np.testing.assert_allclose(tr.aux, expected, rtol=1e-6)  # NO stress scaling
+
+
+def test_available_aux_fields_lists_damage():
+    from structbench.datasets import available_aux_fields
+
+    assert "damage" in available_aux_fields()
