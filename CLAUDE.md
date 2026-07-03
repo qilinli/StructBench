@@ -33,6 +33,7 @@ Read these files, in order, before any work begins:
 5. `docs/PRINCIPLES.md`.
 6. `docs/CORRECTIONS.md` — all entries marked `active`.
 7. `decisions/README.md` — the ADR index.
+8. `docs/WORKFLOW.md` — session venues and multi-machine git workflow; identify your venue before making any change.
 
 Then, conditionally based on the session's task:
 
@@ -60,16 +61,6 @@ Target: the full start-of-session reading should take under 10 minutes of agent 
 - No formal session summary required; commit messages serve as the record.
 
 ---
-
-## Session venues (multi-machine workflow)
-
-Multiple Claude Code sessions may work on this project concurrently from different places. At session start, identify the venue and adopt its role:
-
-- **Operations — DUG login node** (hostname `prud*`, no `SINGULARITY_NAME` in env): works in `/data/curtin_eecms/curtin_qilin/structbench`, the *execution checkout* — the tree SLURM jobs run. Submits and monitors jobs, merges/pushes on instruction, summarizes results. **Never edits code here**; this checkout moves only by deliberate `git merge`/`pull` between job fleets, and never while jobs are queued or running.
-- **Debug — JupyterHub container** (`SINGULARITY_NAME=jupyterlab.sif` in env): works in `/data/curtin_eecms/curtin_qilin/structbench-dev`, a `git worktree` of the same repository. Interactive GPU debugging and small fixes, on feature branches created there; commit and merge promptly so other venues can pull.
-- **Development — Windows or any other separate clone**: major feature work on feature branches, synced through GitHub (`git pull --ff-only` before starting; push branches when stopping).
-
-Shared rules: one branch has one writer at a time; code moves between machines only through git (never sideways file copies); every training run records its commit; `main` moves per the authority tiers below.
 
 ## Authority tiers
 
@@ -137,6 +128,7 @@ Small corrections that don't warrant an ADR are logged in `CORRECTIONS.md`. Form
 - **Case schema**: `docs/ARCHITECTURE.md`.
 - **Dependency policy and approved list**: `docs/PRINCIPLES.md`, with individual additions recorded as ADRs.
 - **ADR format and process**: `decisions/README.md`.
+- **Session venues and multi-machine git workflow**: `docs/WORKFLOW.md`.
 - **Long-term trajectory**: `ROADMAP.md`.
 
 If a rule seems missing from all of these, flag it rather than guess. It may belong in one of the existing documents, or it may indicate a gap the harness doesn't yet cover.
