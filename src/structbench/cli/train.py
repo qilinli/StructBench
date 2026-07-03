@@ -10,7 +10,7 @@ The training loop is ported from the sgnn reference
 (``sgnn/single_scale/train.py``) and the random-walk position noise from
 ``sgnn/noise_utils.py``. The reference's npz/metadata data path is replaced by
 the canonical pipeline: train trajectories come from
-:func:`~structbench.datasets.load_case_trajectory` over the benchmark ``TRAIN``
+:func:`~structbench.datasets.load_case_trajectory` over the spec's train
 split, batched through :class:`~structbench.datasets.WindowDataset` and
 :func:`~structbench.datasets.collate_samples`, with normalization from
 :func:`~structbench.datasets.compute_stats`. The active benchmark is resolved
@@ -18,8 +18,9 @@ via :data:`TrainConfig.benchmark` → :func:`~structbench.benchmarks.get_benchma
 → a :class:`~structbench.benchmarks.BenchmarkSpec` that supplies the splits,
 auxiliary field, QoIs, and optional boundary feature.
 
-Positions are in the millimetre working frame and the auxiliary field in MPa
-(ADR-0019). Library functions log via :mod:`logging`; only :func:`main` prints.
+Positions are in the millimetre working frame; the auxiliary field's unit is
+specified by the benchmark card (MPa for the Taylor default). Library functions
+log via :mod:`logging`; only :func:`main` prints.
 """
 
 from __future__ import annotations
@@ -440,7 +441,7 @@ def train(
     )
     simulator.to(device)
 
-    # Auxiliary (von Mises) normalization: the decoder predicts the auxiliary
+    # Auxiliary-target normalization: the decoder predicts the auxiliary
     # channel in normalized space, so the target is normalized to match before
     # the loss, keeping it O(1) and balanced against the position loss.
     aux_mean = torch.tensor(stats.aux_mean, dtype=torch.float32, device=device)
@@ -540,11 +541,16 @@ def _write_resolved_config(
     data_root: Path,
     benchmark: str,
 ) -> None:
-    """Dump the fully-resolved run configuration to ``out_dir/config.json``."""
+    """Dump the fully-resolved run configuration to ``out_dir/config.json``.
+
+    Top-level keys: "benchmark", "gns", "train", "n_particle_types", "data_root".
+    The "benchmark" key is top-level only; it is excluded from the nested "train"
+    section to avoid duplication.
+    """
     resolved = {
         "benchmark": benchmark,
         "gns": asdict(gns),
-        "train": asdict(train_cfg),
+        "train": {k: v for k, v in asdict(train_cfg).items() if k != "benchmark"},
         "n_particle_types": n_types,
         "data_root": str(data_root),
     }

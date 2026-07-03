@@ -145,6 +145,7 @@ def test_evaluate_rebuilds_architecture_from_run_config(tmp_path):
         assert np.isfinite(per_case["rollout_aux_rmse"])
         assert set(per_case["qoi_error"]) == {"final_length", "mushroom_width"}
     assert np.isfinite(metrics["mean"]["rollout_position_rmse"])
+    assert np.isfinite(metrics["mean"]["rollout_aux_rmse"])
     assert set(metrics["mean"]["qoi_abs_error"]) == {
         "final_length",
         "mushroom_width",
