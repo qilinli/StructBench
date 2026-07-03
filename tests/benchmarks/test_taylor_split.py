@@ -30,11 +30,14 @@ def test_split_velocities_match_adr_0019():
     assert vels(TEST_EXTRAP) == [200]
 
 
-def test_wall_distance_feature_clamps_to_radius():
-    pos = torch.tensor([[-2.0, 0.0], [-1.5, 0.0], [10.0, 0.0]])  # mm
+def test_wall_distance_feature_is_signed_and_radius_normalized():
+    # ADR-0028: clamp((x - wall)/R, -1, 1) — penetration must read negative.
+    pos = torch.tensor(
+        [[-3.0, 0.0], [-2.3, 0.0], [-2.0, 0.0], [-1.7, 0.0], [10.0, 0.0]]
+    )  # mm
     feat = wall_distance_feature(pos, radius=0.6)
-    assert feat.shape == (3, 1)
-    torch.testing.assert_close(feat[:, 0], torch.tensor([0.0, 0.5, 0.6]))
+    assert feat.shape == (5, 1)
+    torch.testing.assert_close(feat[:, 0], torch.tensor([-1.0, -0.5, 0.0, 0.5, 1.0]))
 
 
 def test_qois_bind_the_adr_0019_quantities():

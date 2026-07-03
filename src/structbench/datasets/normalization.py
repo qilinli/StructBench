@@ -111,9 +111,11 @@ def cached_compute_stats(
     """:func:`compute_stats` with a dataset-level cache keyed by the split.
 
     The cache lives at ``<dataset_root>/derived/norm_<key>.npz``, where the key
-    hashes the trajectories' case-id list — so the stats are computed once per
-    split and reused across runs, and a changed case-id list forces
-    recomputation under a new filename. The cache never blocks training: a
+    hashes the trajectories' case-id list *and per-case frame/particle counts*
+    — so the stats are computed once per split and reused across runs, while a
+    changed case list or a loader change that alters trajectory shapes (e.g.
+    the ADR-0028 terminal-frame trim) forces recomputation under a new
+    filename. The cache never blocks training: a
     write failure (e.g. read-only dataset root) degrades to a warning, and an
     unreadable/corrupt cache file is recomputed and rewritten. Writes go
     through a temp file + atomic rename so a killed run cannot leave a
@@ -131,8 +133,11 @@ def cached_compute_stats(
     -------
     NormalizationStats
     """
-    case_ids = [trajectory.case_id for trajectory in trajectories]
-    key = hashlib.sha256("\n".join(case_ids).encode("utf-8")).hexdigest()[:12]
+    fingerprint = [
+        f"{tr.case_id}:{tr.positions.shape[0]}x{tr.positions.shape[1]}"
+        for tr in trajectories
+    ]
+    key = hashlib.sha256("\n".join(fingerprint).encode("utf-8")).hexdigest()[:12]
     cache_path = Path(dataset_root) / "derived" / f"norm_{key}.npz"
     if cache_path.exists():
         try:

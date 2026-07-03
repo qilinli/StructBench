@@ -79,16 +79,21 @@ class GNSConfig:
         Standard deviation of the random-walk training noise at the last step.
     dim : int
         Spatial dimensionality (2 for the Taylor 2D benchmark).
+    max_neighbors : int
+        Per-node neighbour cap for the radius graph. Size it above the true
+        maximum degree at ``connectivity_radius`` so it never binds on
+        physical configurations (ADR-0028).
     """
 
     window: int = 11
-    connectivity_radius: float = 0.6
+    connectivity_radius: float = 1.5
     hidden_dim: int = 64
     message_passing_steps: int = 5
     nmlp_layers: int = 1
     particle_type_embedding_size: int = 9
     noise_std: float = 0.02
     dim: int = 2
+    max_neighbors: int = 48
 
     @classmethod
     def from_toml(cls, path: str | Path) -> GNSConfig:
@@ -281,6 +286,7 @@ def build_simulator(
         nparticle_types=n_particle_types,
         particle_type_embedding_size=gns.particle_type_embedding_size,
         n_aux=1,
+        max_neighbors=gns.max_neighbors,
         boundary_feature_fn=boundary_feature_fn,
         device=device,
     )
@@ -337,18 +343,27 @@ def _validate(
     trajectories: list[CaseTrajectory],
     window: int,
     device: str,
-) -> float:
-    """Mean (position + auxiliary) rollout RMSE over validation trajectories.
+) -> tuple[float, float]:
+    """Mean rollout position RMSE (mm) and von Mises RMSE (MPa) over VAL.
 
-    This is the in-training checkpoint-selection score only (a single scalar,
-    mm + MPa summed); the ADR-0019 reported metrics come from :func:`evaluate`.
+    The two channels are kept separate (ADR-0028): summing mm + MPa made the
+    in-training score 98% stress and let checkpoint selection ignore position
+    quality entirely. Selection uses the position channel; the ADR-0019
+    reported metrics come from :func:`evaluate`.
     """
     simulator.eval()
-    losses: list[float] = []
+    pos_losses: list[float] = []
+    aux_losses: list[float] = []
     for tr in trajectories:
         result = rollout(simulator, tr, window, device)
-        losses.append(float(result.position_rmse.mean() + result.aux_rmse.mean()))
-    return sum(losses) / len(losses) if losses else float("inf")
+        pos_losses.append(float(result.position_rmse.mean()))
+        aux_losses.append(float(result.aux_rmse.mean()))
+    if not pos_losses:
+        return float("inf"), float("inf")
+    return (
+        sum(pos_losses) / len(pos_losses),
+        sum(aux_losses) / len(aux_losses),
+    )
 
 
 def _bind_boundary_feature(
@@ -479,7 +494,7 @@ def train(
     )
 
     step = 0
-    best_val = float("inf")
+    best_pos = float("inf")
     best_ckpt: Path | None = None
     simulator.train()
     while step < train_cfg.training_steps:
@@ -506,6 +521,10 @@ def train(
             loss = (train_cfg.w_pos * loss_pos + train_cfg.w_aux * loss_aux).mean()
 
             loss.backward()
+            # The unclipped run showed ~5x loss spikes (steps 28k, 42k);
+            # standard global-norm clipping keeps those from kicking the
+            # weights off the manifold (ADR-0028).
+            torch.nn.utils.clip_grad_norm_(simulator.parameters(), max_norm=1.0)
             optimizer.step()
 
             lr_new = (
@@ -519,16 +538,18 @@ def train(
             step += 1
 
             if step % train_cfg.val_every == 0:
-                val_loss = _validate(simulator, val_trajs, gns.window, device)
+                val_pos, val_aux = _validate(simulator, val_trajs, gns.window, device)
                 logger.info(
-                    "step %d: train_loss %.6f val_loss %.6f (best %.6f)",
+                    "step %d: train_loss %.6f val_pos %.4f mm val_aux %.4f MPa "
+                    "(best_pos %.4f)",
                     step,
                     loss.item(),
-                    val_loss,
-                    best_val,
+                    val_pos,
+                    val_aux,
+                    best_pos,
                 )
-                if val_loss < best_val:
-                    best_val = val_loss
+                if val_pos < best_pos:
+                    best_pos = val_pos
                     best_ckpt = out_dir / f"model-best-{step:06d}.pt"
                     simulator.save(str(best_ckpt))
                     logger.info("saved improved checkpoint: %s", best_ckpt)
