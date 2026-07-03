@@ -120,10 +120,12 @@ def _beam_inputs():
 
 
 def test_midspan_deflection_peak_reads_the_sag():
-    assert midspan_deflection_peak(gauge_halfwidth=5.0)(_beam_inputs()) == pytest.approx(4.0)
+    qoi = midspan_deflection_peak(gauge_halfwidth=5.0)(_beam_inputs())
+    assert qoi == pytest.approx(4.0)
 
 
 def test_damaged_fraction_final_frame():
     inputs = _beam_inputs()
     assert damaged_fraction(threshold=1.9)(inputs) == pytest.approx(2.0 / 3.0)
-    assert damaged_fraction(threshold=1.9, concrete_type=1)(inputs) == pytest.approx(0.5)
+    qoi = damaged_fraction(threshold=1.9, concrete_type=1)(inputs)
+    assert qoi == pytest.approx(0.5)
