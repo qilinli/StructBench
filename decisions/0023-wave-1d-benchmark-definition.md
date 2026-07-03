@@ -1,6 +1,6 @@
 # 0023 — Wave 1D benchmark: task, split, and eval protocol
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-07-03
 

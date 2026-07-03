@@ -1,6 +1,6 @@
 # 0024 — Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-07-03
 

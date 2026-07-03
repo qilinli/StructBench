@@ -1,6 +1,6 @@
 # 0025 — Benchmark cards: typed per-benchmark metadata with generated views
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-07-03
 

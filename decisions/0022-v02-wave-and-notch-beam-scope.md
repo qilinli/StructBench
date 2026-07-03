@@ -1,6 +1,6 @@
 # 0022 — v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-07-03
 
