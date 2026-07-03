@@ -47,7 +47,7 @@ This module has no upstream dependencies within the package. Every other module 
 
 ### `benchmarks/`
 
-Contains the definitions of benchmark problems. Each benchmark is a self-contained submodule that specifies: the problem statement, the parametric space, the data generation protocol, the train/val/test split, and references to its associated dataset.
+Contains the definitions of benchmark problems. Each benchmark is a self-contained submodule that specifies: the problem statement, the parametric space, the data generation protocol, the train/val/test split, and references to its associated dataset. Benchmarks are resolved by name through a registry (`get_benchmark`, ADR-0022); each module ships a typed `BenchmarkCard` (ADR-0025) from which `docs/benchmarks.md` and per-archive metadata are generated.
 
 A benchmark module describes *what* the problem is. It does not include the data itself (that lives outside the repo, in a versioned data archive) or the models that solve it (those live in `models/`).
 
@@ -65,7 +65,7 @@ Data loading and dataset management. Provides the abstractions that turn an HDF5
 
 The schema for what's *inside* the data files lives in `core/`. The mechanics of loading and serving that data live here.
 
-**ML data flow.** A canonical case (strict SI, HDF5) is loaded and converted to a `CaseTrajectory` — positions in mm and stress in MPa (ADR-0019) — so that ported GNS hyperparameters transfer without rescaling. The trajectory is then split into overlapping windows (`WindowDataset`) and normalised via velocity/acceleration statistics (`compute_stats`). The windowed, normalised samples feed the GNS simulator (`models/gns`), whose predictions are compared to ground truth by `eval.rollout` — a full autoregressive rollout returning a `RolloutResult` with per-step and cumulative RMSE plus the benchmark's QoI values and errors, and a teacher-forced `one_step_position_rmse` that isolates single-step accuracy (ADR-0019 §5). The benchmark module is responsible for supplying the train/val/test split and for encoding the boundary-condition feature that conditions each particle's neighbourhood message.
+**ML data flow.** A canonical case (strict SI, HDF5) is loaded and converted to a `CaseTrajectory` — positions in mm plus one auxiliary target field selected by name (`aux_field`, e.g. von Mises stress for Taylor), per the owning benchmark's spec (ADR-0019, ADR-0025) — so that ported GNS hyperparameters transfer without rescaling. The trajectory is then split into overlapping windows (`WindowDataset`) and normalised via velocity/acceleration statistics (`compute_stats`). The windowed, normalised samples feed the GNS simulator (`models/gns`), whose predictions are compared to ground truth by `eval.rollout` — a full autoregressive rollout returning a `RolloutResult` with per-step and cumulative RMSE plus the benchmark's QoI values and errors, and a teacher-forced `one_step_position_rmse` that isolates single-step accuracy (ADR-0019 §5). The benchmark module is responsible for supplying the train/val/test split and for encoding the boundary-condition feature that conditions each particle's neighbourhood message.
 
 ### `eval/`
 

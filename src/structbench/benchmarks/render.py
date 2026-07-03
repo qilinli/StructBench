@@ -91,26 +91,29 @@ def render_archive_readme(spec: BenchmarkSpec) -> str:
     """
     c = spec.card
     splits_str = ", ".join(f"{k} {v}" for k, v in c.splits.items())
-    return "\n".join(
-        [
-            f"# {c.name} — StructBench canonical dataset",
-            "",
-            c.description,
-            "",
-            f"- Solver: {c.solver} ({c.discretisation}; erosion: {_yesno(c.erosion)})",
-            f"- Loading: {c.loading}",
-            f"- Source units: {c.source_units} (files are strict SI, ADR-0012)",
-            f"- Cases: {c.n_cases} ({splits_str})",
-            f"- Particles per case: {c.particles_per_case}; "
-            f"{c.n_frames} frames at {c.output_dt_ms} ms",
-            f"- Provenance: {c.provenance}",
-            f"- License: {c.data_license}",
-            "",
-            "Machine-readable metadata: `card.json` alongside this file.",
-            "Consume with `structbench.datasets.load_case_trajectory` or any "
-            "HDF5 reader (layout per ADR-0013).",
-        ]
-    ) + "\n"
+    return (
+        "\n".join(
+            [
+                f"# {c.name} — StructBench canonical dataset",
+                "",
+                c.description,
+                "",
+                f"- Solver: {c.solver} ({c.discretisation}; erosion: {_yesno(c.erosion)})",
+                f"- Loading: {c.loading}",
+                f"- Source units: {c.source_units} (files are strict SI, ADR-0012)",
+                f"- Cases: {c.n_cases} ({splits_str})",
+                f"- Particles per case: {c.particles_per_case}; "
+                f"{c.n_frames} frames at {c.output_dt_ms} ms",
+                f"- Provenance: {c.provenance}",
+                f"- License: {c.data_license}",
+                "",
+                "Machine-readable metadata: `card.json` alongside this file.",
+                "Consume with `structbench.datasets.load_case_trajectory` or any "
+                "HDF5 reader (layout per ADR-0013).",
+            ]
+        )
+        + "\n"
+    )
 
 
 def card_json(card: BenchmarkCard) -> str:

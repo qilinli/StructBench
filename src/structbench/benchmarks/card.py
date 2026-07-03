@@ -89,9 +89,7 @@ class BenchmarkCard:
     def __post_init__(self) -> None:
         total = sum(self.splits.values())
         if self.n_cases != total:
-            raise ValueError(
-                f"n_cases ({self.n_cases}) != sum of splits ({total})"
-            )
+            raise ValueError(f"n_cases ({self.n_cases}) != sum of splits ({total})")
 
     def to_json_dict(self) -> dict[str, object]:
         """Return a plain, JSON-serializable dict of the card."""

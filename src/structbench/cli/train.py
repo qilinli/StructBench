@@ -777,7 +777,10 @@ def main(argv: list[str] | None = None) -> int:
         spec = get_benchmark(resolved.get("benchmark", "taylor_impact_2d"))
         if args.mode == "valid":
             metrics = evaluate(
-                list(spec.splits["val"]), data_root, out_dir, device,
+                list(spec.splits["val"]),
+                data_root,
+                out_dir,
+                device,
                 split_name="val",
             )
             _print_split_report(metrics)
@@ -786,7 +789,10 @@ def main(argv: list[str] | None = None) -> int:
                 if split_name == "val":
                     continue
                 metrics = evaluate(
-                    list(spec.splits[split_name]), data_root, out_dir, device,
+                    list(spec.splits[split_name]),
+                    data_root,
+                    out_dir,
+                    device,
                     split_name=split_name,
                 )
                 _print_split_report(metrics)

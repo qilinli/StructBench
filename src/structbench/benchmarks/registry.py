@@ -68,18 +68,13 @@ class BenchmarkSpec:
             raise ValueError(f"eval_splits not present in splits: {missing}")
         actual = {name: len(ids) for name, ids in self.splits.items()}
         if self.card.splits != actual:
-            raise ValueError(
-                f"card split sizes {self.card.splits} != actual {actual}"
-            )
+            raise ValueError(f"card split sizes {self.card.splits} != actual {actual}")
         if self.aux_field not in available_aux_fields():
             raise ValueError(
-                f"aux_field {self.aux_field!r} not in "
-                f"{sorted(available_aux_fields())}"
+                f"aux_field {self.aux_field!r} not in {sorted(available_aux_fields())}"
             )
         # Wrap in read-only proxies to prevent accidental mutation
-        object.__setattr__(
-            self, "splits", MappingProxyType(dict(self.splits))
-        )
+        object.__setattr__(self, "splits", MappingProxyType(dict(self.splits)))
         object.__setattr__(self, "qois", MappingProxyType(dict(self.qois)))
 
 
