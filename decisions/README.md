@@ -70,6 +70,10 @@ What becomes easier, harder, or constrained as a result.
 | 0019 | v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol | Durable | Accepted |
 | 0020 | Native radius_graph; no graph-backend binary dependency | Durable | Accepted |
 | 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
+| 0022 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Durable | Proposed |
+| 0023 | Wave 1D benchmark: task, split, and eval protocol | Durable | Proposed |
+| 0024 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Proposed |
+| 0025 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Proposed |
 
 ---
 
