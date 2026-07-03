@@ -36,18 +36,24 @@ WALL_X_MM = -2.0
 
 
 def wall_distance_feature(positions_mm: torch.Tensor, radius: float) -> torch.Tensor:
-    """Per-particle distance to the rigidwall plane, clamped to ``[0, radius]``.
+    """Signed per-particle distance to the rigidwall plane, in radius units.
+
+    Follows the canonical GNS boundary encoding: ``clamp(dist / radius, -1, 1)``.
+    Negative values signal penetration *depth* (ADR-0028) — the unsigned
+    ``clamp(dist, 0, radius)`` form used before v0.1 read identically zero for
+    a particle resting on the wall and one driven through it, giving rollouts
+    no restoring signal exactly where contact errors concentrate.
 
     Parameters
     ----------
     positions_mm:
         Current particle positions, shape ``(P, dim)``, in mm.
     radius:
-        Connectivity radius (mm); distances are clamped to it.
+        Connectivity radius (mm); sets the sensing horizon on both sides.
 
     Returns
     -------
     torch.Tensor
-        Shape ``(P, 1)``: ``clamp(x - WALL_X_MM, 0, radius)``.
+        Shape ``(P, 1)``: ``clamp((x - WALL_X_MM) / radius, -1, 1)``.
     """
-    return torch.clamp(positions_mm[:, 0:1] - WALL_X_MM, min=0.0, max=radius)
+    return torch.clamp((positions_mm[:, 0:1] - WALL_X_MM) / radius, min=-1.0, max=1.0)

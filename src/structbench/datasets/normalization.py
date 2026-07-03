@@ -113,10 +113,13 @@ def cached_compute_stats(
 
     Cache is keyed by both the split (case-id list) and auxiliary field name.
     The cache lives at ``<dataset_root>/derived/norm_<key>.npz``, where the key
-    hashes the auxiliary field name and the trajectories' case-id list — so the
-    stats are computed once per split and auxiliary field combination and
-    reused across runs, and a changed case-id list or auxiliary field forces
-    recomputation under a new filename. The cache never blocks training: a
+    hashes the auxiliary field name, the trajectories' case-id list, and
+    per-case frame/particle counts - so the stats are computed once per
+    split and auxiliary-field combination and reused across runs, while a
+    changed case list, a different auxiliary field, or a loader change
+    that alters trajectory shapes (e.g. the ADR-0028 terminal-frame trim)
+    forces recomputation under a new filename. The cache never blocks
+    training: a
     write failure (e.g. read-only dataset root) degrades to a warning, and an
     unreadable/corrupt cache file is recomputed and rewritten. Writes go
     through a temp file + atomic rename so a killed run cannot leave a
@@ -138,8 +141,11 @@ def cached_compute_stats(
     -------
     NormalizationStats
     """
-    case_ids = [trajectory.case_id for trajectory in trajectories]
-    key_material = "\n".join([aux_field, *case_ids])
+    fingerprint = [
+        f"{tr.case_id}:{tr.positions.shape[0]}x{tr.positions.shape[1]}"
+        for tr in trajectories
+    ]
+    key_material = "\n".join([aux_field, *fingerprint])
     key = hashlib.sha256(key_material.encode("utf-8")).hexdigest()[:12]
     cache_path = Path(dataset_root) / "derived" / f"norm_{key}.npz"
     if cache_path.exists():

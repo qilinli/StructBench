@@ -23,7 +23,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..core import read_case
-from ..datasets.canonical import von_mises_from_voigt
+from ..datasets.canonical import n_valid_frames, von_mises_from_voigt
 
 if TYPE_CHECKING:  # matplotlib types only for annotations; import stays lazy
     from matplotlib.axes import Axes
@@ -494,18 +494,21 @@ def load_case_field(h5_path: str | Path, field: str | FieldSpec) -> CaseField:
     sph = case.elements["sph"]
     idx = sph.connectivity[:, 0]
     dim = case.metadata.dimension
+    # Trim the terminal solver-output dt artifact exactly like the training
+    # loader, so GT frames stay aligned with rollout .npz files (ADR-0028).
+    n_frames = n_valid_frames(np.asarray(case.response.time))
 
     coords0 = case.nodes.coords[idx][:, :dim]
-    disp = case.response.node["displacement"][:, idx, :]
+    disp = case.response.node["displacement"][:n_frames, idx, :]
     positions = ((coords0[None] + disp) * 1e3).astype(np.float32)
 
-    values = _extract_field(case, spec, idx).astype(np.float64)
+    values = _extract_field(case, spec, idx)[:n_frames].astype(np.float64)
     return CaseField(
         case_id=case.metadata.case_id,
         field=spec,
         positions=positions,
         values=values,
-        time=np.asarray(case.response.time, dtype=np.float64),
+        time=np.asarray(case.response.time[:n_frames], dtype=np.float64),
     )
 
 
