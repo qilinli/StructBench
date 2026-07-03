@@ -32,3 +32,7 @@ def test_card_matches_one_canonical_case(name: str) -> None:
     assert lo <= case.elements["sph"].element_id.shape[0] <= hi
     assert case.response is not None
     assert case.response.time.shape[0] == spec.card.n_frames
+    available = set(case.response.node) | set(case.response.element["sph"])
+    available.add("positions")  # derived: coords + response/node/displacement
+    missing = [f for f in spec.card.fields if f not in available]
+    assert not missing, f"card fields absent from canonical data: {missing}"
