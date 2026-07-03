@@ -1,4 +1,4 @@
-"""Typed benchmark card: descriptive metadata for one benchmark (ADR-0025).
+"""Typed benchmark card: descriptive metadata for one benchmark (ADR-0027).
 
 Physics facts are declared by hand; ML statistics are computed from the
 owning module's split constants (``len(TRAIN)`` etc.) so the card and the
@@ -17,7 +17,7 @@ Discretisation = Literal["SPH", "FEM", "coupled"]
 
 @dataclass(frozen=True)
 class BenchmarkCard:
-    """Descriptive metadata for one benchmark (ADR-0025).
+    """Descriptive metadata for one benchmark (ADR-0027).
 
     Parameters
     ----------

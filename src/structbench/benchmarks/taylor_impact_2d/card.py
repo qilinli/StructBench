@@ -1,4 +1,4 @@
-"""Benchmark card for the Taylor 2D impact benchmark (ADR-0025)."""
+"""Benchmark card for the Taylor 2D impact benchmark (ADR-0027)."""
 
 from ..card import BenchmarkCard
 from .benchmark import AUX_FIELD, QOIS, TEST_EXTRAP, TEST_INTERP, TRAIN, VAL

@@ -1,4 +1,4 @@
-# 0022 — v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3
+# 0024 — v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3
 
 **Status**: Accepted
 **Type**: Durable
@@ -42,8 +42,8 @@ Three facts decided the shape:
 ## Decision
 
 1. **v0.2 ships three benchmarks**: `wave_propagation_1d` (defined in
-   ADR-0023), and the pair `notch_beam_2d_bend` / `notch_beam_2d_impact`
-   (defined in ADR-0024).
+   ADR-0025), and the pair `notch_beam_2d_bend` / `notch_beam_2d_impact`
+   (defined in ADR-0026).
 
 2. **The baseline for each is the v0.1 single-scale GNS retrained per
    benchmark** via `structbench-train`. No new model architecture enters in

@@ -1,4 +1,4 @@
-# 0023 — Wave 1D benchmark: task, split, and eval protocol
+# 0025 — Wave 1D benchmark: task, split, and eval protocol
 
 **Status**: Accepted
 **Type**: Durable
@@ -6,7 +6,7 @@
 
 ## Context
 
-ADR-0022 puts `wave_propagation_1d` in v0.2 as the platform's entry tier.
+ADR-0024 puts `wave_propagation_1d` in v0.2 as the platform's entry tier.
 The dataset is `../data/Concrete-Beam/1DWavePropagation`: 16 LS-DYNA SPH
 runs of an elastic bar (`*MAT_ELASTIC`) excited by an initial velocity. Per
 the collaborators' `simulation_specification.xlsx`, the sweep is bar length
@@ -61,20 +61,20 @@ strong methods, and its card says so.
 - **An extrapolation split** (e.g. holding out the (500, 8) corner).
   Rejected by the maintainer: the set is too small to split three ways, and
   the entry tier does not need a generalisation probe — the notch-beam
-  benchmarks carry that duty in v0.2 (ADR-0024).
+  benchmarks carry that duty in v0.2 (ADR-0026).
 
 - **Position as the headline target.** Rejected: displacements are near
   zero in an elastic wave; a model could score well while learning nothing.
   The stress field is the signal.
 
 - **Shipping it as a tutorial example, not a benchmark.** Rejected in
-  ADR-0022; the honesty about its role lives in its benchmark card.
+  ADR-0024; the honesty about its role lives in its benchmark card.
 
 ## Consequences
 
 - The split lives in `benchmarks/wave_propagation_1d/` as case-id lists,
   immutable, with the module following the Taylor layout (`benchmark.py`
-  constants + `card.py` per ADR-0025).
+  constants + `card.py` per ADR-0027).
 
 - The tutorial and CI use this dataset: small (≈0.5–1.3k particles per
   case, 16 cases), fast to train, end-to-end through the same pipeline as

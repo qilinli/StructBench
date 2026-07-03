@@ -1,4 +1,4 @@
-"""Card-vs-data validation (ADR-0025) — runs only when data is present.
+"""Card-vs-data validation (ADR-0027) — runs only when data is present.
 
 Set STRUCTBENCH_DATA_ROOT to the canonical HDF5 directory of the Taylor
 dataset (the folder holding <case_id>.h5) to enable.

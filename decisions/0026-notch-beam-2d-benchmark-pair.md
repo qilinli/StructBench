@@ -1,4 +1,4 @@
-# 0024 — Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval
+# 0026 — Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval
 
 **Status**: Accepted
 **Type**: Durable
@@ -6,7 +6,7 @@
 
 ## Context
 
-ADR-0022 puts the 2D notched-beam dataset in v0.2. The data
+ADR-0024 puts the 2D notched-beam dataset in v0.2. The data
 (`../data/Concrete-Beam/2DNotchBeam`) is a three-point-bend family of SPH
 simulations of a notched concrete beam — K&C concrete
 (`*MAT_CONCRETE_DAMAGE_REL3`) with a plastic-kinematic loader and supports,
@@ -50,7 +50,7 @@ maintainer trained GNS separately per family in the prior work.
 2. **Flat sibling modules** — `benchmarks/notch_beam_2d_bend/` and
    `benchmarks/notch_beam_2d_impact/`, not a nested family package. This
    preserves the "every child of `benchmarks/` is one benchmark"
-   invariant that discovery, the card index (ADR-0025), and the coming
+   invariant that discovery, the card index (ADR-0027), and the coming
    benchmark-selection mechanism rely on. Shared raw-tree parsing and
    field derivation live in `datasets/` (the ADR-0019 precedent for the
    von Mises derivation), which both modules reference.
@@ -116,7 +116,7 @@ maintainer trained GNS separately per family in the prior work.
   a shared docs page presents the family and its shared provenance.
 
 - The exact split lists are produced and frozen at ingestion; until
-  then, the split is defined by rule only. The ADR-0022 ingestion pass
+  then, the split is defined by rule only. The ADR-0024 ingestion pass
   enumerates the spec's 216 cases + 5 probes and flags extras in the
   raw tree without ingesting them into the benchmark.
 

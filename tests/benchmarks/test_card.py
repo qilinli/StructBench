@@ -1,4 +1,4 @@
-"""BenchmarkCard invariants (ADR-0025)."""
+"""BenchmarkCard invariants (ADR-0027)."""
 
 import json
 

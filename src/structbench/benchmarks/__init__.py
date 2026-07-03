@@ -1,4 +1,4 @@
-"""Benchmark problem definitions (ARCHITECTURE.md; registry per ADR-0022)."""
+"""Benchmark problem definitions (ARCHITECTURE.md; registry per ADR-0024)."""
 
 from .card import BenchmarkCard
 from .registry import BenchmarkSpec, available_benchmarks, get_benchmark

@@ -6,7 +6,7 @@ git history is the record. Decisions and their rationale live in `decisions/`
 — this file only sequences them and tracks status. Read at session start when
 the session is about planning or scoping (CLAUDE.md).*
 
-*Last revised: 2026-07-03 — ADRs 0022–0025 **Accepted**: v0.2 = wave-1d +
+*Last revised: 2026-07-03 — ADRs 0022–0027 **Accepted**: v0.2 = wave-1d +
 notch-beam pair with retrained GNS baselines and benchmark cards; RC beam
 (erosion) → v0.3; dataset hosting still open and now gating v0.2 as well.*
 
@@ -53,17 +53,17 @@ committed (ADR-0015) but move to v0.2+.
 ### Explicitly not in v0.1
 
 MS-GNS second baseline (Proposed spec stands on its own); RC beam (v0.3,
-ADR-0022) and segmented-beam benchmarks; a paper; PyPI packaging (undecided,
+ADR-0024) and segmented-beam benchmarks; a paper; PyPI packaging (undecided,
 not required).
 
 ---
 
 ## Milestone: v0.2 — the ladder grows (next)
 
-Per ADR-0022: v0.2 ships three benchmarks — `wave_propagation_1d`
-(ADR-0023) and the pair `notch_beam_2d_bend` / `notch_beam_2d_impact`
-(ADR-0024) — each with the v0.1 single-scale GNS retrained as its
-baseline, plus the benchmark-card convention (ADR-0025) across all four
+Per ADR-0024: v0.2 ships three benchmarks — `wave_propagation_1d`
+(ADR-0025) and the pair `notch_beam_2d_bend` / `notch_beam_2d_impact`
+(ADR-0026) — each with the v0.1 single-scale GNS retrained as its
+baseline, plus the benchmark-card convention (ADR-0027) across all four
 benchmarks. The platform reads as a difficulty ladder: 1D elastic wave →
 Taylor 2D plasticity → concrete fracture (no erosion) → v0.3 erosion.
 
@@ -73,9 +73,9 @@ Taylor 2D plasticity → concrete fracture (no erosion) → v0.3 erosion.
       generalisation probes to canonical HDF5 (batched OneDrive
       hydration, specific paths only; extras in the raw tree flagged,
       not ingested)
-- [ ] **Three benchmark modules** with frozen split lists (ADR-0023's
-      table; ADR-0024's stratified rule) and QoIs
-- [ ] **Benchmark cards** (ADR-0025): `BenchmarkCard` type, per-module
+- [ ] **Three benchmark modules** with frozen split lists (ADR-0025's
+      table; ADR-0026's stratified rule) and QoIs
+- [ ] **Benchmark cards** (ADR-0027): `BenchmarkCard` type, per-module
       `card.py` (Taylor retrofitted), generated `docs/benchmarks.md`
       index + per-archive README/`card.json`
 - [ ] **Benchmark-selection mechanism** in the config pipeline
@@ -89,12 +89,12 @@ Taylor 2D plasticity → concrete fracture (no erosion) → v0.3 erosion.
 
 Sequenced roughly; each becomes its own ADR/spec when picked up.
 
-- **RC beam benchmark** (v0.3 headline per ADR-0022): erosion is the open
+- **RC beam benchmark** (v0.3 headline per ADR-0024): erosion is the open
   problem, twice — numerically for the FEM data, and structurally for the
   autoregressive surrogate (deleted elements = particles vanishing
   mid-rollout). Dataset designation narrows to
   `Concrete-Beam/Concrete_simulation_constantV1-16` (the `2DNotchBeam`
-  half of the old evidence became its own benchmark pair, ADR-0024);
+  half of the old evidence became its own benchmark pair, ADR-0026);
   prior model likely `code/gns-errosion`.
 - **Segmented beam benchmark** (parked 2026-07-03 as more complex than
   the next release should carry): candidate folder
@@ -109,7 +109,7 @@ Sequenced roughly; each becomes its own ADR/spec when picked up.
   turns the DUG walltime into a soft limit); part-id→embedding-index remap
   (needed before any dataset with large/sparse LS-DYNA part ids — a design
   call because it changes the Taylor embedding; checked against the
-  notch-beam decks at v0.2 ingestion, ADR-0022 — spec IDs look
+  notch-beam decks at v0.2 ingestion, ADR-0024 — spec IDs look
   small/contiguous).
 - **Checkpoint publishing**: a baseline-checkpoint release workflow
   (docs/ARCHITECTURE.md promises "a published checkpoint" per model; spec marked
@@ -151,7 +151,7 @@ Sequenced roughly; each becomes its own ADR/spec when picked up.
 | Taylor baseline DUG run | SSH-side steps (partition/gres via `sinfo`, placeholders, rclone/rsync, smoke, sbatch) |
 | v0.1 tag + release | trained baseline metrics landing first |
 | MS-GNS implementation | approval (or amendment) of the Proposed spec |
-| RC beam benchmark (v0.3, ADR-0022) | dataset + prior-model confirmation; erosion task design |
+| RC beam benchmark (v0.3, ADR-0024) | dataset + prior-model confirmation; erosion task design |
 | Segmented beam benchmark (parked) | dataset + prior-model designation (candidate: `../data/Segmental_Beam`) |
 | ADR-0012 Voigt-component prose reconciliation | docs/CORRECTIONS.md distillation pass |
 
@@ -163,7 +163,7 @@ Sequenced roughly; each becomes its own ADR/spec when picked up.
    institutional storage, on-request) is an open discussion — to be settled
    before the GitHub release, since a benchmark repo without reachable data
    is not usable by others. Now also a v0.2 definition-of-done item
-   (ADR-0022): v0.2 multiplies the case count roughly sevenfold.
+   (ADR-0024): v0.2 multiplies the case count roughly sevenfold.
 
 *Release-history note (2026-07-02): `RESEARCH-PROGRAM.md` is untracked from
 here on, but it remains in commits before this date — so if this repository

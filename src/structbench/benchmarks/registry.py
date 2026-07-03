@@ -1,4 +1,4 @@
-"""Benchmark spec and name-based registry (ADR-0022, ADR-0025).
+"""Benchmark spec and name-based registry (ADR-0024, ADR-0027).
 
 A benchmark module exposes one frozen :class:`BenchmarkSpec` named
 ``SPEC``; the training pipeline resolves it by name through
@@ -31,7 +31,7 @@ class BenchmarkSpec:
     Parameters
     ----------
     card : BenchmarkCard
-        Descriptive metadata (ADR-0025). Its ``splits`` sizes must match
+        Descriptive metadata (ADR-0027). Its ``splits`` sizes must match
         the actual split lists here — validated at construction.
     splits : dict of str to tuple of str
         Immutable case-id lists by split name; must contain ``"train"``

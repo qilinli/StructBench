@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the training pipeline benchmark-generic (registry + spec, replacing the hard-wired Taylor imports in `cli/train.py`) and introduce the ADR-0025 benchmark-card convention with generated views, retrofitting Taylor.
+**Goal:** Make the training pipeline benchmark-generic (registry + spec, replacing the hard-wired Taylor imports in `cli/train.py`) and introduce the ADR-0027 benchmark-card convention with generated views, retrofitting Taylor.
 
 **Architecture:** Each benchmark module exposes a frozen `BenchmarkSpec` (splits, aux field, QoIs, boundary feature, card) resolved by name through `structbench.benchmarks.get_benchmark()`. The `datasets/` loader's auxiliary channel becomes selectable by field name (the `CaseTrajectory.von_mises` attribute is renamed `aux`). Cards render to `docs/benchmarks.md` and per-archive README/`card.json` via `benchmarks/render.py` + a thin `tools/` script; a drift test keeps the committed index current.
 
 **Tech Stack:** Python 3.11+, stdlib only for new code (dataclasses, importlib, json); existing deps numpy/h5py/torch untouched. No new dependencies.
 
-**Plan 1 of 3 for v0.2** (ADRs 0022–0025). Plan 2 (wave-1d benchmark end-to-end) and Plan 3 (notch-beam pair) build on this one and are written after it lands.
+**Plan 1 of 3 for v0.2** (ADRs 0022–0027). Plan 2 (wave-1d benchmark end-to-end) and Plan 3 (notch-beam pair) build on this one and are written after it lands.
 
 ## Global Constraints
 
@@ -22,7 +22,7 @@
 - Commits: Conventional Commits, imperative mood, `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` trailer.
 - Branch: `feat/benchmark-registry-cards`, branched from `main` if `adr/v02-benchmark-scope` has been merged, else from `adr/v02-benchmark-scope`. Never commit to `main`.
 - Verification before completion: `python -m pytest -q`, `ruff check src tests tools`, `ruff format --check src tests tools`, `python -m mypy src` — all clean. Interpreter: the `structbench` conda env's `python.exe`.
-- **Split lists, QoI sets, and aux fields are ADR-frozen contract** (ADR-0019/0023/0024): this plan must not change any Taylor split/QoI value, only relocate access to them.
+- **Split lists, QoI sets, and aux fields are ADR-frozen contract** (ADR-0019/0025/0026): this plan must not change any Taylor split/QoI value, only relocate access to them.
 
 ## File Structure
 
@@ -30,7 +30,7 @@
 src/structbench/benchmarks/
   __init__.py            # MODIFY: docstring + re-export BenchmarkCard, BenchmarkSpec,
                          #         get_benchmark, available_benchmarks
-  card.py                # CREATE: BenchmarkCard dataclass (ADR-0025)
+  card.py                # CREATE: BenchmarkCard dataclass (ADR-0027)
   registry.py            # CREATE: BenchmarkSpec dataclass + name registry
   render.py              # CREATE: card → markdown/json renderers
   taylor_impact_2d/
@@ -84,7 +84,7 @@ tests/
 
 ```python
 # tests/benchmarks/test_card.py
-"""BenchmarkCard invariants (ADR-0025)."""
+"""BenchmarkCard invariants (ADR-0027)."""
 
 import json
 
@@ -148,7 +148,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'structbench.benchmarks
 
 ```python
 # src/structbench/benchmarks/card.py
-"""Typed benchmark card: descriptive metadata for one benchmark (ADR-0025).
+"""Typed benchmark card: descriptive metadata for one benchmark (ADR-0027).
 
 Physics facts are declared by hand; ML statistics are computed from the
 owning module's split constants (``len(TRAIN)`` etc.) so the card and the
@@ -167,7 +167,7 @@ Discretisation = Literal["SPH", "FEM", "coupled"]
 
 @dataclass(frozen=True)
 class BenchmarkCard:
-    """Descriptive metadata for one benchmark (ADR-0025).
+    """Descriptive metadata for one benchmark (ADR-0027).
 
     Parameters
     ----------
@@ -257,7 +257,7 @@ Expected: 3 PASS
 
 ```bash
 git add src/structbench/benchmarks/card.py tests/benchmarks/test_card.py
-git commit -m "feat: BenchmarkCard dataclass (ADR-0025)"
+git commit -m "feat: BenchmarkCard dataclass (ADR-0027)"
 ```
 
 ---
@@ -316,7 +316,7 @@ Expected: FAIL — no module `taylor_impact_2d.card`
 
 ```python
 # src/structbench/benchmarks/taylor_impact_2d/card.py
-"""Benchmark card for the Taylor 2D impact benchmark (ADR-0025)."""
+"""Benchmark card for the Taylor 2D impact benchmark (ADR-0027)."""
 
 from ..card import BenchmarkCard
 from .benchmark import AUX_FIELD, QOIS, TEST_EXTRAP, TEST_INTERP, TRAIN, VAL
@@ -374,7 +374,7 @@ Expected: 2 PASS
 
 ```bash
 git add src/structbench/benchmarks/taylor_impact_2d/card.py tests/benchmarks/test_taylor_card.py
-git commit -m "feat: Taylor 2D benchmark card (ADR-0025 retrofit)"
+git commit -m "feat: Taylor 2D benchmark card (ADR-0027 retrofit)"
 ```
 
 ---
@@ -560,7 +560,7 @@ Expected: FAIL — `ImportError` on `BenchmarkSpec`
 
 ```python
 # src/structbench/benchmarks/registry.py
-"""Benchmark spec and name-based registry (ADR-0022, ADR-0025).
+"""Benchmark spec and name-based registry (ADR-0024, ADR-0027).
 
 A benchmark module exposes one frozen :class:`BenchmarkSpec` named
 ``SPEC``; the training pipeline resolves it by name through
@@ -592,7 +592,7 @@ class BenchmarkSpec:
     Parameters
     ----------
     card : BenchmarkCard
-        Descriptive metadata (ADR-0025). Its ``splits`` sizes must match
+        Descriptive metadata (ADR-0027). Its ``splits`` sizes must match
         the actual split lists here — validated at construction.
     splits : dict of str to tuple of str
         Immutable case-id lists by split name; must contain ``"train"``
@@ -698,7 +698,7 @@ SPEC = BenchmarkSpec(
 Update `benchmarks/__init__.py`:
 
 ```python
-"""Benchmark problem definitions (ARCHITECTURE.md; registry per ADR-0022)."""
+"""Benchmark problem definitions (ARCHITECTURE.md; registry per ADR-0024)."""
 
 from .card import BenchmarkCard
 from .registry import BenchmarkSpec, available_benchmarks, get_benchmark
@@ -720,7 +720,7 @@ Expected: registry tests PASS; full suite green.
 
 ```bash
 git add src/structbench/benchmarks tests/benchmarks/test_registry.py
-git commit -m "feat: BenchmarkSpec + name registry; Taylor SPEC (ADR-0022)"
+git commit -m "feat: BenchmarkSpec + name registry; Taylor SPEC (ADR-0024)"
 ```
 
 ---
@@ -870,7 +870,7 @@ Expected: exits 2 with `error: --data-root is required` — argument plumbing in
 
 ```bash
 git add src/structbench/cli/train.py configs tests
-git commit -m "refactor: benchmark-generic training pipeline via registry (ADR-0022)"
+git commit -m "refactor: benchmark-generic training pipeline via registry (ADR-0024)"
 ```
 
 ---
@@ -949,7 +949,7 @@ Expected: FAIL — no module `render`
 
 ```python
 # src/structbench/benchmarks/render.py
-"""Render benchmark cards to human-facing views (ADR-0025).
+"""Render benchmark cards to human-facing views (ADR-0027).
 
 The card instances in each benchmark module are the source of truth;
 ``docs/benchmarks.md`` and the per-archive README/``card.json`` are
@@ -1128,7 +1128,7 @@ Expected: all green.
 
 ```bash
 git add src/structbench/benchmarks/render.py tools/gen_benchmark_docs.py docs/benchmarks.md tests/benchmarks/test_render.py
-git commit -m "feat: card renderers + generated benchmark index (ADR-0025)"
+git commit -m "feat: card renderers + generated benchmark index (ADR-0027)"
 ```
 
 ---
@@ -1146,7 +1146,7 @@ git commit -m "feat: card renderers + generated benchmark index (ADR-0025)"
 
 ```python
 # tests/benchmarks/test_card_data.py
-"""Card-vs-data validation (ADR-0025) — runs only when data is present.
+"""Card-vs-data validation (ADR-0027) — runs only when data is present.
 
 Set STRUCTBENCH_DATA_ROOT to the canonical HDF5 directory of the Taylor
 dataset (the folder holding <case_id>.h5) to enable.
@@ -1194,7 +1194,7 @@ Expected: PASS (or a real card error to fix — if `n_frames`/particle range dis
 
 ```bash
 git add tests/benchmarks/test_card_data.py
-git commit -m "test: env-gated card-vs-data validation (ADR-0025)"
+git commit -m "test: env-gated card-vs-data validation (ADR-0027)"
 ```
 
 ---
@@ -1207,7 +1207,7 @@ git commit -m "test: env-gated card-vs-data validation (ADR-0025)"
 
 - [ ] **Step 1: Update `docs/ARCHITECTURE.md`**
 
-In the `### benchmarks/` section, append one sentence to the first paragraph: benchmarks are resolved by name through a registry (`get_benchmark`), and each module ships a typed `BenchmarkCard` (ADR-0025) from which `docs/benchmarks.md` and per-archive metadata are generated.
+In the `### benchmarks/` section, append one sentence to the first paragraph: benchmarks are resolved by name through a registry (`get_benchmark`), and each module ships a typed `BenchmarkCard` (ADR-0027) from which `docs/benchmarks.md` and per-archive metadata are generated.
 
 In the `### datasets/` **ML data flow** paragraph, replace the phrase describing the trajectory ("positions in mm and stress in MPa (ADR-0019)") with a benchmark-generic version: positions in mm plus one auxiliary target field selected by name (`aux_field`, e.g. von Mises stress for Taylor), per the owning benchmark's spec.
 
@@ -1235,6 +1235,6 @@ Do not merge; leave `feat/benchmark-registry-cards` for human review (CLAUDE.md 
 ## Post-plan notes
 
 - **Known pre-existing deviation, not addressed here**: `benchmarks/` imports `eval/` (`QoiFn`, metric fns), which the ARCHITECTURE dependency graph text disallows. This plan follows the existing practice; reconciling the graph text is flagged for a docs distillation pass.
-- **README summary row (ADR-0025) deferred to Plan 3**: the repository README is Taylor-only and mid-v0.1-release (human actions pending); the benchmarks summary row + link to `docs/benchmarks.md` lands when the index has multiple rows, avoiding churn against the release edits.
-- **Plan 2 (wave-1d)** adds: `"axial_stress"` extractor (one entry in `_AUX_EXTRACTORS`), the conversion script `data_generation/lsdyna/1DWavePropagation/convert.py` (modelled on the Taylor `convert.py`), the `wave_propagation_1d` module (splits per ADR-0023's table), two new QoI functions in `eval/metrics.py` (wave-front arrival time at gauge stations, peak stress error), a card, a registry entry, and `configs/wave_1d.toml`.
-- **Plan 3 (notch-beam pair)** adds: `"damage"` extractor, the two-family conversion script with spec-sheet enumeration + extras flagging, the split-freezing step (ADR-0024 rule → committed case-id lists), two benchmark modules + cards + configs, and the mid-span-deflection QoI.
+- **README summary row (ADR-0027) deferred to Plan 3**: the repository README is Taylor-only and mid-v0.1-release (human actions pending); the benchmarks summary row + link to `docs/benchmarks.md` lands when the index has multiple rows, avoiding churn against the release edits.
+- **Plan 2 (wave-1d)** adds: `"axial_stress"` extractor (one entry in `_AUX_EXTRACTORS`), the conversion script `data_generation/lsdyna/1DWavePropagation/convert.py` (modelled on the Taylor `convert.py`), the `wave_propagation_1d` module (splits per ADR-0025's table), two new QoI functions in `eval/metrics.py` (wave-front arrival time at gauge stations, peak stress error), a card, a registry entry, and `configs/wave_1d.toml`.
+- **Plan 3 (notch-beam pair)** adds: `"damage"` extractor, the two-family conversion script with spec-sheet enumeration + extras flagging, the split-freezing step (ADR-0026 rule → committed case-id lists), two benchmark modules + cards + configs, and the mid-span-deflection QoI.

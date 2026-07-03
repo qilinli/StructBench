@@ -1,4 +1,4 @@
-"""Render benchmark cards to human-facing views (ADR-0025).
+"""Render benchmark cards to human-facing views (ADR-0027).
 
 The card instances in each benchmark module are the source of truth;
 ``docs/benchmarks.md`` and the per-archive README/``card.json`` are

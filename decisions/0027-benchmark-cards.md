@@ -1,4 +1,4 @@
-# 0025 — Benchmark cards: typed per-benchmark metadata with generated views
+# 0027 — Benchmark cards: typed per-benchmark metadata with generated views
 
 **Status**: Accepted
 **Type**: Durable
