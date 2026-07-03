@@ -8,10 +8,9 @@ visualization shell nodes are dropped.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -40,17 +39,20 @@ def von_mises_from_voigt(stress: NDArray[np.floating]) -> NDArray[np.float64]:
     )
 
 
-AuxExtractor = Callable[[Any, float], NDArray[np.float32]]
-"""Maps (response/element/sph group, stress_scale) to a (T, P) aux array."""
+AuxExtractor = Callable[[Mapping[str, NDArray[np.float32]], float], NDArray[np.float32]]
+"""Maps (mapping of SPH response fields, stress_scale) to a (T, P) aux array."""
 
 
-def _aux_von_mises(sph: Any, stress_scale: float) -> NDArray[np.float32]:
+def _aux_von_mises(
+    sph: Mapping[str, NDArray[np.float32]], stress_scale: float
+) -> NDArray[np.float32]:
     """von Mises stress derived from the 6-component Voigt stress, scaled.
 
     Parameters
     ----------
     sph:
-        Mapping with a ``"stress"`` key holding a ``(T, P, 6)`` array (Pa).
+        Mapping of SPH response fields with a ``"stress"`` key holding a
+        ``(T, P, 6)`` array (Pa).
     stress_scale:
         Multiplier applied to SI stress (e.g. 1e-6: Pa -> MPa).
 
@@ -86,7 +88,7 @@ class CaseTrajectory:
     case_id: str
     positions: NDArray[np.float32]  # (T, P, dim), mm
     particle_type: NDArray[np.int64]  # (P,)
-    aux: NDArray[np.float32]  # (T, P), auxiliary target field, selected by ``aux_field``
+    aux: NDArray[np.float32]  # (T, P); units depend on aux_field
     time: NDArray[np.float64]  # (T,), s
 
 
