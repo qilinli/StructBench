@@ -535,7 +535,13 @@ def train(
                         list(spec.kinematic_types), dtype=torch.long, device=device
                     ),
                 )
-                loss = per_particle[free].mean()
+                if free is not None and free.any():
+                    loss = per_particle[free].mean()
+                elif free is not None:
+                    # all-kinematic batch: nothing to learn from; zero loss, no NaN
+                    loss = per_particle.new_tensor(0.0, requires_grad=True)
+                else:
+                    loss = per_particle.mean()
             else:
                 loss = per_particle.mean()
 

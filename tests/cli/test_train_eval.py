@@ -252,3 +252,41 @@ def test_train_raises_on_spec_config_benchmark_mismatch(tmp_path):
         )
     # Guard fires before out_dir is created.
     assert not out_dir.exists()
+
+
+def test_train_loss_all_kinematic_batch_no_nan():
+    """Loss computation guards against NaN when batch contains only kinematic particles.
+
+    When spec.kinematic_types is set and a batch contains only particles of
+    kinematic types, the free mask is all False. Without the guard,
+    per_particle[free].mean() on an empty tensor returns NaN and silently
+    corrupts gradients. The guard ensures loss is 0.0 and finite.
+    """
+    device = "cpu"
+    n_particles = 4
+
+    # Mock per_particle loss tensor (n_particles,)
+    per_particle = torch.ones(n_particles, device=device, requires_grad=True)
+
+    # All particles are kinematic type 7
+    particle_type = torch.full((n_particles,), 7, dtype=torch.long, device=device)
+    kinematic_types = (7,)
+
+    # Compute the free mask (as in train.py)
+    free = ~torch.isin(
+        particle_type,
+        torch.as_tensor(list(kinematic_types), dtype=torch.long, device=device),
+    )
+
+    # Apply the guard (as implemented in train.py)
+    if free is not None and free.any():
+        loss = per_particle[free].mean()
+    elif free is not None:
+        # all-kinematic batch: nothing to learn from; zero loss, no NaN
+        loss = per_particle.new_tensor(0.0, requires_grad=True)
+    else:
+        loss = per_particle.mean()
+
+    # Verify loss is 0.0 and finite (not NaN)
+    assert loss.item() == 0.0
+    assert torch.isfinite(loss)

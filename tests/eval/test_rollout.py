@@ -51,6 +51,8 @@ class _ZeroSim:
 class _PerfectSim:
     """Returns ground-truth next positions/aux by counting prediction steps.
 
+    Single-rollout-use only: internal step counter is never reset.
+
     Parameters
     ----------
     traj:
@@ -191,7 +193,7 @@ def test_rollout_prescribes_kinematic_particles():
     np.testing.assert_allclose(
         result.predicted_positions[:, 0, :], traj.positions[:, 0, :]
     )
-    # reported RMSE shape covers only free steps (time dimension)
+    # RMSE has one entry per predicted time step
     assert result.position_rmse.shape[0] == traj.positions.shape[0] - 2
 
 
