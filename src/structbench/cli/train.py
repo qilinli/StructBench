@@ -40,7 +40,7 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from ..benchmarks import BenchmarkSpec, get_benchmark
+from ..benchmarks import BenchmarkSpec, available_benchmarks, get_benchmark
 from ..datasets import (
     CaseTrajectory,
     NormalizationStats,
@@ -130,7 +130,7 @@ class TrainConfig:
     w_pos : float
         Weight on the acceleration (position) loss term.
     w_aux : float
-        Weight on the auxiliary (von Mises) loss term.
+        Weight on the auxiliary loss term.
     """
 
     benchmark: str = "taylor_impact_2d"
@@ -261,7 +261,7 @@ def build_simulator(
         std = torch.sqrt(stats[key]["std"].to(device) ** 2 + noise_var)
         normalization_stats[key] = {"mean": mean, "std": std}
 
-    # The auxiliary (von Mises) target carries no input noise, so its stats are
+    # The auxiliary target carries no input noise, so its stats are
     # passed through without the sqrt(std^2 + noise^2) inflation applied above.
     normalization_stats["aux"] = {
         "mean": stats["aux"]["mean"].to(device),
@@ -412,7 +412,18 @@ def train(
         If ``out_dir`` already holds ``model-*.pt`` checkpoints. Training has
         no resume, and :func:`evaluate` picks the newest checkpoint by mtime,
         so a fresh run into an old directory would shadow a better model.
+    ValueError
+        If ``train_cfg.benchmark`` names a registered benchmark that is not
+        ``spec``; this would misrecord the benchmark in ``config.json``.
     """
+    if (
+        train_cfg.benchmark in available_benchmarks()
+        and get_benchmark(train_cfg.benchmark) is not spec
+    ):
+        raise ValueError(
+            f"train_cfg.benchmark {train_cfg.benchmark!r} does not resolve to the "
+            "spec passed to train(); config.json would misrecord the benchmark"
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
     existing = sorted(out_dir.glob("model-*.pt"))
     if existing:
@@ -565,6 +576,31 @@ def _find_checkpoint(out_dir: Path) -> Path | None:
     return checkpoints[-1] if checkpoints else None
 
 
+def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
+    """Resolve the run directory's benchmark spec and resolved config.
+
+    Parameters
+    ----------
+    out_dir : pathlib.Path
+        Run directory holding ``config.json``.
+
+    Returns
+    -------
+    tuple of (BenchmarkSpec, dict)
+        The benchmark spec and the parsed config dict.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``config.json`` is missing from ``out_dir``.
+    """
+    config_path = out_dir / "config.json"
+    if not config_path.exists():
+        raise FileNotFoundError(f"missing run config: {config_path}")
+    resolved = json.loads(config_path.read_text(encoding="utf-8"))
+    return get_benchmark(resolved.get("benchmark", "taylor_impact_2d")), resolved
+
+
 def evaluate(
     case_ids: list[str],
     data_root: Path,
@@ -583,7 +619,8 @@ def evaluate(
     written by :func:`train`.
 
     Per case, reports the one-step (teacher-forced) position RMSE, the
-    full-rollout position RMSE (mm), the rollout von Mises RMSE (MPa), and the
+    full-rollout position RMSE (mm), the rollout auxiliary-field RMSE (in the
+    card's aux unit), and the
     benchmark QoIs with signed errors; the split mean aggregates each metric
     (QoIs as mean absolute error). When ``save_artifacts`` is true the report
     is written to ``out_dir/metrics-<split_name>.json`` and each predicted
@@ -618,15 +655,11 @@ def evaluate(
     """
     if not case_ids:
         raise ValueError("case_ids must be non-empty")
-    config_path = out_dir / "config.json"
-    if not config_path.exists():
-        raise FileNotFoundError(f"missing run config: {config_path}")
+    spec, resolved = _resolve_run_spec(out_dir)
     stats_path = out_dir / "normalization_stats.npz"
     if not stats_path.exists():
         raise FileNotFoundError(f"missing normalization stats: {stats_path}")
 
-    resolved = json.loads(config_path.read_text(encoding="utf-8"))
-    spec = get_benchmark(resolved.get("benchmark", "taylor_impact_2d"))
     gns = GNSConfig(**resolved["gns"])
     n_types = int(resolved["n_particle_types"])
     stats = NormalizationStats.load(stats_path)
@@ -691,6 +724,7 @@ def evaluate(
         "split": split_name,
         "checkpoint": checkpoint.name,
         "aux_field": spec.aux_field,
+        "aux_unit": spec.card.aux_unit,
         "cases": cases,
         "mean": {
             "one_step_position_rmse": _mean_over_cases("one_step_position_rmse"),
@@ -773,8 +807,7 @@ def main(argv: list[str] | None = None) -> int:
         ckpt = train(spec, gns, train_cfg, data_root, out_dir, device)
         print(f"training complete; best checkpoint: {ckpt}")
     else:
-        resolved = json.loads((out_dir / "config.json").read_text(encoding="utf-8"))
-        spec = get_benchmark(resolved.get("benchmark", "taylor_impact_2d"))
+        spec, _resolved = _resolve_run_spec(out_dir)
         if args.mode == "valid":
             metrics = evaluate(
                 list(spec.splits["val"]),
@@ -803,10 +836,14 @@ def _print_split_report(metrics: dict[str, Any]) -> None:
     """Print one split's ADR-0019 metrics (mm / aux unit) to stdout."""
     split, mean = metrics["split"], metrics["mean"]
     aux_field = metrics.get("aux_field", "aux")
+    aux_unit = metrics.get("aux_unit", "")
+    aux_rmse_str = f"rollout {aux_field} RMSE {mean['rollout_aux_rmse']:.4f}"
+    if aux_unit:
+        aux_rmse_str = f"{aux_rmse_str} {aux_unit}"
     print(
         f"[{split}] one-step position RMSE {mean['one_step_position_rmse']:.4f} mm"
         f" | rollout position RMSE {mean['rollout_position_rmse']:.4f} mm"
-        f" | rollout {aux_field} RMSE {mean['rollout_aux_rmse']:.4f}"
+        f" | {aux_rmse_str}"
     )
     qoi = ", ".join(
         f"{name} {value:.4f} mm" for name, value in mean["qoi_abs_error"].items()

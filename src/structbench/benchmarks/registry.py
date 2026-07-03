@@ -76,6 +76,8 @@ class BenchmarkSpec:
         # Wrap in read-only proxies to prevent accidental mutation
         object.__setattr__(self, "splits", MappingProxyType(dict(self.splits)))
         object.__setattr__(self, "qois", MappingProxyType(dict(self.qois)))
+        # NB: dataclasses.asdict(spec) would raise on these proxies;
+        # use spec.card.to_json_dict() for serialization.
 
 
 def available_benchmarks() -> tuple[str, ...]:

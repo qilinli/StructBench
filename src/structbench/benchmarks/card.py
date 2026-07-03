@@ -45,7 +45,7 @@ class BenchmarkCard:
     qois, fields : tuple of str
         QoI names and the response fields available in the canonical data.
     particles_per_case : str
-        Human-readable particle-count range (e.g. ``"4804-8004"``).
+        Human-readable particle-count range (e.g. ``"4800-8000"``).
     n_frames : int
         Response frames per case.
     output_dt_ms : float

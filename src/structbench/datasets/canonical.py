@@ -39,12 +39,14 @@ def von_mises_from_voigt(stress: NDArray[np.floating]) -> NDArray[np.float64]:
     )
 
 
-AuxExtractor = Callable[[Mapping[str, NDArray[np.float32]], float], NDArray[np.float32]]
+AuxExtractor = Callable[
+    [Mapping[str, NDArray[np.floating]], float], NDArray[np.float32]
+]
 """Maps (mapping of SPH response fields, stress_scale) to a (T, P) aux array."""
 
 
 def _aux_von_mises(
-    sph: Mapping[str, NDArray[np.float32]], stress_scale: float
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
 ) -> NDArray[np.float32]:
     """von Mises stress derived from the 6-component Voigt stress, scaled.
 

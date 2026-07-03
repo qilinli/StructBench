@@ -98,7 +98,8 @@ def render_archive_readme(spec: BenchmarkSpec) -> str:
                 "",
                 c.description,
                 "",
-                f"- Solver: {c.solver} ({c.discretisation}; erosion: {_yesno(c.erosion)})",
+                f"- Solver: {c.solver} ({c.discretisation};"
+                f" erosion: {_yesno(c.erosion)})",
                 f"- Loading: {c.loading}",
                 f"- Source units: {c.source_units} (files are strict SI, ADR-0012)",
                 f"- Cases: {c.n_cases} ({splits_str})",
