@@ -91,6 +91,7 @@ A dependency is a long-term commitment, not a convenience. The bar to add one is
 | lasso-python | LS-DYNA d3plot parsing in the canonical adapter | ADR-0016 |
 | torch | Autograd + tensors for the reference ML models | ADR-0018 |
 | torch-geometric | Message-passing + radius_graph for the GNS | ADR-0018 |
+| matplotlib | FEM-style fringe visualization; optional `viz` extra, never a hard runtime dependency | ADR-0022 |
 
 **Development** *(established by this document)*:
 

@@ -21,6 +21,7 @@ src/structbench/
 ├── models/        # reference ML models
 ├── datasets/      # data loaders and dataset registry
 ├── eval/          # metrics and evaluation protocols
+├── viz/           # FEM-style visualization of physics fields
 └── cli/           # command-line interfaces
 
 # Reserved namespaces (declared but not yet implemented)
@@ -73,11 +74,17 @@ Metrics and evaluation protocols. Each benchmark declares its own evaluation met
 
 `eval/` depends on `core/` (for the case schema) and `datasets/` (for ground truth access). It does not depend on `models/` — evaluation is a property of the benchmark, not the model.
 
+### `viz/`
+
+FEM-postprocessor-style visualization of particle physics fields (ADR-0022). Any figure that shows a physics quantity — von Mises stress, plastic strain, pressure — renders through this module, following the conventions structural engineers know from LS-PrePost and Abaqus/CAE: the jet rainbow color code (blue = low, red = high), a fringe bar with evenly spaced labelled levels, physical units in the working frame. A field registry (`FIELDS`) carries each quantity's label, unit, and tick format so figures stay consistent across runs and documents.
+
+`viz/` depends on `core/` (reading canonical cases) and `datasets/` (working-frame conversions). It does not depend on `models/`, `benchmarks/`, or `eval/` — it plots arrays, not models. Its matplotlib dependency is the optional `viz` extra, never a hard runtime dependency: importing `structbench.viz` without matplotlib succeeds, and plotting calls raise with the install instruction.
+
 ### `cli/`
 
 Command-line entry points. Thin wrappers around functionality in the other modules. The CLI exposes the user-facing operations: running benchmarks, evaluating predictions, listing available datasets and models.
 
-`cli/` depends on most other modules but is depended on by none. It is the outermost layer.
+`cli/` depends on most other modules but is depended on by none. It is the outermost layer. (`viz/` additionally carries its own `__main__` so `python -m structbench.viz` can regenerate a run's standard figures without a console-script entry.)
 
 ---
 
@@ -102,23 +109,23 @@ Allowed import directions between modules:
 ```
                     cli/
                      │
-       ┌─────────────┼─────────────┐
-       ▼             ▼             ▼
-  benchmarks/     models/        eval/
-       │             │             │
-       └─────────────┼─────────────┘
-                     ▼
-                 datasets/
-                     │
-                     ▼
-                  core/
+       ┌─────────────┼─────────────┬─────────────┐
+       ▼             ▼             ▼             ▼
+  benchmarks/     models/        eval/         viz/
+       │             │             │             │
+       └─────────────┴──────┬──────┴─────────────┘
+                            ▼
+                        datasets/
+                            │
+                            ▼
+                         core/
 ```
 
 Rules:
 
 - `core/` has no upstream dependencies within the package.
 - `datasets/` depends only on `core/`.
-- `benchmarks/`, `models/`, and `eval/` may depend on `core/` and `datasets/`. They do not depend on each other — a model is not coupled to a specific benchmark, and a benchmark is not coupled to a specific model.
+- `benchmarks/`, `models/`, `eval/`, and `viz/` may depend on `core/` and `datasets/`. They do not depend on each other — a model is not coupled to a specific benchmark, a benchmark is not coupled to a specific model, and visualization plots arrays rather than models.
 - `cli/` may depend on any other module. It is the assembly point.
 - Reserved namespaces (`deploy/`, `vision/`, `sensing/`) will be placed in this graph when implemented; their position is a future architectural decision.
 

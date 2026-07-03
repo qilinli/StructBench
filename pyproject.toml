@@ -22,10 +22,14 @@ dependencies = [
 structbench-train = "structbench.cli.train:main"
 
 [project.optional-dependencies]
+viz = [
+    "matplotlib>=3.8",
+]
 dev = [
     "ruff>=0.5",
     "mypy>=1.10",
     "pytest>=8.0",
+    "matplotlib>=3.8",
 ]
 
 [tool.setuptools.packages.find]
@@ -51,7 +55,7 @@ warn_redundant_casts = true
 ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
-module = ["h5py.*", "lasso.*", "torch_geometric.*"]
+module = ["h5py.*", "lasso.*", "torch_geometric.*", "matplotlib.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

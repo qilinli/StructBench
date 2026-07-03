@@ -54,7 +54,7 @@ What becomes easier, harder, or constrained as a result.
 | 0003 | v0.1 anchor problem is impact on RC beams | Durable | Accepted |
 | 0004 | Platform is solver-agnostic; LS-DYNA for v0.1 data generation | Durable | Accepted |
 | 0005 | ADR format and decision-log structure | Durable | Accepted |
-| 0006 | Three-tier authority model for Claude Code | Durable | Accepted |
+| 0006 | Three-tier authority model for Claude Code | Durable | Accepted (amended by 0023) |
 | 0007 | CORRECTIONS.md mechanism for small corrections | Durable | Accepted |
 | 0008 | Principle/mechanism separation between HARNESS and CLAUDE | Durable | Accepted |
 | 0009 | Session-start reading list | Ephemeral | Accepted |
@@ -70,6 +70,8 @@ What becomes easier, harder, or constrained as a result.
 | 0019 | v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol | Durable | Accepted |
 | 0020 | Native radius_graph; no graph-backend binary dependency | Durable | Accepted |
 | 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
+| 0022 | FEM-convention visualization harness (`viz/`, matplotlib as optional extra) | Durable | Accepted |
+| 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted |
 | 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Durable | Accepted |
 | 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted |
 | 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted |

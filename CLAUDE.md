@@ -54,7 +54,7 @@ Target: the full start-of-session reading should take under 10 minutes of agent 
 
 ### Ending a session
 
-- Commit changes to a feature branch, never directly to `main`.
+- Commit changes to a feature branch; `main` moves only on the human's explicit in-session instruction (ADR-0023).
 - Unfinished work persists as `WIP:`-prefixed commits on a feature branch, or as dated notes in `scratch/`.
 - After session end, a reader of the repo files (without chat history) should be able to reconstruct what was decided and what was done.
 - No formal session summary required; commit messages serve as the record.
@@ -63,7 +63,7 @@ Target: the full start-of-session reading should take under 10 minutes of agent 
 
 ## Authority tiers
 
-Three tiers govern what Claude Code can do. When in doubt, default to the more restrictive tier.
+Four tiers govern what Claude Code can do. When in doubt, default to the more restrictive tier.
 
 ### Unilateral — do without asking
 
@@ -88,16 +88,22 @@ Three tiers govern what Claude Code can do. When in doubt, default to the more r
 - Running anything with real compute cost — propose with estimated cost and runtime.
 - Changes to git state affecting history.
 
+### On explicit instruction — execute when the human directs it in-session
+
+*(Added by ADR-0023, amending ADR-0006.)* These never happen as part of unprompted work — `main` moves only by the human's word — but when the human explicitly instructs them in the session ("merge it", "push"), Claude Code executes them directly instead of handing commands back.
+
+- Merging a feature branch into `main`.
+- Pushing to the remote.
+- Committing directly to `main`.
+
 ### Forbidden — refuse even if asked in-session
 
 These require deliberate human action outside a normal coding session.
 
-- Committing directly to `main`.
-- Pushing to any remote.
 - Publishing releases, tagging versions, uploading to PyPI or Zenodo.
 - Modifying `LICENSE`, `HARNESS.md`, or `VISION.md` during a coding session.
 - Rewriting git history on shared branches.
-- Accepting or merging pull requests.
+- Accepting or merging third-party pull requests.
 - Changing repository settings.
 - Handling secrets, credentials, API keys, or SSH keys.
 - Asserting facts about external sources without verification.
