@@ -1,10 +1,13 @@
 import numpy as np
+import pytest
 
 from structbench.eval.metrics import (
     QoiInputs,
+    arrival_time,
     field_rmse,
     final_length,
     mushroom_width,
+    peak_stress,
     position_rmse,
 )
 
@@ -39,3 +42,36 @@ def test_qois_use_last_frame_extents():
     pos[0, :, 1] = [-3, 3, 0, 0]  # y extent 6
     assert final_length(_inputs(pos)) == 10.0
     assert mushroom_width(_inputs(pos)) == 6.0
+
+
+def _plane_wave_inputs():
+    """A |stress| front moving +x at 1 station per frame; bar x in [0, 100]."""
+    t = np.linspace(0.0, 0.01, 11)  # 11 frames, seconds
+    x = np.linspace(0.0, 100.0, 101, dtype=np.float32)
+    positions = np.zeros((11, 101, 2), np.float32)
+    positions[:, :, 0] = x  # static bar
+    aux = np.zeros((11, 101), np.float32)
+    for frame in range(11):
+        front = frame * 10.0  # front position in mm at this frame
+        aux[frame, x <= front] = 5.0  # 5 MPa behind the front
+    return QoiInputs(time=t, positions=positions, aux=aux)
+
+
+def test_arrival_time_reads_the_front_crossing():
+    inputs = _plane_wave_inputs()
+    # station 0.5 -> x = 50 mm; front reaches it at frame 5 -> t = 0.005 s = 5 ms
+    assert arrival_time(0.5)(inputs) == pytest.approx(5.0)
+    assert arrival_time(0.25)(inputs) == pytest.approx(2.5, abs=0.51)  # frame 3
+
+
+def test_arrival_time_saturates_when_no_crossing():
+    inputs = _plane_wave_inputs()
+    quiet = QoiInputs(
+        time=inputs.time, positions=inputs.positions, aux=np.zeros_like(inputs.aux)
+    )
+    assert arrival_time(0.5)(quiet) == pytest.approx(inputs.time[-1] * 1e3)
+
+
+def test_peak_stress_is_global_abs_max():
+    inputs = _plane_wave_inputs()
+    assert peak_stress(inputs) == pytest.approx(5.0)

@@ -3,9 +3,11 @@
 from .metrics import (
     QoiFn,
     QoiInputs,
+    arrival_time,
     field_rmse,
     final_length,
     mushroom_width,
+    peak_stress,
     position_rmse,
 )
 from .rollout import (
@@ -20,6 +22,8 @@ __all__ = [
     "field_rmse",
     "final_length",
     "mushroom_width",
+    "arrival_time",
+    "peak_stress",
     "QoiFn",
     "QoiInputs",
     "RolloutResult",
