@@ -7,18 +7,49 @@ predicted rollout) to ``<run>/plots/``::
     python -m structbench.viz --run runs/taylor-baseline \\
         --data-root /path/to/data [--gif] [--bands 12]
 
-Only ``von_mises_stress`` comparisons are possible: the surrogate's rollout
-files carry positions plus the von Mises auxiliary field.
+The benchmark (and therefore the auxiliary field compared) is resolved from
+``<run>/config.json``; the default is ``taylor_impact_2d`` (von Mises stress).
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
+from ..benchmarks import BenchmarkSpec, get_benchmark
 from .fringe import animate_rollout, compare_rollout, load_case_field
+
+
+def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
+    """Resolve the run directory's benchmark spec from its config.json.
+
+    Parameters
+    ----------
+    out_dir : pathlib.Path
+        Run directory holding ``config.json``.
+
+    Returns
+    -------
+    tuple of (BenchmarkSpec, dict)
+        The benchmark spec and the parsed config dict.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``config.json`` is missing from ``out_dir``.
+    KeyError
+        If the ``"benchmark"`` value is not a registered name; the registry
+        message lists valid names.
+    """
+    config_path = out_dir / "config.json"
+    if not config_path.exists():
+        raise FileNotFoundError(f"missing run config: {config_path}")
+    resolved = json.loads(config_path.read_text(encoding="utf-8"))
+    return get_benchmark(resolved.get("benchmark", "taylor_impact_2d")), resolved
 
 
 def split_and_case(stem: str) -> tuple[str, str]:
@@ -68,6 +99,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
+    spec, _ = _resolve_run_spec(args.run)
+
     import matplotlib
 
     matplotlib.use("Agg")
@@ -82,7 +115,7 @@ def main(argv: list[str] | None = None) -> None:
     for npz_path in rollouts:
         split, case = split_and_case(npz_path.stem)
         pred = np.load(npz_path)
-        gt = load_case_field(args.data_root / f"{case}.h5", "von_mises_stress")
+        gt = load_case_field(args.data_root / f"{case}.h5", spec.aux_field)
         n_frames = gt.positions.shape[0]
         window = n_frames - len(pred["position_rmse"])
         frames = snapshot_frames(n_frames, window, args.columns)
@@ -98,7 +131,8 @@ def main(argv: list[str] | None = None) -> None:
             times_us=gt.times_us,
             title=(
                 f"{case} ({split})   |   rollout RMSE: "
-                f"position {pos_rmse:.2f} mm, von Mises {aux_rmse:.1f} MPa"
+                f"position {pos_rmse:.2f} mm, "
+                f"{spec.aux_field} {aux_rmse:.1f} {spec.card.aux_unit}"
             ),
             bands=args.bands,
             wall_x=args.wall_x,
