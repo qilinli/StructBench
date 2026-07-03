@@ -36,11 +36,12 @@ nvidia-smi
 python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 
 # train -> best checkpoint (selected on rollout position RMSE, ADR-0024)
-# + config.json + normalization_stats.npz
-python -m structbench.cli.train --mode train   --config configs/taylor_2d.toml --data-root "$DATA" --out "$OUT"
-# eval on the held-out splits: ADR-0019 metrics go to the slurm log AND to
-# $OUT/metrics-*.json + rollouts/*.npz. The architecture is rebuilt from the
-# run's own config.json, so no --config here. If the train step is killed
-# these never run -- rerun just these two lines.
-python -m structbench.cli.train --mode valid   --data-root "$DATA" --out "$OUT"
-python -m structbench.cli.train --mode rollout --data-root "$DATA" --out "$OUT"
+# + config.json + normalization_stats.npz. Logs tee into the run dir so
+# summarization never depends on slurm-* files.
+python -m structbench.cli.train --mode train   --config configs/taylor_2d.toml --data-root "$DATA" --out "$OUT" 2>&1 | tee "$OUT/train.log"
+# eval on the held-out splits: ADR-0019 metrics go to $OUT/metrics-*.json +
+# rollouts/*.npz. The architecture is rebuilt from the run's own config.json,
+# so no --config here. If the train step is killed these never run -- rerun
+# just these two lines.
+python -m structbench.cli.train --mode valid   --data-root "$DATA" --out "$OUT" 2>&1 | tee "$OUT/eval.log"
+python -m structbench.cli.train --mode rollout --data-root "$DATA" --out "$OUT" 2>&1 | tee -a "$OUT/eval.log"
