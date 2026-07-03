@@ -1,0 +1,5 @@
+# configs/notch_impact.toml — NotchBeam2D-Impact GNS baseline (ADR-0026)
+benchmark = "notch_beam_2d_impact"
+dim = 2
+connectivity_radius = 15.0  # 6x the 2.5 mm particle spacing (ADR-0028 convention)
+training_steps = 100000

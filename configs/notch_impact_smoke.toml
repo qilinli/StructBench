@@ -1,0 +1,7 @@
+# configs/notch_impact_smoke.toml — 10-step smoke of the notch-impact pipeline
+benchmark = "notch_beam_2d_impact"
+dim = 2
+connectivity_radius = 15.0  # 6x the 2.5 mm particle spacing (ADR-0028 convention)
+training_steps = 10
+val_every = 5
+batch_size = 2

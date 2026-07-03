@@ -17,6 +17,17 @@ baseline to beat — for structures under dynamic and extreme loading.
 colored by von Mises stress. The prediction-vs-truth comparison replaces this
 once the baseline training run completes.*
 
+## Benchmarks
+
+| Benchmark | Problem | Cases |
+|---|---|---|
+| Taylor2D-Impact | copper bar impact (SPH, plasticity) | 33 |
+| Wave1D-Propagation | elastic wave in a bar (entry tier) | 16 |
+| NotchBeam2D-Bend | notched concrete beam, 3-point bend | 111 |
+| NotchBeam2D-Impact | notched concrete beam, drop-weight impact | 110 |
+
+Full cards (solver, materials, splits, QoIs): [docs/benchmarks.md](docs/benchmarks.md).
+
 ## Why
 
 If you have trained ML surrogates on structural simulation data, you know the
