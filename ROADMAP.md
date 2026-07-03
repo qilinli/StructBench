@@ -73,8 +73,10 @@ Taylor 2D plasticity → concrete fracture (no erosion) → v0.3 erosion.
       generalisation probes to canonical HDF5 (batched OneDrive
       hydration, specific paths only; extras in the raw tree flagged,
       not ingested)
+      (wave-1d: 16 cases ingested 2026-07-03; notch-beam pending)
 - [ ] **Three benchmark modules** with frozen split lists (ADR-0025's
       table; ADR-0026's stratified rule) and QoIs
+      (wave_propagation_1d done; notch pair pending)
 - [ ] **Benchmark cards** (ADR-0027): `BenchmarkCard` type, per-module
       `card.py` (Taylor retrofitted), generated `docs/benchmarks.md`
       index + per-archive README/`card.json`
