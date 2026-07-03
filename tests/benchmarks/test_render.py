@@ -20,6 +20,7 @@ def test_index_contains_taylor_row_and_generation_marker():
     text = render_index(_all_specs())
     assert "do not edit by hand" in text
     assert "Taylor2D-Impact" in text
+    assert "Wave1D-Propagation" in text
     assert "SPH" in text
 
 

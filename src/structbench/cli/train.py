@@ -839,7 +839,12 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _print_split_report(metrics: dict[str, Any]) -> None:
-    """Print one split's ADR-0019 metrics (mm / aux unit) to stdout."""
+    """Print one split's metrics to stdout.
+
+    Position RMSE is in mm. Aux RMSE is in the run's aux unit
+    (recorded in benchmark card). QoI errors are in each QoI's own unit
+    (recorded in the benchmark card).
+    """
     split, mean = metrics["split"], metrics["mean"]
     aux_field = metrics.get("aux_field", "aux")
     aux_unit = metrics.get("aux_unit", "")
@@ -848,11 +853,12 @@ def _print_split_report(metrics: dict[str, Any]) -> None:
         aux_rmse_str = f"{aux_rmse_str} {aux_unit}"
     print(
         f"[{split}] one-step position RMSE {mean['one_step_position_rmse']:.4f} mm"
+        f" | one-step {aux_field} RMSE {mean['one_step_aux_rmse']:.4f}"
         f" | rollout position RMSE {mean['rollout_position_rmse']:.4f} mm"
         f" | {aux_rmse_str}"
     )
     qoi = ", ".join(
-        f"{name} {value:.4f} mm" for name, value in mean["qoi_abs_error"].items()
+        f"{name} {value:.4f}" for name, value in mean["qoi_abs_error"].items()
     )
     print(f"[{split}] QoI mean |error|: {qoi}")
 
