@@ -1,4 +1,4 @@
-# 0024 — GNS baseline training-recipe rework after the first full run
+# 0028 — GNS baseline training-recipe rework after the first full run
 
 **Status**: Accepted
 **Type**: Ephemeral

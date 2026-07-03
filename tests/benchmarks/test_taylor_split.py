@@ -31,7 +31,7 @@ def test_split_velocities_match_adr_0019():
 
 
 def test_wall_distance_feature_is_signed_and_radius_normalized():
-    # ADR-0024: clamp((x - wall)/R, -1, 1) — penetration must read negative.
+    # ADR-0028: clamp((x - wall)/R, -1, 1) — penetration must read negative.
     pos = torch.tensor(
         [[-3.0, 0.0], [-2.3, 0.0], [-2.0, 0.0], [-1.7, 0.0], [10.0, 0.0]]
     )  # mm

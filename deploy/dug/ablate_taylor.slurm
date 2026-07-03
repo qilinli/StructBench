@@ -1,5 +1,5 @@
 #!/bin/bash
-# One Taylor 2D GNS ablation as a single-GPU SLURM job (ADR-0024 Phase 2).
+# One Taylor 2D GNS ablation as a single-GPU SLURM job (ADR-0028 Phase 2).
 # Submit from the repo root ON A LOGIN NODE, parameterized via --export:
 #
 #   sbatch --job-name=abl-n005 --export=ALL,NAME=n005,NOISE=0.05 \

@@ -5,12 +5,12 @@
 # single flat table: `GNSConfig.from_toml` and `TrainConfig.from_toml` each pick
 # the keys that name one of their fields (see cli/train.py).
 #
-# Recipe revised per ADR-0024 after the first full baseline run: wider graph,
+# Recipe revised per ADR-0028 after the first full baseline run: wider graph,
 # reference learning rate, gradient clipping, position-based model selection.
 
 # --- architecture + training noise (GNSConfig) ---
 window = 11                       # input history length (frames per sample)
-connectivity_radius = 1.5         # graph radius, mm = 3x particle spacing (ADR-0024;
+connectivity_radius = 1.5         # graph radius, mm = 3x particle spacing (ADR-0028;
                                   # 0.6 gave a 4-connected lattice whose edges broke
                                   # under 0.1 mm of rollout drift)
 max_neighbors = 48                # radius-graph cap; above the true max degree at

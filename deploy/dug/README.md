@@ -60,11 +60,11 @@ squeue --me                     # watch the queue
 tail -f slurm-taylor-*.out      # progress: val_pos (mm) / val_aux (MPa) each val_every
 ```
 
-The full run is 100k steps at batch 32. Measured 2026-07-03 with the ADR-0024
+The full run is 100k steps at batch 32. Measured 2026-07-03 with the ADR-0028
 recipe (radius 1.5): **~4.6k steps/h on one A100 → ~22 h**, well inside the
 36 h ceiling in the script (the partition's time limit is `infinite`). The
 best checkpoint is written whenever the validation **position** RMSE improves
-(ADR-0024; checked every 2000 steps), so an early stop still leaves a usable
+(ADR-0028; checked every 2000 steps), so an early stop still leaves a usable
 model — but **training has no resume**, so a killed run restarts from scratch.
 
 Two rules the entry point now enforces / expects:

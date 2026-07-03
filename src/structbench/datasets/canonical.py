@@ -25,7 +25,7 @@ def n_valid_frames(time: NDArray[np.floating]) -> int:
     state (measured 0.077 µs vs ~2 µs on the Taylor cases). Index-based
     velocity/acceleration targets assume uniform dt, so that terminal frame
     injects a spurious deceleration into training targets and biases
-    final-frame metrics (ADR-0024). The frame is dropped when the final
+    final-frame metrics (ADR-0028). The frame is dropped when the final
     interval is under half the median interval.
 
     Parameters

@@ -114,7 +114,7 @@ def cached_compute_stats(
     hashes the trajectories' case-id list *and per-case frame/particle counts*
     — so the stats are computed once per split and reused across runs, while a
     changed case list or a loader change that alters trajectory shapes (e.g.
-    the ADR-0024 terminal-frame trim) forces recomputation under a new
+    the ADR-0028 terminal-frame trim) forces recomputation under a new
     filename. The cache never blocks training: a
     write failure (e.g. read-only dataset root) degrades to a warning, and an
     unreadable/corrupt cache file is recomputed and rewritten. Writes go

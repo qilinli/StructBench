@@ -495,7 +495,7 @@ def load_case_field(h5_path: str | Path, field: str | FieldSpec) -> CaseField:
     idx = sph.connectivity[:, 0]
     dim = case.metadata.dimension
     # Trim the terminal solver-output dt artifact exactly like the training
-    # loader, so GT frames stay aligned with rollout .npz files (ADR-0024).
+    # loader, so GT frames stay aligned with rollout .npz files (ADR-0028).
     n_frames = n_valid_frames(np.asarray(case.response.time))
 
     coords0 = case.nodes.coords[idx][:, :dim]

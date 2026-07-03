@@ -39,7 +39,7 @@ def wall_distance_feature(positions_mm: torch.Tensor, radius: float) -> torch.Te
     """Signed per-particle distance to the rigidwall plane, in radius units.
 
     Follows the canonical GNS boundary encoding: ``clamp(dist / radius, -1, 1)``.
-    Negative values signal penetration *depth* (ADR-0024) — the unsigned
+    Negative values signal penetration *depth* (ADR-0028) — the unsigned
     ``clamp(dist, 0, radius)`` form used before v0.1 read identically zero for
     a particle resting on the wall and one driven through it, giving rollouts
     no restoring signal exactly where contact errors concentrate.

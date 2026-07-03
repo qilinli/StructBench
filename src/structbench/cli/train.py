@@ -87,7 +87,7 @@ class GNSConfig:
     max_neighbors : int
         Per-node neighbour cap for the radius graph. Size it above the true
         maximum degree at ``connectivity_radius`` so it never binds on
-        physical configurations (ADR-0024).
+        physical configurations (ADR-0028).
     """
 
     window: int = 11
@@ -347,7 +347,7 @@ def _validate(
 ) -> tuple[float, float]:
     """Mean rollout position RMSE (mm) and von Mises RMSE (MPa) over VAL.
 
-    The two channels are kept separate (ADR-0024): summing mm + MPa made the
+    The two channels are kept separate (ADR-0028): summing mm + MPa made the
     in-training score 98% stress and let checkpoint selection ignore position
     quality entirely. Selection uses the position channel; the ADR-0019
     reported metrics come from :func:`evaluate`.
@@ -502,7 +502,7 @@ def train(
             loss.backward()
             # The unclipped run showed ~5x loss spikes (steps 28k, 42k);
             # standard global-norm clipping keeps those from kicking the
-            # weights off the manifold (ADR-0024).
+            # weights off the manifold (ADR-0028).
             torch.nn.utils.clip_grad_norm_(simulator.parameters(), max_norm=1.0)
             optimizer.step()
 
