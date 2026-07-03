@@ -23,6 +23,24 @@ Identify the venue at session start and adopt its role:
 | **Debug** | JupyterHub container: `SINGULARITY_NAME=jupyterlab.sif` | `/data/curtin_eecms/curtin_qilin/structbench-dev` (git worktree of the same repo) | Interactive GPU debugging and small fixes, on feature branches created here; commit and merge promptly. |
 | **Development** | Windows or any other separate clone | that clone | Major feature work on feature branches, synced through GitHub. |
 
+## Session start ritual
+
+Every new Claude Code session, in order, before any work:
+
+1. **Identify the venue** (table above) and work only in its folder.
+2. **Ask the human to name the session for its venue and focus** —
+   `/rename <venue>-<focus>`, e.g. `dug-login-ops`, `dug-jupyter-debug`,
+   `win-dev-benchmarks` — unless it is already named. Unnamed parallel
+   sessions become indistinguishable in session lists, and the name is how
+   the human tracks which seat did what.
+3. **Sync, per venue**:
+   - *Development clones*: `git pull --ff-only` now; push your branch when
+     stopping.
+   - *Debug worktree*: `git fetch origin`, then start (or rebase) feature
+     branches from `origin/main`.
+   - *Execution checkout*: do **not** pull. First run `squeue --me`; the tree
+     moves only when no jobs are queued or running (next section).
+
 ## The execution checkout is special
 
 `structbench` is the tree SLURM jobs execute. It moves only by deliberate
