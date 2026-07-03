@@ -171,3 +171,72 @@ def peak_stress(inputs: QoiInputs) -> float:
     """
     aux = np.abs(np.asarray(inputs.aux, float))
     return float(aux[aux.shape[0] // 2 :].max())
+
+
+def midspan_deflection_peak(
+    gauge_halfwidth: float = 5.0, concrete_type: int | None = None
+) -> QoiFn:
+    """QoI factory: peak downward mid-span deflection, mm (ADR-0026).
+
+    The gauge is the set of particles within ``gauge_halfwidth`` of the
+    frame-0 x-midspan (optionally restricted to ``concrete_type``
+    particles). Deflection is the gauge's mean y-displacement from frame 0;
+    the QoI is its peak downward excursion over the trajectory.
+
+    Parameters
+    ----------
+    gauge_halfwidth:
+        Half-width of the mid-span gauge window, mm.
+    concrete_type:
+        When given and ``inputs.particle_type`` is present, only particles
+        of this part-id form the gauge.
+
+    Returns
+    -------
+    QoiFn
+        Maps :class:`QoiInputs` to the peak downward deflection (mm).
+    """
+
+    def qoi(inputs: QoiInputs) -> float:
+        pos = np.asarray(inputs.positions, float)
+        x0 = pos[0, :, 0]
+        mid = 0.5 * (x0.min() + x0.max())
+        gauge = np.abs(x0 - mid) <= gauge_halfwidth
+        if concrete_type is not None and inputs.particle_type is not None:
+            gauge &= inputs.particle_type == concrete_type
+        y = pos[:, gauge, 1].mean(axis=1)
+        return float(np.max(y[0] - y))
+
+    return qoi
+
+
+def damaged_fraction(threshold: float = 1.9, concrete_type: int | None = None) -> QoiFn:
+    """QoI factory: final-frame fraction of particles at full damage.
+
+    The K&C scaled damage measure saturates at 2; particles with
+    ``aux >= threshold`` in the final frame count as fully damaged — a
+    scalar proxy for the crack pattern (ADR-0026).
+
+    Parameters
+    ----------
+    threshold:
+        Damage level counted as fully damaged.
+    concrete_type:
+        When given and ``inputs.particle_type`` is present, the fraction
+        runs over that part-id's particles only.
+
+    Returns
+    -------
+    QoiFn
+        Maps :class:`QoiInputs` to a fraction in ``[0, 1]``.
+    """
+
+    def qoi(inputs: QoiInputs) -> float:
+        damage = np.asarray(inputs.aux, float)[-1]
+        if concrete_type is not None and inputs.particle_type is not None:
+            damage = damage[inputs.particle_type == concrete_type]
+        if damage.size == 0:
+            return 0.0
+        return float((damage >= threshold).mean())
+
+    return qoi

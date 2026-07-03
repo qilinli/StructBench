@@ -4,8 +4,10 @@ import pytest
 from structbench.eval.metrics import (
     QoiInputs,
     arrival_time,
+    damaged_fraction,
     field_rmse,
     final_length,
+    midspan_deflection_peak,
     mushroom_width,
     peak_stress,
     position_rmse,
@@ -103,3 +105,25 @@ def test_field_rmse_keep_mask():
     true = np.zeros((2, 3), np.float32)
     true[:, 0] = 4.0
     assert np.allclose(field_rmse(pred, true, keep=np.array([False, True, True])), 0.0)
+
+
+def _beam_inputs():
+    """Static 3-particle 'beam' on x in {0, 50, 100}; middle particle sags."""
+    t = np.linspace(0.0, 0.5, 6)
+    positions = np.zeros((6, 3, 2), np.float32)
+    positions[:, :, 0] = np.array([0.0, 50.0, 100.0], np.float32)
+    positions[:, 1, 1] = -np.array([0, 1, 2, 4, 3, 2], np.float32)  # sag, peak 4mm
+    aux = np.zeros((6, 3), np.float32)
+    aux[-1] = np.array([2.0, 0.5, 2.0], np.float32)  # 2 of 3 damaged at end
+    ptype = np.array([1, 1, 2], np.int64)  # particle 2 is not concrete
+    return QoiInputs(time=t, positions=positions, aux=aux, particle_type=ptype)
+
+
+def test_midspan_deflection_peak_reads_the_sag():
+    assert midspan_deflection_peak(gauge_halfwidth=5.0)(_beam_inputs()) == pytest.approx(4.0)
+
+
+def test_damaged_fraction_final_frame():
+    inputs = _beam_inputs()
+    assert damaged_fraction(threshold=1.9)(inputs) == pytest.approx(2.0 / 3.0)
+    assert damaged_fraction(threshold=1.9, concrete_type=1)(inputs) == pytest.approx(0.5)
