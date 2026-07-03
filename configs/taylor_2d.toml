@@ -5,6 +5,8 @@
 # single flat table: `GNSConfig.from_toml` and `TrainConfig.from_toml` each pick
 # the keys that name one of their fields (see cli/train.py).
 
+benchmark = "taylor_impact_2d"
+
 # --- architecture + training noise (GNSConfig) ---
 window = 11                       # input history length (frames per sample)
 connectivity_radius = 0.6         # graph radius, mm working frame

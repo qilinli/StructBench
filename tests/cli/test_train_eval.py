@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 import torch
 
+from structbench.benchmarks import get_benchmark
 from structbench.cli.train import (
     GNSConfig,
     TrainConfig,
@@ -141,7 +142,7 @@ def test_evaluate_rebuilds_architecture_from_run_config(tmp_path):
     for per_case in metrics["cases"].values():
         assert np.isfinite(per_case["one_step_position_rmse"])
         assert np.isfinite(per_case["rollout_position_rmse"])
-        assert np.isfinite(per_case["rollout_von_mises_rmse"])
+        assert np.isfinite(per_case["rollout_aux_rmse"])
         assert set(per_case["qoi_error"]) == {"final_length", "mushroom_width"}
     assert np.isfinite(metrics["mean"]["rollout_position_rmse"])
     assert set(metrics["mean"]["qoi_abs_error"]) == {
@@ -185,4 +186,11 @@ def test_train_refuses_out_dir_with_existing_checkpoints(tmp_path):
     data_root = tmp_path / "data"
     data_root.mkdir()
     with pytest.raises(FileExistsError):
-        train(GNSConfig(**SMALL_GNS), TrainConfig(), data_root, out_dir, "cpu")
+        train(
+            get_benchmark("taylor_impact_2d"),
+            GNSConfig(**SMALL_GNS),
+            TrainConfig(),
+            data_root,
+            out_dir,
+            "cpu",
+        )

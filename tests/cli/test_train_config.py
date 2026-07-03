@@ -3,6 +3,19 @@ import torch
 from structbench.cli.train import GNSConfig, TrainConfig, build_simulator
 
 
+def test_train_config_benchmark_defaults_to_taylor(tmp_path):
+    cfg = TrainConfig()
+    assert cfg.benchmark == "taylor_impact_2d"
+
+
+def test_train_config_benchmark_from_toml(tmp_path):
+    toml = tmp_path / "cfg.toml"
+    toml.write_text('benchmark = "taylor_impact_2d"\nbatch_size = 4\n')
+    cfg = TrainConfig.from_toml(toml)
+    assert cfg.benchmark == "taylor_impact_2d"
+    assert cfg.batch_size == 4
+
+
 def _stats_dict():
     return {
         "velocity": {"mean": torch.zeros(2), "std": torch.ones(2)},

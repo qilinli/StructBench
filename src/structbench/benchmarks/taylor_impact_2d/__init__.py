@@ -1,5 +1,6 @@
 """v0.1 Taylor 2D impact benchmark (ADR-0019)."""
 
+from ..registry import BenchmarkSpec
 from .benchmark import (
     ALL_BENCHMARK_CASES,
     AUX_FIELD,
@@ -13,7 +14,6 @@ from .benchmark import (
     wall_distance_feature,
 )
 from .card import CARD
-from ..registry import BenchmarkSpec
 
 SPEC = BenchmarkSpec(
     card=CARD,
