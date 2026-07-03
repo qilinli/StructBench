@@ -89,7 +89,7 @@ def compute_stats(trajectories: list[CaseTrajectory]) -> NormalizationStats:
         a = v[1:] - v[:-1]  # (T-2, P, dim)
         vels.append(v.reshape(-1, p.shape[-1]))
         accs.append(a.reshape(-1, p.shape[-1]))
-        auxs.append(tr.von_mises.astype(np.float64).reshape(-1))  # (T*P,)
+        auxs.append(tr.aux.astype(np.float64).reshape(-1))  # (T*P,)
     v_all = np.concatenate(vels, axis=0)
     a_all = np.concatenate(accs, axis=0)
     aux_all = np.concatenate(auxs, axis=0)

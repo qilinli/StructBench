@@ -80,7 +80,7 @@ class WindowDataset(Dataset):
             "position_seq": torch.from_numpy(np.ascontiguousarray(seq)),
             "particle_type": torch.from_numpy(tr.particle_type),
             "next_position": torch.from_numpy(tr.positions[t]),
-            "next_aux": torch.from_numpy(tr.von_mises[t]),
+            "next_aux": torch.from_numpy(tr.aux[t]),
             "n_particles": int(tr.positions.shape[1]),
         }
 

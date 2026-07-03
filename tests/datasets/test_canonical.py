@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from structbench.core import (
     Case,
@@ -62,6 +63,24 @@ def test_load_case_trajectory_sph_only_in_mm_and_mpa(tmp_path):
     assert traj.positions.shape == (2, 3, 2)  # SPH particles only
     np.testing.assert_allclose(traj.positions[0, 1], [1.0, 0.0])  # 1 mm
     np.testing.assert_allclose(traj.positions[1, 0], [2.0, 0.0])  # +2 mm disp
-    assert traj.von_mises.shape == (2, 3)
-    np.testing.assert_allclose(traj.von_mises[1], [300.0, 300.0, 300.0])  # MPa
+    assert traj.aux.shape == (2, 3)
+    np.testing.assert_allclose(traj.aux[1], [300.0, 300.0, 300.0])  # MPa
     np.testing.assert_array_equal(traj.particle_type, [1, 1, 1])
+
+
+def test_load_case_trajectory_default_aux_is_von_mises(tmp_path):
+    h5_path = _sph_case(tmp_path)
+    tr = load_case_trajectory(h5_path)
+    assert tr.aux.shape == tr.positions.shape[:2]
+
+
+def test_load_case_trajectory_rejects_unknown_aux_field(tmp_path):
+    h5_path = _sph_case(tmp_path)
+    with pytest.raises(KeyError, match="von_mises_stress"):
+        load_case_trajectory(h5_path, aux_field="no_such_field")
+
+
+def test_available_aux_fields_lists_von_mises():
+    from structbench.datasets import available_aux_fields
+
+    assert "von_mises_stress" in available_aux_fields()
