@@ -49,7 +49,7 @@ from ..datasets import (
     collate_samples,
     load_case_trajectory,
 )
-from ..eval import one_step_position_rmse, rollout
+from ..eval import one_step_aux_rmse, one_step_position_rmse, rollout
 from ..models.gns import LearnedSimulator
 from ..models.gns.simulator import time_diff
 
@@ -691,8 +691,10 @@ def evaluate(
         )
         result = rollout(simulator, trajectory, gns.window, device, qois=spec.qois)
         one_step = one_step_position_rmse(simulator, trajectory, gns.window, device)
+        one_step_aux = one_step_aux_rmse(simulator, trajectory, gns.window, device)
         cases[case_id] = {
             "one_step_position_rmse": float(one_step.mean()),
+            "one_step_aux_rmse": float(one_step_aux.mean()),
             "rollout_position_rmse": result.mean_position_rmse,
             "rollout_aux_rmse": result.mean_aux_rmse,
             "qoi_pred": result.qoi_pred,
@@ -717,6 +719,7 @@ def evaluate(
                 position_rmse=result.position_rmse,
                 aux_rmse=result.aux_rmse,
                 one_step_position_rmse=one_step,
+                one_step_aux_rmse=one_step_aux,
             )
 
     def _mean_over_cases(key: str) -> float:
@@ -730,6 +733,7 @@ def evaluate(
         "cases": cases,
         "mean": {
             "one_step_position_rmse": _mean_over_cases("one_step_position_rmse"),
+            "one_step_aux_rmse": _mean_over_cases("one_step_aux_rmse"),
             "rollout_position_rmse": _mean_over_cases("rollout_position_rmse"),
             "rollout_aux_rmse": _mean_over_cases("rollout_aux_rmse"),
             "qoi_abs_error": {

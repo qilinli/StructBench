@@ -2,8 +2,13 @@ import numpy as np
 import torch
 
 from structbench.datasets.canonical import CaseTrajectory
-from structbench.eval.metrics import final_length, mushroom_width
-from structbench.eval.rollout import RolloutResult, one_step_position_rmse, rollout
+from structbench.eval.metrics import QoiInputs, final_length, mushroom_width
+from structbench.eval.rollout import (
+    RolloutResult,
+    one_step_aux_rmse,
+    one_step_position_rmse,
+    rollout,
+)
 
 
 class _ConstVelSim:
@@ -33,11 +38,13 @@ class _FrozenSim:
 def _const_vel_traj(T: int = 6, P: int = 4) -> CaseTrajectory:
     pos = np.zeros((T, P, 2), dtype=np.float32)
     pos[:, :, 0] = np.arange(T)[:, None]  # const velocity +1 in x
+    # Non-trivial aux so seed-with-ground-truth tests are meaningful.
+    aux = np.arange(T * P, dtype=np.float32).reshape(T, P)
     return CaseTrajectory(
         "a",
         pos,
         np.ones(P, np.int64),
-        np.zeros((T, P), np.float32),
+        aux,
         np.arange(T, dtype=float),
     )
 
@@ -62,7 +69,12 @@ def test_rollout_computes_qois_when_given():
     qois = {"final_length": final_length, "mushroom_width": mushroom_width}
     res = rollout(_ConstVelSim(), traj, window=3, qois=qois)
     # Perfect prediction: predicted and true QoIs agree, errors vanish.
-    assert res.qoi_true["final_length"] == final_length(traj.positions)
+    true_inputs = QoiInputs(
+        time=traj.time,
+        positions=traj.positions,
+        aux=traj.aux,
+    )
+    assert res.qoi_true["final_length"] == final_length(true_inputs)
     np.testing.assert_allclose(
         res.qoi_pred["final_length"], res.qoi_true["final_length"], atol=1e-5
     )
@@ -86,3 +98,31 @@ def test_one_step_position_rmse_is_teacher_forced():
     # sqrt(mean([1, 0])) = sqrt(0.5). Autoregressive error would grow instead.
     out = one_step_position_rmse(_FrozenSim(), _const_vel_traj(), window=3)
     np.testing.assert_allclose(out, np.sqrt(0.5), atol=1e-5)
+
+
+def test_rollout_qois_receive_aux_and_time():
+    traj = _const_vel_traj()
+    sim = _ConstVelSim()
+
+    def aux_peak(inputs: QoiInputs) -> float:
+        assert inputs.time.shape[0] == inputs.positions.shape[0]
+        return float(np.abs(inputs.aux).max())
+
+    result = rollout(sim, traj, window=2, qois={"aux_peak": aux_peak})
+    assert np.isfinite(result.qoi_true["aux_peak"])
+    assert result.qoi_true["aux_peak"] == float(np.abs(traj.aux).max())
+
+
+def test_rollout_seeds_predicted_aux_with_ground_truth():
+    traj = _const_vel_traj()
+    sim = _ConstVelSim()
+    result = rollout(sim, traj, window=2)
+    np.testing.assert_allclose(result.predicted_aux[:2], traj.aux[:2])
+
+
+def test_one_step_aux_rmse_shape_and_finiteness():
+    traj = _const_vel_traj()
+    sim = _ConstVelSim()
+    per_frame = one_step_aux_rmse(sim, traj, window=2)
+    assert per_frame.shape == (traj.positions.shape[0] - 2,)
+    assert np.all(np.isfinite(per_frame))

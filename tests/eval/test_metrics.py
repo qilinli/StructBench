@@ -1,11 +1,22 @@
 import numpy as np
 
 from structbench.eval.metrics import (
+    QoiInputs,
     field_rmse,
     final_length,
     mushroom_width,
     position_rmse,
 )
+
+
+def _inputs(positions):
+    """Wrap a raw positions array in a QoiInputs with zero aux and integer time."""
+    t = positions.shape[0]
+    return QoiInputs(
+        time=np.arange(t, dtype=float),
+        positions=np.asarray(positions, np.float32),
+        aux=np.zeros(positions.shape[:2], np.float32),
+    )
 
 
 def test_position_rmse_per_frame():
@@ -26,5 +37,5 @@ def test_qois_use_last_frame_extents():
     pos = np.zeros((1, 4, 2))
     pos[0, :, 0] = [0, 10, 5, 5]  # x extent 10
     pos[0, :, 1] = [-3, 3, 0, 0]  # y extent 6
-    assert final_length(pos) == 10.0
-    assert mushroom_width(pos) == 6.0
+    assert final_length(_inputs(pos)) == 10.0
+    assert mushroom_width(_inputs(pos)) == 6.0

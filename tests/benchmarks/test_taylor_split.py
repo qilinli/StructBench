@@ -10,6 +10,7 @@ from structbench.benchmarks.taylor_impact_2d import (
     VAL,
     wall_distance_feature,
 )
+from structbench.eval.metrics import QoiInputs
 
 
 def test_split_partitions_the_33_parametric_cases():
@@ -41,8 +42,13 @@ def test_qois_bind_the_adr_0019_quantities():
     # ADR-0019 §5: final bar length and mushroom width, evaluated on the last
     # frame of a (T, P, dim) trajectory.
     assert set(QOIS) == {"final_length", "mushroom_width"}
-    pos = np.zeros((2, 4, 2))
+    pos = np.zeros((2, 4, 2), dtype=np.float32)
     pos[-1, :, 0] = [0.0, 10.0, 5.0, 5.0]
     pos[-1, :, 1] = [-3.0, 3.0, 0.0, 0.0]
-    assert QOIS["final_length"](pos) == 10.0
-    assert QOIS["mushroom_width"](pos) == 6.0
+    inputs = QoiInputs(
+        time=np.arange(2, dtype=float),
+        positions=pos,
+        aux=np.zeros((2, 4), dtype=np.float32),
+    )
+    assert QOIS["final_length"](inputs) == 10.0
+    assert QOIS["mushroom_width"](inputs) == 6.0

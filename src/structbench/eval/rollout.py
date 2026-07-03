@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -11,10 +11,7 @@ import torch
 from numpy.typing import NDArray
 
 from ..datasets.canonical import CaseTrajectory
-from .metrics import field_rmse, position_rmse
-
-#: A quantity of interest maps a full ``(T, P, dim)`` trajectory to a scalar.
-QoiFn = Callable[[NDArray], float]
+from .metrics import QoiFn, QoiInputs, field_rmse, position_rmse
 
 
 class _SimulatorLike(Protocol):
@@ -38,6 +35,8 @@ class RolloutResult:
     means aggregate them; QoI dicts are filled only when :func:`rollout` is
     given a ``qois`` mapping (``qoi_error`` is signed, predicted − true).
     Units follow the trajectory's working frame (mm and MPa for Taylor 2D).
+    The seeded frames of ``predicted_aux`` carry ground-truth aux values,
+    mirroring the seeded positions.
     """
 
     predicted_positions: NDArray[np.float32]  # (T, P, dim)
@@ -73,10 +72,10 @@ def rollout(
     device:
         Torch device string.
     qois:
-        Optional mapping of quantity-of-interest name to a function of a full
-        ``(T, P, dim)`` trajectory (e.g. the Taylor benchmark's ``QOIS``).
-        Each is evaluated on the predicted and the ground-truth trajectory and
-        recorded with its signed error.
+        Optional mapping of quantity-of-interest name to a function of a
+        :class:`~structbench.eval.metrics.QoiInputs` (e.g. the Taylor
+        benchmark's ``QOIS``).  Each is evaluated on the predicted and the
+        ground-truth inputs and recorded with its signed error.
 
     Returns
     -------
@@ -89,7 +88,8 @@ def rollout(
 
     seq = pos[:window].clone()  # (window, P, dim)
     predicted = [pos[i] for i in range(window)]
-    aux_pred = [torch.zeros(n_particles, device=device) for _ in range(window)]
+    aux_true = torch.from_numpy(trajectory.aux).to(device)
+    aux_pred = [aux_true[i] for i in range(window)]
 
     with torch.no_grad():
         for _ in range(window, n_frames):
@@ -104,10 +104,12 @@ def rollout(
     pos_rmse = position_rmse(pred_pos[window:], trajectory.positions[window:])
     aux_rmse = field_rmse(pred_aux[window:], trajectory.aux[window:])
 
-    qoi_pred = {name: float(fn(pred_pos)) for name, fn in (qois or {}).items()}
-    qoi_true = {
-        name: float(fn(trajectory.positions)) for name, fn in (qois or {}).items()
-    }
+    pred_inputs = QoiInputs(time=trajectory.time, positions=pred_pos, aux=pred_aux)
+    true_inputs = QoiInputs(
+        time=trajectory.time, positions=trajectory.positions, aux=trajectory.aux
+    )
+    qoi_pred = {name: float(fn(pred_inputs)) for name, fn in (qois or {}).items()}
+    qoi_true = {name: float(fn(true_inputs)) for name, fn in (qois or {}).items()}
     return RolloutResult(
         predicted_positions=pred_pos,
         predicted_aux=pred_aux,
@@ -168,3 +170,50 @@ def one_step_position_rmse(
 
     pred = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     return position_rmse(pred, trajectory.positions[window:])
+
+
+def one_step_aux_rmse(
+    simulator: _SimulatorLike,
+    trajectory: CaseTrajectory,
+    window: int,
+    device: str = "cpu",
+) -> NDArray[np.float64]:
+    """Teacher-forced next-step aux-field RMSE per predicted frame (ADR-0025).
+
+    Same protocol as :func:`one_step_position_rmse`, reading the auxiliary
+    prediction instead: each frame from ``window`` onward is predicted from
+    its ground-truth history, isolating single-step accuracy of the aux head.
+
+    Parameters
+    ----------
+    simulator:
+        Same structural interface as :func:`rollout`.
+    trajectory:
+        Ground-truth :class:`CaseTrajectory`; must have more than ``window``
+        frames.
+    window:
+        History length used for each prediction.
+    device:
+        Torch device string.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T - window,)``, in the trajectory's working aux unit.
+    """
+    pos = torch.from_numpy(trajectory.positions).to(device)
+    n_frames, n_particles, _ = pos.shape
+    if n_frames <= window:
+        raise ValueError(f"trajectory has {n_frames} frames; window={window}")
+    ptype = torch.from_numpy(trajectory.particle_type).to(device)
+    npp = torch.tensor([n_particles], device=device)
+
+    predicted = []
+    with torch.no_grad():
+        for t in range(window, n_frames):
+            seq_pw = pos[t - window : t].permute(1, 0, 2).contiguous()
+            _, aux = simulator.predict_positions(seq_pw, npp, ptype)
+            predicted.append(aux[:, 0])
+
+    pred = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
+    return field_rmse(pred, trajectory.aux[window:])
