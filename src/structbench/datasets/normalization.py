@@ -107,12 +107,15 @@ def cached_compute_stats(
     trajectories: list[CaseTrajectory],
     *,
     dataset_root: str | Path,
+    aux_field: str,
 ) -> NormalizationStats:
-    """:func:`compute_stats` with a dataset-level cache keyed by the split.
+    """:func:`compute_stats` with a dataset-level cache.
 
+    Cache is keyed by both the split (case-id list) and auxiliary field name.
     The cache lives at ``<dataset_root>/derived/norm_<key>.npz``, where the key
-    hashes the trajectories' case-id list — so the stats are computed once per
-    split and reused across runs, and a changed case-id list forces
+    hashes the auxiliary field name and the trajectories' case-id list — so the
+    stats are computed once per split and auxiliary field combination and
+    reused across runs, and a changed case-id list or auxiliary field forces
     recomputation under a new filename. The cache never blocks training: a
     write failure (e.g. read-only dataset root) degrades to a warning, and an
     unreadable/corrupt cache file is recomputed and rewritten. Writes go
@@ -126,13 +129,18 @@ def cached_compute_stats(
     dataset_root:
         Directory the ``derived/`` cache folder lives under — normally the
         directory holding the split's ``<case_id>.h5`` files.
+    aux_field:
+        Name of the auxiliary field (e.g., "von_mises_stress", "axial_stress").
+        Different auxiliary fields produce separate cache files even for the
+        same trajectories.
 
     Returns
     -------
     NormalizationStats
     """
     case_ids = [trajectory.case_id for trajectory in trajectories]
-    key = hashlib.sha256("\n".join(case_ids).encode("utf-8")).hexdigest()[:12]
+    key_material = "\n".join([aux_field, *case_ids])
+    key = hashlib.sha256(key_material.encode("utf-8")).hexdigest()[:12]
     cache_path = Path(dataset_root) / "derived" / f"norm_{key}.npz"
     if cache_path.exists():
         try:

@@ -439,7 +439,9 @@ def train(
 
     # Dataset-level cache (spec resolved-choice 2); the run-dir copy below is
     # the self-contained record evaluate() reads.
-    stats = cached_compute_stats(train_trajs, dataset_root=data_root)
+    stats = cached_compute_stats(
+        train_trajs, dataset_root=data_root, aux_field=spec.aux_field
+    )
     stats.save(out_dir / "normalization_stats.npz")
     n_types = _n_particle_types(train_trajs)
 
