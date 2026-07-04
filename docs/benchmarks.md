@@ -20,7 +20,7 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under const
 - **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units g-mm-ms
 - **Splits**: train 88, val 8, test_interp 12, probe 3
 - **QoIs**: midspan_deflection_peak, cracked_fraction
-- **Fields**: positions, velocity, acceleration, stress, effective_plastic_strain, strain
+- **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (3 spans x 9 load-notch combos x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - **License**: CC BY 4.0
 
@@ -33,7 +33,7 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under drop-
 - **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units g-mm-ms
 - **Splits**: train 88, val 8, test_interp 12, probe 2
 - **QoIs**: midspan_deflection_peak, cracked_fraction
-- **Fields**: positions, velocity, acceleration, stress, effective_plastic_strain, strain
+- **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - **License**: CC BY 4.0
 
@@ -46,7 +46,7 @@ Autoregressive next-step surrogate of a 2D SPH copper bar under Taylor impact ag
 - **Geometry**: 2D bar, 20 mm x {60, 80, 100} mm; source units g-mm-ms
 - **Splits**: train 21, val 3, test_interp 6, test_extrap 3
 - **QoIs**: final_length, mushroom_width
-- **Fields**: positions, velocity, acceleration, stress, effective_plastic_strain
+- **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (3 bar lengths x 11 impact velocities) produced by Curtin collaborators; benchmark protocol per ADR-0019. One extra Convergence run is held aside for a mesh-resolution check.
 - **License**: CC BY 4.0
 
@@ -59,6 +59,6 @@ Autoregressive next-step surrogate of an elastic stress wave in a 2D SPH bar str
 - **Geometry**: 2D strip, 5 particle rows, {200, 300, 400, 500} mm x 8 mm; source units g-mm-ms
 - **Splits**: train 12, val 2, test_interp 2
 - **QoIs**: arrival_time_25, arrival_time_50, arrival_time_75, peak_stress
-- **Fields**: positions, velocity, acceleration, stress, effective_plastic_strain
+- **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (4 bar lengths x 4 initial velocities) produced by Curtin collaborators; benchmark protocol per ADR-0025.
 - **License**: CC BY 4.0

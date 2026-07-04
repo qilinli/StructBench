@@ -42,8 +42,14 @@ class BenchmarkCard:
     task, aux_field, aux_unit : str
         ML block: the learning task, the auxiliary target's canonical
         field name, and its reporting unit.
-    qois, fields : tuple of str
-        QoI names and the response fields available in the canonical data.
+    qois : tuple of str
+        QoI names.
+    fields : tuple of str
+        Complete response fields of the canonical data, as namespaced
+        HDF5 paths (``node/*``, ``sph/*`` element fields, ``global/*``
+        scalars). Derived conveniences (e.g. particle positions =
+        coords + node/displacement) are loader behavior, not stored
+        fields.
     particles_per_case : str
         Human-readable particle-count range (e.g. ``"4800-8000"``).
     n_frames : int
