@@ -40,6 +40,9 @@ def render_index(specs: list[BenchmarkSpec]) -> str:
         "# Benchmarks",
         "",
         "One row per benchmark; see each section for the full card.",
+        "Note: `sph/stress` and `sph/strain` are full 6-component Voigt "
+        "tensors; each benchmark's scalar target (von Mises, axial, principal) "
+        "is derived from them by the loader — see the Aux target column.",
         "",
         "| Benchmark | Solver | Discretisation | Erosion | Loading | Cases "
         "| Particles | Frames | Aux target |",
@@ -109,6 +112,8 @@ def render_archive_readme(spec: BenchmarkSpec) -> str:
                 f"- License: {c.data_license}",
                 "",
                 "Machine-readable metadata: `card.json` alongside this file.",
+                "`sph/stress` and `sph/strain` are 6-component Voigt tensors; "
+                "scalar targets are loader-derived (see the card's aux field).",
                 "Consume with `structbench.datasets.load_case_trajectory` or any "
                 "HDF5 reader (layout per ADR-0013).",
             ]

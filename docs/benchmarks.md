@@ -3,6 +3,7 @@
 # Benchmarks
 
 One row per benchmark; see each section for the full card.
+Note: `sph/stress` and `sph/strain` are full 6-component Voigt tensors; each benchmark's scalar target (von Mises, axial, principal) is derived from them by the loader — see the Aux target column.
 
 | Benchmark | Solver | Discretisation | Erosion | Loading | Cases | Particles | Frames | Aux target |
 |---|---|---|---|---|---|---|---|---|
