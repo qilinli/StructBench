@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build the StructBench training environment on a DUG login node.
 # Run ONCE from the repo root (needs internet on the login node for pip).
-# Produces .venv, which deploy/dug/train_taylor.slurm activates on the GPU node.
+# Produces .venv, which hpc/dug/train_taylor.slurm activates on the GPU node.
 #
 # Mirrors the validated Windows env: torch 2.12.1 + CUDA 12.6 (Linux wheel),
 # torch-geometric, numpy, h5py. The model needs only torch_geometric.nn.

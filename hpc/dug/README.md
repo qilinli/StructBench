@@ -37,7 +37,7 @@ rclone copy onedrive:"<path-to>/2D-Copper-Bar-Taylor-Impact/h5_canonical" \
 
 ```bash
 cd <proj>/structbench
-bash deploy/dug/setup_env.sh
+bash hpc/dug/setup_env.sh
 ```
 
 Only `torch` + `torch_geometric.nn.MessagePassing` are needed — no compiled
@@ -55,7 +55,7 @@ srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:15:00 --pty bash -lc '
 
 # full baseline as a batch job (from a login node; OUT defaults to
 # runs/taylor-full-adr0024 and must be fresh per attempt):
-sbatch deploy/dug/train_taylor.slurm
+sbatch hpc/dug/train_taylor.slurm
 squeue --me                     # watch the queue
 tail -f slurm-taylor-*.out      # progress: val_pos (mm) / val_aux (MPa) each val_every
 ```
