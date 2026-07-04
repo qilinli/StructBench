@@ -27,6 +27,11 @@ Per-dataset glue (ADR-0016 §6). It knows only this dataset's specifics:
 
 The sweep covers 108 Bend + 108 Impact + 5 probes = 221 cases total.
 
+Known data quirk: ConstantVelocity/80320/Aa12/Beam1.k is an LS-PrePost state
+export (no material cards); NB-B-320-Aa-12 was converted with the sibling Aa8
+deck — the adapter reads the deck only for materials, which are identical across
+the family (2026-07-04).
+
 All extraction is delegated to ``structbench.core.io.lsdyna.lsdyna_to_case``;
 this script never touches response data. It is not part of the importable
 package (ADR-0010).

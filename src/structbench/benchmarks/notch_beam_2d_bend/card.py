@@ -3,9 +3,6 @@
 from ..card import BenchmarkCard
 from .benchmark import AUX_FIELD, PROBE, QOIS, TEST_INTERP, TRAIN, VAL
 
-# PROVISIONAL — particles_per_case lower bound is the C_60_240 probe (2394);
-# upper bound is the 320-span bend cases (4184). Task 10 will rescan
-# h5_canonical after all 221 cases are converted and update this range.
 CARD = BenchmarkCard(
     name="NotchBeam2D-Bend",
     version="0.1",
@@ -47,8 +44,7 @@ CARD = BenchmarkCard(
         "stress",
         "effective_plastic_strain",
     ),
-    # PROVISIONAL; Task 10 will correct after full batch
-    particles_per_case="2394-4184",
+    particles_per_case="2394-8280",
     n_frames=502,
     output_dt_ms=1.0,
 )

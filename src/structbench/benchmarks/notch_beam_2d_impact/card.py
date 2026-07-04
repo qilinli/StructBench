@@ -3,9 +3,6 @@
 from ..card import BenchmarkCard
 from .benchmark import AUX_FIELD, PROBE, QOIS, TEST_INTERP, TRAIN, VAL
 
-# PROVISIONAL — particles_per_case is based on 320-span impact cases (4264)
-# only; 640-span cases may have higher counts. Task 10 will rescan
-# h5_canonical after all 221 cases are converted and update this range.
 CARD = BenchmarkCard(
     name="NotchBeam2D-Impact",
     version="0.1",
@@ -50,8 +47,7 @@ CARD = BenchmarkCard(
         "stress",
         "effective_plastic_strain",
     ),
-    # PROVISIONAL; Task 10 will correct after full batch
-    particles_per_case="4264-4264",
+    particles_per_case="4264-12966",
     n_frames=502,
     output_dt_ms=1.0,
 )
