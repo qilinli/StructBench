@@ -17,7 +17,7 @@ showed:
 | Field | Median | p90 | Max |
 |-------|--------|-----|-----|
 | `effective_plastic_strain` slot (labelled `damage`) | 1.78 | ~2.0 | ~2.0 |
-| `strain` slot (6-component Voigt) — max principal | ~3e-4 | ~1e-2 | ~0.61 |
+| `strain` slot (6-component Voigt) — max principal | ~3e-4 | ~1e-2 | 0.605 |
 
 The `damage` slot is saturating (most particles at or near 2, the K&C
 ceiling); it carries almost no spatial information about the crack

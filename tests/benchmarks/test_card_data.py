@@ -42,6 +42,6 @@ def test_card_matches_one_canonical_case(name: str) -> None:
     )
     assert set(spec.card.fields) == available, (
         f"card fields != canonical data fields; "
-        f"missing={available - set(spec.card.fields)}, "
-        f"extra={set(spec.card.fields) - available}"
+        f"missing_from_data={set(spec.card.fields) - available}, "
+        f"undeclared={available - set(spec.card.fields)}"
     )

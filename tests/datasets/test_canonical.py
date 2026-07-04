@@ -150,7 +150,8 @@ def test_max_principal_strain_extractor_eigenvalue(tmp_path):
     tensor[0, 1] = tensor[1, 0] = voigt[3] / 2
     tensor[1, 2] = tensor[2, 1] = voigt[4] / 2
     tensor[0, 2] = tensor[2, 0] = voigt[5] / 2
-    expected = float(np.linalg.eigvalsh(tensor)[-1])
+    # closed-form max principal strain; independent of tensor construction
+    expected = 0.0230278
 
     # Construct minimal case with that strain value.
     coords = np.array([[0.0, 0.0]])
