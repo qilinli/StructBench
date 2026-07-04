@@ -74,6 +74,13 @@ _LOG = logging.getLogger("convert")
 
 # --- Enumeration grid constants ---
 
+#: Known data quirk (see module docstring): this run's own Beam1.k is an
+#: LS-PrePost state export with no material cards; its case converts with
+#: the sibling Aa8 deck (the adapter reads the deck only for materials).
+_DECK_OVERRIDES: dict[str, str] = {
+    "NB-B-320-Aa-12": "ConstantVelocity/80320/Aa8/Beam1.k",
+}
+
 _SPANS = ("320", "480", "640")
 _BEND_L = ("A", "B", "C")
 _BEND_N = ("a", "b", "c")
@@ -174,11 +181,13 @@ def discover_runs(data_root: Path) -> list[Run]:
     return runs
 
 
-def convert_run(run: Run, out_dir: Path) -> Path:
+def convert_run(run: Run, out_dir: Path, data_root: Path) -> Path:
     """Convert one run to canonical HDF5 and return the output path."""
+    override = _DECK_OVERRIDES.get(run.case_id)
+    deck = data_root / override if override is not None else run.deck
     case = lsdyna_to_case(
         run.d3plot,
-        run.deck,
+        deck,
         source_units=SOURCE_UNITS,
         dimension=DIMENSION,
         case_id=run.case_id,
@@ -254,7 +263,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             done += 1
             continue
         try:
-            written = convert_run(run, out_dir)
+            written = convert_run(run, out_dir, data_root=args.data_root)
             size_mib = written.stat().st_size / 1024 / 1024
             print(f"  OK   {run.case_id:40s} {size_mib:7.1f} MiB")
             done += 1

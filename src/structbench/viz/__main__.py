@@ -53,11 +53,22 @@ def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
 
 
 def split_and_case(stem: str) -> tuple[str, str]:
-    """Parse ``<split>-<case>.npz`` stems, e.g. ``test_extrap-T-20-60-200``."""
-    split, sep, rest = stem.partition("-T-")
+    """Parse ``<split>-<case_id>`` rollout-npz stems.
+
+    Supports all benchmark families:
+
+    - Taylor:     ``val-T-20-60-100``     → (``val``, ``T-20-60-100``)
+    - Notch-beam: ``val-NB-B-320-Ab-16``  → (``val``, ``NB-B-320-Ab-16``)
+    - Wave 1-D:   ``val-W1D-300-2``       → (``val``, ``W1D-300-2``)
+
+    Split names (``val``, ``test_interp``, ``probe``, ``test_extrap``) never
+    contain ``-``, so the first ``-`` unambiguously separates split from case
+    id.
+    """
+    split, sep, case_id = stem.partition("-")
     if not sep:
-        raise ValueError(f"rollout file {stem!r} does not match <split>-T-...")
-    return split, f"T-{rest}"
+        raise ValueError(f"rollout file {stem!r} does not match <split>-<case_id>")
+    return split, case_id
 
 
 def snapshot_frames(n_frames: int, window: int, columns: int) -> list[int]:

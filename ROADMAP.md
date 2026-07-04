@@ -73,7 +73,7 @@ Taylor 2D plasticity → concrete fracture (no erosion) → v0.3 erosion.
       generalisation probes to canonical HDF5 (batched OneDrive
       hydration, specific paths only; extras in the raw tree flagged,
       not ingested)
-      (wave-1d done 2026-07-03; notch-beam batch in progress)
+      (wave-1d done 2026-07-03; notch-beam 221/221 done 2026-07-04)
 - [ ] **Three benchmark modules** with frozen split lists (ADR-0025's
       table; ADR-0026's stratified rule) and QoIs
       (all three v0.2 benchmark modules done 2026-07-03)
