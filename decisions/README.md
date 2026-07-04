@@ -74,9 +74,10 @@ What becomes easier, harder, or constrained as a result.
 | 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted |
 | 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Durable | Accepted |
 | 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted |
-| 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted |
+| 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted (amended by ADR-0029) |
 | 0027 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Accepted |
 | 0028 | GNS baseline training-recipe rework after the first full run | Ephemeral | Accepted |
+| 0029 | Notch-beam aux is max principal strain, not K&C damage (amends 0026) | Durable | Accepted |
 
 ---
 

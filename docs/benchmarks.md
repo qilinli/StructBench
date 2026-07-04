@@ -6,8 +6,8 @@ One row per benchmark; see each section for the full card.
 
 | Benchmark | Solver | Discretisation | Erosion | Loading | Cases | Particles | Frames | Aux target |
 |---|---|---|---|---|---|---|---|---|
-| NotchBeam2D-Bend | LS-DYNA | SPH | no | constant-velocity pin, 3-point bend, 8-20 mm/s | 111 | 2394-8280 | 502 | damage (-) |
-| NotchBeam2D-Impact | LS-DYNA | SPH | no | drop-weight impact, initial velocity 40-160 mm/s, impactor shapes Bullet/Rectangular/Sphere | 110 | 4264-12966 | 502 | damage (-) |
+| NotchBeam2D-Bend | LS-DYNA | SPH | no | constant-velocity pin, 3-point bend, 8-20 mm/s | 111 | 2394-8280 | 502 | max_principal_strain (-) |
+| NotchBeam2D-Impact | LS-DYNA | SPH | no | drop-weight impact, initial velocity 40-160 mm/s, impactor shapes Bullet/Rectangular/Sphere | 110 | 4264-12966 | 502 | max_principal_strain (-) |
 | Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4800-8000 | 152 | von_mises_stress (MPa) |
 | Wave1D-Propagation | LS-DYNA | SPH | no | initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (~10 traversals per trajectory) | 16 | 500-1250 | 302 | axial_stress (MPa) |
 
@@ -19,8 +19,8 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under const
 - **Materials**: *MAT_CONCRETE_DAMAGE_REL3 (K&C; scaled density 2.4e-6 g/mm3), *MAT_PLASTIC_KINEMATIC
 - **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units g-mm-ms
 - **Splits**: train 88, val 8, test_interp 12, probe 3
-- **QoIs**: midspan_deflection_peak, damaged_fraction
-- **Fields**: positions, velocity, acceleration, stress, effective_plastic_strain
+- **QoIs**: midspan_deflection_peak, cracked_fraction
+- **Fields**: positions, velocity, acceleration, stress, effective_plastic_strain, strain
 - **Provenance**: LS-DYNA parametric sweep (3 spans x 9 load-notch combos x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - **License**: CC BY 4.0
 
@@ -32,8 +32,8 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under drop-
 - **Materials**: *MAT_CONCRETE_DAMAGE_REL3 (K&C; scaled density 2.4e-6 g/mm3), *MAT_PLASTIC_KINEMATIC
 - **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units g-mm-ms
 - **Splits**: train 88, val 8, test_interp 12, probe 2
-- **QoIs**: midspan_deflection_peak, damaged_fraction
-- **Fields**: positions, velocity, acceleration, stress, effective_plastic_strain
+- **QoIs**: midspan_deflection_peak, cracked_fraction
+- **Fields**: positions, velocity, acceleration, stress, effective_plastic_strain, strain
 - **Provenance**: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - **License**: CC BY 4.0
 

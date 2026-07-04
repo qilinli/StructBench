@@ -32,6 +32,8 @@ def _sph_case(tmp_path):
     stress[1, :, 0] = 300e6  # 300 MPa sigma_xx at frame 1
     effective_plastic_strain = np.zeros((2, 3), dtype=np.float32)
     effective_plastic_strain[1, :] = 0.15  # K&C scaled damage measure
+    strain = np.zeros((2, 3, 6), dtype=np.float32)
+    strain[1, :, 0] = 0.02  # small axial strain at frame 1
     case = Case(
         metadata=Metadata(case_id="T-test", dimension=2, source_units="g-mm-ms"),
         nodes=Nodes(coords=coords, node_id=np.arange(1, 5, dtype=np.int64)),
@@ -55,6 +57,7 @@ def _sph_case(tmp_path):
                 "sph": {
                     "stress": stress,
                     "effective_plastic_strain": effective_plastic_strain,
+                    "strain": strain,
                 }
             },
         ),
@@ -135,3 +138,57 @@ def test_available_aux_fields_lists_damage():
     from structbench.datasets import available_aux_fields
 
     assert "damage" in available_aux_fields()
+
+
+def test_max_principal_strain_extractor_eigenvalue(tmp_path):
+    # Build a (1, 1, 6) Voigt strain tensor and verify the max eigenvalue.
+    voigt = np.array([0.02, -0.01, 0.0, 0.02, 0.0, 0.0], dtype=np.float64)
+    tensor = np.zeros((3, 3), dtype=np.float64)
+    tensor[0, 0] = voigt[0]
+    tensor[1, 1] = voigt[1]
+    tensor[2, 2] = voigt[2]
+    tensor[0, 1] = tensor[1, 0] = voigt[3] / 2
+    tensor[1, 2] = tensor[2, 1] = voigt[4] / 2
+    tensor[0, 2] = tensor[2, 0] = voigt[5] / 2
+    expected = float(np.linalg.eigvalsh(tensor)[-1])
+
+    # Construct minimal case with that strain value.
+    coords = np.array([[0.0, 0.0]])
+    disp = np.zeros((1, 1, 2), dtype=np.float32)
+    strain_arr = np.zeros((1, 1, 6), dtype=np.float32)
+    strain_arr[0, 0] = voigt.astype(np.float32)
+    stress_arr = np.zeros((1, 1, 6), dtype=np.float32)
+    eps_arr = np.zeros((1, 1), dtype=np.float32)
+    case = Case(
+        metadata=Metadata(case_id="T-ps", dimension=2, source_units="g-mm-ms"),
+        nodes=Nodes(coords=coords, node_id=np.array([1], dtype=np.int64)),
+        elements={
+            "sph": ElementBlock(
+                connectivity=np.array([[0]], dtype=np.int64),
+                element_id=np.array([1], dtype=np.int64),
+                part_id=np.array([1], dtype=np.int64),
+            )
+        },
+        materials=[Material(1, "MAT_CONCRETE_DAMAGE_REL3", {"data": [[1]]}, None)],
+        response=Response(
+            time=np.array([0.0]),
+            node={"displacement": disp},
+            element={
+                "sph": {
+                    "stress": stress_arr,
+                    "effective_plastic_strain": eps_arr,
+                    "strain": strain_arr,
+                }
+            },
+        ),
+    )
+    path = tmp_path / "ps_case.h5"
+    write_case(case, path)
+    tr = load_case_trajectory(path, aux_field="max_principal_strain")
+    np.testing.assert_allclose(tr.aux[0, 0], expected, rtol=1e-5)
+
+
+def test_available_aux_fields_lists_max_principal_strain():
+    from structbench.datasets import available_aux_fields
+
+    assert "max_principal_strain" in available_aux_fields()

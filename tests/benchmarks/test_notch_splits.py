@@ -26,5 +26,6 @@ def test_frozen_split_honours_adr_0026(name, interior, n_probes):
         assert set(case.split("-")) <= train_tokens  # every factor level in train
     assert len(spec.splits["probe"]) == n_probes
     assert spec.eval_splits == ("val", "test_interp", "probe")
-    assert spec.aux_field == "damage"
+    assert spec.aux_field == "max_principal_strain"
+    assert set(spec.qois) == {"midspan_deflection_peak", "cracked_fraction"}
     assert spec.kinematic_types  # non-empty: pin + support prescribed

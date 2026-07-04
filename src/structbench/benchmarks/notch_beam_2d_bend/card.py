@@ -43,6 +43,7 @@ CARD = BenchmarkCard(
         "acceleration",
         "stress",
         "effective_plastic_strain",
+        "strain",
     ),
     particles_per_case="2394-8280",
     n_frames=502,

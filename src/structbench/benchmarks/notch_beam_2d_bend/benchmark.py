@@ -7,7 +7,7 @@ by hand — changes require a new seed and a new ADR version.
 
 from __future__ import annotations
 
-from ...eval import QoiFn, damaged_fraction, midspan_deflection_peak
+from ...eval import QoiFn, cracked_fraction, midspan_deflection_peak
 
 # Part-id roles from Task 7 ingestion (authoritative).
 CONCRETE_TYPE: int = 1
@@ -21,8 +21,9 @@ PROBE: list[str] = [
     "C_80_560_V14_intrapolation",
 ]
 
-#: Auxiliary per-particle target: K&C scaled damage measure (dimensionless).
-AUX_FIELD = "damage"
+#: Auxiliary per-particle target: max principal strain — the crack-pattern field
+#: (ADR-0029; supersedes ADR-0026's damage choice).
+AUX_FIELD = "max_principal_strain"
 
 # ---------------------------------------------------------------------------
 # Frozen ADR-0026 split — seed 26
@@ -146,8 +147,8 @@ TEST_INTERP: list[str] = [
     "NB-B-640-Cc-12",
 ]
 
-#: ADR-0026 QoIs: peak mid-span deflection (mm) and end-state damaged fraction.
+#: ADR-0026/0029 QoIs: peak mid-span deflection (mm) and end-state cracked fraction.
 QOIS: dict[str, QoiFn] = {
     "midspan_deflection_peak": midspan_deflection_peak(concrete_type=CONCRETE_TYPE),
-    "damaged_fraction": damaged_fraction(concrete_type=CONCRETE_TYPE),
+    "cracked_fraction": cracked_fraction(concrete_type=CONCRETE_TYPE),
 }

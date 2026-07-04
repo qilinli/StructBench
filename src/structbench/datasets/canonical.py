@@ -143,10 +143,46 @@ def _aux_damage(
     return sph["effective_plastic_strain"][...].astype(np.float32)
 
 
+def _aux_max_principal_strain(
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
+) -> NDArray[np.float32]:
+    """Maximum principal strain from the 6-component Voigt strain tensor.
+
+    Engineering shear components (indices 3-5) are halved to form the
+    symmetric tensor before the eigenvalue solve. Dimensionless, so
+    ``stress_scale`` is ignored (ADR-0029).
+
+    Parameters
+    ----------
+    sph:
+        Mapping of SPH response fields with a ``"strain"`` key holding a
+        ``(T, P, 6)`` Voigt array ``[xx, yy, zz, xy, yz, zx]``.
+    stress_scale:
+        Unused; present for the :data:`AuxExtractor` signature.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T, P)``, float32, dimensionless.
+    """
+    del stress_scale
+    voigt = sph["strain"][...]
+    t, p = voigt.shape[0], voigt.shape[1]
+    tensor = np.zeros((t, p, 3, 3), dtype=np.float64)
+    tensor[..., 0, 0] = voigt[..., 0]
+    tensor[..., 1, 1] = voigt[..., 1]
+    tensor[..., 2, 2] = voigt[..., 2]
+    tensor[..., 0, 1] = tensor[..., 1, 0] = voigt[..., 3] / 2
+    tensor[..., 1, 2] = tensor[..., 2, 1] = voigt[..., 4] / 2
+    tensor[..., 0, 2] = tensor[..., 2, 0] = voigt[..., 5] / 2
+    return np.linalg.eigvalsh(tensor)[..., -1].astype(np.float32)
+
+
 _AUX_EXTRACTORS: dict[str, AuxExtractor] = {
     "von_mises_stress": _aux_von_mises,
     "axial_stress": _aux_axial_stress,
     "damage": _aux_damage,
+    "max_principal_strain": _aux_max_principal_strain,
 }
 
 

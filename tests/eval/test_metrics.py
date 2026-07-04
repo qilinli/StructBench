@@ -4,7 +4,7 @@ import pytest
 from structbench.eval.metrics import (
     QoiInputs,
     arrival_time,
-    damaged_fraction,
+    cracked_fraction,
     field_rmse,
     final_length,
     midspan_deflection_peak,
@@ -114,8 +114,9 @@ def _beam_inputs():
     positions[:, :, 0] = np.array([0.0, 50.0, 100.0], np.float32)
     positions[:, 1, 1] = -np.array([0, 1, 2, 4, 3, 2], np.float32)  # sag, peak 4mm
     aux = np.zeros((6, 3), np.float32)
-    aux[-1] = np.array([2.0, 0.5, 2.0], np.float32)  # 2 of 3 damaged at end
-    ptype = np.array([1, 1, 2], np.int64)  # particle 2 is not concrete
+    # Final-frame principal strains: particles 0 and 2 exceed 0.01 threshold.
+    aux[-1] = np.array([0.02, 0.005, 0.02], np.float32)
+    ptype = np.array([1, 1, 2], np.int64)  # particle 2 is not concrete (type 1)
     return QoiInputs(time=t, positions=positions, aux=aux, particle_type=ptype)
 
 
@@ -124,8 +125,10 @@ def test_midspan_deflection_peak_reads_the_sag():
     assert qoi == pytest.approx(4.0)
 
 
-def test_damaged_fraction_final_frame():
+def test_cracked_fraction_final_frame():
     inputs = _beam_inputs()
-    assert damaged_fraction(threshold=1.9)(inputs) == pytest.approx(2.0 / 3.0)
-    qoi = damaged_fraction(threshold=1.9, concrete_type=1)(inputs)
+    # All 3 particles: 2 with strain >= 0.01 -> 2/3
+    assert cracked_fraction()(inputs) == pytest.approx(2.0 / 3.0)
+    # concrete_type=1 restricts to particles 0 and 1: only particle 0 >= 0.01 -> 0.5
+    qoi = cracked_fraction(concrete_type=1)(inputs)
     assert qoi == pytest.approx(0.5)

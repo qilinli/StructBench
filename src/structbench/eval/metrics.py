@@ -210,17 +210,24 @@ def midspan_deflection_peak(
     return qoi
 
 
-def damaged_fraction(threshold: float = 1.9, concrete_type: int | None = None) -> QoiFn:
-    """QoI factory: final-frame fraction of particles at full damage.
+def cracked_fraction(
+    threshold: float = 0.01, concrete_type: int | None = None
+) -> QoiFn:
+    """QoI factory: final-frame fraction of particles past the crack threshold.
 
-    The K&C scaled damage measure saturates at 2; particles with
-    ``aux >= threshold`` in the final frame count as fully damaged — a
-    scalar proxy for the crack pattern (ADR-0026).
+    Operates on the max-principal-strain auxiliary field (ADR-0029). The
+    default ``threshold=0.01`` (1% principal strain) is **provisional**
+    (maintainer, 2026-07-04): it sits clearly beyond the elastic band in
+    the ingested data (median ~3e-4, p90 ~1e-2 in a damaged bend case),
+    but the crack criterion has not been validated against the prior
+    study and may be revised before the first trained leaderboard
+    entries. Changing it is a benchmark version change (ADR-0019
+    precedent).
 
     Parameters
     ----------
     threshold:
-        Damage level counted as fully damaged.
+        Principal-strain level counted as cracked.
     concrete_type:
         When given and ``inputs.particle_type`` is present, the fraction
         runs over that part-id's particles only.
@@ -232,11 +239,11 @@ def damaged_fraction(threshold: float = 1.9, concrete_type: int | None = None) -
     """
 
     def qoi(inputs: QoiInputs) -> float:
-        damage = np.asarray(inputs.aux, float)[-1]
+        strain = np.asarray(inputs.aux, float)[-1]
         if concrete_type is not None and inputs.particle_type is not None:
-            damage = damage[inputs.particle_type == concrete_type]
-        if damage.size == 0:
+            strain = strain[inputs.particle_type == concrete_type]
+        if strain.size == 0:
             return 0.0
-        return float((damage >= threshold).mean())
+        return float((strain >= threshold).mean())
 
     return qoi
