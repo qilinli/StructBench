@@ -66,8 +66,10 @@ the axes 0028 deferred. Relative to 0028, `configs/taylor_2d.toml` changes:
 - **batch_size 8** — memory bound: batch 16 OOMs an A100 80 GB
   (fleet job 62280853).
 - **training_steps 80,000** — double the 40k at which cap128-n002 was still
-  improving; with lr_decay_steps 30,000 unchanged, the run sees decays at 30k
-  and 60k.
+  improving. The schedule is continuous exponential decay with an additive
+  floor, `lr = lr_init · 0.1^(step/30000) + 1e-6`, so the 40k→80k tail spans
+  5.6e-6 → 1.2e-6 — a meaningful fine-tuning range; lr_decay_steps stays
+  30,000 for evidential continuity with the fleet.
 - **Unchanged, now evidence-backed rather than deferred**: noise_std 0.02,
   w_aux 1.0. All 0028 mechanical fixes (selection on rollout position RMSE,
   radius 1.5 mm / max_neighbors 48, signed wall feature, lr 1e-4 + clipping,
