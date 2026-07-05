@@ -22,6 +22,7 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under const
 - **Splits**: train 88, val 8, test_interp 12, probe 3
 - **Protocol** (ADR-0032): init 3 frames, horizon full, scored at native output times. *Rationale*: Provisional (ADR-0032 s7): init = 3 is the second-order minimum; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine). Confirm before the first trained baseline.
 - **QoIs**: midspan_deflection_peak, cracked_fraction
+- **Baseline**: *no official baseline yet*
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (3 spans x 9 load-notch combos x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - **License**: CC BY 4.0
@@ -36,6 +37,7 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under drop-
 - **Splits**: train 88, val 8, test_interp 12, probe 2
 - **Protocol** (ADR-0032): init 3 frames, horizon full, scored at native output times. *Rationale*: Provisional (ADR-0032 s7): init = 3 is the second-order minimum; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine). Confirm before the first trained baseline.
 - **QoIs**: midspan_deflection_peak, cracked_fraction
+- **Baseline**: *no official baseline yet*
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - **License**: CC BY 4.0
@@ -50,6 +52,7 @@ Autoregressive next-step surrogate of a 2D SPH copper bar under Taylor impact ag
 - **Splits**: train 21, val 3, test_interp 6, test_extrap 3
 - **Protocol** (ADR-0032): init 3 frames, horizon full, scored at native output times. *Rationale*: GT timeline analysis over all 33 cases (2026-07-05, python -m structbench.benchmarks.timeline; evidence table in docs/timelines/taylor_impact_2d.md): the rod is in free flight until first wall contact near frame 7, so init = 3 -- the second-order minimum (two velocities -> one acceleration) -- observes 0.0% of the impact in every case (as does init = 6), while the historical init = 11 handed models the shock onset (up to 10.6% of total KE already dissipated; nonzero in every case above 100 m/s). 99% displacement settlement lands as late as 296 us of the 300 us record and the last fifth of the horizon retains 1.6-8.1% of peak mean acceleration (elastic ringing), so the full horizon is dynamically active. n_frames = 152 counts stored frames; the working trajectory drops the terminal solver-output artifact frame (ADR-0028), giving a 151-frame / 300 us protocol horizon and a scored span of frames [3, 151) -- 148 predicted frames. Predictions are scored at the native 2 us output times; peak_von_mises/t_peak_von_mises (peak of the particle-mean field, e.g. 191 MPa at 44 us in T-20-80-150 ground truth) penalize temporally coarse surrogates.
 - **QoIs**: final_length, mushroom_width, peak_von_mises, t_peak_von_mises
+- **Baseline**: *no official baseline yet*
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (3 bar lengths x 11 impact velocities) produced by Curtin collaborators; benchmark protocol per ADR-0019. One extra Convergence run is held aside for a mesh-resolution check.
 - **License**: CC BY 4.0
@@ -64,6 +67,7 @@ Autoregressive next-step surrogate of an elastic stress wave in a 2D SPH bar str
 - **Splits**: train 12, val 2, test_interp 2
 - **Protocol** (ADR-0032): init 3 frames, horizon full, scored at native output times. *Rationale*: Provisional (ADR-0032 s7): init = 3 is the second-order minimum; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine). Confirm before the first trained baseline -- in particular init must stay well below the wave's arrival at the first gauge or the arrival_time QoI is partially given away.
 - **QoIs**: arrival_time_25, arrival_time_50, arrival_time_75, peak_stress
+- **Baseline**: *no official baseline yet*
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (4 bar lengths x 4 initial velocities) produced by Curtin collaborators; benchmark protocol per ADR-0025.
 - **License**: CC BY 4.0

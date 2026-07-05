@@ -1,6 +1,7 @@
 """Notch-beam 3-point bend benchmark (ADR-0026)."""
 
 from ..registry import BenchmarkSpec
+from ..results import BaselineResult
 from .benchmark import (
     AUX_FIELD,
     CONCRETE_TYPE,
@@ -28,8 +29,12 @@ __all__ = [
     "VAL",
 ]
 
+#: Official baseline results (ADR-0033); empty until a run is blessed.
+RESULTS: tuple[BaselineResult, ...] = ()
+
 SPEC = BenchmarkSpec(
     card=CARD,
+    results=RESULTS,
     splits={
         "train": tuple(TRAIN),
         "val": tuple(VAL),

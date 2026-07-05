@@ -38,7 +38,7 @@ def main() -> int:
         out = Path(args.out)
         out.mkdir(parents=True, exist_ok=True)
         (out / "README.md").write_text(
-            render_archive_readme(spec), encoding="utf-8", newline="\n"
+            render_archive_readme(spec, args.archive), encoding="utf-8", newline="\n"
         )
         (out / "card.json").write_text(
             card_json(spec.card), encoding="utf-8", newline="\n"

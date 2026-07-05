@@ -1,6 +1,7 @@
 """Wave-1d benchmark: entry-tier elastic wave propagation (ADR-0025)."""
 
 from ..registry import BenchmarkSpec
+from ..results import BaselineResult
 from .benchmark import (
     ALL_BENCHMARK_CASES,
     AUX_FIELD,
@@ -22,8 +23,12 @@ __all__ = [
     "VAL",
 ]
 
+#: Official baseline results (ADR-0033); empty until a run is blessed.
+RESULTS: tuple[BaselineResult, ...] = ()
+
 SPEC = BenchmarkSpec(
     card=CARD,
+    results=RESULTS,
     splits={
         "train": tuple(TRAIN),
         "val": tuple(VAL),

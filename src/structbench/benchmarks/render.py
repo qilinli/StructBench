@@ -20,6 +20,64 @@ def _yesno(flag: bool) -> str:
     return "yes" if flag else "no"
 
 
+def _fmt_value(value: float) -> str:
+    return f"{value:g}"
+
+
+def _baseline_line(spec: BenchmarkSpec) -> str:
+    """Compact one-line results summary for the docs index (ADR-0033)."""
+    if not spec.results:
+        return "*no official baseline yet*"
+    parts = []
+    for r in spec.results:
+        headline = ""
+        for split in spec.splits:
+            if split in r.metrics:
+                metric, value = next(iter(r.metrics[split].items()))
+                headline = f": {split} {metric} {_fmt_value(value)}"
+                break
+        parts.append(
+            f"{r.label} ({r.family}, {r.run_date}, `{r.run_commit}`){headline}"
+        )
+    return "; ".join(parts)
+
+
+def _numbers_to_beat(spec: BenchmarkSpec) -> list[str]:
+    """The archive README results section: one table per blessed result."""
+    lines = ["## Numbers to beat", ""]
+    if not spec.results:
+        lines.append(
+            "*No official baseline yet — the reference run's metrics land here.*"
+        )
+        return lines
+    for r in spec.results:
+        suffix = f", checkpoint: {r.checkpoint}" if r.checkpoint else ""
+        lines.append(
+            f"**{r.label}** ({r.family}, {r.run_date}, commit `{r.run_commit}`{suffix})"
+        )
+        lines.append("")
+        # Split rows follow card order; metric columns first-seen order.
+        metric_names: list[str] = []
+        for split in spec.splits:
+            for metric in r.metrics.get(split, {}):
+                if metric not in metric_names:
+                    metric_names.append(metric)
+        lines.append("| split | " + " | ".join(metric_names) + " |")
+        lines.append("|---|" + "---|" * len(metric_names))
+        for split in spec.splits:
+            if split not in r.metrics:
+                continue
+            values = r.metrics[split]
+            cells = [
+                _fmt_value(values[m]) if m in values else "—" for m in metric_names
+            ]
+            lines.append(f"| {split} | " + " | ".join(cells) + " |")
+        if r.notes:
+            lines.extend(["", f"*{r.notes}*"])
+        lines.append("")
+    return lines[:-1]
+
+
 def render_index(specs: list[BenchmarkSpec]) -> str:
     """The full ``docs/benchmarks.md`` content for the given specs.
 
@@ -76,19 +134,23 @@ def _section(spec: BenchmarkSpec) -> list[str]:
         f"horizon {c.horizon}, scored at {c.eval_times} output times. "
         f"*Rationale*: {c.protocol_rationale}",
         f"- **QoIs**: {', '.join(c.qois)}",
+        f"- **Baseline**: {_baseline_line(spec)}",
         f"- **Fields**: {', '.join(c.fields)}",
         f"- **Provenance**: {c.provenance}",
         f"- **License**: {c.data_license}",
     ]
 
 
-def render_archive_readme(spec: BenchmarkSpec) -> str:
+def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
     """A standalone README for the hosted dataset archive.
 
     Parameters
     ----------
     spec : BenchmarkSpec
         The benchmark specification whose card describes the hosted dataset.
+    name : str
+        The registry name (archive folder name), e.g. ``"taylor_impact_2d"``
+        — used for the grouped-config path in the usage section.
 
     Returns
     -------
@@ -97,32 +159,52 @@ def render_archive_readme(spec: BenchmarkSpec) -> str:
     """
     c = spec.card
     splits_str = ", ".join(f"{k} {v}" for k, v in c.splits.items())
-    return (
-        "\n".join(
-            [
-                f"# {c.name} — StructBench canonical dataset",
-                "",
-                c.description,
-                "",
-                f"- Solver: {c.solver} ({c.discretisation};"
-                f" erosion: {_yesno(c.erosion)})",
-                f"- Loading: {c.loading}",
-                f"- Source units: {c.source_units} (files are strict SI, ADR-0012)",
-                f"- Cases: {c.n_cases} ({splits_str})",
-                f"- Particles per case: {c.particles_per_case}; "
-                f"{c.n_frames} frames at {c.output_dt_ms} ms",
-                f"- Provenance: {c.provenance}",
-                f"- License: {c.data_license}",
-                "",
-                "Machine-readable metadata: `card.json` alongside this file.",
-                "`sph/stress` and `sph/strain` are 6-component Voigt tensors; "
-                "scalar targets are loader-derived (see the card's aux field).",
-                "Consume with `structbench.datasets.load_case_trajectory` or any "
-                "HDF5 reader (layout per ADR-0013).",
-            ]
-        )
-        + "\n"
-    )
+    lines = [
+        f"# {c.name} — StructBench canonical dataset",
+        "",
+        c.description,
+        "",
+        f"- Solver: {c.solver} ({c.discretisation}; erosion: {_yesno(c.erosion)})",
+        f"- Loading: {c.loading}",
+        f"- Source units: {c.source_units} (files are strict SI, ADR-0012)",
+        f"- Cases: {c.n_cases} ({splits_str})",
+        f"- Particles per case: {c.particles_per_case}; "
+        f"{c.n_frames} frames at {c.output_dt_ms} ms",
+        f"- Provenance: {c.provenance}",
+        f"- License: {c.data_license}",
+        "",
+        "## Task",
+        "",
+        f"{c.task}. Auxiliary target: `{c.aux_field}` ({c.aux_unit}). "
+        "Models advance the particle state autoregressively from a short "
+        "ground-truth prefix and are scored on the full predicted rollout.",
+        "",
+        "## Evaluation criteria",
+        "",
+        f"- Protocol (benchmark-owned, ADR-0032): init {c.init_frames} frames, "
+        f"horizon {c.horizon}, scored at {c.eval_times} output times.",
+        f"- Protocol rationale: {c.protocol_rationale}",
+        f"- Metrics: one-step and full-rollout position RMSE (mm); "
+        f"{c.aux_field} RMSE ({c.aux_unit}).",
+        f"- Quantities of interest: {', '.join(c.qois)}.",
+        "",
+        *_numbers_to_beat(spec),
+        "",
+        "## Using this archive",
+        "",
+        "```bash",
+        "pip install structbench  # or: pip install -e . from the repo",
+        f"structbench-train --mode train --config configs/{name}/gns.toml \\",
+        f"    --data-root /path/to/this/folder --out runs/{name}-gns",
+        "```",
+        "",
+        "Machine-readable metadata: `card.json` alongside this file.",
+        "`sph/stress` and `sph/strain` are 6-component Voigt tensors; "
+        "scalar targets are loader-derived (see the card's aux field).",
+        "Consume with `structbench.datasets.load_case_trajectory` or any "
+        "HDF5 reader (layout per ADR-0013).",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def card_json(card: BenchmarkCard) -> str:

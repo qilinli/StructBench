@@ -81,6 +81,7 @@ What becomes easier, harder, or constrained as a result.
 | 0030 | Concrete-Beam decks are kg-mm-ms; canonical data patched in place | Durable | Accepted |
 | 0031 | Data archive layout: canonical/raw mirrors named by benchmark | Durable | Accepted |
 | 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted |
+| 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted |
 
 ---
 

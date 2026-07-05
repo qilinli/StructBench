@@ -189,9 +189,11 @@ decisions/         # architecture decision records
 - [ ] DUG remote data dir is `data/taylor_impact`; rename to
       `taylor_impact_2d` (archive name) and update `train_taylor.slurm` +
       `hpc/dug/README.md` together, between job fleets
-- [ ] per-benchmark README: dataset info, evaluation criteria, and (once
-      trained) baseline results — likely grows out of the ADR-0027
-      card-generated archive README (`tools/gen_benchmark_docs.py --archive`)
+- [x] ~~per-benchmark README: dataset info, evaluation criteria, and
+      baseline results~~ (2026-07-05, ADR-0033: archive README gains
+      Task/Evaluation/Numbers-to-beat/Usage sections; results live in
+      per-module registries, rendered only via generated views — blessing
+      a DUG run is now a ten-line registry entry + regeneration)
 - [x] ~~`lr_init` code default still 1e-3; ADR-0028's 1e-4 lives only in
       the TOML~~ (resolved by ADR-0032: every config lists `lr_init`
       explicitly under strict validation, `--config` is required in train

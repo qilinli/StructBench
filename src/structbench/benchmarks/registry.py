@@ -17,6 +17,7 @@ from torch import Tensor
 from ..datasets import available_aux_fields
 from ..eval import QoiFn
 from .card import BenchmarkCard
+from .results import BaselineResult
 
 #: Registered benchmark modules; each must define a module-level ``SPEC``.
 _MODULES: dict[str, str] = {
@@ -65,6 +66,10 @@ class BenchmarkSpec:
     """Particle part-ids whose motion is prescribed (kinematic loaders, fixed
     supports); excluded from training loss and rollout metrics, and driven by
     ground truth during rollout (ADR-0026)."""
+    results: tuple[BaselineResult, ...] = ()
+    """Official baseline results (ADR-0033), rendered by the generated views;
+    empty until a run is blessed. Metric split names must exist in ``splits``
+    — validated at construction."""
 
     def __post_init__(self) -> None:
         for required in ("train", "val"):
@@ -80,6 +85,12 @@ class BenchmarkSpec:
             raise ValueError(
                 f"aux_field {self.aux_field!r} not in {sorted(available_aux_fields())}"
             )
+        for result in self.results:
+            unknown = [s for s in result.metrics if s not in self.splits]
+            if unknown:
+                raise ValueError(
+                    f"result {result.label!r} references unknown splits {unknown}"
+                )
         # Wrap in read-only proxies to prevent accidental mutation
         object.__setattr__(self, "splits", MappingProxyType(dict(self.splits)))
         object.__setattr__(self, "qois", MappingProxyType(dict(self.qois)))

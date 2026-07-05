@@ -1,6 +1,7 @@
 """v0.1 Taylor 2D impact benchmark (ADR-0019)."""
 
 from ..registry import BenchmarkSpec
+from ..results import BaselineResult
 from .benchmark import (
     ALL_BENCHMARK_CASES,
     AUX_FIELD,
@@ -15,8 +16,12 @@ from .benchmark import (
 )
 from .card import CARD
 
+#: Official baseline results (ADR-0033); empty until a run is blessed.
+RESULTS: tuple[BaselineResult, ...] = ()
+
 SPEC = BenchmarkSpec(
     card=CARD,
+    results=RESULTS,
     splits={
         "train": tuple(TRAIN),
         "val": tuple(VAL),
