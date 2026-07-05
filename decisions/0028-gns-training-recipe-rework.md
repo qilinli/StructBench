@@ -83,6 +83,11 @@ stress-history input feature.
 ---
 
 *2026-07-05 — the Phase-2 ablation this ADR deferred (noise_std, w_aux,
-model capacity) has run; the recipe is amended by ADR-0031, which adopts the
-reference-capacity architecture on that evidence. Stress-history features and
-push-forward training remain open.*
+model capacity) has run (fleets in `runs/fleet-2026-07-03` and
+`runs/fleet-2026-07-04`, manifests + metrics per run). Maintainer decision:
+baseline recipes are config, not ADR material — a drafted recipe ADR (0031)
+was withdrawn, its number burned per the never-reuse rule. Recipe values live
+in `configs/<benchmark>/<family>.toml`; the fleet evidence also predates the
+ADR-0032 protocol change (init 11 → 3), so recipe conclusions must be
+re-established under the new protocol before the final baseline. Stress-history
+features and push-forward training remain open.*
