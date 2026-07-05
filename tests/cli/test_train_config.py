@@ -74,9 +74,7 @@ def test_load_run_config_rejects_missing_key(tmp_path):
 
 
 def test_load_run_config_rejects_benchmark_in_train(tmp_path):
-    bad = VALID.replace(
-        "[train]\n", '[train]\nbenchmark = "taylor_impact_2d"\n'
-    )
+    bad = VALID.replace("[train]\n", '[train]\nbenchmark = "taylor_impact_2d"\n')
     with pytest.raises(ConfigError, match="belong in \\[run\\]"):
         load_run_config(_write(tmp_path, bad))
 

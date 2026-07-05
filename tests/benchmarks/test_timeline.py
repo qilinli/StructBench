@@ -34,9 +34,7 @@ def test_analyze_trajectory_free_flight_prefix_dissipates_nothing():
     assert tl.ke_frac_dissipated_at[6] == pytest.approx(0.0, abs=1e-5)
     # An 11-frame prefix (frames 0..10) exposes intervals 0..9; interval 9
     # has v = exp(-0.4), so KE ratio exp(-0.8).
-    assert tl.ke_frac_dissipated_at[11] == pytest.approx(
-        1.0 - np.exp(-0.8), rel=1e-4
-    )
+    assert tl.ke_frac_dissipated_at[11] == pytest.approx(1.0 - np.exp(-0.8), rel=1e-4)
     assert tl.n_frames == 40
     assert tl.dt_median == pytest.approx(1e-6)
     # KE milestones ordered and inside the record.

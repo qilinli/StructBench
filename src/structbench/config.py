@@ -264,15 +264,15 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
         _require_keys("protocol", set(protocol_table), {"init_frames"})
         init = protocol_table["init_frames"]
         if not isinstance(init, int) or init < 2:
-            raise ConfigError(f"[protocol] init_frames must be an int >= 2, got {init!r}")
+            raise ConfigError(
+                f"[protocol] init_frames must be an int >= 2, got {init!r}"
+            )
         override = ProtocolOverride(init_frames=init)
 
     return ResolvedRunConfig(
         family=family,
         model=model_cls(**model_table),
-        train=TrainConfig(
-            benchmark=run["benchmark"], seed=run["seed"], **train_table
-        ),
+        train=TrainConfig(benchmark=run["benchmark"], seed=run["seed"], **train_table),
         protocol_override=override,
     )
 
@@ -334,9 +334,7 @@ def resolved_config_dict(
             "commit": _git_commit(),
         },
         "model": {"family": family, **asdict(model)},
-        "train": {
-            k: v for k, v in asdict(train).items() if k not in _RUN_SOURCED
-        },
+        "train": {k: v for k, v in asdict(train).items() if k not in _RUN_SOURCED},
         "protocol": {
             "init_frames": init_frames,
             "horizon": horizon,

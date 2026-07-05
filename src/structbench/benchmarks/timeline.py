@@ -102,12 +102,12 @@ def analyze_trajectory(traj: CaseTrajectory) -> CaseTimeline:
     # float32 positions put a rounding-noise floor of ~4*eps32*|pos|/dt^2 on
     # second differences; a "peak" below it is noise, not dynamics.
     noise_floor = (
-        4.0 * float(np.finfo(np.float32).eps) * float(np.abs(pos).max())
+        4.0
+        * float(np.finfo(np.float32).eps)
+        * float(np.abs(pos).max())
         / float(dt.min()) ** 2
     )
-    tail_activity = (
-        float(tail.mean() / peak_accel) if peak_accel > noise_floor else 0.0
-    )
+    tail_activity = float(tail.mean() / peak_accel) if peak_accel > noise_floor else 0.0
 
     # A k-frame observed prefix (frames 0..k-1) exposes velocity intervals
     # 0..k-2 only; interval k-1 ends at the first *predicted* frame. Negative
@@ -188,7 +188,7 @@ def render_report(benchmark_name: str, timelines: list[CaseTimeline]) -> str:
         "",
         "## Aggregate",
         "",
-        f"- Worst-case KE dissipated within candidate inits: "
+        "- Worst-case KE dissipated within candidate inits: "
         + ", ".join(f"@{k}: {worst[k]:.1%}" for k in CANDIDATE_INITS),
         f"- Latest 99% settlement: {ms(latest_settle)}",
         f"- Peak mean aux across cases: "

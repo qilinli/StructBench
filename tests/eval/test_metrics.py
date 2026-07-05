@@ -140,9 +140,7 @@ def test_peak_mean_aux_and_time_closed_form():
 
     # 4 frames, 2 particles: particle means are [1.0, 5.0, 3.0, 2.0];
     # a single-particle outlier at frame 3 (9.0) must NOT move the peak.
-    aux = np.array(
-        [[1.0, 1.0], [4.0, 6.0], [3.0, 3.0], [-5.0, 9.0]], dtype=np.float32
-    )
+    aux = np.array([[1.0, 1.0], [4.0, 6.0], [3.0, 3.0], [-5.0, 9.0]], dtype=np.float32)
     positions = np.zeros((4, 2, 2), dtype=np.float32)
     time = np.array([0.0, 1e-5, 2e-5, 3e-5])  # seconds
     inputs = QoiInputs(time=time, positions=positions, aux=aux)

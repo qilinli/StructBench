@@ -11,8 +11,8 @@ from .metrics import (
     mushroom_width,
     peak_mean_aux,
     peak_stress,
-    t_peak_mean_aux,
     position_rmse,
+    t_peak_mean_aux,
 )
 from .rollout import (
     RolloutResult,

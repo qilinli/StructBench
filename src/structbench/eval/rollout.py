@@ -147,9 +147,7 @@ def rollout(
 
     pred_pos = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     pred_aux = torch.stack(aux_pred, dim=0).cpu().numpy().astype(np.float32)
-    pos_rmse = position_rmse(
-        pred_pos[init:], trajectory.positions[init:], keep=keep
-    )
+    pos_rmse = position_rmse(pred_pos[init:], trajectory.positions[init:], keep=keep)
     aux_rmse = field_rmse(pred_aux[init:], trajectory.aux[init:], keep=keep)
 
     pred_inputs = QoiInputs(

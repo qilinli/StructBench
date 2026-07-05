@@ -635,13 +635,9 @@ def evaluate(
     if not stats_path.exists():
         raise FileNotFoundError(f"missing normalization stats: {stats_path}")
 
-    gns = GNSConfig(
-        **{k: v for k, v in record["model"].items() if k != "family"}
-    )
+    gns = GNSConfig(**{k: v for k, v in record["model"].items() if k != "family"})
     n_types = int(record["n_particle_types"])
-    init = (
-        init_frames if init_frames is not None else record["protocol"]["init_frames"]
-    )
+    init = init_frames if init_frames is not None else record["protocol"]["init_frames"]
     stats = NormalizationStats.load(stats_path)
 
     simulator = build_simulator(
