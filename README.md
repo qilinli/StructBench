@@ -9,7 +9,7 @@ baseline to beat — for structures under dynamic and extreme loading.
 
 > **Status: pre-release (v0.1 imminent).** One benchmark, one baseline, a small
 > dataset, no paper. What exists is real and tested; what doesn't is on the
-> [roadmap](ROADMAP.md).
+> [roadmap](#roadmap).
 
 ![Taylor bar rollout: copper bar mushrooming against a rigid wall, colored by von Mises stress](assets/taylor_rollout.gif)
 
@@ -167,25 +167,95 @@ src/structbench/
   eval/            # rollout driver, metrics
   cli/             # structbench-train
 configs/           # TOML training configs
-decisions/         # 21 architecture decision records
+decisions/         # architecture decision records
 ```
 
 ## Roadmap
 
-- **v0.1** — Taylor 2D end to end: data, baseline checkpoint, recorded
-  metrics, public release.
-- **v0.2+** — RC beam and segmented-beam benchmarks (data exists from prior
-  published work); a multi-scale GNS second baseline (spec drafted); plastic
-  strain as a second target.
-- **Later** — more solver adapters, larger-scale graph backends, multi-modal
-  SHM benchmarks, deployment tooling.
+<!-- Living todo list (the single planning home; ROADMAP.md is retired).
+     Conventions: done = [x] + strikethrough + (date); ad-hoc additions land
+     in Inbox and get triaged into a milestone; when a milestone ships, its
+     crossed-out block may be compressed to one line. Reasoning lives in
+     decisions/, not here. Substrate-layer work only (ADR-0014). -->
 
-Sequencing in [ROADMAP.md](ROADMAP.md); reasoning in [`decisions/`](decisions/).
+*Last revised: 2026-07-05.*
+
+### v0.1 — Taylor 2D substrate proof
+
+- [x] ~~Canonical case format + round-trip-tested HDF5 I/O (ADR-0011..0013)~~
+- [x] ~~General LS-DYNA adapter on lasso-python (ADR-0016)~~
+- [x] ~~Taylor 2D benchmark: fixed split, eval protocol, QoIs (ADR-0019)~~
+- [x] ~~Config-driven pipeline `structbench-train` (train/valid/rollout)~~
+- [x] ~~`radius_graph` batch-partition fix: 50.9 s → 0.22 s per batch~~ (2026-07-02)
+- [x] ~~Public GitHub repository~~ (2026-07-02)
+- [x] ~~First full baseline run → training-recipe rework (ADR-0028)~~ (2026-07-03)
+- [ ] Trained GNS baseline with the ADR-0028 recipe (DUG A100; SSH-side
+      steps are human-gated)
+  - [ ] full retrain (~⅓ of the first run's 14k steps/h — plan walltime
+        accordingly)
+  - [ ] checkpoint + recorded ADR-0019 metrics
+- [ ] Release: baseline metrics into the README table, prediction-vs-truth
+      hero GIF, dataset link, version tag (human action)
+
+### v0.2 — wave-1d + notch-beam pair
+
+- [x] ~~Ingestion: 16 wave runs + 221 notch-beam cases to canonical HDF5~~ (2026-07-04)
+- [x] ~~Three benchmark modules: frozen splits + QoIs (ADR-0025/0026)~~ (2026-07-03)
+- [x] ~~Benchmark cards + generated views (ADR-0027), Taylor retrofitted~~ (2026-07-03)
+- [x] ~~Benchmark-selection registry in `structbench-train`~~ (2026-07-03)
+- [x] ~~Notch aux → max principal strain; damaged→cracked fraction (ADR-0029)~~ (2026-07-04)
+- [ ] ADR-0030 unit-fix follow-through (Concrete-Beam decks are kg-mm-ms)
+  - [ ] write + index the ADR (decision already live in `patch_units.py`)
+  - [ ] confirm `patch_units.py` ran over all 237 canonical HDF5s
+        (idempotent)
+  - [ ] fix `SOURCE_UNITS` in `1DWavePropagation/convert.py` +
+        `2DNotchBeam/convert.py`
+  - [ ] correct `source_units` in the three cards; regenerate
+        `docs/benchmarks.md`
+- [ ] Three trained GNS baselines (checkpoint + metrics each)
+  - [ ] `wave_propagation_1d`
+  - [ ] `notch_beam_2d_bend`
+  - [ ] `notch_beam_2d_impact`
+- [ ] Validate the provisional `cracked_fraction` threshold 0.01 (ADR-0029;
+      version bump if revised)
+- [ ] Dataset hosting decision (Zenodo / HuggingFace / institutional) —
+      gates the v0.1 release too; v0.2 is ~7× the data
+- [ ] Archive packaging: measure `size_gb` per benchmark, generate
+      per-archive README + card.json into the hosted archives
+
+### Inbox — untriaged, add freely
+
+- [ ] `lr_init` code default still 1e-3; ADR-0028's 1e-4 lives only in the
+      TOML
+- [ ] confirm the Taylor deck genuinely is g-mm-ms (sanity check alongside
+      ADR-0030)
+- [ ] reconcile ADR-0012's "4 Voigt components in 2D" prose
+      (CORRECTIONS.md item)
+
+### Later (each becomes an ADR/spec when picked up)
+
+- **v0.3 — RC beam benchmark**: erosion, twice (numerically for the FEM
+  data; structurally for the surrogate — particles vanishing mid-rollout)
+- Segmented beam benchmark (parked) · MS-GNS second Taylor baseline (spec
+  Proposed)
+- Training: resume support (optimizer state + `--resume`) ·
+  part-id→embedding remap · ADR-0028 Phase-2 ablations (noise_std, aux
+  head, capacity, stress-history)
+- Eval: leaderboard submission validator · cross-benchmark utilities ·
+  per-region probe metrics · convergence check
+- Checkpoint-publishing workflow · second aux target (effective plastic
+  strain)
+- Data-generation autonomy (deck templating or a Python-native solver)
+- Scale: cell-list `radius_graph` backend when a ≥10⁶-node dataset lands
+- Other solvers (Kratos, OpenSees, OpenRadioss) · SHM expansion ·
+  deployment tools · packaging extras · PhysicsNeMo interop
+
+Rationale for every item lives in [`decisions/`](decisions/).
 
 ## How this project is run
 
 StructBench is co-developed by its maintainer and an AI agent under an
-explicit written harness: a decision log (21 ADRs), tiered agent authority,
+explicit written harness: a decision log of ADRs, tiered agent authority,
 and a corrections log — [HARNESS.md](docs/HARNESS.md) explains the philosophy.
 Agent-assisted research needs the same auditability we demand of the
 benchmarks themselves; whatever you think of the arrangement, the side effect
