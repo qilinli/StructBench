@@ -192,8 +192,10 @@ decisions/         # architecture decision records
 - [ ] per-benchmark README: dataset info, evaluation criteria, and (once
       trained) baseline results — likely grows out of the ADR-0027
       card-generated archive README (`tools/gen_benchmark_docs.py --archive`)
-- [ ] `lr_init` code default still 1e-3; ADR-0028's 1e-4 lives only in the
-      TOML
+- [x] ~~`lr_init` code default still 1e-3; ADR-0028's 1e-4 lives only in
+      the TOML~~ (resolved by ADR-0032: every config lists `lr_init`
+      explicitly under strict validation, `--config` is required in train
+      mode, and dataclass defaults are sanctioned as test-only, 2026-07-05)
 - [x] ~~confirm the Taylor deck genuinely is g-mm-ms~~ (verified against
       `scratch/Taylor.k`: RO/G/EOS-C physical only under g-mm-ms; recorded
       in ADR-0030, 2026-07-05)
