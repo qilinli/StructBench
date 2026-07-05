@@ -42,8 +42,12 @@ DIMENSION = 2
 DECK_NAME = "Taylor.k"
 
 #: <repo>/data_generation/lsdyna/<dataset>/convert.py -> repo root is parents[3].
+#: Data layout per ADR-0031: raw runs and canonical archives live under
+#: <repo-parent>/data/StructBench/{raw,canonical}/<benchmark>/.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_DEFAULT_DATA_ROOT = _REPO_ROOT.parent / "data" / DATASET_ID
+_STRUCTBENCH_DATA = _REPO_ROOT.parent / "data" / "StructBench"
+_DEFAULT_DATA_ROOT = _STRUCTBENCH_DATA / "raw" / "taylor_impact_2d"
+_DEFAULT_OUT = _STRUCTBENCH_DATA / "canonical" / "taylor_impact_2d"
 
 _LOG = logging.getLogger("convert")
 
@@ -116,7 +120,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--out",
         type=Path,
         default=None,
-        help="output directory for .h5 (default: <data-root>/h5_canonical)",
+        help=f"output directory for .h5 (default: {_DEFAULT_OUT})",
     )
     parser.add_argument(
         "--case",
@@ -136,7 +140,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    out_dir = args.out or (args.data_root / "h5_canonical")
+    out_dir = args.out or _DEFAULT_OUT
 
     runs = discover_runs(args.data_root)
     if args.case:

@@ -4,8 +4,8 @@ Per-dataset glue (ADR-0016 §6). It knows only this dataset's specifics:
 
 - where the runs live: two families (ConstantVelocity / InitialVelocity) plus
   a generalisation-probe set (2DGeneralizibility);
-- the source unit convention is ``g-mm-ms`` (the deck has no ``*CONTROL_UNITS``
-  card, so the convention is supplied here per ADR-0016 §5);
+- the source unit convention is ``kg-mm-ms`` (ADR-0030; the deck has no
+  ``*CONTROL_UNITS`` card, so the convention is supplied here per ADR-0016 §5);
 - the model is 2D (``DIMENSION = 2``);
 - the deck name is ``Beam1.k``;
 - case-id naming:
@@ -42,7 +42,7 @@ Run with the project venv from the repo root. ``SCRIPT`` below stands for
     uv run python SCRIPT --dry-run          # list 221 cases, read nothing
     uv run python SCRIPT --case NB-B-320-Aa-8   # convert one bend case
     uv run python SCRIPT --case NB-I-320-Bullet-a-40  # convert one impact case
-    uv run python SCRIPT --out D:/out       # choose the output directory
+    uv run python SCRIPT --out D:/out       # override: everything into one flat dir
 
 ``--dry-run`` lists discovered cases without reading any d3plot, so it triggers
 no OneDrive hydration. A full batch hydrates 221 d3plot families (tens of GB)
@@ -62,13 +62,17 @@ from structbench.core import write_case
 from structbench.core.io.lsdyna import lsdyna_to_case
 
 DATASET_ID = "2D-Notched-Beam"
-SOURCE_UNITS = "g-mm-ms"  # no *CONTROL_UNITS in the deck (ADR-0016 §5)
+SOURCE_UNITS = "kg-mm-ms"  # deck mass unit is kg, not g (ADR-0030); no *CONTROL_UNITS
 DIMENSION = 2
 DECK_NAME = "Beam1.k"
 
 #: <repo>/data_generation/lsdyna/<dataset>/convert.py -> repo root is parents[3].
+#: Data layout per ADR-0031: raw runs and canonical archives live under
+#: <repo-parent>/data/StructBench/{raw,canonical}/<benchmark>/.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_DEFAULT_DATA_ROOT = _REPO_ROOT.parent / "data" / "Concrete-Beam" / "2DNotchBeam"
+_STRUCTBENCH_DATA = _REPO_ROOT.parent / "data" / "StructBench"
+_DEFAULT_DATA_ROOT = _STRUCTBENCH_DATA / "raw" / "notch_beam_2d"
+_CANONICAL_ROOT = _STRUCTBENCH_DATA / "canonical"
 
 _LOG = logging.getLogger("convert")
 
@@ -80,6 +84,27 @@ _LOG = logging.getLogger("convert")
 _DECK_OVERRIDES: dict[str, str] = {
     "NB-B-320-Aa-12": "ConstantVelocity/80320/Aa8/Beam1.k",
 }
+
+#: The bend and impact benchmarks partition all 221 cases exactly (ADR-0026);
+#: NB-B-*/NB-I-* route by prefix, probes by this frozen assignment (mirrors
+#: the PROBE lists in the benchmark modules).
+_PROBE_BENCHMARK: dict[str, str] = {
+    "C_60_240_V22_extrapolation": "notch_beam_2d_bend",
+    "C_60_240_V6_extrapolation": "notch_beam_2d_bend",
+    "C_80_560_V14_intrapolation": "notch_beam_2d_bend",
+    "S_100_800_V60_extrapolation": "notch_beam_2d_impact",
+    "S_80_400_V140_intrapolation": "notch_beam_2d_impact",
+}
+
+
+def _benchmark_for(case_id: str) -> str:
+    """Route a case id to its benchmark's canonical archive folder name."""
+    if case_id.startswith("NB-B-"):
+        return "notch_beam_2d_bend"
+    if case_id.startswith("NB-I-"):
+        return "notch_beam_2d_impact"
+    return _PROBE_BENCHMARK[case_id]
+
 
 _SPANS = ("320", "480", "640")
 _BEND_L = ("A", "B", "C")
@@ -212,7 +237,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--out",
         type=Path,
         default=None,
-        help="output directory for .h5 (default: <data-root>/h5_canonical)",
+        help=(
+            "single flat output directory override (default: cases route per "
+            f"benchmark into {_CANONICAL_ROOT}\\notch_beam_2d_{{bend,impact}})"
+        ),
     )
     parser.add_argument(
         "--case",
@@ -235,7 +263,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    out_dir = args.out or (args.data_root / "h5_canonical")
 
     runs = discover_runs(args.data_root)
     if args.case:
@@ -244,8 +271,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         _LOG.error("no runs found under %s (case filter %r)", args.data_root, args.case)
         return 1
 
+    out_desc = args.out or (_CANONICAL_ROOT / "notch_beam_2d_{bend,impact}")
     print(f"data root : {args.data_root}")
-    print(f"output    : {out_dir}")
+    print(f"output    : {out_desc}")
     print(f"{len(runs)} case(s) discovered:")
     for run in runs:
         print(f"  {run.case_id:40s} <- {run.run_dir.relative_to(args.data_root)}")
@@ -253,10 +281,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("\n(dry run -- nothing converted, no d3plot read or hydrated)")
         return 0
 
-    out_dir.mkdir(parents=True, exist_ok=True)
     done = 0
     failures: list[tuple[str, str]] = []
     for run in runs:
+        out_dir = args.out or (_CANONICAL_ROOT / _benchmark_for(run.case_id))
+        out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / f"{run.case_id}.h5"
         if out_path.exists() and not args.overwrite:
             print(f"  SKIP {run.case_id:40s} (exists; --overwrite to redo)")

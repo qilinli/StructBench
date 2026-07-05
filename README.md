@@ -162,14 +162,15 @@ decisions/         # architecture decision records
 - [x] ~~Benchmark cards + generated views (ADR-0027), Taylor retrofitted~~ (2026-07-03)
 - [x] ~~Benchmark-selection registry in `structbench-train`~~ (2026-07-03)
 - [x] ~~Notch aux → max principal strain; damaged→cracked fraction (ADR-0029)~~ (2026-07-04)
+- [x] ~~Data archive reorganized to the hosting layout:
+      `StructBench/{canonical,raw}` mirrors (ADR-0031)~~ (2026-07-05)
 - [ ] ADR-0030 unit-fix follow-through (Concrete-Beam decks are kg-mm-ms)
   - [ ] write + index the ADR (decision already live in `patch_units.py`)
-  - [ ] confirm `patch_units.py` ran over all 237 canonical HDF5s
-        (idempotent)
-  - [ ] fix `SOURCE_UNITS` in `1DWavePropagation/convert.py` +
-        `2DNotchBeam/convert.py`
-  - [ ] correct `source_units` in the three cards; regenerate
-        `docs/benchmarks.md`
+  - [x] ~~confirm `patch_units.py` ran over all 237 canonical HDF5s~~
+        (spot-check: kg-mm-ms attrs, 2026-07-05)
+  - [x] ~~fix `SOURCE_UNITS` in the two convert.py scripts~~ (2026-07-05)
+  - [x] ~~correct `source_units` + mass-unit constants in the three cards;
+        regenerate `docs/benchmarks.md`~~ (2026-07-05)
 - [ ] Three trained GNS baselines (checkpoint + metrics each)
   - [ ] `wave_propagation_1d`
   - [ ] `notch_beam_2d_bend`
@@ -178,11 +179,13 @@ decisions/         # architecture decision records
       version bump if revised)
 - [ ] Dataset hosting decision (Zenodo / HuggingFace / institutional) —
       gates the v0.1 release too; v0.2 is ~7× the data
-- [ ] Archive packaging: measure `size_gb` per benchmark, generate
-      per-archive README + card.json into the hosted archives
+- [x] ~~Archive packaging: measure `size_gb` per benchmark (2.4 / 0.23 /
+      24.1 / 24.9), generate per-archive README + card.json~~ (2026-07-05)
 
 ### Inbox — untriaged, add freely
 
+- [ ] mypy fails on numpy 2.5 stubs (`type` statement needs py3.12 target;
+      project floor is 3.11) — surfaced by the 2026-07-05 lockfile env
 - [ ] per-benchmark README: dataset info, evaluation criteria, and (once
       trained) baseline results — likely grows out of the ADR-0027
       card-generated archive README (`tools/gen_benchmark_docs.py --archive`)

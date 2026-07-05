@@ -56,4 +56,5 @@ CARD = BenchmarkCard(
     particles_per_case="4800-8000",
     n_frames=152,
     output_dt_ms=0.002,
+    size_gb=2.4,
 )

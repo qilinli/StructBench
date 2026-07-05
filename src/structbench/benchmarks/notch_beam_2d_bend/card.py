@@ -19,12 +19,12 @@ CARD = BenchmarkCard(
     solver="LS-DYNA",
     discretisation="SPH",
     materials=(
-        "*MAT_CONCRETE_DAMAGE_REL3 (K&C; scaled density 2.4e-6 g/mm3)",
+        "*MAT_CONCRETE_DAMAGE_REL3 (K&C; density 2.4e-6 kg/mm3)",
         "*MAT_PLASTIC_KINEMATIC",
     ),
     erosion=False,
     loading="constant-velocity pin, 3-point bend, 8-20 mm/s",
-    source_units="g-mm-ms",
+    source_units="kg-mm-ms",
     geometry="2D SPH notched beam, H80 x span {320,480,640} mm",
     n_cases=len(TRAIN) + len(VAL) + len(TEST_INTERP) + len(PROBE),
     splits={
@@ -59,4 +59,5 @@ CARD = BenchmarkCard(
     particles_per_case="2394-8280",
     n_frames=502,
     output_dt_ms=1.0,
+    size_gb=24.1,
 )
