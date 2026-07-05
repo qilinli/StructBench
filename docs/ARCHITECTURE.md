@@ -50,7 +50,7 @@ This module has no upstream dependencies within the package. Every other module 
 
 Contains the definitions of benchmark problems. Each benchmark is a self-contained submodule that specifies: the problem statement, the parametric space, the data generation protocol, the train/val/test split, and references to its associated dataset. Benchmarks are resolved by name through a registry (`get_benchmark`, ADR-0024); each module ships a typed `BenchmarkCard` (ADR-0027) from which `docs/benchmarks.md` and per-archive metadata are generated.
 
-A benchmark module describes *what* the problem is. It does not include the data itself (that lives outside the repo, in a versioned data archive) or the models that solve it (those live in `models/`).
+A benchmark module describes *what* the problem is. It does not include the data itself (that lives outside the repo: each benchmark's canonical archive is a self-contained `canonical/<benchmark>/` folder of `<case_id>.h5` files plus generated `README.md`, `card.json`, and license, per ADR-0031) or the models that solve it (those live in `models/`).
 
 ### `models/`
 

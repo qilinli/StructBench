@@ -68,21 +68,23 @@ GNS codebases on a cluster or on Windows, you know why this matters.
 ```bash
 # Train the GNS baseline
 structbench-train --mode train --config configs/taylor_2d.toml \
-    --data-root /path/to/taylor_2d_h5 --out runs/taylor-gns
+    --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-gns
 
 # Validate, then roll out on the test splits (architecture is rebuilt from
 # the run directory's own record — no --config needed, or accepted)
-structbench-train --mode valid   --data-root /path/to/taylor_2d_h5 --out runs/taylor-gns
-structbench-train --mode rollout --data-root /path/to/taylor_2d_h5 --out runs/taylor-gns
+structbench-train --mode valid   --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-gns
+structbench-train --mode rollout --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-gns
 ```
 
 Each benchmark has its own TOML in `configs/` — swap `taylor_2d.toml` for
 `wave_1d.toml`, `notch_bend.toml`, or `notch_impact.toml` to train against a
 different benchmark.
 
-**Data availability:** the canonical HDF5 dataset ships with the v0.1 release
-(hosting being finalised). Until then, the adapter can ingest your own LS-DYNA
-output.
+**Data availability:** each benchmark ships as a self-contained canonical
+archive — a `canonical/<benchmark>/` folder of `<case_id>.h5` files with a
+generated `README.md`, `card.json`, and CC BY 4.0 license — and `--data-root`
+points at that folder. Hosting is being finalised for the v0.1 release; until
+then, the adapter can ingest your own LS-DYNA output.
 
 ## How the pieces fit
 
@@ -186,6 +188,9 @@ decisions/         # architecture decision records
 
 - [ ] mypy fails on numpy 2.5 stubs (`type` statement needs py3.12 target;
       project floor is 3.11) — surfaced by the 2026-07-05 lockfile env
+- [ ] DUG remote data dir is `data/taylor_impact`; rename to
+      `taylor_impact_2d` (archive name) and update `train_taylor.slurm` +
+      `hpc/dug/README.md` together, between job fleets
 - [ ] per-benchmark README: dataset info, evaluation criteria, and (once
       trained) baseline results — likely grows out of the ADR-0027
       card-generated archive README (`tools/gen_benchmark_docs.py --archive`)
