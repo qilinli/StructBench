@@ -1,5 +1,5 @@
 #!/bin/bash
-# One Taylor 2D GNS ablation as a single-GPU SLURM job (ADR-0028 Phase 2).
+# One Taylor 2D CGN ablation as a single-GPU SLURM job (ADR-0028 Phase 2).
 # Submit from the repo root ON A LOGIN NODE, parameterized via --export:
 #
 #   sbatch --job-name=abl-n005 --export=ALL,NAME=n005,NOISE=0.05 \
@@ -7,7 +7,7 @@
 #
 # Recognised variables (all optional except NAME):
 #   NAME    run name -> output dir runs/fleet-<date>/<NAME>   (required)
-#   NOISE   noise_std override            (default: keep configs/taylor_impact_2d/gns.toml)
+#   NOISE   noise_std override            (default: keep configs/taylor_impact_2d/cgn.toml)
 #   WAUX    w_aux override
 #   HIDDEN  hidden_dim override
 #   NMLP    nmlp_layers override
@@ -58,7 +58,7 @@ trap finish EXIT
 python3 - "$OUT/config.toml" <<'PY'
 import os, re, sys
 
-text = open("configs/taylor_impact_2d/gns.toml").read()
+text = open("configs/taylor_impact_2d/cgn.toml").read()
 overrides = {
     "noise_std": os.environ.get("NOISE"),
     "w_aux": os.environ.get("WAUX"),

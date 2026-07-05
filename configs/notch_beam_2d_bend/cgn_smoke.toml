@@ -1,11 +1,11 @@
-# 10-step smoke of the notch-impact pipeline.
+# 10-step smoke of the notch-bend pipeline.
 
 [run]
-benchmark = "notch_beam_2d_impact"
+benchmark = "notch_beam_2d_bend"
 seed = 0                        # torch RNG: init, noise, shuffle
 
 [model]
-family = "gns"
+family = "cgn"
 window = 11
 connectivity_radius = 15.0
 hidden_dim = 64

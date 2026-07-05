@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from structbench.cli.train import GNSConfig, TrainConfig, build_simulator
+from structbench.cli.train import CGNConfig, TrainConfig, build_simulator
 from structbench.config import ConfigError, load_run_config
 
 #: A complete, valid grouped config; tests below perturb it.
@@ -13,7 +13,7 @@ benchmark = "taylor_impact_2d"
 seed = 7
 
 [model]
-family = "gns"
+family = "cgn"
 window = 11
 connectivity_radius = 1.5
 hidden_dim = 64
@@ -44,14 +44,23 @@ def _write(tmp_path, text):
 
 def test_load_run_config_happy_path(tmp_path):
     rc = load_run_config(_write(tmp_path, VALID))
-    assert rc.family == "gns"
-    assert isinstance(rc.model, GNSConfig)
+    assert rc.family == "cgn"
+    assert isinstance(rc.model, CGNConfig)
     assert isinstance(rc.train, TrainConfig)
     assert rc.train.benchmark == "taylor_impact_2d"
     assert rc.train.seed == 7  # [run].seed lands on TrainConfig
     assert rc.train.batch_size == 8
     assert rc.model.window == 11
     assert rc.protocol_override is None
+
+
+def test_legacy_gns_family_alias_still_resolves(tmp_path):
+    # Pre-ADR-0034 run configs and run-dir records say family = "gns";
+    # the alias keeps them loadable and re-evaluable.
+    legacy = VALID.replace('family = "cgn"', 'family = "gns"')
+    rc = load_run_config(_write(tmp_path, legacy))
+    assert rc.family == "gns"
+    assert isinstance(rc.model, CGNConfig)
 
 
 def test_load_run_config_rejects_flat_configs(tmp_path):
@@ -80,7 +89,7 @@ def test_load_run_config_rejects_benchmark_in_train(tmp_path):
 
 
 def test_load_run_config_rejects_unknown_family(tmp_path):
-    bad = VALID.replace('family = "gns"', 'family = "transformer"')
+    bad = VALID.replace('family = "cgn"', 'family = "transformer"')
     with pytest.raises(ConfigError, match="unknown family"):
         load_run_config(_write(tmp_path, bad))
 
@@ -108,17 +117,17 @@ def _stats_dict():
 
 
 def test_build_simulator_node_input_width():
-    gns = GNSConfig()
+    cgn = CGNConfig()
     sim = build_simulator(
         _stats_dict(),
-        gns,
+        cgn,
         n_particle_types=2,
         boundary_feature_fn=lambda p: p[:, 0:1],
         device="cpu",
     )
     # (window-1)*dim + 1 boundary + embedding(9) = 10*2 + 1 + 9 = 30
     out, aux = sim.predict_positions(
-        torch.randn(5, gns.window, 2),
+        torch.randn(5, cgn.window, 2),
         torch.tensor([5]),
         torch.zeros(5, dtype=torch.long),
     )
@@ -126,10 +135,10 @@ def test_build_simulator_node_input_width():
 
 
 def test_build_simulator_includes_aux_stats():
-    gns = GNSConfig()
+    cgn = CGNConfig()
     sim = build_simulator(
         _stats_dict(),
-        gns,
+        cgn,
         n_particle_types=2,
         boundary_feature_fn=lambda p: p[:, 0:1],
         device="cpu",

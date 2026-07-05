@@ -30,7 +30,7 @@ from typing import Any
 
 
 @dataclass
-class GNSConfig:
+class CGNConfig:
     """Architecture and noise hyperparameters of the learned simulator.
 
     Attributes
@@ -118,7 +118,10 @@ class TrainConfig:
 
 
 #: Model families dispatchable from ``[model].family`` (ADR-0032 §2).
-MODEL_FAMILIES: dict[str, type] = {"gns": GNSConfig}
+#: ``"gns"`` is a deprecated legacy alias for the renamed CGN family
+#: (ADR-0034): pre-rename run directories record ``family = "gns"`` in
+#: their ``config.json`` and must stay re-evaluable. New configs say "cgn".
+MODEL_FAMILIES: dict[str, type] = {"cgn": CGNConfig, "gns": CGNConfig}
 
 #: ``[run]`` keys — exactly these, no more, no fewer.
 _RUN_KEYS = {"benchmark", "seed"}

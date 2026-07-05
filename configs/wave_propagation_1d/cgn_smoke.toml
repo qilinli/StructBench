@@ -5,7 +5,7 @@ benchmark = "wave_propagation_1d"
 seed = 0                        # torch RNG: init, noise, shuffle
 
 [model]
-family = "gns"
+family = "cgn"
 window = 11
 connectivity_radius = 4.8
 hidden_dim = 64

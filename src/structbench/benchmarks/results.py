@@ -24,9 +24,9 @@ class BaselineResult:
     Parameters
     ----------
     family : str
-        Model-family key from the config registry (ADR-0032), e.g. ``"gns"``.
+        Model-family key from the config registry (ADR-0032), e.g. ``"cgn"``.
     label : str
-        Display name, e.g. ``"GNS baseline"``.
+        Display name, e.g. ``"CGN baseline"``.
     run_commit : str
         Git commit recorded by the blessed training run.
     run_date : str

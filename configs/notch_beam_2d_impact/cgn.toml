@@ -1,11 +1,11 @@
-# NotchBeam2D-Impact GNS baseline (ADR-0026 task; grouped per ADR-0032).
+# NotchBeam2D-Impact CGN baseline (Li et al. 2023; ADR-0034) (ADR-0026 task; grouped per ADR-0032).
 
 [run]
 benchmark = "notch_beam_2d_impact"
 seed = 0                        # torch RNG: init, noise, shuffle
 
 [model]
-family = "gns"
+family = "cgn"
 window = 11
 connectivity_radius = 15.0  # 6x the 2.5 mm particle spacing (ADR-0028 convention)
 hidden_dim = 64
@@ -18,7 +18,7 @@ max_neighbors = 48  # FLAGGED (ADR-0032): ~113 physical neighbours at r=15; re-s
 
 [train]
 batch_size = 32
-lr_init = 1e-4  # reference GNS rate (ADR-0028); the old 1e-3 default drove memorization
+lr_init = 1e-4  # reference rate (ADR-0028); the old 1e-3 default drove memorization
 lr_decay = 0.1
 lr_decay_steps = 30000
 training_steps = 100000

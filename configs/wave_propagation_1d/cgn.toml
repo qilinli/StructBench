@@ -1,11 +1,11 @@
-# Wave-1D GNS baseline (ADR-0025 task; grouped per ADR-0032).
+# Wave-1D CGN baseline (Li et al. 2023; ADR-0034) (ADR-0025 task; grouped per ADR-0032).
 
 [run]
 benchmark = "wave_propagation_1d"
 seed = 0                        # torch RNG: init, noise, shuffle
 
 [model]
-family = "gns"
+family = "cgn"
 window = 11
 connectivity_radius = 4.8  # ~2.4x the 2.0 mm particle spacing
 hidden_dim = 64
@@ -18,7 +18,7 @@ max_neighbors = 48
 
 [train]
 batch_size = 32
-lr_init = 1e-4  # reference GNS rate (ADR-0028); the old 1e-3 default drove memorization
+lr_init = 1e-4  # reference rate (ADR-0028); the old 1e-3 default drove memorization
 lr_decay = 0.1
 lr_decay_steps = 30000
 training_steps = 50000  # 16 small cases; half the Taylor budget

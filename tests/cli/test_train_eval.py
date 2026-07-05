@@ -19,7 +19,7 @@ from structbench.benchmarks import get_benchmark
 from structbench.benchmarks.card import BenchmarkCard
 from structbench.benchmarks.registry import BenchmarkSpec
 from structbench.cli.train import (
-    GNSConfig,
+    CGNConfig,
     TrainConfig,
     build_simulator,
     evaluate,
@@ -37,8 +37,8 @@ from structbench.core import (
 from structbench.datasets import compute_stats, load_case_trajectory
 
 #: Tiny architecture so checkpoints build fast; deliberately different from the
-#: GNSConfig defaults so evaluate() fails loudly if it ignores config.json.
-SMALL_GNS = {
+#: CGNConfig defaults so evaluate() fails loudly if it ignores config.json.
+SMALL_CGN = {
     "window": 3,
     "connectivity_radius": 2.0,
     "hidden_dim": 8,
@@ -100,7 +100,7 @@ def _prepared_run(tmp_path, case_ids):
     stats = compute_stats(trajs)
     stats.save(out_dir / "normalization_stats.npz")
 
-    gns = GNSConfig(**SMALL_GNS)
+    cgn = CGNConfig(**SMALL_CGN)
     stats_t = {
         key: {
             "mean": torch.tensor(getattr(stats, f"{name}_mean"), dtype=torch.float32),
@@ -114,7 +114,7 @@ def _prepared_run(tmp_path, case_ids):
     }
     simulator = build_simulator(
         stats_t,
-        gns,
+        cgn,
         n_particle_types=2,
         boundary_feature_fn=lambda p: p[:, 0:1],
         device="cpu",
@@ -124,7 +124,7 @@ def _prepared_run(tmp_path, case_ids):
     (out_dir / "config.json").write_text(
         json.dumps(
             {
-                "gns": asdict(gns),
+                "gns": asdict(cgn),  # pre-0032 records used the legacy "gns" key
                 "train": asdict(TrainConfig()),
                 "n_particle_types": 2,
                 "data_root": str(data_root),
@@ -138,8 +138,8 @@ def _prepared_run(tmp_path, case_ids):
 def test_evaluate_rebuilds_architecture_from_run_config(tmp_path):
     case_ids = ["C-1", "C-2"]
     data_root, out_dir = _prepared_run(tmp_path, case_ids)
-    # No architecture is passed: evaluate must reconstruct SMALL_GNS from
-    # config.json; using GNSConfig defaults would fail the checkpoint load.
+    # No architecture is passed: evaluate must reconstruct SMALL_CGN from
+    # config.json; using CGNConfig defaults would fail the checkpoint load.
     metrics = evaluate(case_ids, data_root, out_dir, "cpu")
     assert metrics["split"] == "eval"
     assert set(metrics["cases"]) == set(case_ids)
@@ -200,7 +200,7 @@ def test_train_refuses_out_dir_with_existing_checkpoints(tmp_path):
     with pytest.raises(FileExistsError):
         train(
             get_benchmark("taylor_impact_2d"),
-            GNSConfig(**SMALL_GNS),
+            CGNConfig(**SMALL_CGN),
             TrainConfig(),
             data_root,
             out_dir,
@@ -255,7 +255,7 @@ def test_train_raises_on_spec_config_benchmark_mismatch(tmp_path):
     with pytest.raises(ValueError, match="does not resolve to the spec"):
         train(
             local_spec,
-            GNSConfig(**SMALL_GNS),
+            CGNConfig(**SMALL_CGN),
             TrainConfig(benchmark="taylor_impact_2d"),
             data_root,
             out_dir,
@@ -349,7 +349,7 @@ def _train_tiny(tmp_path, name, seed):
     out_dir = tmp_path / name
     ckpt = train(
         _local_spec(),
-        GNSConfig(**SMALL_GNS),
+        CGNConfig(**SMALL_CGN),
         TrainConfig(
             benchmark="seed-test-local",
             batch_size=2,

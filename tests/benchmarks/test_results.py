@@ -10,8 +10,8 @@ from structbench.benchmarks.results import BaselineResult
 
 def _result(**overrides):
     kwargs = dict(
-        family="gns",
-        label="GNS baseline",
+        family="cgn",
+        label="CGN baseline",
         run_commit="abc1234",
         run_date="2026-07-05",
         metrics={"test_interp": {"rollout_pos_rmse_mm": 1.5}},
@@ -70,4 +70,4 @@ def test_spec_accepts_result_with_known_splits():
         }
     )
     wired = replace(spec, results=(good,))
-    assert wired.results[0].label == "GNS baseline"
+    assert wired.results[0].label == "CGN baseline"

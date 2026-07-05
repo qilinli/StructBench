@@ -20,8 +20,8 @@ def _all_specs():
 
 def _fake_result():
     return BaselineResult(
-        family="gns",
-        label="GNS baseline",
+        family="cgn",
+        label="CGN baseline",
         run_commit="abc1234",
         run_date="2026-07-05",
         metrics={
@@ -63,7 +63,7 @@ def test_archive_readme_carries_task_eval_and_usage_sections():
     assert spec.card.protocol_rationale[:40] in text
     # QoIs listed; runnable command names the grouped config
     assert spec.card.qois[0] in text
-    assert "configs/taylor_impact_2d/gns.toml" in text
+    assert "configs/taylor_impact_2d/cgn.toml" in text
 
 
 def test_archive_readme_without_results_carries_placeholder():
@@ -76,7 +76,7 @@ def test_archive_readme_renders_result_table():
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
     text = render_archive_readme(spec, "taylor_impact_2d")
     assert "No official baseline yet" not in text
-    assert "GNS baseline" in text
+    assert "CGN baseline" in text
     assert "abc1234" in text
     # split rows in card order, metric columns in first-seen order
     assert "| test_interp | 1.5 | 0.004 |" in text
@@ -89,7 +89,7 @@ def test_index_section_renders_baseline_line_both_ways():
     assert "no official baseline yet" in render_index([bare])
     with_result = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
     text = render_index([with_result])
-    assert "GNS baseline" in text
+    assert "CGN baseline" in text
     assert "abc1234" in text
 
 

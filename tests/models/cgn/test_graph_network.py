@@ -1,6 +1,6 @@
 import torch
 
-from structbench.models.gns.graph_network import EncodeProcessDecode
+from structbench.models.cgn.graph_network import EncodeProcessDecode
 
 
 def test_encode_process_decode_output_shape_and_finite():

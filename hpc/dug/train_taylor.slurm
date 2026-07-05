@@ -1,5 +1,5 @@
 #!/bin/bash
-# Full Taylor 2D GNS baseline on DUG (SLURM). Submit from the repo root ON A
+# Full Taylor 2D CGN baseline on DUG (SLURM). Submit from the repo root ON A
 # LOGIN NODE (sbatch does not work inside the JupyterHub container — no munge):
 #   sbatch hpc/dug/train_taylor.slurm
 #
@@ -8,7 +8,7 @@
 # shared with JupyterHub sessions — a submitted job PENDs until the session
 # releases the GPUs.
 
-#SBATCH --job-name=taylor-gns
+#SBATCH --job-name=taylor-cgn
 #SBATCH --partition=curtin_eecms
 #SBATCH --gres=gpu:a100:1                   # ONE A100 80G (single-GPU loop, no DDP).
                                             # The V100 node is too small for the
@@ -38,7 +38,7 @@ python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.ge
 # train -> best checkpoint (selected on rollout position RMSE, ADR-0028)
 # + config.json + normalization_stats.npz. Logs tee into the run dir so
 # summarization never depends on slurm-* files.
-python -m structbench.cli.train --mode train   --config configs/taylor_impact_2d/gns.toml --data-root "$DATA" --out "$OUT" 2>&1 | tee "$OUT/train.log"
+python -m structbench.cli.train --mode train   --config configs/taylor_impact_2d/cgn.toml --data-root "$DATA" --out "$OUT" 2>&1 | tee "$OUT/train.log"
 # eval on the held-out splits: ADR-0019 metrics go to $OUT/metrics-*.json +
 # rollouts/*.npz. The architecture is rebuilt from the run's own config.json,
 # so no --config here. If the train step is killed these never run -- rerun

@@ -1,8 +1,8 @@
-"""Config-driven GNS training, validation, and rollout entry point.
+"""Config-driven CGN training, validation, and rollout entry point.
 
 This module ties together the StructBench ML layer: the canonical data
 pipeline (:mod:`structbench.datasets`), the learned simulator
-(:mod:`structbench.models.gns`), the rollout evaluation
+(:mod:`structbench.models.cgn`), the rollout evaluation
 (:mod:`structbench.eval`), and the benchmark registry
 (:mod:`structbench.benchmarks`).
 
@@ -40,7 +40,7 @@ from torch.utils.data import DataLoader
 
 from ..benchmarks import BenchmarkSpec, available_benchmarks, get_benchmark
 from ..config import (
-    GNSConfig,
+    CGNConfig,
     ProtocolOverride,
     TrainConfig,
     load_run_config,
@@ -56,13 +56,13 @@ from ..datasets import (
     load_case_trajectory,
 )
 from ..eval import one_step_aux_rmse, one_step_position_rmse, rollout
-from ..models.gns import LearnedSimulator
-from ..models.gns.simulator import time_diff
+from ..models.cgn import LearnedSimulator
+from ..models.cgn.simulator import time_diff
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "GNSConfig",
+    "CGNConfig",
     "TrainConfig",
     "build_simulator",
     "evaluate",
@@ -74,7 +74,7 @@ __all__ = [
 def random_walk_position_noise(
     position_sequence: Tensor, noise_std_last_step: float
 ) -> Tensor:
-    """Random-walk noise added to an input position sequence (GNS training).
+    """Random-walk noise added to an input position sequence (CGN training).
 
     Noise is sampled in the velocity domain so that the accumulated standard
     deviation at the last step equals ``noise_std_last_step``, then integrated
@@ -114,7 +114,7 @@ def random_walk_position_noise(
 
 def build_simulator(
     stats: dict[str, dict[str, Tensor]],
-    gns: GNSConfig,
+    cgn: CGNConfig,
     *,
     n_particle_types: int,
     boundary_feature_fn: Callable[[Tensor], Tensor] | None,
@@ -138,7 +138,7 @@ def build_simulator(
         stats are scalar (shape ``(1,)``). Velocity/acceleration std is inflated
         by the training noise; the auxiliary stats are passed through unchanged
         (the auxiliary target carries no input noise).
-    gns : GNSConfig
+    cgn : CGNConfig
         Architecture and noise configuration.
     n_particle_types : int
         Number of distinct particle types; controls the embedding.
@@ -153,11 +153,11 @@ def build_simulator(
     LearnedSimulator
     """
     n_boundary = 1 if boundary_feature_fn is not None else 0
-    embedding = gns.particle_type_embedding_size if n_particle_types > 1 else 0
-    nnode_in = (gns.window - 1) * gns.dim + n_boundary + embedding
-    nedge_in = gns.dim + 1
+    embedding = cgn.particle_type_embedding_size if n_particle_types > 1 else 0
+    nnode_in = (cgn.window - 1) * cgn.dim + n_boundary + embedding
+    nedge_in = cgn.dim + 1
 
-    noise_var = gns.noise_std**2
+    noise_var = cgn.noise_std**2
     normalization_stats: dict[str, dict[str, Tensor]] = {}
     for key in ("velocity", "acceleration"):
         mean = stats[key]["mean"].to(device)
@@ -172,19 +172,19 @@ def build_simulator(
     }
 
     return LearnedSimulator(
-        particle_dimensions=gns.dim,
+        particle_dimensions=cgn.dim,
         nnode_in=nnode_in,
         nedge_in=nedge_in,
-        latent_dim=gns.hidden_dim,
-        nmessage_passing_steps=gns.message_passing_steps,
-        nmlp_layers=gns.nmlp_layers,
-        mlp_hidden_dim=gns.hidden_dim,
-        connectivity_radius=gns.connectivity_radius,
+        latent_dim=cgn.hidden_dim,
+        nmessage_passing_steps=cgn.message_passing_steps,
+        nmlp_layers=cgn.nmlp_layers,
+        mlp_hidden_dim=cgn.hidden_dim,
+        connectivity_radius=cgn.connectivity_radius,
         normalization_stats=normalization_stats,
         nparticle_types=n_particle_types,
-        particle_type_embedding_size=gns.particle_type_embedding_size,
+        particle_type_embedding_size=cgn.particle_type_embedding_size,
         n_aux=1,
-        max_neighbors=gns.max_neighbors,
+        max_neighbors=cgn.max_neighbors,
         boundary_feature_fn=boundary_feature_fn,
         device=device,
     )
@@ -283,7 +283,7 @@ def _validate(
 
 
 def _bind_boundary_feature(
-    spec: BenchmarkSpec, gns: GNSConfig
+    spec: BenchmarkSpec, cgn: CGNConfig
 ) -> Callable[[Tensor], Tensor] | None:
     """Bind the spec's boundary feature to the configured radius, if any."""
     fn = spec.boundary_feature_fn
@@ -291,20 +291,20 @@ def _bind_boundary_feature(
         return None
 
     def feature(positions: Tensor) -> Tensor:
-        return fn(positions, gns.connectivity_radius)
+        return fn(positions, cgn.connectivity_radius)
 
     return feature
 
 
 def train(
     spec: BenchmarkSpec,
-    gns: GNSConfig,
+    cgn: CGNConfig,
     train_cfg: TrainConfig,
     data_root: Path,
     out_dir: Path,
     device: str,
     *,
-    family: str = "gns",
+    family: str = "cgn",
     protocol_override: ProtocolOverride | None = None,
 ) -> Path | None:
     """Run config-driven training with periodic validation and checkpoint-best.
@@ -323,7 +323,7 @@ def train(
     spec : BenchmarkSpec
         Benchmark spec supplying splits, auxiliary field, QoIs, and boundary
         feature.
-    gns : GNSConfig
+    cgn : CGNConfig
         Architecture and noise configuration.
     train_cfg : TrainConfig
         Optimization schedule and loss weights.
@@ -393,9 +393,9 @@ def train(
 
     simulator = build_simulator(
         _stats_to_dict(stats),
-        gns,
+        cgn,
         n_particle_types=n_types,
-        boundary_feature_fn=_bind_boundary_feature(spec, gns),
+        boundary_feature_fn=_bind_boundary_feature(spec, cgn),
         device=device,
     )
     simulator.to(device)
@@ -415,7 +415,7 @@ def train(
         json.dumps(
             resolved_config_dict(
                 family,
-                gns,
+                cgn,
                 train_cfg,
                 init_frames=init_frames,
                 horizon=spec.card.horizon,
@@ -429,7 +429,7 @@ def train(
         encoding="utf-8",
     )
 
-    dataset = WindowDataset(train_trajs, gns.window)
+    dataset = WindowDataset(train_trajs, cgn.window)
     loader = DataLoader(
         dataset,
         batch_size=train_cfg.batch_size,
@@ -457,7 +457,7 @@ def train(
             next_position = batch["next_position"].to(device)
             next_aux = batch["next_aux"].to(device)
 
-            noise = random_walk_position_noise(position_seq, gns.noise_std)
+            noise = random_walk_position_noise(position_seq, cgn.noise_std)
 
             optimizer.zero_grad()
             pred_acc, target_acc, pred_aux = simulator.predict_accelerations(
@@ -509,7 +509,7 @@ def train(
                 val_pos, val_aux = _validate(
                     simulator,
                     val_trajs,
-                    gns.window,
+                    cgn.window,
                     device,
                     spec.kinematic_types,
                     init_frames=init_frames,
@@ -635,16 +635,16 @@ def evaluate(
     if not stats_path.exists():
         raise FileNotFoundError(f"missing normalization stats: {stats_path}")
 
-    gns = GNSConfig(**{k: v for k, v in record["model"].items() if k != "family"})
+    cgn = CGNConfig(**{k: v for k, v in record["model"].items() if k != "family"})
     n_types = int(record["n_particle_types"])
     init = init_frames if init_frames is not None else record["protocol"]["init_frames"]
     stats = NormalizationStats.load(stats_path)
 
     simulator = build_simulator(
         _stats_to_dict(stats),
-        gns,
+        cgn,
         n_particle_types=n_types,
-        boundary_feature_fn=_bind_boundary_feature(spec, gns),
+        boundary_feature_fn=_bind_boundary_feature(spec, cgn),
         device=device,
     )
     checkpoint = _find_checkpoint(out_dir)
@@ -666,7 +666,7 @@ def evaluate(
         result = rollout(
             simulator,
             trajectory,
-            gns.window,
+            cgn.window,
             device,
             qois=spec.qois,
             kinematic_types=spec.kinematic_types,
@@ -675,14 +675,14 @@ def evaluate(
         one_step = one_step_position_rmse(
             simulator,
             trajectory,
-            gns.window,
+            cgn.window,
             device,
             kinematic_types=spec.kinematic_types,
         )
         one_step_aux = one_step_aux_rmse(
             simulator,
             trajectory,
-            gns.window,
+            cgn.window,
             device,
             kinematic_types=spec.kinematic_types,
         )
@@ -764,7 +764,7 @@ def main(argv: list[str] | None = None) -> int:
     int
         Process exit code (0 on success).
     """
-    parser = argparse.ArgumentParser(description="StructBench GNS training entry")
+    parser = argparse.ArgumentParser(description="StructBench CGN training entry")
     parser.add_argument(
         "--mode",
         choices=["train", "valid", "rollout"],

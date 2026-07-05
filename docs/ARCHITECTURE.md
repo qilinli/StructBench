@@ -54,7 +54,7 @@ A benchmark module describes *what* the problem is. It does not include the data
 
 ### `models/`
 
-Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, foundation models, anomaly detectors, and any other ML method shipped as part of the platform. Each model is a self-contained submodule with a defined training protocol, hyperparameter defaults, and a published checkpoint.
+Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, foundation models, anomaly detectors, and any other ML method shipped as part of the platform. Each model is a self-contained submodule with a defined training protocol, hyperparameter defaults, and a published checkpoint. The reference baseline is **CGN** (`models/cgn`, Concrete Graph Network — Li et al. 2023, *Computers & Structures* 289, 107188, ADR-0034), which builds on the encode-process-decode GNS of Sanchez-Gonzalez et al. 2020.
 
 Models in this module are reference implementations. They are not the only models that can be evaluated on a benchmark — external contributions are evaluated through the same protocols without being added here.
 
@@ -66,7 +66,7 @@ Data loading and dataset management. Provides the abstractions that turn an HDF5
 
 The schema for what's *inside* the data files lives in `core/`. The mechanics of loading and serving that data live here.
 
-**ML data flow.** A canonical case (strict SI, HDF5) is loaded and converted to a `CaseTrajectory` — positions in mm plus one auxiliary target field selected by name (`aux_field`, e.g. von Mises stress for Taylor), per the owning benchmark's spec (ADR-0019, ADR-0027) — so that ported GNS hyperparameters transfer without rescaling. The trajectory is then split into overlapping windows (`WindowDataset`) and normalised via velocity/acceleration statistics (`compute_stats`). The windowed, normalised samples feed the GNS simulator (`models/gns`), whose predictions are compared to ground truth by `eval.rollout` — a full autoregressive rollout returning a `RolloutResult` with per-step and cumulative RMSE plus the benchmark's QoI values and errors, and a teacher-forced `one_step_position_rmse` that isolates single-step accuracy (ADR-0019 §5). The benchmark module is responsible for supplying the train/val/test split and for encoding the boundary-condition feature that conditions each particle's neighbourhood message.
+**ML data flow.** A canonical case (strict SI, HDF5) is loaded and converted to a `CaseTrajectory` — positions in mm plus one auxiliary target field selected by name (`aux_field`, e.g. von Mises stress for Taylor), per the owning benchmark's spec (ADR-0019, ADR-0027) — so that ported CGN hyperparameters transfer without rescaling. The trajectory is then split into overlapping windows (`WindowDataset`) and normalised via velocity/acceleration statistics (`compute_stats`). The windowed, normalised samples feed the CGN simulator (`models/cgn`), whose predictions are compared to ground truth by `eval.rollout` — a full autoregressive rollout returning a `RolloutResult` with per-step and cumulative RMSE plus the benchmark's QoI values and errors, and a teacher-forced `one_step_position_rmse` that isolates single-step accuracy (ADR-0019 §5). The benchmark module is responsible for supplying the train/val/test split and for encoding the boundary-condition feature that conditions each particle's neighbourhood message.
 
 ### `eval/`
 

@@ -1,6 +1,6 @@
 import torch
 
-from structbench.models.gns.graph_ops import radius_graph
+from structbench.models.cgn.graph_ops import radius_graph
 
 
 def _edge_set(edge_index):

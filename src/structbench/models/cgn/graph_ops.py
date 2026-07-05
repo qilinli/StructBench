@@ -49,7 +49,7 @@ def radius_graph(
 
     The returned orientation is ``edge_index[0] = query node i`` (receiver) and
     ``edge_index[1] = neighbour j`` (sender), as consumed by
-    :class:`~structbench.models.gns.simulator.LearnedSimulator`.  Note that
+    :class:`~structbench.models.cgn.simulator.LearnedSimulator`.  Note that
     ``torch_geometric.nn.radius_graph`` returns the *transpose* of this
     convention, and under ``max_num_neighbors`` truncation the two are not
     identical (nearest-neighbour selection depends on the query direction).

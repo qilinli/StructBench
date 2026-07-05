@@ -82,6 +82,7 @@ What becomes easier, harder, or constrained as a result.
 | 0031 | Data archive layout: canonical/raw mirrors named by benchmark | Durable | Accepted |
 | 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted |
 | 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted |
+| 0034 | The reference baseline is CGN (Concrete Graph Network, Li et al. 2023) | Durable | Accepted |
 
 ---
 

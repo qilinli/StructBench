@@ -66,19 +66,19 @@ only) — no C++ build step, no CUDA-version matching dance. If you have fought
 GNS codebases on a cluster or on Windows, you know why this matters.
 
 ```bash
-# Train the GNS baseline
-structbench-train --mode train --config configs/taylor_impact_2d/gns.toml \
-    --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-gns
+# Train the CGN baseline (Concrete Graph Network, Li et al. 2023)
+structbench-train --mode train --config configs/taylor_impact_2d/cgn.toml \
+    --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-cgn
 
 # Validate, then roll out on the test splits (architecture is rebuilt from
 # the run directory's own record — no --config needed, or accepted)
-structbench-train --mode valid   --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-gns
-structbench-train --mode rollout --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-gns
+structbench-train --mode valid   --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-cgn
+structbench-train --mode rollout --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-cgn
 ```
 
 Configs are grouped per benchmark (ADR-0032): swap
-`configs/taylor_impact_2d/gns.toml` for `configs/wave_propagation_1d/gns.toml`,
-`configs/notch_beam_2d_bend/gns.toml`, or `configs/notch_beam_2d_impact/gns.toml`
+`configs/taylor_impact_2d/cgn.toml` for `configs/wave_propagation_1d/cgn.toml`,
+`configs/notch_beam_2d_bend/cgn.toml`, or `configs/notch_beam_2d_impact/cgn.toml`
 to train against a different benchmark.
 
 **Data availability:** each benchmark ships as a self-contained canonical
@@ -124,7 +124,7 @@ src/structbench/
   core/            # case schema, validation, HDF5 I/O, LS-DYNA adapter
   datasets/        # canonical readers, windowing, normalization
   benchmarks/      # one module per benchmark: split + protocol + QoIs
-  models/gns/      # reference GNS (native radius_graph, no compiled deps)
+  models/cgn/      # CGN reference baseline (Li et al. 2023; native radius_graph)
   eval/            # rollout driver, metrics
   cli/             # structbench-train
 configs/           # grouped TOML run configs, configs/<benchmark>/<family>.toml (ADR-0032)
@@ -150,8 +150,8 @@ decisions/         # architecture decision records
 - [x] ~~`radius_graph` batch-partition fix: 50.9 s → 0.22 s per batch~~ (2026-07-02)
 - [x] ~~Public GitHub repository~~ (2026-07-02)
 - [x] ~~First full baseline run → training-recipe rework (ADR-0028)~~ (2026-07-03)
-- [ ] Trained GNS baseline with the ADR-0028 recipe (DUG A100; SSH-side
-      steps are human-gated)
+- [ ] Trained CGN baseline with the ADR-0028 recipe (DUG A100; SSH-side
+      steps are human-gated; baseline named CGN per ADR-0034)
   - [ ] full retrain (~⅓ of the first run's 14k steps/h — plan walltime
         accordingly)
   - [ ] checkpoint + recorded ADR-0019 metrics
@@ -169,7 +169,7 @@ decisions/         # architecture decision records
       `StructBench/{canonical,raw}` mirrors (ADR-0031)~~ (2026-07-05)
 - [x] ~~ADR-0030 unit-fix follow-through: patch confirmed on all 237 files,
       converters + cards corrected, ADR written + indexed~~ (2026-07-05)
-- [ ] Three trained GNS baselines (checkpoint + metrics each)
+- [ ] Three trained CGN baselines (checkpoint + metrics each)
   - [ ] `wave_propagation_1d`
   - [ ] `notch_beam_2d_bend`
   - [ ] `notch_beam_2d_impact`
@@ -210,7 +210,7 @@ decisions/         # architecture decision records
 
 - **v0.3 — RC beam benchmark**: erosion, twice (numerically for the FEM
   data; structurally for the surrogate — particles vanishing mid-rollout)
-- Segmented beam benchmark (parked) · MS-GNS second Taylor baseline (spec
+- Segmented beam benchmark (parked) · multi-scale CGN second Taylor baseline (spec
   Proposed)
 - Training: resume support (optimizer state + `--resume`) ·
   part-id→embedding remap · ADR-0028 Phase-2 ablations (noise_std, aux

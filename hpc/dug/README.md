@@ -1,8 +1,8 @@
-# Running the Taylor 2D GNS baseline on DUG McCloud
+# Running the Taylor 2D CGN baseline on DUG McCloud
 
 DUG uses **SLURM**. Access is SSH (with a JupyterLab-over-localhost option).
 GPU nodes offer 4×V100 or 2×A100 80 GB. The training loop is **single-GPU**, so
-we request **one** A100 80 GB — the full `configs/taylor_impact_2d/gns.toml` (batch 32,
+we request **one** A100 80 GB — the full `configs/taylor_impact_2d/cgn.toml` (batch 32,
 ~14 GB) fits with room to spare. The extra GPUs would sit idle unless the model
 is extended with DistributedDataParallel (a separate change).
 
@@ -50,7 +50,7 @@ ADR-0020).
 # quick sanity that CUDA + the pipeline work on DUG's GPU, using the tiny config:
 srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:15:00 --pty bash -lc '
   source .venv/bin/activate && export PYTHONPATH=src
-  python -m structbench.cli.train --mode train --config configs/taylor_impact_2d/gns_smoke.toml \
+  python -m structbench.cli.train --mode train --config configs/taylor_impact_2d/cgn_smoke.toml \
     --data-root /data/curtin_eecms/curtin_qilin/data/taylor_impact --out runs/smoke'
 
 # full baseline as a batch job (from a login node; OUT defaults to

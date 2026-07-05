@@ -1,6 +1,6 @@
 import torch
 
-from structbench.models.gns.simulator import LearnedSimulator
+from structbench.models.cgn.simulator import LearnedSimulator
 
 
 def _stats(dim=2, aux_mean=0.0, aux_std=1.0):
