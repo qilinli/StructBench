@@ -34,3 +34,5 @@ training_steps = 100000
 val_every = 2000
 w_pos = 1.0                       # acceleration (position) loss weight
 w_aux = 1.0                       # auxiliary (von Mises) loss weight
+
+seed = 0                          # torch RNG: weight init, training noise, shuffle order

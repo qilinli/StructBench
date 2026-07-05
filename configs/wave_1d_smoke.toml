@@ -5,3 +5,5 @@ connectivity_radius = 4.8
 training_steps = 10
 val_every = 5
 batch_size = 2
+
+seed = 0                          # torch RNG: weight init, training noise, shuffle order

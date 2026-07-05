@@ -25,3 +25,5 @@ training_steps = 10
 val_every = 10
 w_pos = 1.0
 w_aux = 1.0
+
+seed = 0                          # torch RNG: weight init, training noise, shuffle order

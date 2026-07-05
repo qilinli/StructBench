@@ -136,6 +136,11 @@ class TrainConfig:
         Weight on the acceleration (position) loss term.
     w_aux : float
         Weight on the auxiliary loss term.
+    seed : int
+        Torch RNG seed set at the start of :func:`train`; fixes weight
+        initialization, training-noise draws, and shuffle order. Bitwise GPU
+        reproducibility would additionally require deterministic kernels
+        (scatter-add is nondeterministic on CUDA), which are not enabled.
     """
 
     benchmark: str = "taylor_impact_2d"
@@ -147,6 +152,7 @@ class TrainConfig:
     val_every: int = 2000
     w_pos: float = 1.0
     w_aux: float = 1.0
+    seed: int = 0
 
     @classmethod
     def from_toml(cls, path: str | Path) -> TrainConfig:
@@ -453,6 +459,12 @@ def train(
             f"{out_dir} already contains checkpoints (e.g. {existing[0].name}); "
             "training has no resume — use a fresh --out directory per attempt"
         )
+
+    # Seeds weight init, noise draws, and shuffle order (torch.manual_seed
+    # covers all CUDA devices and the DataLoader's base seed). CUDA scatter-add
+    # stays nondeterministic, so GPU runs are statistically, not bitwise,
+    # reproducible.
+    torch.manual_seed(train_cfg.seed)
 
     train_ids = list(spec.splits["train"])
     logger.info("loading %d TRAIN trajectories from %s", len(train_ids), data_root)
