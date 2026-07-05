@@ -225,6 +225,9 @@ decisions/         # architecture decision records
 
 ### Inbox — untriaged, add freely
 
+- [ ] per-benchmark README: dataset info, evaluation criteria, and (once
+      trained) baseline results — likely grows out of the ADR-0027
+      card-generated archive README (`tools/gen_benchmark_docs.py --archive`)
 - [ ] `lr_init` code default still 1e-3; ADR-0028's 1e-4 lives only in the
       TOML
 - [ ] confirm the Taylor deck genuinely is g-mm-ms (sanity check alongside
