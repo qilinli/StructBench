@@ -1,6 +1,6 @@
 # 0032 — Grouped run configuration and benchmark-protocol governance
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-07-05
 

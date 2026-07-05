@@ -67,7 +67,7 @@ What becomes easier, harder, or constrained as a result.
 | 0016 | LS-DYNA d3plot is the canonical ingestion path; general adapter on lasso-python | Durable | Accepted |
 | 0017 | Relationship to NVIDIA PhysicsNeMo: independent substrate, opt-in model-edge interop | Durable | Accepted |
 | 0018 | PyTorch + PyG are hard runtime dependencies of the ML layer | Durable | Accepted |
-| 0019 | v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol | Durable | Accepted |
+| 0019 | v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol | Durable | Accepted (amended by 0032) |
 | 0020 | Native radius_graph; no graph-backend binary dependency | Durable | Accepted |
 | 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
 | 0022 | FEM-convention visualization harness (`viz/`, matplotlib as optional extra) | Durable | Accepted |
@@ -75,10 +75,10 @@ What becomes easier, harder, or constrained as a result.
 | 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Durable | Accepted |
 | 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted |
 | 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted (amended by ADR-0029) |
-| 0027 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Accepted |
+| 0027 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Accepted (amended by 0032) |
 | 0028 | GNS baseline training-recipe rework after the first full run | Ephemeral | Accepted |
 | 0029 | Notch-beam aux is max principal strain, not K&C damage (amends 0026) | Durable | Accepted |
-| 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Proposed |
+| 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted |
 
 ---
 
