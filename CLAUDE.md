@@ -16,7 +16,7 @@ HARNESS.md carries the principles (*why* rules exist); this file carries the mec
 
 StructBench is an open platform for data-driven structural engineering — benchmarks, reference models, and eventually deployment tools. Run by Qilin Li (human) and Claude Code (agent) together under the philosophy in HARNESS.md.
 
-Current stage: pre-v0.1, release imminent. The substrate is built end to end: canonical case schema + HDF5 I/O in `core/`, the general LS-DYNA adapter (`core/io/lsdyna.py`, on `lasso-python`, ADR-0016), the Taylor 2D benchmark (ADR-0019) with its single-scale GNS baseline, and the config-driven pipeline (`structbench-train`). Per ADR-0021 (amending ADR-0015's release sequencing), **v0.1 ships the Taylor 2D benchmark only**, as a public GitHub repository — remaining items are the trained baseline (DUG run) and publication, both human actions. **v0.2 is scoped** (ADRs 0024–0027): the 1D wave-propagation benchmark and the notch-beam pair (bend/impact), each with the single-scale GNS retrained as baseline, plus the benchmark-card metadata convention. The RC beam benchmark (with its erosion problem) follows in v0.3; the segmented beam is parked (ADR-0015's portfolio stands). See ROADMAP.md for sequencing.
+Current stage: pre-v0.1, release imminent. The substrate is built end to end: canonical case schema + HDF5 I/O in `core/`, the general LS-DYNA adapter (`core/io/lsdyna.py`, on `lasso-python`, ADR-0016), the Taylor 2D benchmark (ADR-0019) with its single-scale GNS baseline, and the config-driven pipeline (`structbench-train`). Per ADR-0021 (amending ADR-0015's release sequencing), **v0.1 ships the Taylor 2D benchmark only**, as a public GitHub repository — remaining items are the trained baseline (DUG run) and publication, both human actions. **v0.2 is scoped** (ADRs 0024–0027): the 1D wave-propagation benchmark and the notch-beam pair (bend/impact), each with the single-scale GNS retrained as baseline, plus the benchmark-card metadata convention. The RC beam benchmark (with its erosion problem) follows in v0.3; the segmented beam is parked (ADR-0015's portfolio stands). See the Roadmap section of README.md for sequencing.
 
 ---
 
@@ -39,7 +39,7 @@ Then, conditionally based on the session's task:
 
 - `docs/ARCHITECTURE.md` — if the task touches the package structure, module interfaces, or the case schema.
 - Specific ADRs from the index — whichever are relevant to the task.
-- `ROADMAP.md` — if the session is about planning or scoping.
+- The Roadmap section of `README.md` — if the session is about planning or scoping.
 
 If the session's task is not clear from the opening message, ask the human what the session is for before beginning work.
 
@@ -129,7 +129,7 @@ Small corrections that don't warrant an ADR are logged in `CORRECTIONS.md`. Form
 - **Dependency policy and approved list**: `docs/PRINCIPLES.md`, with individual additions recorded as ADRs.
 - **ADR format and process**: `decisions/README.md`.
 - **Session venues and multi-machine git workflow**: `docs/WORKFLOW.md`.
-- **Long-term trajectory**: `ROADMAP.md`.
+- **Long-term trajectory**: the Roadmap section of `README.md`.
 
 If a rule seems missing from all of these, flag it rather than guess. It may belong in one of the existing documents, or it may indicate a gap the harness doesn't yet cover.
 

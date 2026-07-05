@@ -65,3 +65,11 @@ between gitignored `runs/` artifacts and code history.
   (authority tiers in CLAUDE.md, ADR-0023), and release actions remain fully
   human (forbidden tier).
 - Branches are short-lived: merge within days, delete after merging.
+
+## Publication note
+
+`RESEARCH-PROGRAM.md` (private program strategy) is untracked from
+2026-07-02 onward but exists in commits before that date. If this repository
+is ever made public directly, publish a fresh clean-cut repo from the
+release state instead of flipping this one's visibility. *(Moved from
+ROADMAP.md at its retirement, 2026-07-05.)*

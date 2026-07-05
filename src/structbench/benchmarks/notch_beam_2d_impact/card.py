@@ -19,7 +19,7 @@ CARD = BenchmarkCard(
     solver="LS-DYNA",
     discretisation="SPH",
     materials=(
-        "*MAT_CONCRETE_DAMAGE_REL3 (K&C; scaled density 2.4e-6 g/mm3)",
+        "*MAT_CONCRETE_DAMAGE_REL3 (K&C; density 2.4e-6 kg/mm3)",
         "*MAT_PLASTIC_KINEMATIC",
     ),
     erosion=False,
@@ -27,7 +27,7 @@ CARD = BenchmarkCard(
         "drop-weight impact, initial velocity 40-160 mm/s,"
         " impactor shapes Bullet/Rectangular/Sphere"
     ),
-    source_units="g-mm-ms",
+    source_units="kg-mm-ms",
     geometry="2D SPH notched beam, H80 x span {320,480,640} mm",
     n_cases=len(TRAIN) + len(VAL) + len(TEST_INTERP) + len(PROBE),
     splits={
@@ -69,4 +69,5 @@ CARD = BenchmarkCard(
         "dataset (ingested data lives on the ingestion machine). Confirm "
         "before the first trained baseline."
     ),
+    size_gb=24.9,
 )

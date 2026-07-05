@@ -78,4 +78,5 @@ CARD = BenchmarkCard(
         "particle-mean field, e.g. 191 MPa at 44 us in T-20-80-150 ground "
         "truth) penalize temporally coarse surrogates."
     ),
+    size_gb=2.4,
 )

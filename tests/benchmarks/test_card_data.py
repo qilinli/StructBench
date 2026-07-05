@@ -1,9 +1,11 @@
 """Card-vs-data validation (ADR-0027) — runs only when data is present.
 
-Each benchmark has its own env var:
-  STRUCTBENCH_DATA_ROOT        — Taylor canonical HDF5 directory
-  STRUCTBENCH_WAVE1D_DATA_ROOT — Wave-1d canonical HDF5 directory
-  STRUCTBENCH_NOTCH_DATA_ROOT  — Notch-beam canonical HDF5 directory (both families)
+Each benchmark has its own env var, pointing at its canonical archive
+directory (ADR-0031 layout: <data>/StructBench/canonical/<benchmark>/):
+  STRUCTBENCH_DATA_ROOT              — taylor_impact_2d
+  STRUCTBENCH_WAVE1D_DATA_ROOT       — wave_propagation_1d
+  STRUCTBENCH_NOTCH_BEND_DATA_ROOT   — notch_beam_2d_bend
+  STRUCTBENCH_NOTCH_IMPACT_DATA_ROOT — notch_beam_2d_impact
 
 Each parametrized case skips independently when its var is unset.
 """
@@ -17,8 +19,8 @@ from structbench.benchmarks import get_benchmark
 from structbench.core.io import read_case
 
 _BENCHMARK_ROOTS = {
-    "notch_beam_2d_bend": os.environ.get("STRUCTBENCH_NOTCH_DATA_ROOT"),
-    "notch_beam_2d_impact": os.environ.get("STRUCTBENCH_NOTCH_DATA_ROOT"),
+    "notch_beam_2d_bend": os.environ.get("STRUCTBENCH_NOTCH_BEND_DATA_ROOT"),
+    "notch_beam_2d_impact": os.environ.get("STRUCTBENCH_NOTCH_IMPACT_DATA_ROOT"),
     "taylor_impact_2d": os.environ.get("STRUCTBENCH_DATA_ROOT"),
     "wave_propagation_1d": os.environ.get("STRUCTBENCH_WAVE1D_DATA_ROOT"),
 }

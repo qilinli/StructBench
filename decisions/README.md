@@ -77,6 +77,7 @@ What becomes easier, harder, or constrained as a result.
 | 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted (amended by ADR-0029) |
 | 0028 | GNS baseline training-recipe rework after the first full run | Ephemeral | Accepted |
 | 0029 | Notch-beam aux is max principal strain, not K&C damage (amends 0026) | Durable | Accepted |
+| 0031 | Data archive layout: canonical/raw mirrors named by benchmark | Durable | Accepted |
 | 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted |
 
 ---

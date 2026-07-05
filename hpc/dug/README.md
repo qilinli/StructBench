@@ -17,20 +17,20 @@ sessions — a submitted GPU job PENDs until any session holding the GPUs ends.
 
 ```bash
 REPO="<path-to-local>/StructBench"
-DATA="<path-to-local>/data/2D-Copper-Bar-Taylor-Impact/h5_canonical"
+DATA="<path-to-local>/data/StructBench/canonical/taylor_impact_2d"
 
 rsync -avP "$REPO/" <user>@<dug-host>:<proj>/structbench/ \
   --exclude '.venv' --exclude 'runs' --exclude '.git' \
   --exclude '__pycache__' --exclude 'scratch'
-rsync -avP "$DATA/" <user>@<dug-host>:<proj>/data/h5_canonical/     # 2.4 GB, 34 files
+rsync -avP "$DATA/" <user>@<dug-host>:<proj>/data/taylor_impact/    # 2.4 GB, 34 files (the path train_taylor.slurm reads)
 ```
 
 For the data, `rclone` on the DUG side is the alternative that avoids hydrating
 the OneDrive files locally first — with a OneDrive remote configured there:
 
 ```bash
-rclone copy onedrive:"<path-to>/2D-Copper-Bar-Taylor-Impact/h5_canonical" \
-  <proj>/data/h5_canonical --progress --transfers=8
+rclone copy onedrive:"<path-to>/data/StructBench/canonical/taylor_impact_2d" \
+  <proj>/data/taylor_impact --progress --transfers=8
 ```
 
 ## 2. Build the env (once, on the DUG login node)

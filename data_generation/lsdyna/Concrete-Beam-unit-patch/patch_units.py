@@ -45,8 +45,12 @@ Usage::
     python patch_units.py
 
     # Override default roots (e.g. for testing on a copy)
-    python patch_units.py --notch-root /alt/path/2DNotchBeam/h5_canonical \\
-                          --wave-root  /alt/path/1DWavePropagation/h5_canonical
+    python patch_units.py --roots /alt/wave_propagation_1d /alt/notch_beam_2d_bend
+
+Default roots follow the ADR-0031 layout: the three Concrete-Beam-derived
+canonical archives under ``<repo-parent>/data/StructBench/canonical/``.
+(The patch was executed 2026-07-05 on the pre-reorg layout; spot-check
+confirmed ``kg-mm-ms`` attrs. Re-runs are idempotent no-ops.)
 
 This script is not part of the importable package (ADR-0010).  Run with the
 project conda/venv Python (h5py required).
@@ -67,12 +71,16 @@ import numpy as np
 # ---------------------------------------------------------------------------
 
 #: <repo>/data_generation/lsdyna/Concrete-Beam-unit-patch/patch_units.py
-#: → repo root is parents[3], data lives at <repo-parent>/data/…
+#: → repo root is parents[3]; canonical archives per ADR-0031 live at
+#: <repo-parent>/data/StructBench/canonical/<benchmark>/.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_DATA_ROOT = _REPO_ROOT.parent / "data" / "Concrete-Beam"
+_CANONICAL_ROOT = _REPO_ROOT.parent / "data" / "StructBench" / "canonical"
 
-_DEFAULT_NOTCH_ROOT = _DATA_ROOT / "2DNotchBeam" / "h5_canonical"
-_DEFAULT_WAVE_ROOT = _DATA_ROOT / "1DWavePropagation" / "h5_canonical"
+_DEFAULT_ROOTS: tuple[Path, ...] = (
+    _CANONICAL_ROOT / "wave_propagation_1d",
+    _CANONICAL_ROOT / "notch_beam_2d_bend",
+    _CANONICAL_ROOT / "notch_beam_2d_impact",
+)
 
 # ---------------------------------------------------------------------------
 # Dataset paths to scale (all under the HDF5 root)
@@ -267,17 +275,13 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
-        "--notch-root",
+        "--roots",
         type=Path,
-        default=_DEFAULT_NOTCH_ROOT,
-        help=f"2DNotchBeam h5_canonical directory (default: {_DEFAULT_NOTCH_ROOT})",
-    )
-    parser.add_argument(
-        "--wave-root",
-        type=Path,
-        default=_DEFAULT_WAVE_ROOT,
+        nargs="+",
+        default=list(_DEFAULT_ROOTS),
         help=(
-            f"1DWavePropagation h5_canonical directory (default: {_DEFAULT_WAVE_ROOT})"
+            "canonical archive directories to patch (default: the three "
+            f"Concrete-Beam-derived archives under {_CANONICAL_ROOT})"
         ),
     )
     args = parser.parse_args(argv)
@@ -291,8 +295,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         _LOG.info("=== DRY RUN — no files will be modified ===")
 
-    roots = [args.notch_root, args.wave_root]
-    return _run_batch(roots, dry_run=args.dry_run)
+    return _run_batch(list(args.roots), dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

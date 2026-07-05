@@ -17,8 +17,8 @@ Note: `sph/stress` and `sph/strain` are full 6-component Voigt tensors; each ben
 Autoregressive next-step surrogate of a 2D SPH notched concrete beam under constant-velocity three-point bending (ADR-0026). Covers 3 spans, 9 load-notch combinations, and 4 pin velocities.
 
 - **Task**: autoregressive transition (ADR-0026)
-- **Materials**: *MAT_CONCRETE_DAMAGE_REL3 (K&C; scaled density 2.4e-6 g/mm3), *MAT_PLASTIC_KINEMATIC
-- **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units g-mm-ms
+- **Materials**: *MAT_CONCRETE_DAMAGE_REL3 (K&C; density 2.4e-6 kg/mm3), *MAT_PLASTIC_KINEMATIC
+- **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units kg-mm-ms
 - **Splits**: train 88, val 8, test_interp 12, probe 3
 - **Protocol** (ADR-0032): init 3 frames, horizon full, scored at native output times. *Rationale*: Provisional (ADR-0032 s7): init = 3 is the second-order minimum; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine). Confirm before the first trained baseline.
 - **QoIs**: midspan_deflection_peak, cracked_fraction
@@ -31,8 +31,8 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under const
 Autoregressive next-step surrogate of a 2D SPH notched concrete beam under drop-weight impact (ADR-0026). Covers 3 spans, 3 impactor shapes, 3 notch positions, and 4 velocities.
 
 - **Task**: autoregressive transition (ADR-0026)
-- **Materials**: *MAT_CONCRETE_DAMAGE_REL3 (K&C; scaled density 2.4e-6 g/mm3), *MAT_PLASTIC_KINEMATIC
-- **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units g-mm-ms
+- **Materials**: *MAT_CONCRETE_DAMAGE_REL3 (K&C; density 2.4e-6 kg/mm3), *MAT_PLASTIC_KINEMATIC
+- **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units kg-mm-ms
 - **Splits**: train 88, val 8, test_interp 12, probe 2
 - **Protocol** (ADR-0032): init 3 frames, horizon full, scored at native output times. *Rationale*: Provisional (ADR-0032 s7): init = 3 is the second-order minimum; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine). Confirm before the first trained baseline.
 - **QoIs**: midspan_deflection_peak, cracked_fraction
@@ -59,8 +59,8 @@ Autoregressive next-step surrogate of a 2D SPH copper bar under Taylor impact ag
 Autoregressive next-step surrogate of an elastic stress wave in a 2D SPH bar strip under initial-velocity excitation (ADR-0025). Entry tier: onboarding, tutorial, and fast CI.
 
 - **Task**: autoregressive transition (ADR-0025)
-- **Materials**: *MAT_ELASTIC (scaled toy constants: E=0.01 MPa, rho=2e-6 g/mm3)
-- **Geometry**: 2D strip, 5 particle rows, {200, 300, 400, 500} mm x 8 mm; source units g-mm-ms
+- **Materials**: *MAT_ELASTIC (scaled toy constants: E=0.01 GPa, rho=2e-6 kg/mm3)
+- **Geometry**: 2D strip, 5 particle rows, {200, 300, 400, 500} mm x 8 mm; source units kg-mm-ms
 - **Splits**: train 12, val 2, test_interp 2
 - **Protocol** (ADR-0032): init 3 frames, horizon full, scored at native output times. *Rationale*: Provisional (ADR-0032 s7): init = 3 is the second-order minimum; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine). Confirm before the first trained baseline -- in particular init must stay well below the wave's arrival at the first gauge or the arrival_time QoI is partially given away.
 - **QoIs**: arrival_time_25, arrival_time_50, arrival_time_75, peak_stress
