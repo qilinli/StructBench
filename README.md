@@ -184,6 +184,10 @@ decisions/         # architecture decision records
 
 ### Inbox — untriaged, add freely
 
+- [ ] qualitative comparison figures in `viz/`: truth-vs-prediction von
+      Mises fringe panels at 2–3 time instants + deformed-contour overlay
+      (per-benchmark eval artifact; wanted for the release, out of metric
+      scope — ADR-0019 review note 2026-07-05)
 - [x] ~~mypy fails on numpy 2.5 stubs (`type` statement needs py3.12
       target)~~ (resolved 2026-07-05: floor raised to Python 3.12 —
       numpy ≥ 2.5 requires it, so the 3.11 floor was untestable; mypy

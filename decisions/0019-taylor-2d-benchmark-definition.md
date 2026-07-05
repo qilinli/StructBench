@@ -99,3 +99,24 @@ benchmark *task and protocol*, which any model is evaluated against.
 - The protocol generalises to the other v0.1 datasets (RC beam, segmented beam)
   with their own splits and QoIs; each gets its own benchmark definition, not a
   change to this one.
+
+## Review note — 2026-07-05 QoI literature validation (no change)
+
+A maintainer-directed review checked this benchmark's evaluation quantities
+against what Taylor-impact domain experts report (Taylor 1948 / Whiffin 1948;
+Wilkins & Guinan 1973; Johnson & Holmquist 1988; House et al. 1995; Field et
+al. 2004 review, Eq. 4; Banerjee's C-SAFE validation-metric reports,
+arXiv:1201.2476 and cond-mat/0512466; Eakins & Thadhani 2006; Rodionov et al.
+2023). Outcome: `final_length` and `mushroom_width` are exactly the
+literature's two headline recovered-specimen scalars (L_f, D_f), and the
+ADR-0032 peak / t-peak von Mises pair is the benchmark's temporal-fidelity
+counterpart to instrumented-test practice. Considered and deliberately NOT
+adopted (maintainer call, redundancy/leanness): the undeformed rear-section
+length X_f (third length of Taylor's formula; judged redundant with
+`final_length` for scoring), the Johnson-Holmquist intermediate diameter,
+the derived Taylor dynamic yield stress (needs X_f), profile-RMSE, and the
+final area (volume-conservation) ratio. Revisit candidates if external users
+or reviewers ask; adding any is a protocol change (ADR-0032 §4, version
+bump). Qualitative comparison figures (von Mises fringe truth-vs-prediction
+panels, deformed-contour overlays) were affirmed as wanted but are `viz/`
+artifacts, not metrics — tracked on the roadmap.
