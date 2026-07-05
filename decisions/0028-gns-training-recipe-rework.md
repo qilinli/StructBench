@@ -79,3 +79,10 @@ stress-history input feature.
 - `GNSConfig` gains `max_neighbors`; older `config.json` files without it
   load with the (new) default — `evaluate()` on pre-0024 run dirs still works
   because architecture is rebuilt from the run's own record.
+
+---
+
+*2026-07-05 — the Phase-2 ablation this ADR deferred (noise_std, w_aux,
+model capacity) has run; the recipe is amended by ADR-0031, which adopts the
+reference-capacity architecture on that evidence. Stress-history features and
+push-forward training remain open.*
