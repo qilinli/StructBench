@@ -167,13 +167,8 @@ decisions/         # architecture decision records
 - [x] ~~Notch aux → max principal strain; damaged→cracked fraction (ADR-0029)~~ (2026-07-04)
 - [x] ~~Data archive reorganized to the hosting layout:
       `StructBench/{canonical,raw}` mirrors (ADR-0031)~~ (2026-07-05)
-- [ ] ADR-0030 unit-fix follow-through (Concrete-Beam decks are kg-mm-ms)
-  - [ ] write + index the ADR (decision already live in `patch_units.py`)
-  - [x] ~~confirm `patch_units.py` ran over all 237 canonical HDF5s~~
-        (spot-check: kg-mm-ms attrs, 2026-07-05)
-  - [x] ~~fix `SOURCE_UNITS` in the two convert.py scripts~~ (2026-07-05)
-  - [x] ~~correct `source_units` + mass-unit constants in the three cards;
-        regenerate `docs/benchmarks.md`~~ (2026-07-05)
+- [x] ~~ADR-0030 unit-fix follow-through: patch confirmed on all 237 files,
+      converters + cards corrected, ADR written + indexed~~ (2026-07-05)
 - [ ] Three trained GNS baselines (checkpoint + metrics each)
   - [ ] `wave_propagation_1d`
   - [ ] `notch_beam_2d_bend`
@@ -199,8 +194,9 @@ decisions/         # architecture decision records
       card-generated archive README (`tools/gen_benchmark_docs.py --archive`)
 - [ ] `lr_init` code default still 1e-3; ADR-0028's 1e-4 lives only in the
       TOML
-- [ ] confirm the Taylor deck genuinely is g-mm-ms (sanity check alongside
-      ADR-0030)
+- [x] ~~confirm the Taylor deck genuinely is g-mm-ms~~ (verified against
+      `scratch/Taylor.k`: RO/G/EOS-C physical only under g-mm-ms; recorded
+      in ADR-0030, 2026-07-05)
 - [ ] reconcile ADR-0012's "4 Voigt components in 2D" prose
       (CORRECTIONS.md item)
 
