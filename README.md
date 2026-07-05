@@ -179,8 +179,10 @@ decisions/         # architecture decision records
   - [ ] `notch_beam_2d_impact`
 - [ ] Validate the provisional `cracked_fraction` threshold 0.01 (ADR-0029;
       version bump if revised)
-- [ ] Dataset hosting decision (Zenodo / HuggingFace / institutional) —
-      gates the v0.1 release too; v0.2 is ~7× the data
+- [ ] Dataset hosting: direction agreed 2026-07-05 — Zenodo, one record per
+      benchmark, versions ↔ record DOIs; OneDrive stays the private master.
+      Publish deferred until benchmark versions are final (gates the v0.1
+      release; ADR to be drafted at publish time)
 - [x] ~~Archive packaging: measure `size_gb` per benchmark (2.4 / 0.23 /
       24.1 / 24.9), generate per-archive README + card.json~~ (2026-07-05)
 
