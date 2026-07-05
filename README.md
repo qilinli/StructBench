@@ -5,7 +5,7 @@ A task definition, a fixed split, metrics in physical units, and a reference
 baseline to beat — for structures under dynamic and extreme loading.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 
 > **Status: pre-release (v0.1 imminent).** What exists is real and tested;
 > what doesn't is on the [roadmap](#roadmap).
@@ -184,8 +184,10 @@ decisions/         # architecture decision records
 
 ### Inbox — untriaged, add freely
 
-- [ ] mypy fails on numpy 2.5 stubs (`type` statement needs py3.12 target;
-      project floor is 3.11) — surfaced by the 2026-07-05 lockfile env
+- [x] ~~mypy fails on numpy 2.5 stubs (`type` statement needs py3.12
+      target)~~ (resolved 2026-07-05: floor raised to Python 3.12 —
+      numpy ≥ 2.5 requires it, so the 3.11 floor was untestable; mypy
+      green again)
 - [ ] DUG remote data dir is `data/taylor_impact`; rename to
       `taylor_impact_2d` (archive name) and update `train_taylor.slurm` +
       `hpc/dug/README.md` together, between job fleets

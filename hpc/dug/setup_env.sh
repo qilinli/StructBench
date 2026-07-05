@@ -17,7 +17,7 @@ if ! command -v uv >/dev/null; then
   export PATH="$HOME/.local/bin:$PATH"
 fi
 
-uv venv .venv --python 3.11
+uv venv .venv --python 3.12
 # Linux CUDA torch, same version validated locally (cu126 ships a Linux wheel):
 uv pip install --python .venv "torch==2.12.1" --index-url https://download.pytorch.org/whl/cu126
 # Everything else from pyproject (numpy, h5py, torch-geometric); torch already

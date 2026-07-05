@@ -16,7 +16,7 @@ Conventions here are durable defaults, not laws of physics. A genuinely bad fit 
 
 ## Language & runtime
 
-- **Python 3.11+** is the floor. Code may use any feature available in 3.11 (`tomllib`, exception groups, finer-grained typing) and must not require 3.12+ without raising the floor here first.
+- **Python 3.12+** is the floor *(raised from 3.11 on 2026-07-05: the pinned scientific stack — numpy ≥ 2.5 — requires 3.12, so a 3.11 floor had become untestable)*. Code may use any feature available in 3.12 (`type` alias statements, PEP 695 generics, `tomllib`, exception groups) and must not require 3.13+ without raising the floor here first.
 - The package uses the **`src/`-layout** (`src/structbench/`); see `ARCHITECTURE.md` for the rationale and module map.
 - Standard-library solutions are preferred over a new dependency when the difference is marginal. Adding a dependency is a deliberate act governed by *Dependency policy* below.
 

@@ -7,7 +7,7 @@ name = "structbench"
 version = "0.1.0.dev0"
 description = "An open platform for data-driven structural engineering."
 readme = "VISION.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "Apache-2.0"
 authors = [{ name = "Qilin Li" }]
 dependencies = [
@@ -40,14 +40,14 @@ structbench = ["py.typed"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 packages = ["structbench"]
 disallow_untyped_defs = true
 warn_unused_ignores = true
