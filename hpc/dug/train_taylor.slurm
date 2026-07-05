@@ -25,7 +25,8 @@
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 
-OUT=${OUT:-runs/taylor-full-adr0024}        # override: OUT=runs/xyz sbatch ...
+OUT=${OUT:-runs/taylor-cgn-v01}             # override: OUT=runs/xyz sbatch ...
+                                            # (train refuses an OUT that already has checkpoints)
 mkdir -p "$OUT"
 source .venv/bin/activate
 export PYTHONPATH=src
