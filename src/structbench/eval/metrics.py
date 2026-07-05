@@ -23,12 +23,18 @@ class QoiInputs:
         ``(T, P)`` auxiliary field, working frame (the card's aux unit).
     particle_type:
         ``(P,)`` particle part-ids, when the caller provides them.
+    init:
+        First scored frame (the protocol's ``init_frames``, ADR-0032 §4).
+        Frames before it are the ground-truth-seeded prefix; QoIs that scan
+        over time should read ``[init:]``, while frame-0 geometry (gauge
+        positions, reference spans) remains available.
     """
 
     time: NDArray[np.float64]
     positions: NDArray[np.float32]
     aux: NDArray[np.float32]
     particle_type: NDArray[np.int64] | None = None
+    init: int = 0
 
 
 #: A quantity of interest maps rollout arrays to one scalar.
@@ -121,6 +127,51 @@ def mushroom_width(inputs: QoiInputs) -> float:
     return float(y.max() - y.min())
 
 
+def peak_mean_aux(inputs: QoiInputs) -> float:
+    """Peak of the particle-mean auxiliary field over the trajectory (ADR-0032).
+
+    A temporal-fidelity QoI: the particle-mean aux (von Mises for Taylor)
+    peaks mid-trajectory and relaxes, so a surrogate that only matches end
+    states — or blurs through transients at coarse internal time steps —
+    misses it. The mean over particles keeps the value robust against
+    single-particle outliers.
+
+    Parameters
+    ----------
+    inputs:
+        Rollout inputs; ``aux`` is read.
+
+    Returns
+    -------
+    float
+        Maximum over scored frames (``inputs.init`` onward) of the per-frame
+        particle-mean aux, in the card's working aux unit.
+    """
+    mean_aux = np.asarray(inputs.aux, float)[inputs.init :].mean(axis=1)
+    return float(mean_aux.max())
+
+
+def t_peak_mean_aux(inputs: QoiInputs) -> float:
+    """Time of the particle-mean aux peak, milliseconds (ADR-0032).
+
+    Companion of :func:`peak_mean_aux`: getting the peak value right at the
+    wrong time is still a temporal-resolution failure.
+
+    Parameters
+    ----------
+    inputs:
+        Rollout inputs; ``aux`` and ``time`` are read.
+
+    Returns
+    -------
+    float
+        Time of the peak frame in milliseconds (the ``arrival_time``
+        convention).
+    """
+    mean_aux = np.asarray(inputs.aux, float)[inputs.init :].mean(axis=1)
+    return float(inputs.time[inputs.init + int(mean_aux.argmax())] * 1e3)
+
+
 def arrival_time(station_frac: float, *, threshold_frac: float = 0.1) -> QoiFn:
     """QoI factory: wave-front arrival time at a gauge station, milliseconds.
 
@@ -165,9 +216,10 @@ def peak_stress(inputs: QoiInputs) -> float:
 
     The late window is the reflection regime: it tests whether a surrogate
     sustains the correct wave amplitude through repeated traversals. The
-    early-time global peak sits at excitation onset, inside the frames a
-    rollout seeds with ground truth, and would be trivially matched by any
-    model (maintainer decision, 2026-07-03).
+    second-half restriction was decided (maintainer, 2026-07-03) under the
+    pre-ADR-0032 protocol, where the onset peak fell inside the
+    ground-truth-seeded frames; under init_frames = 3 the onset is predicted
+    too, but the late window remains the discriminative regime.
     """
     aux = np.abs(np.asarray(inputs.aux, float))
     return float(aux[aux.shape[0] // 2 :].max())

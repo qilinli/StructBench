@@ -44,7 +44,12 @@ def test_wall_distance_feature_is_signed_and_radius_normalized():
 def test_qois_bind_the_adr_0019_quantities():
     # ADR-0019 §5: final bar length and mushroom width, evaluated on the last
     # frame of a (T, P, dim) trajectory.
-    assert set(QOIS) == {"final_length", "mushroom_width"}
+    assert set(QOIS) == {
+        "final_length",
+        "mushroom_width",
+        "peak_von_mises",  # temporal-fidelity pair (ADR-0032 §6)
+        "t_peak_von_mises",
+    }
     pos = np.zeros((2, 4, 2), dtype=np.float32)
     pos[-1, :, 0] = [0.0, 10.0, 5.0, 5.0]
     pos[-1, :, 1] = [-3.0, 3.0, 0.0, 0.0]

@@ -7,12 +7,13 @@
 #
 # Recognised variables (all optional except NAME):
 #   NAME    run name -> output dir runs/fleet-<date>/<NAME>   (required)
-#   NOISE   noise_std override            (default: keep configs/taylor_2d.toml)
+#   NOISE   noise_std override            (default: keep configs/taylor_impact_2d/gns.toml)
 #   WAUX    w_aux override
 #   HIDDEN  hidden_dim override
 #   NMLP    nmlp_layers override
 #   MP      message_passing_steps override
 #   BATCH   batch_size override
+#   SEED    run seed override
 #   STEPS   training_steps override       (default 20000)
 #   FLEET   fleet root                    (default runs/fleet-<today>)
 #
@@ -40,7 +41,7 @@ MANIFEST="$FLEET/MANIFEST.tsv"
 [ -f "$MANIFEST" ] || echo -e "name\tjobid\tstatus\tdeltas\tstart\tend\tcommit" > "$MANIFEST"
 
 DELTAS="steps=$STEPS"
-for v in NOISE WAUX HIDDEN NMLP MP BATCH; do
+for v in NOISE WAUX HIDDEN NMLP MP BATCH SEED; do
   [ -n "${!v:-}" ] && DELTAS="$DELTAS,$(echo $v | tr 'A-Z' 'a-z')=${!v}"
 done
 COMMIT=$(PATH=/d/sw/git/latest/bin:$PATH git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -57,7 +58,7 @@ trap finish EXIT
 python3 - "$OUT/config.toml" <<'PY'
 import os, re, sys
 
-text = open("configs/taylor_2d.toml").read()
+text = open("configs/taylor_impact_2d/gns.toml").read()
 overrides = {
     "noise_std": os.environ.get("NOISE"),
     "w_aux": os.environ.get("WAUX"),
@@ -65,6 +66,7 @@ overrides = {
     "nmlp_layers": os.environ.get("NMLP"),
     "message_passing_steps": os.environ.get("MP"),
     "batch_size": os.environ.get("BATCH"),
+    "seed": os.environ.get("SEED"),
     "training_steps": os.environ.get("STEPS", "20000"),
 }
 for key, value in overrides.items():

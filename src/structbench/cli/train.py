@@ -28,9 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import tomllib
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -41,6 +39,14 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 
 from ..benchmarks import BenchmarkSpec, available_benchmarks, get_benchmark
+from ..config import (
+    GNSConfig,
+    ProtocolOverride,
+    TrainConfig,
+    load_run_config,
+    read_run_record,
+    resolved_config_dict,
+)
 from ..datasets import (
     CaseTrajectory,
     NormalizationStats,
@@ -55,128 +61,14 @@ from ..models.gns.simulator import time_diff
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass
-class GNSConfig:
-    """Architecture and noise hyperparameters of the learned simulator.
-
-    Attributes
-    ----------
-    window : int
-        Number of consecutive input frames per sample (history length).
-    connectivity_radius : float
-        Graph connectivity radius in the mm working frame.
-    hidden_dim : int
-        Latent/MLP hidden width.
-    message_passing_steps : int
-        Number of interaction-network message-passing steps.
-    nmlp_layers : int
-        Number of hidden layers in each MLP.
-    particle_type_embedding_size : int
-        Embedding width for the particle-type lookup (used only when more than
-        one particle type is present).
-    noise_std : float
-        Standard deviation of the random-walk training noise at the last step.
-    dim : int
-        Spatial dimensionality (2 for the Taylor 2D benchmark).
-    max_neighbors : int
-        Per-node neighbour cap for the radius graph. Size it above the true
-        maximum degree at ``connectivity_radius`` so it never binds on
-        physical configurations (ADR-0028).
-    """
-
-    window: int = 11
-    connectivity_radius: float = 1.5
-    hidden_dim: int = 64
-    message_passing_steps: int = 5
-    nmlp_layers: int = 1
-    particle_type_embedding_size: int = 9
-    noise_std: float = 0.02
-    dim: int = 2
-    max_neighbors: int = 48
-
-    @classmethod
-    def from_toml(cls, path: str | Path) -> GNSConfig:
-        """Build from a TOML file, overriding only the keys present.
-
-        Parameters
-        ----------
-        path : str or pathlib.Path
-            Path to a TOML file. Keys not matching a field are ignored; absent
-            fields keep their default.
-
-        Returns
-        -------
-        GNSConfig
-        """
-        return cls(**_toml_kwargs(cls, path))
-
-
-@dataclass
-class TrainConfig:
-    """Optimization schedule and loss weights for training.
-
-    Attributes
-    ----------
-    benchmark : str
-        Registry name resolved via :func:`structbench.benchmarks.get_benchmark`.
-    batch_size : int
-        Number of trajectory windows per optimizer step.
-    lr_init : float
-        Initial Adam learning rate.
-    lr_decay : float
-        Multiplicative decay base for the exponential schedule.
-    lr_decay_steps : int
-        Step interval over which ``lr_decay`` is applied once.
-    training_steps : int
-        Total number of optimizer steps.
-    val_every : int
-        Validation/checkpoint interval in steps.
-    w_pos : float
-        Weight on the acceleration (position) loss term.
-    w_aux : float
-        Weight on the auxiliary loss term.
-    seed : int
-        Torch RNG seed set at the start of :func:`train`; fixes weight
-        initialization, training-noise draws, and shuffle order. Bitwise GPU
-        reproducibility would additionally require deterministic kernels
-        (scatter-add is nondeterministic on CUDA), which are not enabled.
-    """
-
-    benchmark: str = "taylor_impact_2d"
-    batch_size: int = 32
-    lr_init: float = 1e-3
-    lr_decay: float = 0.1
-    lr_decay_steps: int = 30000
-    training_steps: int = 100000
-    val_every: int = 2000
-    w_pos: float = 1.0
-    w_aux: float = 1.0
-    seed: int = 0
-
-    @classmethod
-    def from_toml(cls, path: str | Path) -> TrainConfig:
-        """Build from a TOML file, overriding only the keys present.
-
-        Parameters
-        ----------
-        path : str or pathlib.Path
-            Path to a TOML file. Keys not matching a field are ignored; absent
-            fields keep their default.
-
-        Returns
-        -------
-        TrainConfig
-        """
-        return cls(**_toml_kwargs(cls, path))
-
-
-def _toml_kwargs(cls: type, path: str | Path) -> dict[str, Any]:
-    """Read a TOML file and keep only top-level keys that name a field of ``cls``."""
-    with open(path, "rb") as fh:
-        data = tomllib.load(fh)
-    valid = {field.name for field in fields(cls)}
-    return {key: value for key, value in data.items() if key in valid}
+__all__ = [
+    "GNSConfig",
+    "TrainConfig",
+    "build_simulator",
+    "evaluate",
+    "main",
+    "train",
+]
 
 
 def random_walk_position_noise(
@@ -350,6 +242,7 @@ def _validate(
     window: int,
     device: str,
     kinematic_types: tuple[int, ...] = (),
+    init_frames: int | None = None,
 ) -> tuple[float, float]:
     """Mean rollout position RMSE (mm) and von Mises RMSE (MPa) over VAL.
 
@@ -363,12 +256,22 @@ def _validate(
     kinematic_types:
         Forwarded to :func:`rollout`; kinematic particles are excluded from
         the reported RMSE (ADR-0026).
+    init_frames:
+        Protocol init forwarded to :func:`rollout` (ADR-0032); ``None``
+        seeds with ``window`` frames as before.
     """
     simulator.eval()
     pos_losses: list[float] = []
     aux_losses: list[float] = []
     for tr in trajectories:
-        result = rollout(simulator, tr, window, device, kinematic_types=kinematic_types)
+        result = rollout(
+            simulator,
+            tr,
+            window,
+            device,
+            kinematic_types=kinematic_types,
+            init_frames=init_frames,
+        )
         pos_losses.append(float(result.position_rmse.mean()))
         aux_losses.append(float(result.aux_rmse.mean()))
     if not pos_losses:
@@ -400,6 +303,9 @@ def train(
     data_root: Path,
     out_dir: Path,
     device: str,
+    *,
+    family: str = "gns",
+    protocol_override: ProtocolOverride | None = None,
 ) -> Path | None:
     """Run config-driven training with periodic validation and checkpoint-best.
 
@@ -427,6 +333,12 @@ def train(
         Output directory for checkpoints, stats, and the resolved config.
     device : str
         Torch device string.
+    family : str
+        Model-family registry key recorded in ``config.json`` (ADR-0032).
+    protocol_override : ProtocolOverride or None
+        Research-only protocol override; when given, validation rollouts use
+        its ``init_frames`` and the run records ``protocol.standard = false``
+        (ADR-0032 §4). ``None`` uses the benchmark card's protocol.
 
     Returns
     -------
@@ -494,8 +406,27 @@ def train(
     aux_mean = torch.tensor(stats.aux_mean, dtype=torch.float32, device=device)
     aux_std = torch.tensor(stats.aux_std, dtype=torch.float32, device=device)
 
-    _write_resolved_config(
-        out_dir, gns, train_cfg, n_types, data_root, train_cfg.benchmark
+    init_frames = (
+        protocol_override.init_frames
+        if protocol_override is not None
+        else spec.card.init_frames
+    )
+    (out_dir / "config.json").write_text(
+        json.dumps(
+            resolved_config_dict(
+                family,
+                gns,
+                train_cfg,
+                init_frames=init_frames,
+                horizon=spec.card.horizon,
+                eval_times=spec.card.eval_times,
+                standard=protocol_override is None,
+                n_particle_types=n_types,
+                data_root=data_root,
+            ),
+            indent=2,
+        ),
+        encoding="utf-8",
     )
 
     dataset = WindowDataset(train_trajs, gns.window)
@@ -576,7 +507,12 @@ def train(
 
             if step % train_cfg.val_every == 0:
                 val_pos, val_aux = _validate(
-                    simulator, val_trajs, gns.window, device, spec.kinematic_types
+                    simulator,
+                    val_trajs,
+                    gns.window,
+                    device,
+                    spec.kinematic_types,
+                    init_frames=init_frames,
                 )
                 logger.info(
                     "step %d: train_loss %.6f val_pos %.4f mm val_aux %.4f MPa "
@@ -604,32 +540,6 @@ def train(
     return best_ckpt
 
 
-def _write_resolved_config(
-    out_dir: Path,
-    gns: GNSConfig,
-    train_cfg: TrainConfig,
-    n_types: int,
-    data_root: Path,
-    benchmark: str,
-) -> None:
-    """Dump the fully-resolved run configuration to ``out_dir/config.json``.
-
-    Top-level keys: "benchmark", "gns", "train", "n_particle_types", "data_root".
-    The "benchmark" key is top-level only; it is excluded from the nested "train"
-    section to avoid duplication.
-    """
-    resolved = {
-        "benchmark": benchmark,
-        "gns": asdict(gns),
-        "train": {k: v for k, v in asdict(train_cfg).items() if k != "benchmark"},
-        "n_particle_types": n_types,
-        "data_root": str(data_root),
-    }
-    (out_dir / "config.json").write_text(
-        json.dumps(resolved, indent=2), encoding="utf-8"
-    )
-
-
 def _find_checkpoint(out_dir: Path) -> Path | None:
     """Return the most recently modified ``model-*.pt`` in ``out_dir``."""
     checkpoints = sorted(out_dir.glob("model-*.pt"), key=lambda p: p.stat().st_mtime)
@@ -647,18 +557,17 @@ def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
     Returns
     -------
     tuple of (BenchmarkSpec, dict)
-        The benchmark spec and the parsed config dict.
+        The benchmark spec and the run record, normalized to the nested
+        ADR-0032 shape (pre-0032 flat records are adapted by
+        :func:`structbench.config.read_run_record`).
 
     Raises
     ------
     FileNotFoundError
         If ``config.json`` is missing from ``out_dir``.
     """
-    config_path = out_dir / "config.json"
-    if not config_path.exists():
-        raise FileNotFoundError(f"missing run config: {config_path}")
-    resolved = json.loads(config_path.read_text(encoding="utf-8"))
-    return get_benchmark(resolved.get("benchmark", "taylor_impact_2d")), resolved
+    record = read_run_record(out_dir / "config.json")
+    return get_benchmark(record["run"]["benchmark"]), record
 
 
 def evaluate(
@@ -669,6 +578,7 @@ def evaluate(
     *,
     split_name: str = "eval",
     save_artifacts: bool = True,
+    init_frames: int | None = None,
 ) -> dict[str, Any]:
     """Roll out the run's checkpoint over ``case_ids`` and report ADR-0019 §5.
 
@@ -700,6 +610,11 @@ def evaluate(
         Label recorded in the report and used in artifact filenames.
     save_artifacts : bool
         Write the metrics JSON and per-case rollout ``.npz`` files.
+    init_frames : int or None
+        Protocol init for the rollouts. ``None`` (the default) uses the
+        run's recorded protocol — pre-0032 runs recorded their window — so
+        checkpoints are evaluated as trained; pass a value explicitly for
+        protocol-sensitivity studies (ADR-0032 §4).
 
     Returns
     -------
@@ -715,13 +630,18 @@ def evaluate(
     """
     if not case_ids:
         raise ValueError("case_ids must be non-empty")
-    spec, resolved = _resolve_run_spec(out_dir)
+    spec, record = _resolve_run_spec(out_dir)
     stats_path = out_dir / "normalization_stats.npz"
     if not stats_path.exists():
         raise FileNotFoundError(f"missing normalization stats: {stats_path}")
 
-    gns = GNSConfig(**resolved["gns"])
-    n_types = int(resolved["n_particle_types"])
+    gns = GNSConfig(
+        **{k: v for k, v in record["model"].items() if k != "family"}
+    )
+    n_types = int(record["n_particle_types"])
+    init = (
+        init_frames if init_frames is not None else record["protocol"]["init_frames"]
+    )
     stats = NormalizationStats.load(stats_path)
 
     simulator = build_simulator(
@@ -754,6 +674,7 @@ def evaluate(
             device,
             qois=spec.qois,
             kinematic_types=spec.kinematic_types,
+            init_frames=init,
         )
         one_step = one_step_position_rmse(
             simulator,
@@ -805,6 +726,12 @@ def evaluate(
     metrics: dict[str, Any] = {
         "split": split_name,
         "checkpoint": checkpoint.name,
+        "init_frames": init,
+        # Standard = card-conforming: pre-0032 runs recorded init = window and
+        # would otherwise self-certify; a card-init re-eval of any standard
+        # run IS official (ADR-0032 §4).
+        "protocol_standard": bool(record["protocol"]["standard"])
+        and init == spec.card.init_frames,
         "aux_field": spec.aux_field,
         "aux_unit": spec.card.aux_unit,
         "cases": cases,
@@ -852,8 +779,9 @@ def main(argv: list[str] | None = None) -> int:
         "--config",
         type=str,
         default=None,
-        help="TOML config path (train mode only; valid/rollout rebuild the "
-        "architecture from the run directory's config.json).",
+        help="Grouped TOML run config (ADR-0032; required in train mode; "
+        "valid/rollout rebuild the architecture from the run directory's "
+        "config.json).",
     )
     parser.add_argument("--out", type=str, default=None, help="Run output directory.")
     parser.add_argument(
@@ -865,12 +793,10 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
 
-    if args.config is not None:
-        gns = GNSConfig.from_toml(args.config)
-        train_cfg = TrainConfig.from_toml(args.config)
-    else:
-        gns = GNSConfig()
-        train_cfg = TrainConfig()
+    if args.mode == "train" and args.config is None:
+        print("error: --config is required in train mode (ADR-0032)")
+        return 2
+    run_config = load_run_config(args.config) if args.config is not None else None
 
     if args.data_root is None:
         print("error: --data-root is required")
@@ -886,11 +812,26 @@ def main(argv: list[str] | None = None) -> int:
     print(f"mode={args.mode} device={device} out={out_dir}")
 
     if args.mode == "train":
-        spec = get_benchmark(train_cfg.benchmark)
-        ckpt = train(spec, gns, train_cfg, data_root, out_dir, device)
+        assert run_config is not None  # guarded above
+        spec = get_benchmark(run_config.train.benchmark)
+        ckpt = train(
+            spec,
+            run_config.model,
+            run_config.train,
+            data_root,
+            out_dir,
+            device,
+            family=run_config.family,
+            protocol_override=run_config.protocol_override,
+        )
         print(f"training complete; best checkpoint: {ckpt}")
     else:
         spec, _resolved = _resolve_run_spec(out_dir)
+        override_init = (
+            run_config.protocol_override.init_frames
+            if run_config is not None and run_config.protocol_override is not None
+            else None
+        )
         if args.mode == "valid":
             metrics = evaluate(
                 list(spec.splits["val"]),
@@ -898,6 +839,7 @@ def main(argv: list[str] | None = None) -> int:
                 out_dir,
                 device,
                 split_name="val",
+                init_frames=override_init,
             )
             _print_split_report(metrics)
         else:  # rollout: every eval split except val, in spec order
@@ -910,6 +852,7 @@ def main(argv: list[str] | None = None) -> int:
                     out_dir,
                     device,
                     split_name=split_name,
+                    init_frames=override_init,
                 )
                 _print_split_report(metrics)
     return 0

@@ -31,7 +31,8 @@ class _SimulatorLike(Protocol):
 class RolloutResult:
     """Predicted trajectory with per-step, cumulative, and QoI errors.
 
-    Per-step arrays cover the ``T - window`` predicted frames. The cumulative
+    Per-step arrays cover the ``T - init`` predicted frames (``init`` is the
+    protocol's observed prefix, ``window`` before ADR-0032). The cumulative
     means aggregate them; QoI dicts are filled only when :func:`rollout` is
     given a ``qois`` mapping (``qoi_error`` is signed, predicted − true).
     Units follow the trajectory's working frame (mm and MPa for Taylor 2D).
@@ -57,8 +58,10 @@ def rollout(
     device: str = "cpu",
     qois: Mapping[str, QoiFn] | None = None,
     kinematic_types: tuple[int, ...] = (),
+    *,
+    init_frames: int | None = None,
 ) -> RolloutResult:
-    """Seed with ``window`` ground-truth frames, then autoregress to the end.
+    """Seed with the protocol's observed prefix, then autoregress to the end.
 
     Parameters
     ----------
@@ -69,7 +72,7 @@ def rollout(
     trajectory:
         Ground-truth :class:`CaseTrajectory`.
     window:
-        History length (frames used to seed and to predict each step).
+        The model's history length (frames per prediction input).
     device:
         Torch device string.
     qois:
@@ -84,10 +87,24 @@ def rollout(
         reported ``position_rmse`` and ``aux_rmse`` (``keep`` mask).  Defaults
         to ``()`` (no prescribed particles), which is bit-identical to the
         previous behaviour.
+    init_frames:
+        Ground-truth frames observed at rollout start — the benchmark
+        protocol's init (ADR-0032). ``None`` defaults to ``window`` (the
+        pre-0032 behaviour). When ``init_frames < window`` the missing
+        history is warm-started by constant-velocity backfill from the first
+        observed velocity — exact while the observed prefix is rigid motion.
+        Prediction begins at frame ``init_frames`` and the scored span is
+        ``[init_frames, T)`` regardless of ``window``.
 
     Returns
     -------
     RolloutResult
+
+    Raises
+    ------
+    ValueError
+        If ``init_frames < 2`` (no velocity can be formed) or
+        ``init_frames >= T``.
     """
     pos = torch.from_numpy(trajectory.positions).to(device)  # (T, P, dim)
     n_frames, n_particles, _ = pos.shape
@@ -99,13 +116,26 @@ def rollout(
     keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
     kin_idx = torch.from_numpy(np.nonzero(kin_mask_np)[0]).to(device)
 
-    seq = pos[:window].clone()  # (window, P, dim)
-    predicted = [pos[i] for i in range(window)]
+    init = window if init_frames is None else init_frames
+    if init < 2:
+        raise ValueError(f"init_frames must be >= 2, got {init}")
+    if init >= n_frames:
+        raise ValueError(f"init_frames={init} but trajectory has {n_frames} frames")
+    if init >= window:
+        seq = pos[init - window : init].clone()  # (window, P, dim)
+    else:
+        # Warm-start (ADR-0032 §4): backfill the model's history before frame 0
+        # by constant-velocity extrapolation of the first observed velocity.
+        v0 = pos[1] - pos[0]  # (P, dim)
+        steps = torch.arange(window - init, 0, -1, device=device, dtype=pos.dtype)
+        backfill = pos[0] - steps[:, None, None] * v0  # (window - init, P, dim)
+        seq = torch.cat([backfill, pos[:init]], dim=0)
+    predicted = [pos[i] for i in range(init)]
     aux_true = torch.from_numpy(trajectory.aux).to(device)
-    aux_pred = [aux_true[i] for i in range(window)]
+    aux_pred = [aux_true[i] for i in range(init)]
 
     with torch.no_grad():
-        for t in range(window, n_frames):
+        for t in range(init, n_frames):
             seq_pw = seq.permute(1, 0, 2).contiguous()  # (P, window, dim)
             next_pos, aux = simulator.predict_positions(seq_pw, npp, ptype)
             if kin_idx.numel():
@@ -118,21 +148,23 @@ def rollout(
     pred_pos = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     pred_aux = torch.stack(aux_pred, dim=0).cpu().numpy().astype(np.float32)
     pos_rmse = position_rmse(
-        pred_pos[window:], trajectory.positions[window:], keep=keep
+        pred_pos[init:], trajectory.positions[init:], keep=keep
     )
-    aux_rmse = field_rmse(pred_aux[window:], trajectory.aux[window:], keep=keep)
+    aux_rmse = field_rmse(pred_aux[init:], trajectory.aux[init:], keep=keep)
 
     pred_inputs = QoiInputs(
         time=trajectory.time,
         positions=pred_pos,
         aux=pred_aux,
         particle_type=trajectory.particle_type,
+        init=init,
     )
     true_inputs = QoiInputs(
         time=trajectory.time,
         positions=trajectory.positions,
         aux=trajectory.aux,
         particle_type=trajectory.particle_type,
+        init=init,
     )
     qoi_pred = {name: float(fn(pred_inputs)) for name, fn in (qois or {}).items()}
     qoi_true = {name: float(fn(true_inputs)) for name, fn in (qois or {}).items()}

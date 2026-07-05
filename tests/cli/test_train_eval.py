@@ -147,12 +147,19 @@ def test_evaluate_rebuilds_architecture_from_run_config(tmp_path):
         assert np.isfinite(per_case["one_step_position_rmse"])
         assert np.isfinite(per_case["rollout_position_rmse"])
         assert np.isfinite(per_case["rollout_aux_rmse"])
-        assert set(per_case["qoi_error"]) == {"final_length", "mushroom_width"}
+        assert set(per_case["qoi_error"]) == {
+            "final_length",
+            "mushroom_width",
+            "peak_von_mises",
+            "t_peak_von_mises",
+        }
     assert np.isfinite(metrics["mean"]["rollout_position_rmse"])
     assert np.isfinite(metrics["mean"]["rollout_aux_rmse"])
     assert set(metrics["mean"]["qoi_abs_error"]) == {
         "final_length",
         "mushroom_width",
+        "peak_von_mises",
+        "t_peak_von_mises",
     }
 
 
@@ -231,6 +238,8 @@ def test_train_raises_on_spec_config_benchmark_mismatch(tmp_path):
         particles_per_case="1",
         n_frames=3,
         output_dt_ms=1.0,
+        init_frames=3,
+        protocol_rationale="test-only card",
     )
     local_spec = BenchmarkSpec(
         card=minimal_card,
@@ -319,6 +328,8 @@ def _local_spec():
         particles_per_case="3",
         n_frames=6,
         output_dt_ms=1.0,
+        init_frames=3,
+        protocol_rationale="test-only card",
     )
     return BenchmarkSpec(
         card=card,
@@ -365,10 +376,33 @@ def test_train_seed_reproducible_and_recorded(tmp_path):
     state_b, config_b = _train_tiny(tmp_path, "run-b", seed=123)
     state_c, _ = _train_tiny(tmp_path, "run-c", seed=124)
 
-    assert config_a["train"]["seed"] == 123
-    assert config_b["train"]["seed"] == 123
+    assert config_a["run"]["seed"] == 123
+    assert config_b["run"]["seed"] == 123
     assert state_a.keys() == state_b.keys()
     assert all(torch.isfinite(v).all() for v in state_a.values())
     for key in state_a:
         assert torch.equal(state_a[key], state_b[key]), f"seed-123 mismatch: {key}"
     assert any(not torch.equal(state_a[key], state_c[key]) for key in state_a)
+
+
+def test_evaluate_protocol_standard_is_card_relative(tmp_path):
+    """Legacy init=11 evals are non-standard; card-init re-evals are standard.
+
+    Pre-0032 run dirs recorded init = window. The protocol_standard flag in
+    metrics must compare against the CARD's pinned init (ADR-0032 §4), not the
+    run's own record — otherwise legacy fleet numbers self-certify as official
+    and card-conforming re-evaluations get excluded.
+    """
+    case_ids = ["C-1"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)  # legacy flat config.json
+    # Default eval follows the record (window=3 == taylor card init 3 here), so
+    # force a non-card init to emulate a legacy window-11-style record.
+    off_card = evaluate(
+        case_ids, data_root, out_dir, "cpu", init_frames=4, save_artifacts=False
+    )
+    assert off_card["init_frames"] == 4
+    assert off_card["protocol_standard"] is False
+    on_card = evaluate(
+        case_ids, data_root, out_dir, "cpu", init_frames=3, save_artifacts=False
+    )
+    assert on_card["protocol_standard"] is True

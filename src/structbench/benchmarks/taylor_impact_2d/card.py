@@ -56,4 +56,26 @@ CARD = BenchmarkCard(
     particles_per_case="4800-8000",
     n_frames=152,
     output_dt_ms=0.002,
+    init_frames=3,
+    protocol_rationale=(
+        "GT timeline analysis over all 33 cases (2026-07-05, python -m "
+        "structbench.benchmarks.timeline; evidence table in "
+        "docs/timelines/taylor_impact_2d.md): the rod is in free flight "
+        "until first wall contact near frame 7, so init = 3 -- the "
+        "second-order minimum (two velocities -> one acceleration) -- "
+        "observes 0.0% of the impact in every case (as does init = 6), "
+        "while the historical init = 11 handed models the shock onset (up "
+        "to 10.6% of total KE already dissipated; nonzero in every case "
+        "above 100 m/s). 99% displacement settlement lands as late as "
+        "296 us of the 300 us record and the last fifth of the horizon "
+        "retains 1.6-8.1% of peak mean acceleration (elastic ringing), so "
+        "the full horizon is dynamically active. n_frames = 152 counts "
+        "stored frames; the working trajectory drops the terminal "
+        "solver-output artifact frame (ADR-0028), giving a 151-frame / "
+        "300 us protocol horizon and a scored span of frames [3, 151) -- "
+        "148 predicted frames. Predictions are scored at the native 2 us "
+        "output times; peak_von_mises/t_peak_von_mises (peak of the "
+        "particle-mean field, e.g. 191 MPa at 44 us in T-20-80-150 ground "
+        "truth) penalize temporally coarse surrogates."
+    ),
 )

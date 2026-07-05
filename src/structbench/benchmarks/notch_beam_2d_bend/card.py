@@ -59,4 +59,11 @@ CARD = BenchmarkCard(
     particles_per_case="2394-8280",
     n_frames=502,
     output_dt_ms=1.0,
+    init_frames=3,
+    protocol_rationale=(
+        "Provisional (ADR-0032 s7): init = 3 is the second-order minimum; "
+        "the mandatory GT timeline analysis has not yet run for this "
+        "dataset (ingested data lives on the ingestion machine). Confirm "
+        "before the first trained baseline."
+    ),
 )

@@ -132,3 +132,32 @@ def test_cracked_fraction_final_frame():
     # concrete_type=1 restricts to particles 0 and 1: only particle 0 >= 0.01 -> 0.5
     qoi = cracked_fraction(concrete_type=1)(inputs)
     assert qoi == pytest.approx(0.5)
+
+
+def test_peak_mean_aux_and_time_closed_form():
+    """Peak of the particle-mean aux and its time, against hand-computed values."""
+    from structbench.eval.metrics import peak_mean_aux, t_peak_mean_aux
+
+    # 4 frames, 2 particles: particle means are [1.0, 5.0, 3.0, 2.0];
+    # a single-particle outlier at frame 3 (9.0) must NOT move the peak.
+    aux = np.array(
+        [[1.0, 1.0], [4.0, 6.0], [3.0, 3.0], [-5.0, 9.0]], dtype=np.float32
+    )
+    positions = np.zeros((4, 2, 2), dtype=np.float32)
+    time = np.array([0.0, 1e-5, 2e-5, 3e-5])  # seconds
+    inputs = QoiInputs(time=time, positions=positions, aux=aux)
+    assert peak_mean_aux(inputs) == 5.0
+    assert t_peak_mean_aux(inputs) == 1e-5 * 1e3  # frame 1, in ms
+
+
+def test_peak_mean_aux_respects_scored_span():
+    """A GT-seeded prefix peak must not leak into the QoI (ADR-0032 §4)."""
+    from structbench.eval.metrics import peak_mean_aux, t_peak_mean_aux
+
+    aux = np.array([[9.0, 9.0], [1.0, 1.0], [4.0, 4.0], [2.0, 2.0]], dtype=np.float32)
+    positions = np.zeros((4, 2, 2), dtype=np.float32)
+    time = np.array([0.0, 1e-5, 2e-5, 3e-5])
+    inputs = QoiInputs(time=time, positions=positions, aux=aux, init=1)
+    # Frame 0's value 9.0 is seeded ground truth; the scored peak is 4.0 @ frame 2.
+    assert peak_mean_aux(inputs) == 4.0
+    assert t_peak_mean_aux(inputs) == 2e-5 * 1e3

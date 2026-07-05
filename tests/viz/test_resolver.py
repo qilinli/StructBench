@@ -21,7 +21,8 @@ def test_viz_resolves_spec_from_run_config(tmp_path: Path) -> None:
 
     spec, resolved = _resolve_run_spec(tmp_path)
     assert spec.aux_field == "axial_stress"
-    assert resolved["benchmark"] == "wave_propagation_1d"
+    # read_run_record normalizes legacy flat records to the nested shape.
+    assert resolved["run"]["benchmark"] == "wave_propagation_1d"
 
 
 def test_viz_resolve_defaults_to_taylor(tmp_path: Path) -> None:

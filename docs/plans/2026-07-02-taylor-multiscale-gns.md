@@ -1,5 +1,6 @@
 # Multi-scale GNS (MS-GNS) Baseline Implementation Plan
 
+> **ADR-0032 note (2026-07-05).** The flat-config mechanisms this plan references (`from_toml`, `_write_resolved_config`, a flat `configs/taylor_2d_msgns.toml`) were replaced by the grouped run config: register `MSGNSConfig` in `structbench.config.MODEL_FAMILIES` and select it via `[model] family = "msgns"`; the trainer records the nested `config.json` via `resolved_config_dict`.
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Status:** Proposed — implements `docs/specs/2026-07-02-taylor-multiscale-gns.md`; do not start until the spec is approved.

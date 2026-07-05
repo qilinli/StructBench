@@ -78,6 +78,7 @@ What becomes easier, harder, or constrained as a result.
 | 0027 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Accepted |
 | 0028 | GNS baseline training-recipe rework after the first full run | Ephemeral | Accepted |
 | 0029 | Notch-beam aux is max principal strain, not K&C damage (amends 0026) | Durable | Accepted |
+| 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Proposed |
 
 ---
 
