@@ -1,0 +1,27 @@
+# CPU smoke of the full Taylor train->checkpoint->eval path. NOT a baseline.
+
+[run]
+benchmark = "taylor_impact_2d"
+seed = 0                        # torch RNG: init, noise, shuffle
+
+[model]
+family = "gns"
+window = 11
+connectivity_radius = 1.5
+hidden_dim = 64
+message_passing_steps = 5
+nmlp_layers = 1
+particle_type_embedding_size = 9
+noise_std = 0.02
+dim = 2
+max_neighbors = 48
+
+[train]
+batch_size = 4
+lr_init = 1e-4
+lr_decay = 0.1
+lr_decay_steps = 30000
+training_steps = 10
+val_every = 10
+w_pos = 1.0
+w_aux = 1.0

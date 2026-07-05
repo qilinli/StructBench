@@ -31,6 +31,8 @@ def _kwargs(**overrides):
         particles_per_case="100",
         n_frames=10,
         output_dt_ms=0.1,
+        init_frames=3,
+        protocol_rationale="test-only rationale",
     )
     base.update(overrides)
     return base

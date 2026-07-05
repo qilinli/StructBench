@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from ...eval import QoiFn, final_length, mushroom_width
+from ...eval import QoiFn, final_length, mushroom_width, peak_mean_aux, t_peak_mean_aux
 
 _GEOMS = (60, 80, 100)
 
@@ -24,11 +24,16 @@ ALL_BENCHMARK_CASES: list[str] = TRAIN + VAL + TEST_INTERP + TEST_EXTRAP
 #: Auxiliary per-particle target field (named correctly, not "strain").
 AUX_FIELD = "von_mises_stress"
 
-#: ADR-0019 §5 quantities of interest: each maps a full ``(T, P, dim)``
-#: trajectory (mm working frame) to a scalar read off the final frame.
+#: ADR-0019 §5 quantities of interest (extended by ADR-0032 §6): each maps a
+#: full rollout (mm/MPa working frame) to one scalar.
 QOIS: dict[str, QoiFn] = {
     "final_length": final_length,
     "mushroom_width": mushroom_width,
+    # Temporal-fidelity pair (ADR-0032 §6): peak of the particle-mean von
+    # Mises field (MPa) and its time (ms) — read mid-trajectory, not off the
+    # final frame.
+    "peak_von_mises": peak_mean_aux,
+    "t_peak_von_mises": t_peak_mean_aux,
 }
 
 #: Rigidwall plane position in the model's mm working frame.

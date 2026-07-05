@@ -1,0 +1,27 @@
+# 10-step smoke of the notch-bend pipeline.
+
+[run]
+benchmark = "notch_beam_2d_bend"
+seed = 0                        # torch RNG: init, noise, shuffle
+
+[model]
+family = "gns"
+window = 11
+connectivity_radius = 15.0
+hidden_dim = 64
+message_passing_steps = 5
+nmlp_layers = 1
+particle_type_embedding_size = 9
+noise_std = 0.02
+dim = 2
+max_neighbors = 48  # FLAGGED (ADR-0032): ~113 physical neighbours at r=15; re-size per ADR-0028's never-binds rule before any notch training
+
+[train]
+batch_size = 2
+lr_init = 1e-4
+lr_decay = 0.1
+lr_decay_steps = 30000
+training_steps = 10
+val_every = 5
+w_pos = 1.0
+w_aux = 1.0

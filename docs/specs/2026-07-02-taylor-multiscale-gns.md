@@ -1,5 +1,6 @@
 # Design spec — Multi-scale GNS (MS-GNS) second baseline for Taylor 2D
 
+> **ADR-0032 note (2026-07-05).** The flat-config mechanisms this plan references (`from_toml`, `_write_resolved_config`, a flat `configs/taylor_2d_msgns.toml`) were replaced by the grouped run config: register `MSGNSConfig` in `structbench.config.MODEL_FAMILIES` and select it via `[model] family = "msgns"`; the trainer records the nested `config.json` via `resolved_config_dict`.
 *Status: **Proposed** — drafted by Claude Code from a four-reader analysis of the
 reference implementation; awaiting human approval before implementation.
 Implements ADR-0015 §2 (prior-paper GNNs ship as baselines); constrained by

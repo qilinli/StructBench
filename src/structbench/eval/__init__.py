@@ -9,7 +9,9 @@ from .metrics import (
     final_length,
     midspan_deflection_peak,
     mushroom_width,
+    peak_mean_aux,
     peak_stress,
+    t_peak_mean_aux,
     position_rmse,
 )
 from .rollout import (
@@ -26,6 +28,8 @@ __all__ = [
     "mushroom_width",
     "arrival_time",
     "peak_stress",
+    "peak_mean_aux",
+    "t_peak_mean_aux",
     "midspan_deflection_peak",
     "cracked_fraction",
     "QoiFn",

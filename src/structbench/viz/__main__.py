@@ -14,13 +14,13 @@ The benchmark (and therefore the auxiliary field compared) is resolved from
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from ..benchmarks import BenchmarkSpec, get_benchmark
+from ..config import read_run_record
 from .fringe import animate_rollout, compare_rollout, load_case_field
 
 
@@ -45,11 +45,8 @@ def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
         If the ``"benchmark"`` value is not a registered name; the registry
         message lists valid names.
     """
-    config_path = out_dir / "config.json"
-    if not config_path.exists():
-        raise FileNotFoundError(f"missing run config: {config_path}")
-    resolved = json.loads(config_path.read_text(encoding="utf-8"))
-    return get_benchmark(resolved.get("benchmark", "taylor_impact_2d")), resolved
+    record = read_run_record(out_dir / "config.json")
+    return get_benchmark(record["run"]["benchmark"]), record
 
 
 def split_and_case(stem: str) -> tuple[str, str]:

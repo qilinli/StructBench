@@ -56,13 +56,28 @@ class BenchmarkCard:
         Response frames per case.
     output_dt_ms : float
         Output interval of the source simulations, milliseconds.
+    init_frames : int
+        Benchmark protocol (ADR-0032 §4): the maximum number of ground-truth
+        frames a model may observe at rollout start. The scored span is
+        frames ``[init_frames, end]`` for every model.
+    protocol_rationale : str
+        Why the protocol values are what they are — the recorded conclusion
+        of the mandatory ground-truth timeline analysis (ADR-0032 §5).
+        Rendered alongside the protocol in the generated benchmark docs.
     size_gb : float or None
         Canonical dataset size on disk; ``None`` until measured.
+    horizon : str
+        Benchmark protocol: rollout extent. ``"full"`` scores to the
+        (trimmed) end of trajectory.
+    eval_times : str
+        Benchmark protocol: where predictions are scored. ``"native"`` means
+        the solver's output times; internal time-stepping is a model choice.
 
     Raises
     ------
     ValueError
-        If ``splits`` does not sum to ``n_cases``.
+        If ``splits`` does not sum to ``n_cases``, ``init_frames`` is not at
+        least 2, or ``protocol_rationale`` is empty.
     """
 
     # identity
@@ -90,12 +105,24 @@ class BenchmarkCard:
     particles_per_case: str
     n_frames: int
     output_dt_ms: float
+    # protocol (ADR-0032) — task definition, pinned per benchmark ADR
+    init_frames: int
+    protocol_rationale: str
     size_gb: float | None = None
+    horizon: str = "full"
+    eval_times: str = "native"
 
     def __post_init__(self) -> None:
         total = sum(self.splits.values())
         if self.n_cases != total:
             raise ValueError(f"n_cases ({self.n_cases}) != sum of splits ({total})")
+        if self.init_frames < 2:
+            raise ValueError(f"init_frames must be >= 2, got {self.init_frames}")
+        if not self.protocol_rationale.strip():
+            raise ValueError(
+                "protocol_rationale must record the timeline analysis "
+                "behind the protocol values (ADR-0032 §5)"
+            )
 
     def to_json_dict(self) -> dict[str, object]:
         """Return a plain, JSON-serializable dict of the card."""

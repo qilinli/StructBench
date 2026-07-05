@@ -72,6 +72,9 @@ def _section(spec: BenchmarkSpec) -> list[str]:
         f"- **Materials**: {', '.join(c.materials)}",
         f"- **Geometry**: {c.geometry}; source units {c.source_units}",
         f"- **Splits**: {splits}",
+        f"- **Protocol** (ADR-0032): init {c.init_frames} frames, "
+        f"horizon {c.horizon}, scored at {c.eval_times} output times. "
+        f"*Rationale*: {c.protocol_rationale}",
         f"- **QoIs**: {', '.join(c.qois)}",
         f"- **Fields**: {', '.join(c.fields)}",
         f"- **Provenance**: {c.provenance}",

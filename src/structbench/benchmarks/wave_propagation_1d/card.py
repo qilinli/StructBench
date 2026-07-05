@@ -58,4 +58,13 @@ CARD = BenchmarkCard(
     particles_per_case="500-1250",
     n_frames=302,
     output_dt_ms=0.1,
+    init_frames=3,
+    protocol_rationale=(
+        "Provisional (ADR-0032 s7): init = 3 is the second-order minimum; "
+        "the mandatory GT timeline analysis has not yet run for this "
+        "dataset (ingested data lives on the ingestion machine). Confirm "
+        "before the first trained baseline -- in particular init must stay "
+        "well below the wave's arrival at the first gauge or the "
+        "arrival_time QoI is partially given away."
+    ),
 )

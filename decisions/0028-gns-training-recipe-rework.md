@@ -79,3 +79,15 @@ stress-history input feature.
 - `GNSConfig` gains `max_neighbors`; older `config.json` files without it
   load with the (new) default — `evaluate()` on pre-0024 run dirs still works
   because architecture is rebuilt from the run's own record.
+
+---
+
+*2026-07-05 — the Phase-2 ablation this ADR deferred (noise_std, w_aux,
+model capacity) has run (fleets in `runs/fleet-2026-07-03` and
+`runs/fleet-2026-07-04`, manifests + metrics per run). Maintainer decision:
+baseline recipes are config, not ADR material — a drafted recipe ADR (0031)
+was withdrawn, its number burned per the never-reuse rule. Recipe values live
+in `configs/<benchmark>/<family>.toml`; the fleet evidence also predates the
+ADR-0032 protocol change (init 11 → 3), so recipe conclusions must be
+re-established under the new protocol before the final baseline. Stress-history
+features and push-forward training remain open.*

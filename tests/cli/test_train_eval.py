@@ -59,7 +59,9 @@ def _write_tiny_case(data_root, case_id, n_frames=6):
         disp[:, p, 0] = 1e-3 * t + 1e-4 * t**2
         disp[:, p, 1] = 5e-5 * (p + 1) * t
     stress = np.zeros((n_frames, 3, 6), dtype=np.float32)
-    stress[:, :, 0] = 100e6  # 100 MPa sigma_xx
+    # Time-varying so the aux std is non-degenerate: constant stress gives
+    # aux_std ~ 0, and the normalized aux target NaNs training within steps.
+    stress[:, :, 0] = 100e6 + 5e6 * t[:, None]
     case = Case(
         metadata=Metadata(case_id=case_id, dimension=2, source_units="g-mm-ms"),
         nodes=Nodes(coords=coords, node_id=np.arange(1, 5, dtype=np.int64)),
@@ -145,12 +147,19 @@ def test_evaluate_rebuilds_architecture_from_run_config(tmp_path):
         assert np.isfinite(per_case["one_step_position_rmse"])
         assert np.isfinite(per_case["rollout_position_rmse"])
         assert np.isfinite(per_case["rollout_aux_rmse"])
-        assert set(per_case["qoi_error"]) == {"final_length", "mushroom_width"}
+        assert set(per_case["qoi_error"]) == {
+            "final_length",
+            "mushroom_width",
+            "peak_von_mises",
+            "t_peak_von_mises",
+        }
     assert np.isfinite(metrics["mean"]["rollout_position_rmse"])
     assert np.isfinite(metrics["mean"]["rollout_aux_rmse"])
     assert set(metrics["mean"]["qoi_abs_error"]) == {
         "final_length",
         "mushroom_width",
+        "peak_von_mises",
+        "t_peak_von_mises",
     }
 
 
@@ -229,6 +238,8 @@ def test_train_raises_on_spec_config_benchmark_mismatch(tmp_path):
         particles_per_case="1",
         n_frames=3,
         output_dt_ms=1.0,
+        init_frames=3,
+        protocol_rationale="test-only card",
     )
     local_spec = BenchmarkSpec(
         card=minimal_card,
@@ -290,3 +301,108 @@ def test_train_loss_all_kinematic_batch_no_nan():
     # Verify loss is 0.0 and finite (not NaN)
     assert loss.item() == 0.0
     assert torch.isfinite(loss)
+
+
+def _local_spec():
+    """Registry-free spec over two tiny local cases (bypasses the name guard)."""
+    card = BenchmarkCard(
+        name="SeedTest",
+        version="0",
+        description="test-only spec not in the registry",
+        provenance="test",
+        data_license="CC0",
+        solver="test",
+        discretisation="SPH",
+        materials=("MAT_TEST",),
+        erosion=False,
+        loading="none",
+        source_units="SI",
+        geometry="unit box",
+        n_cases=2,
+        splits={"train": 1, "val": 1},
+        task="test",
+        aux_field="von_mises_stress",
+        aux_unit="MPa",
+        qois=(),
+        fields=("positions",),
+        particles_per_case="3",
+        n_frames=6,
+        output_dt_ms=1.0,
+        init_frames=3,
+        protocol_rationale="test-only card",
+    )
+    return BenchmarkSpec(
+        card=card,
+        splits={"train": ("S-1",), "val": ("S-2",)},
+        eval_splits=("val",),
+        aux_field="von_mises_stress",
+    )
+
+
+def _train_tiny(tmp_path, name, seed):
+    """Two-step training run on tiny local cases; returns the checkpoint state."""
+    data_root = tmp_path / "data"
+    if not data_root.exists():
+        data_root.mkdir()
+        for cid in ("S-1", "S-2"):
+            _write_tiny_case(data_root, cid)
+    out_dir = tmp_path / name
+    ckpt = train(
+        _local_spec(),
+        GNSConfig(**SMALL_GNS),
+        TrainConfig(
+            benchmark="seed-test-local",
+            batch_size=2,
+            training_steps=2,
+            val_every=2,
+            seed=seed,
+        ),
+        data_root,
+        out_dir,
+        "cpu",
+    )
+    state = torch.load(str(ckpt), map_location="cpu", weights_only=True)
+    config = json.loads((out_dir / "config.json").read_text(encoding="utf-8"))
+    return state, config
+
+
+def test_train_seed_reproducible_and_recorded(tmp_path):
+    """Same seed: identical checkpoints (CPU); different seed: different weights.
+
+    Exercises the full train() path — seeded init, noise draws, and shuffle —
+    and the config.json record the run directory contract relies on.
+    """
+    state_a, config_a = _train_tiny(tmp_path, "run-a", seed=123)
+    state_b, config_b = _train_tiny(tmp_path, "run-b", seed=123)
+    state_c, _ = _train_tiny(tmp_path, "run-c", seed=124)
+
+    assert config_a["run"]["seed"] == 123
+    assert config_b["run"]["seed"] == 123
+    assert state_a.keys() == state_b.keys()
+    assert all(torch.isfinite(v).all() for v in state_a.values())
+    for key in state_a:
+        assert torch.equal(state_a[key], state_b[key]), f"seed-123 mismatch: {key}"
+    assert any(not torch.equal(state_a[key], state_c[key]) for key in state_a)
+
+
+def test_evaluate_protocol_standard_is_card_relative(tmp_path):
+    """Legacy init=11 evals are non-standard; card-init re-evals are standard.
+
+    Pre-0032 run dirs recorded init = window. The protocol_standard flag in
+    metrics must compare against the CARD's pinned init (ADR-0032 §4), not the
+    run's own record — otherwise legacy fleet numbers self-certify as official
+    and card-conforming re-evaluations get excluded.
+    """
+    case_ids = ["C-1"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)  # legacy flat config.json
+    # Default eval follows the record (window=3 == taylor card init 3 here), so
+    # force a non-card init to emulate a legacy window-11-style record.
+    off_card = evaluate(
+        case_ids, data_root, out_dir, "cpu", init_frames=4, save_artifacts=False
+    )
+    assert off_card["init_frames"] == 4
+    assert off_card["protocol_standard"] is False
+    on_card = evaluate(
+        case_ids, data_root, out_dir, "cpu", init_frames=3, save_artifacts=False
+    )
+    assert on_card["protocol_standard"] is True

@@ -113,7 +113,7 @@ GNS codebases on a cluster or on Windows, you know why this matters.
 
 ```bash
 # Train the GNS baseline
-structbench-train --mode train --config configs/taylor_2d.toml \
+structbench-train --mode train --config configs/taylor_impact_2d/gns.toml \
     --data-root /path/to/taylor_2d_h5 --out runs/taylor-gns
 
 # Validate, then roll out on the test splits (architecture is rebuilt from
@@ -166,7 +166,7 @@ src/structbench/
   models/gns/      # reference GNS (native radius_graph, no compiled deps)
   eval/            # rollout driver, metrics
   cli/             # structbench-train
-configs/           # TOML training configs
+configs/           # grouped TOML run configs, configs/<benchmark>/<family>.toml (ADR-0032)
 decisions/         # 21 architecture decision records
 ```
 
