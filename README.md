@@ -184,6 +184,11 @@ decisions/         # architecture decision records
 
 ### Inbox — untriaged, add freely
 
+- [ ] per-benchmark landing pages: mechanics settled (generated via a
+      `--landing` mode + handwritten `intro.md`; arc dataset → results),
+      venue undecided — leaning top-level `benchmarks/` (self-indexing);
+      `src`-module and `examples/` considered and set aside. Deliberation
+      state in `scratch/2026-07-05-taylor-landing-page-deliberation.md`
 - [ ] qualitative comparison figures in `viz/`: truth-vs-prediction von
       Mises fringe panels at 2–3 time instants + deformed-contour overlay
       (per-benchmark eval artifact; wanted for the release, out of metric
