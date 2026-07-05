@@ -76,9 +76,10 @@ structbench-train --mode valid   --data-root /path/to/StructBench/canonical/tayl
 structbench-train --mode rollout --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-gns
 ```
 
-Each benchmark has its own TOML in `configs/` — swap `taylor_2d.toml` for
-`wave_1d.toml`, `notch_bend.toml`, or `notch_impact.toml` to train against a
-different benchmark.
+Configs are grouped per benchmark (ADR-0032): swap
+`configs/taylor_impact_2d/gns.toml` for `configs/wave_propagation_1d/gns.toml`,
+`configs/notch_beam_2d_bend/gns.toml`, or `configs/notch_beam_2d_impact/gns.toml`
+to train against a different benchmark.
 
 **Data availability:** each benchmark ships as a self-contained canonical
 archive — a `canonical/<benchmark>/` folder of `<case_id>.h5` files with a
