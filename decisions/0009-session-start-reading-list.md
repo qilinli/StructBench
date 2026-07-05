@@ -24,7 +24,7 @@ At the start of every session, Claude Code reads the following files, in order:
 **Conditionally read** (based on the session's task):
 - `docs/ARCHITECTURE.md` — if the task touches package structure, module interfaces, or the case schema.
 - Specific ADRs from the index — whichever are relevant to the task.
-- `ROADMAP.md` — if the session is about planning or scoping.
+- The Roadmap section of `README.md` — if the session is about planning or scoping.
 
 Target: the full start-of-session reading should take under 10 minutes of agent time.
 
@@ -48,3 +48,4 @@ This ADR is marked **Ephemeral** because the list is expected to change as the p
 - 2026-05-23 — Added `RESEARCH-PROGRAM.md` as item 3, marked context-only. See ADR-0014.
 - 2026-07-02 — `RESEARCH-PROGRAM.md` is now **local-only and untracked** (private program strategy; pre-publication decision). The reading item stands on the maintainer's machine; sessions on a clone skip it without error.
 - 2026-07-02 — Root reorganisation: `VISION.md`, `HARNESS.md`, `PRINCIPLES.md`, `CORRECTIONS.md`, and `ARCHITECTURE.md` moved to `docs/` (contents unchanged). Paths above updated; older ADRs referring to these files at the root describe the layout at their time of writing.
+- 2026-07-05 — ROADMAP.md retired; the living todo list is now the Roadmap section of `README.md` (design: `docs/plans/2026-07-05-readme-roadmap-todo-design.md`). Conditional-read item updated accordingly.

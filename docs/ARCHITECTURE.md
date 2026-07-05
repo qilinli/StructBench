@@ -70,7 +70,7 @@ The schema for what's *inside* the data files lives in `core/`. The mechanics of
 
 ### `eval/`
 
-Metrics and evaluation protocols. Each benchmark declares its own evaluation metrics; this module implements them in a model-agnostic way. A leaderboard submission validator and cross-benchmark evaluation utilities are planned here (see ROADMAP.md) but do not exist yet.
+Metrics and evaluation protocols. Each benchmark declares its own evaluation metrics; this module implements them in a model-agnostic way. A leaderboard submission validator and cross-benchmark evaluation utilities are planned here (see the Roadmap section of README.md) but do not exist yet.
 
 `eval/` depends on `core/` (for the case schema) and `datasets/` (for ground truth access). It does not depend on `models/` — evaluation is a property of the benchmark, not the model.
 
