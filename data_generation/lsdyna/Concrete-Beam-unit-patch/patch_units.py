@@ -7,8 +7,12 @@ units, not g-mm-ms as recorded at conversion time.  Evidence:
 
 - K&C material UCF = 145 000 ⟹ stress in GPa only under kg-mm-ms.
 - Steel reinforcement E = 200 GPa matches kg-mm-ms.
-- Measured wavefront speed ≈ 3 100 m/s matches concrete's elastic wave speed only
-  when time is in ms.
+- Concrete density RO = 2.4e-6 reads as 2400 kg/m³ under kg-mm-ms — real concrete.
+
+  (Wave speed is NOT evidence: the wave-1d front measures ~70.7 mm/ms — the deck's
+  scaled toy E=0.01 GPa, not real concrete — and c=√(E/ρ) is mass-unit invariant
+  anyway, so it cannot discriminate g from kg. The earlier "≈3100 m/s" claim was
+  wrong on both counts; corrected 2026-07-06.)
 
 Consequence: in every canonical HDF5 produced by the existing convert.py scripts,
 every *mass-derived* SI quantity is stored 1 000× too small (a factor of
