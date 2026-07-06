@@ -14,7 +14,7 @@ nmlp_layers = 1
 particle_type_embedding_size = 9
 noise_std = 0.02
 dim = 2
-max_neighbors = 48
+max_neighbors = 32  # project-wide backstop cap (M-B, 2026-07-06)
 
 [train]
 batch_size = 4
