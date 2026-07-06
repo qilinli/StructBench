@@ -294,7 +294,13 @@ def _part_id_lookup(arrays: dict[str, Any], part_indexes: Any) -> np.ndarray:
     """Map 0-based part indexes to LS-DYNA part ids via ``part_titles_ids``."""
     idx = np.asarray(part_indexes, dtype=np.int64)
     part_ids = np.asarray(arrays.get("part_titles_ids", []), dtype=np.int64)
-    return part_ids[idx] if part_ids.size else idx
+    if not part_ids.size:
+        _LOG.warning(
+            "lsdyna: d3plot has no part_titles_ids; using 0-based part indexes "
+            "as part_id, which may collide with solver part ids (ADR-0012)"
+        )
+        return idx
+    return part_ids[idx]
 
 
 def extract_geometry(
@@ -436,8 +442,11 @@ def extract_response(
         block: dict[str, np.ndarray] = {}
         for suffix, (name, fkey) in _FE_FIELDS.items():
             key = f"element_{etype}_{suffix}"
-            mapped.add(key)
+            # Mark as mapped only when actually consumed, so a present-but-
+            # wrong-shape FE array falls through to the skipped-arrays log
+            # instead of being silently dropped.
             if key in arrays and np.asarray(arrays[key]).shape[0] == n_frames:
+                mapped.add(key)
                 block[name] = _to_si_f32(arrays[key], factors[fkey])
         if block:
             element[etype] = block

@@ -311,6 +311,27 @@ def test_extract_response_global_scalar_energy_converted():
     np.testing.assert_allclose(resp.globals_["kinetic_energy"], [5e-3, 6e-3])
 
 
+def test_extract_response_logs_present_but_wrong_shape_fe_array(caplog):
+    import logging
+
+    arrays = _synthetic_arrays()  # n_frames == 2
+    arrays["element_shell_stress"] = np.ones((1, 1, 6))  # leading dim 1 != 2
+    with caplog.at_level(logging.INFO):
+        extract_response(arrays, 2, _GMMMS)
+    # present-but-not-extracted arrays must be logged, not silently dropped
+    assert "element_shell_stress" in caplog.text
+
+
+def test_part_id_lookup_warns_when_part_titles_ids_absent(caplog):
+    import logging
+
+    arrays = _synthetic_arrays()
+    del arrays["part_titles_ids"]  # force the 0-based fallback
+    with caplog.at_level(logging.WARNING):
+        extract_geometry(arrays, 2, _GMMMS)
+    assert "part_titles_ids" in caplog.text
+
+
 def test_build_case_assembles_valid_case():
     case = build_case(
         _synthetic_arrays(),
