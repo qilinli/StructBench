@@ -90,7 +90,7 @@ A dependency is a long-term commitment, not a convenience. The bar to add one is
 | h5py | Canonical reader/writer for the HDF5 case format | ADR-0013 |
 | lasso-python | LS-DYNA d3plot parsing in the canonical adapter | ADR-0016 |
 | torch | Autograd + tensors for the reference ML models | ADR-0018 |
-| torch-geometric | Message-passing + radius_graph for the GNS | ADR-0018 |
+| torch-geometric | `MessagePassing` base class for the CGN; its `radius_graph` was replaced by a native pure-torch implementation (ADR-0020) | ADR-0018, ADR-0020 |
 | matplotlib | FEM-style fringe visualization; optional `viz` extra, never a hard runtime dependency | ADR-0022 |
 
 **Development** *(established by this document)*:
@@ -109,4 +109,4 @@ A dependency is a long-term commitment, not a convenience. The bar to add one is
 - **Branches** never receive direct commits to `main`; work happens on feature branches. Branch names follow `type/short-description` (e.g. `init/foundation`, `feat/hdf5-io`, `fix/connectivity-indexing`).
 - **Commits follow Conventional Commits**: a `type: summary` subject line (`feat`, `fix`, `docs`, `chore`, `test`, `refactor`), imperative mood, with a body explaining *why* when the change is non-trivial. Unfinished work is committed with a `WIP:` prefix (see `CLAUDE.md`).
 - Agent-authored commits end with the `Co-Authored-By:` trailer for Claude Code.
-- **Pushing, tagging, releasing, merging PRs, and rewriting shared history are out-of-session human actions** — forbidden within a coding session per `CLAUDE.md`. This document does not loosen that boundary.
+- **Merging a feature branch into `main` and pushing to the remote execute on the human's explicit in-session instruction** (ADR-0023, amending 0006); unprompted, `main` does not move. **Tagging, releasing, rewriting shared history, and accepting third-party PRs remain out-of-session human actions** — forbidden within a coding session per `CLAUDE.md`. This document does not loosen those boundaries.

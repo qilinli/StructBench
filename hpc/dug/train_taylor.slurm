@@ -17,8 +17,9 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=36:00:00                     # generous ceiling (partition allows more);
-                                            # ~22h expected for 100k steps at the
-                                            # measured 4.6k steps/h (radius 1.5).
+                                            # config is 80k steps at batch 8; the old
+                                            # ~4.6k steps/h (=~22h) was measured at the
+                                            # batch-32/100k recipe — re-measure for batch 8.
 #SBATCH --output=slurm-taylor-%j.out        # written to the submit dir (always exists)
 # #SBATCH --account=<PROJECT>              # uncomment if submission demands an account
 

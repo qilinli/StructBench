@@ -51,7 +51,7 @@ What becomes easier, harder, or constrained as a result.
 |---|-------|------|--------|
 | 0001 | Adopt harness engineering methodology | Durable | Accepted |
 | 0002 | Project name is StructBench | Durable | Accepted |
-| 0003 | v0.1 anchor problem is impact on RC beams | Durable | Accepted |
+| 0003 | v0.1 anchor problem is impact on RC beams | Durable | Superseded by 0015 |
 | 0004 | Platform is solver-agnostic; LS-DYNA for v0.1 data generation | Durable | Accepted |
 | 0005 | ADR format and decision-log structure | Durable | Accepted |
 | 0006 | Three-tier authority model for Claude Code | Durable | Accepted (amended by 0023) |

@@ -63,7 +63,7 @@ A case file holds the following kinds of data, each occupying its own namespace 
 - **Identity / referencing**: connectivity arrays use 0-indexed sequential references into the `nodes` table (analogously for elements, parts, materials). Original solver IDs are preserved as `*_id` columns alongside.
 - **Time axis**: single `response/time/t` array of length `n_frames`. Uniformity is implicit. All response fields share this axis (with `response/sensor` allowed its own when SHM lands).
 - **t=0 state**: lives at frame 0 of `response/`. The `initial_conditions` group, when present, holds the source deck's IC *spec* for roundtrip — not the t=0 state itself.
-- **Tensor components**: Voigt-symmetric. 3D: `(xx, yy, zz, xy, yz, xz)`. 2D: `(xx, yy, zz, xy)`.
+- **Tensor components**: Voigt-symmetric. 3D: `(xx, yy, zz, xy, yz, xz)`. 2D: `(xx, yy, zz, xy)`. *Reconciliation note (2026-07-06): this 4-component 2D form is the abstract minimum. Solver-native ingestion under the extract-everything policy (ADR-0016 §4) keeps the full 6-component Voigt layout verbatim regardless of case dimension, so all shipped 2D data (including the flagship Taylor 2D benchmark) stores 6 components, and every in-repo consumer assumes 6. Consumers must not assume the 4-component 2D layout for LS-DYNA-ingested data.*
 - **Component naming**: lowercase, underscore-separated.
 
 ### Validity tiers

@@ -20,8 +20,8 @@ class WindowDataset(Dataset):
 
     Each item corresponds to one prediction step for one trajectory: the
     ``window`` frames immediately preceding the target frame are packed as the
-    input sequence, and the target frame's position and von Mises stress are
-    the labels.
+    input sequence, and the target frame's position and auxiliary field value
+    are the labels.
 
     Parameters
     ----------
@@ -69,7 +69,9 @@ class WindowDataset(Dataset):
             ``position_seq``: Tensor of shape ``(P, window, dim)``, mm.
             ``particle_type``: LongTensor of shape ``(P,)``.
             ``next_position``: Tensor of shape ``(P, dim)``, mm.
-            ``next_aux``: Tensor of shape ``(P,)``, MPa.
+            ``next_aux``: Tensor of shape ``(P,)``; auxiliary target, units are
+            benchmark-dependent (e.g. MPa for von Mises stress, dimensionless
+            for max principal strain).
             ``n_particles``: int number of particles ``P``.
         """
         tr, t = self._index[i]
@@ -104,7 +106,7 @@ def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:
         ``position_seq``: Tensor ``(sum_P, window, dim)``, mm.
         ``particle_type``: LongTensor ``(sum_P,)``.
         ``next_position``: Tensor ``(sum_P, dim)``, mm.
-        ``next_aux``: Tensor ``(sum_P,)``, MPa.
+        ``next_aux``: Tensor ``(sum_P,)``; auxiliary target, benchmark-dependent units.
         ``n_particles_per_example``: LongTensor ``(B,)`` — particle count per
         example.
     """

@@ -19,3 +19,16 @@ per-paper post-processing the substrate layer exists to end (ADR-0014, ADR-0016)
   `structbench.core.io.lsdyna.lsdyna_to_case`. Start with
   `python .../convert.py --dry-run`, which lists the discovered cases without
   reading (and therefore without hydrating) any d3plot.
+- `lsdyna/1DWavePropagation/convert.py` — batch-convert the 1D wave-propagation
+  sweep (16 runs, 4 lengths × 4 velocities) to canonical HDF5. Source units
+  `kg-mm-ms` (ADR-0030). Same `--dry-run` first.
+- `lsdyna/2DNotchBeam/convert.py` — batch-convert the notch-beam SPH cases
+  (221 runs feeding the bend + impact benchmarks) to canonical HDF5. Source
+  units `kg-mm-ms` (ADR-0030). Same `--dry-run` first.
+- `lsdyna/2DNotchBeam/freeze_splits.py` — deterministically derive and freeze
+  the notch-beam train/val/test split (ADR-0026); run once, its output is the
+  frozen split the benchmark modules read.
+- `lsdyna/Concrete-Beam-unit-patch/patch_units.py` — one-off, idempotent
+  in-place fix that rescales the mass-derived fields of the already-ingested
+  Concrete-Beam family (wave + notch) by ×1000 to correct the g-vs-kg mass-unit
+  error (ADR-0030). Not part of normal ingestion.
