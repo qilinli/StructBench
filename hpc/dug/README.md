@@ -2,9 +2,9 @@
 
 DUG uses **SLURM**. Access is SSH (with a JupyterLab-over-localhost option).
 GPU nodes offer 4×V100 or 2×A100 80 GB. The training loop is **single-GPU**, so
-we request **one** A100 80 GB — the full `configs/taylor_impact_2d/cgn.toml` (batch 32,
-~14 GB) fits with room to spare. The extra GPUs would sit idle unless the model
-is extended with DistributedDataParallel (a separate change).
+we request **one** A100 80 GB — the full `configs/taylor_impact_2d/cgn.toml` (batch 8,
+~50–60 GB) fits on the 80 GB card (batch 16 OOMs). The extra GPUs would sit idle
+unless the model is extended with DistributedDataParallel (a separate change).
 
 `train_taylor.slurm` carries live values verified 2026-07-03: partition
 `curtin_eecms` (one 2× A100-80GB node, `TIMELIMIT infinite`), `gpu:a100:1`,
@@ -54,15 +54,17 @@ srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:15:00 --pty bash -lc '
     --data-root /data/curtin_eecms/curtin_qilin/data/taylor_impact --out runs/smoke'
 
 # full baseline as a batch job (from a login node; OUT defaults to
-# runs/taylor-full-adr0024 and must be fresh per attempt):
+# runs/taylor-cgn-v01 and must be fresh per attempt):
 sbatch hpc/dug/train_taylor.slurm
 squeue --me                     # watch the queue
 tail -f slurm-taylor-*.out      # progress: val_pos (mm) / val_aux (MPa) each val_every
 ```
 
-The full run is 100k steps at batch 32. Measured 2026-07-03 with the ADR-0028
-recipe (radius 1.5): **~4.6k steps/h on one A100 → ~22 h**, well inside the
-36 h ceiling in the script (the partition's time limit is `infinite`). The
+The full run is 80k steps at batch 8 (ADR-0028 reference recipe, radius 1.5).
+Throughput was **~4.6k steps/h → ~22 h** when last measured (2026-07-03), but
+that was at the earlier batch-32/100k recipe — re-measure for batch 8. Either
+way the run stays inside the 36 h ceiling in the script (the partition's time
+limit is `infinite`). The
 best checkpoint is written whenever the validation **position** RMSE improves
 (ADR-0028; checked every 2000 steps), so an early stop still leaves a usable
 model — but **training has no resume**, so a killed run restarts from scratch.
@@ -79,7 +81,7 @@ Two rules the entry point now enforces / expects:
 ## 4. Bring results back
 
 ```bash
-rsync -avP <user>@<dug-host>:<proj>/structbench/runs/taylor-baseline/ ./runs/taylor-baseline/
+rsync -avP <user>@<dug-host>:<proj>/structbench/runs/taylor-cgn-v01/ ./runs/taylor-cgn-v01/
 # -> model-best-*.pt, config.json, normalization_stats.npz,
 #    metrics-val.json / metrics-test_interp.json / metrics-test_extrap.json
 #    (ADR-0019 per-case + split-mean metrics), and rollouts/*.npz (predicted

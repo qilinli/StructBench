@@ -4,8 +4,9 @@ Per-dataset glue (ADR-0016 §6). It knows only this dataset's specifics:
 
 - where the runs live: ``<data-root>/<length>_<velocity>/`` (one LS-DYNA run
   each: a ``d3plot`` family plus a paired ``WavePropagation.k`` deck);
-- the source unit convention is ``g-mm-ms`` (the deck has no ``*CONTROL_UNITS``
-  card, so the convention is supplied here per ADR-0016 §5);
+- the source unit convention is ``kg-mm-ms`` (the deck's mass unit is kg, not
+  g, per ADR-0030; the deck has no ``*CONTROL_UNITS`` card, so the convention is
+  supplied here per ADR-0016 §5);
 - the model is 2D (thin strip / bar along x, ``*CONTROL_SPH IDIM=2``);
 - the case-id naming is ``W1D-<length>-<velocity>``.
 

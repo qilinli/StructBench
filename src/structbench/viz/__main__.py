@@ -156,7 +156,7 @@ def main(argv: list[str] | None = None) -> None:
                 pred["predicted_aux"],
                 out_dir / f"rollout-{case}-{split}.gif",
                 times_us=gt.times_us,
-                title=f"{case} ({split}) — GNS prediction",
+                title=f"{case} ({split}) — CGN prediction",
                 bands=args.bands,
                 wall_x=args.wall_x,
             )

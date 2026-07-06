@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "structbench"
 version = "0.1.0.dev0"
 description = "An open platform for data-driven structural engineering."
-readme = "VISION.md"
+readme = "docs/VISION.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 authors = [{ name = "Qilin Li" }]

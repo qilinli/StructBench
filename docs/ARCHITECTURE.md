@@ -16,13 +16,14 @@ For coding conventions (style, testing, documentation expectations), see PRINCIP
 
 ```
 src/structbench/
-├── core/          # case schema, graph utilities, I/O primitives
-├── benchmarks/    # benchmark problem definitions
-├── models/        # reference ML models
-├── datasets/      # data loaders and dataset registry
+├── core/          # case schema, validation, HDF5 I/O + LS-DYNA adapter
+├── benchmarks/    # benchmark problem definitions (split + protocol + card)
+├── models/        # reference ML models (cgn/)
+├── datasets/      # canonical loaders, windowing, normalization
 ├── eval/          # metrics and evaluation protocols
 ├── viz/           # FEM-style visualization of physics fields
-└── cli/           # command-line interfaces
+├── cli/           # command-line interfaces (structbench-train)
+└── config.py      # grouped run configuration: typed sections, strict loading (ADR-0032)
 
 # Reserved namespaces (declared but not yet implemented)
 ├── deploy/        # asset onboarding and deployment workflows (post-v0.1)
@@ -40,7 +41,7 @@ Reserved namespaces are declared here so the long-term shape of the package is v
 
 ### `core/`
 
-Holds the foundational data structures and primitives that other modules depend on. The case schema lives here, along with graph manipulation utilities, file I/O for the canonical HDF5 format, custom exceptions, and any logic that is genuinely cross-cutting.
+Holds the foundational data structures and primitives that other modules depend on. The case schema lives here, along with schema validation, file I/O for the canonical HDF5 format (including the LS-DYNA adapter in `core/io/`), custom exceptions, and any logic that is genuinely cross-cutting. (Graph construction is *not* here — the native `radius_graph` lives with the model that uses it, `models/cgn/graph_ops.py`, ADR-0020.)
 
 This module has no upstream dependencies within the package. Every other module may depend on `core/`; `core/` may not depend on any of them.
 
@@ -54,7 +55,7 @@ A benchmark module describes *what* the problem is. It does not include the data
 
 ### `models/`
 
-Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, foundation models, anomaly detectors, and any other ML method shipped as part of the platform. Each model is a self-contained submodule with a defined training protocol, hyperparameter defaults, and a published checkpoint. The reference baseline is **CGN** (`models/cgn`, Concrete Graph Network — Li et al. 2023, *Computers & Structures* 289, 107188, ADR-0034), which builds on the encode-process-decode GNS of Sanchez-Gonzalez et al. 2020.
+Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, foundation models, anomaly detectors, and any other ML method shipped as part of the platform. Each model is a self-contained submodule of tensor→tensor building blocks; its hyperparameter defaults live in the top-level `config.py` (ADR-0032), its training loop in `cli/`, and — once a run is trained and blessed — a published checkpoint (none is published yet; the CGN baseline is the pending DUG run). The reference baseline is **CGN** (`models/cgn`, Concrete Graph Network — Li et al. 2023, *Computers & Structures* 289, 107188, ADR-0034), which builds on the encode-process-decode GNS of Sanchez-Gonzalez et al. 2020.
 
 Models in this module are reference implementations. They are not the only models that can be evaluated on a benchmark — external contributions are evaluated through the same protocols without being added here.
 
@@ -62,7 +63,7 @@ ML touch points outside this module: data preparation (turning canonical-format 
 
 ### `datasets/`
 
-Data loading and dataset management. Provides the abstractions that turn an HDF5 file (or a remote dataset reference) into objects models can consume. Handles caching, version pinning, and integrity checks.
+Data loading and dataset management. Provides the abstractions that turn a canonical HDF5 file into objects models can consume, and caches normalization statistics. (Remote dataset references, version pinning, and integrity checks are part of the intended scope but are not yet implemented.)
 
 The schema for what's *inside* the data files lives in `core/`. The mechanics of loading and serving that data live here.
 
@@ -78,13 +79,17 @@ Metrics and evaluation protocols. Each benchmark declares its own evaluation met
 
 FEM-postprocessor-style visualization of particle physics fields (ADR-0022). Any figure that shows a physics quantity — von Mises stress, plastic strain, pressure — renders through this module, following the conventions structural engineers know from LS-PrePost and Abaqus/CAE: the jet rainbow color code (blue = low, red = high), a fringe bar with evenly spaced labelled levels, physical units in the working frame. A field registry (`FIELDS`) carries each quantity's label, unit, and tick format so figures stay consistent across runs and documents.
 
-`viz/` depends on `core/` (reading canonical cases) and `datasets/` (working-frame conversions). It does not depend on `models/`, `benchmarks/`, or `eval/` — it plots arrays, not models. Its matplotlib dependency is the optional `viz` extra, never a hard runtime dependency: importing `structbench.viz` without matplotlib succeeds, and plotting calls raise with the install instruction.
+The `viz/` plotting core (`fringe.py`) depends on `core/` (reading canonical cases) and `datasets/` (working-frame conversions) only — it plots arrays, not models. Its `__main__` CLI entry additionally reads `benchmarks/` and the top-level `config.py` to resolve a run's benchmark spec (the ADR-0032-era run-record resolver), so the "does not depend on benchmarks/eval" rule holds for the plotting core but not for that entry point (see the dependency-graph note below). Its matplotlib dependency is the optional `viz` extra, never a hard runtime dependency: importing `structbench.viz` without matplotlib succeeds, and plotting calls raise with the install instruction.
 
 ### `cli/`
 
-Command-line entry points. Thin wrappers around functionality in the other modules. The CLI exposes the user-facing operations: running benchmarks, evaluating predictions, listing available datasets and models.
+Command-line entry points. Thin wrappers around functionality in the other modules. The CLI exposes `structbench-train` with `train`/`valid`/`rollout` modes — training a baseline on a benchmark and evaluating it on the benchmark's splits. (Dataset/model listing operations are part of the intended scope but are not yet implemented.)
 
 `cli/` depends on most other modules but is depended on by none. It is the outermost layer. (`viz/` additionally carries its own `__main__` so `python -m structbench.viz` can regenerate a run's standard figures without a console-script entry.)
+
+### `config.py`
+
+A single top-level module (not a package) holding the grouped run configuration: the typed `[run]`/`[model]`/`[train]`/`[protocol]` sections, strict TOML loading and validation, the model-family registry, and run-record read/write (ADR-0032). It depends on nothing internal and is imported by `cli/` (to load a run config) and `viz/__main__` (to read a run record). It sits below `cli/` and `viz/` in the dependency graph.
 
 ---
 
@@ -125,8 +130,11 @@ Rules:
 
 - `core/` has no upstream dependencies within the package.
 - `datasets/` depends only on `core/`.
-- `benchmarks/`, `models/`, `eval/`, and `viz/` may depend on `core/` and `datasets/`. They do not depend on each other — a model is not coupled to a specific benchmark, a benchmark is not coupled to a specific model, and visualization plots arrays rather than models.
-- `cli/` may depend on any other module. It is the assembly point.
+- `models/` and `viz/`'s plotting core may depend on `core/` and `datasets/` only — a model is not coupled to a specific benchmark, and visualization plots arrays rather than models.
+- `eval/` may depend on `core/` and `datasets/`; it does not depend on `models/` (evaluation is a property of the benchmark, not the model).
+- **`benchmarks/` depends on `eval/`** in the current code: each benchmark references the QoI protocol type and QoI implementations that live in `eval/`. This coupling arrived with the QoI-owned-by-benchmark design (ADR-0032) and the original "peer modules do not depend on each other" rule was never amended for it. It is a live architectural question — either bless the dependency with an amending ADR, or move the QoI protocol/type down into `core/` so `benchmarks/` and `eval/` both depend on it rather than on each other. *(Flagged 2026-07-06; pending a decision.)*
+- `config.py` (top-level module) depends on nothing internal and sits below `cli/` and `viz/`.
+- `cli/` may depend on any other module. It is the assembly point. `viz/`'s `__main__` entry likewise reaches up into `benchmarks/` and `config.py` for run-record resolution, so as an entry point it behaves like `cli/` rather than like the `viz/` plotting core.
 - Reserved namespaces (`deploy/`, `vision/`, `sensing/`) will be placed in this graph when implemented; their position is a future architectural decision.
 
 Cycles are not permitted. If a proposed dependency would create a cycle, the design is wrong and must be reconsidered.
@@ -216,7 +224,7 @@ A case file contains the following kinds of data. The specimen / scenario / resp
 - *Identity*: 0-indexed sequential connectivity; original solver IDs preserved in `*_id` columns.
 - *Time*: single `response/time/t` array; one global axis.
 - *t=0 state*: frame 0 of `response/`, not duplicated in a separate group.
-- *Tensors*: Voigt-symmetric (6 components in 3D, 4 in 2D).
+- *Tensors*: Voigt-symmetric. Solver-native ingestion keeps the full 6-component layout `(xx, yy, zz, xy, yz, zx)` verbatim regardless of case dimension (extract-everything, ADR-0016 §4), so all shipped 2D data stores 6 components. The abstract schema permits a 4-component 2D form, but the LS-DYNA adapter does not use it and no consumer should assume it (see the corresponding note in ADR-0012).
 
 **Validity tiers**
 
@@ -228,6 +236,8 @@ A case file contains the following kinds of data. The specimen / scenario / resp
 
 A case file with no `response` group is a valid "stub" — specimen + scenario specified, simulation not yet run.
 
+**Implementation status (schema 0.1.0).** The shipped reader/writer and validator model five groups: `metadata`, `nodes`, `elements`, `materials`, `response`. The remaining groups above (`parts`, `sections`, `boundary_conditions`, `loading`, `initial_conditions`, `time_curves`, `sets`, `sensors`) are part of the settled design but are not yet implemented in `core/schema.py`/`core/io`. For solver-ingested cases their content is preserved verbatim in `metadata/source_deck` and can be backfilled later without a schema-version bump; the deferral is a known gap, not a design change.
+
 ### HDF5 layout
 
 The field set above is persisted as a single HDF5 file per case (ADR-0013), read and written through `h5py`. Salient points:
@@ -235,7 +245,7 @@ The field set above is persisted as a single HDF5 file per case (ADR-0013), read
 - **Paths** are lowercase `snake_case` matching the field names: `/metadata`, `/nodes`, `/elements/<type>`, `/parts`, `/sections`, `/materials`, `/boundary_conditions`, `/loading`, `/initial_conditions`, `/time_curves`, `/sets/{node,element}/<id>`, `/response/{time,node,element,global,sensor}`, `/sensors`.
 - **Attributes vs datasets**: small scalars (the `/metadata` fields, `provenance`) are HDF5 attributes; arrays and anything possibly large (notably `/metadata/source_deck`) are datasets.
 - **Dtypes**: float64 for geometry and the time axis, float32 for bulk response fields, int64 for ids and connectivity, variable-length UTF-8 for strings.
-- **Compression**: response arrays and the source deck are gzip-compressed (level 4) and chunked along the frame axis, so transitions can be streamed without loading whole arrays.
+- **Compression**: response arrays are gzip-compressed (level 4) and chunked along the frame axis, so transitions can be streamed without loading whole arrays. The `metadata/source_deck` blob is stored *uncompressed* — HDF5's gzip filter does not compress the variable-length UTF-8 string heap (a deviation from ADR-0013's wording, tracked in `core/io`).
 - **Heterogeneous solver-native data**: `materials`/`sections` `source_params` and `metadata/source_deck` are stored as JSON strings; solver sub-models (EOS, hourglass) nest inside the owning material's `source_params`.
 - **Version**: the initial `schema_version` is `"0.1.0"`; additive changes bump the minor version, structural changes the major version (with a superseding ADR).
 
