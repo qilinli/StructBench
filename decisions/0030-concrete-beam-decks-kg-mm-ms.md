@@ -26,6 +26,15 @@ showed that is wrong; the decks are **kg-mm-ms**:
   under g-mm-ms.)
 - The measured wavefront speed in the ingested wave-1d data ≈ 3100 m/s
   matches concrete's elastic wave speed with time in ms.
+  *(Correction 2026-07-06: this bullet is wrong twice over. Direct
+  measurement of the ingested wave-1d data gives a front speed of ~70.7
+  mm/ms across all bar lengths — matching the deck's scaled toy constants
+  E = 0.01 GPa, ρ = 2e-6 kg/mm³, not real concrete — see
+  `docs/timelines/wave_propagation_1d.md`; the 3100 m/s figure was
+  erroneous. And wave speed c = √(E/ρ) is invariant under a g↔kg mass
+  relabel, so it could never have discriminated the two conventions
+  anyway. The kg-mm-ms decision is unaffected: it rests on the other
+  three bullets, which are mass-dependent and stand.)*
 
 Consequence of the wrong label: every **mass-derived** SI quantity in the
 237 canonical HDF5s (stress, pressure, density, mass, and the energies) was

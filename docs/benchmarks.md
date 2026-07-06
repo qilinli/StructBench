@@ -65,7 +65,7 @@ Autoregressive next-step surrogate of an elastic stress wave in a 2D SPH bar str
 - **Materials**: *MAT_ELASTIC (scaled toy constants: E=0.01 GPa, rho=2e-6 kg/mm3)
 - **Geometry**: 2D strip, 5 particle rows, {200, 300, 400, 500} mm x 8 mm; source units kg-mm-ms
 - **Splits**: train 12, val 2, test_interp 2
-- **Protocol** (ADR-0032): init 3 frames, horizon full, scored at native output times. *Rationale*: Provisional (ADR-0032 s7): init = 3 is the second-order minimum; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine). Confirm before the first trained baseline -- in particular init must stay well below the wave's arrival at the first gauge or the arrival_time QoI is partially given away.
+- **Protocol** (ADR-0032): init 3 frames, horizon full, scored at native output times. *Rationale*: init = 3 (ADR-0032 s7, second-order minimum). GT timeline analysis run 2026-07-06 (docs/timelines/wave_propagation_1d.md): init=3 gives away only 3.7% of initial KE (14.8% at init=6), and at the measured front speed ~70.7 mm/ms the wave reaches the first (25%) gauge about 7 frames in, after the seeded prefix, so the arrival_time QoI is not given away.
 - **QoIs**: arrival_time_25, arrival_time_50, arrival_time_75, peak_stress
 - **Baseline**: *no official baseline yet*
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy

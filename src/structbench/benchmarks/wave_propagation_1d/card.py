@@ -60,12 +60,12 @@ CARD = BenchmarkCard(
     output_dt_ms=0.1,
     init_frames=3,
     protocol_rationale=(
-        "Provisional (ADR-0032 s7): init = 3 is the second-order minimum; "
-        "the mandatory GT timeline analysis has not yet run for this "
-        "dataset (ingested data lives on the ingestion machine). Confirm "
-        "before the first trained baseline -- in particular init must stay "
-        "well below the wave's arrival at the first gauge or the "
-        "arrival_time QoI is partially given away."
+        "init = 3 (ADR-0032 s7, second-order minimum). GT timeline analysis "
+        "run 2026-07-06 (docs/timelines/wave_propagation_1d.md): init=3 gives "
+        "away only 3.7% of initial KE (14.8% at init=6), and at the measured "
+        "front speed ~70.7 mm/ms the wave reaches the first (25%) gauge about "
+        "7 frames in, after the seeded prefix, so the arrival_time QoI is not "
+        "given away."
     ),
     size_gb=0.23,
 )
