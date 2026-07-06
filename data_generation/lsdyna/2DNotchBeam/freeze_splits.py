@@ -23,28 +23,33 @@ def freeze(name: str, cases: list[str], interior: list[str]) -> None:
     val, test = sorted(held[:8]), sorted(held[8:])
     train = sorted(c for c in cases if c not in held)
     assert len(train) == 88 and len(val) == 8 and len(test) == 12
-    # every factor token of every case-id appears among the train ids
+    # Every factor level appearing in ANY case must appear in TRAIN (ADR-0026:
+    # no level is held out entirely, so val/test never contain an unseen level).
+    # The old per-case check was vacuous: a train case trivially covers its own
+    # tokens, and held cases were exempted, so nothing was actually verified.
     train_tokens = {tok for c in train for tok in c.split("-")}
-    for case in cases:
-        assert set(case.split("-")) <= train_tokens or case in held
+    all_tokens = {tok for c in cases for tok in c.split("-")}
+    missing = all_tokens - train_tokens
+    assert not missing, f"factor levels absent from train: {sorted(missing)}"
     print(f"# {name}\nTRAIN = {train!r}\nVAL = {val!r}\nTEST_INTERP = {test!r}\n")
 
 
-bend = [
-    f"NB-B-{s}-{ln}-{v}"
-    for s in SPANS
-    for v in BEND_V
-    for ln in (lo + n for lo in LOADS for n in NOTCHES)
-]
-bend_interior = [c for c in bend if int(c.rsplit("-", 1)[1]) in BEND_INTERIOR]
-freeze("notch_beam_2d_bend", bend, bend_interior)
+if __name__ == "__main__":
+    bend = [
+        f"NB-B-{s}-{ln}-{v}"
+        for s in SPANS
+        for v in BEND_V
+        for ln in (lo + n for lo in LOADS for n in NOTCHES)
+    ]
+    bend_interior = [c for c in bend if int(c.rsplit("-", 1)[1]) in BEND_INTERIOR]
+    freeze("notch_beam_2d_bend", bend, bend_interior)
 
-impact = [
-    f"NB-I-{s}-{sh}-{n}-{v}"
-    for s in SPANS
-    for sh in SHAPES
-    for n in NOTCHES
-    for v in IMPACT_V
-]
-impact_interior = [c for c in impact if int(c.rsplit("-", 1)[1]) in IMPACT_INTERIOR]
-freeze("notch_beam_2d_impact", impact, impact_interior)
+    impact = [
+        f"NB-I-{s}-{sh}-{n}-{v}"
+        for s in SPANS
+        for sh in SHAPES
+        for n in NOTCHES
+        for v in IMPACT_V
+    ]
+    impact_interior = [c for c in impact if int(c.rsplit("-", 1)[1]) in IMPACT_INTERIOR]
+    freeze("notch_beam_2d_impact", impact, impact_interior)

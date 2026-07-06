@@ -134,6 +134,16 @@ def _patch_file(h5_path: Path, *, dry_run: bool) -> str:
         if dry_run:
             return "WOULD-PATCH"
 
+        # Flag the file as mid-patch BEFORE scaling any dataset. HDF5 in-place
+        # edits are not transactional, so a crash between the first dataset
+        # write and the final gate would otherwise leave a partially-scaled
+        # file still labelled 'g-mm-ms' — and a rerun would double-scale it.
+        # With this sentinel a crash leaves neither 'g-mm-ms' nor 'kg-mm-ms',
+        # so a rerun hits the "unexpected source_units" guard (loud refusal)
+        # instead of silently scaling twice.
+        f["metadata"].attrs["source_units"] = "patching:g-mm-ms->kg-mm-ms"
+        f.flush()
+
         for ds_path in (*_SPH_FIELDS, *_GLOBAL_FIELDS):
             if ds_path not in f:
                 _LOG.warning(
@@ -145,7 +155,8 @@ def _patch_file(h5_path: Path, *, dry_run: bool) -> str:
             data = ds[...].astype(np.float64) * _SCALE_FACTOR
             ds[...] = data.astype(ds.dtype)
 
-        # Update provenance attribute
+        # Commit: flip the gate to the final value only after every dataset
+        # has been scaled.
         f["metadata"].attrs["source_units"] = "kg-mm-ms"
 
     return "PATCHED"
