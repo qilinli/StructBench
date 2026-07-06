@@ -165,6 +165,70 @@ def test_parse_deck_materials_links_eos_and_hourglass_via_part():
     assert m.source_params["hourglass"]["data"][0][2] == pytest.approx(0.1)  # qm
 
 
+def test_parse_deck_materials_blank_part_field_does_not_shift_linkage():
+    """A blank interior *PART field must not slide later fields left.
+
+    Here ``eosid`` is blank (LS-DYNA default 0 -> no EOS) and ``hgid`` is 2.
+    If blank columns are dropped, ``hgid`` slides into the ``eosid`` slot and
+    the wrong EOS is linked while the hourglass is lost (ADR-0016 provenance).
+    """
+    deck = "\n".join(
+        [
+            "*KEYWORD",
+            "*PART",
+            "$#  title",
+            "Blank-eos part",
+            "$#  pid     secid       mid     eosid      hgid",
+            _row(1, 1, 2, "", 2),  # eosid blank, hgid 2
+            "*MAT_ELASTIC",
+            _row(2, 0.0089, 37590.0),
+            "*EOS_GRUNEISEN",
+            _row(2, 3940.0, 1.489),  # eosid 2 -- must NOT be linked
+            "*HOURGLASS",
+            _row(2, 0, 0.1),  # hgid 2 -- must be linked
+            "*END",
+        ]
+    )
+    m = parse_deck_materials(deck)[0]
+    assert "eos" not in m.source_params  # blank eosid -> no EOS
+    assert m.source_params["hourglass"]["source_model"] == "HOURGLASS"
+
+
+def test_parse_deck_materials_reads_every_part_under_one_card():
+    """A single *PART card may define several parts; each must be linked."""
+    deck = "\n".join(
+        [
+            "*KEYWORD",
+            "*PART",
+            "part A",
+            _row(1, 1, 2, 2, 0),  # mid 2 -> eos 2
+            "part B",
+            _row(3, 1, 4, 4, 0),  # mid 4 -> eos 4
+            "*MAT_ELASTIC",
+            _row(2, 0.0089, 100.0),
+            "*MAT_ELASTIC",
+            _row(4, 0.0089, 200.0),
+            "*EOS_GRUNEISEN",
+            _row(2, 3940.0, 1.489),
+            "*EOS_GRUNEISEN",
+            _row(4, 5000.0, 1.6),
+            "*END",
+        ]
+    )
+    mats = {m.material_id: m for m in parse_deck_materials(deck)}
+    assert mats[2].source_params["eos"]["data"][0][1] == pytest.approx(3940.0)
+    assert mats[4].source_params["eos"]["data"][0][1] == pytest.approx(5000.0)
+
+
+def test_numeric_fields_fills_blank_interior_columns_with_zero():
+    """Blank interior fixed-width columns parse as 0.0; trailing blanks trim."""
+    from structbench.core.io.lsdyna import _numeric_fields
+
+    assert _numeric_fields(_row(1, 1, 2, "", 2)) == [1.0, 1.0, 2.0, 0.0, 2.0]
+    assert _numeric_fields(_row(1, 2, "", "")) == [1.0, 2.0]  # trailing trimmed
+    assert _numeric_fields(_row("copper", 1)) is None  # title line still detected
+
+
 def test_parse_deck_materials_handles_no_material():
     assert parse_deck_materials("*KEYWORD\n*NODE\n*END\n") == []
 

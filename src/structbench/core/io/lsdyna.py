@@ -122,16 +122,25 @@ def _numeric_fields(line: str, width: int = _FIELD_WIDTH) -> list[float] | None:
 
     Returns ``None`` if any non-empty column is not a number -- this is how
     title lines (e.g. a ``*PART`` name) are told apart from data lines.
+
+    Blank *interior* columns are LS-DYNA's default 0 and are emitted as ``0.0``
+    so field positions are preserved (a blank ``eosid`` must not let ``hgid``
+    slide into its slot); trailing blank columns are trimmed.
     """
     out: list[float] = []
+    pending_blanks = 0
     for i in range(0, len(line), width):
         chunk = line[i : i + width].strip()
         if not chunk:
+            pending_blanks += 1
             continue
         try:
-            out.append(float(chunk))
+            value = float(chunk)
         except ValueError:
             return None
+        out.extend([0.0] * pending_blanks)  # interior blanks -> default 0
+        pending_blanks = 0
+        out.append(value)
     return out
 
 
@@ -197,14 +206,17 @@ def parse_deck_materials(deck_text: str) -> list[Material]:
         elif keyword.startswith("HOURGLASS"):
             hourglasses[int(head[0])] = {"source_model": keyword, "data": rows}
         elif keyword.split("_")[0] == "PART":
-            parts.append(
-                {
-                    "pid": int(head[0]),
-                    "mid": int(head[2]) if len(head) > 2 else 0,
-                    "eosid": int(head[3]) if len(head) > 3 else 0,
-                    "hgid": int(head[4]) if len(head) > 4 else 0,
-                }
-            )
+            # A single *PART card may define several parts (one data row each);
+            # every row is its own part, not just the first.
+            for part_row in rows:
+                parts.append(
+                    {
+                        "pid": int(part_row[0]),
+                        "mid": int(part_row[2]) if len(part_row) > 2 else 0,
+                        "eosid": int(part_row[3]) if len(part_row) > 3 else 0,
+                        "hgid": int(part_row[4]) if len(part_row) > 4 else 0,
+                    }
+                )
 
     materials: list[Material] = []
     for mid, mat in mats.items():
