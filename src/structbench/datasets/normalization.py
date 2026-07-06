@@ -103,6 +103,28 @@ def compute_stats(trajectories: list[CaseTrajectory]) -> NormalizationStats:
     )
 
 
+#: Bump to invalidate every cache when the stats computation itself changes.
+_STATS_VERSION = "2"
+
+
+def _traj_signature(tr: CaseTrajectory) -> str:
+    """Cache-key fragment: case-id, shape, and a content signature.
+
+    The content signature (sum, sum-of-squares, min, max of positions and aux)
+    changes whenever the underlying values change — even at fixed shape — so a
+    shape-preserving in-place data edit (the ADR-0030 x1000 patch) cannot reuse
+    stale stats. It also subsumes any loader-scale change, since those are
+    already baked into the trajectory values.
+    """
+    pos = np.asarray(tr.positions, np.float64)
+    aux = np.asarray(tr.aux, np.float64)
+    return (
+        f"{tr.case_id}:{pos.shape[0]}x{pos.shape[1]}"
+        f":p{pos.sum():.6e},{(pos * pos).sum():.6e},{pos.min():.6e},{pos.max():.6e}"
+        f":a{aux.sum():.6e},{(aux * aux).sum():.6e},{aux.min():.6e},{aux.max():.6e}"
+    )
+
+
 def cached_compute_stats(
     trajectories: list[CaseTrajectory],
     *,
@@ -111,19 +133,19 @@ def cached_compute_stats(
 ) -> NormalizationStats:
     """:func:`compute_stats` with a dataset-level cache.
 
-    Cache is keyed by both the split (case-id list) and auxiliary field name.
     The cache lives at ``<dataset_root>/derived/norm_<key>.npz``, where the key
-    hashes the auxiliary field name, the trajectories' case-id list, and
-    per-case frame/particle counts - so the stats are computed once per
-    split and auxiliary-field combination and reused across runs, while a
-    changed case list, a different auxiliary field, or a loader change
-    that alters trajectory shapes (e.g. the ADR-0028 terminal-frame trim)
-    forces recomputation under a new filename. The cache never blocks
-    training: a
-    write failure (e.g. read-only dataset root) degrades to a warning, and an
-    unreadable/corrupt cache file is recomputed and rewritten. Writes go
-    through a temp file + atomic rename so a killed run cannot leave a
-    truncated cache behind.
+    hashes a stats-version salt, the auxiliary field name, and per-trajectory
+    signatures. Each signature covers the case-id, frame/particle counts, and a
+    content signature of the positions and aux values (sum, sum-of-squares,
+    min, max). Stats are therefore computed once per (split, aux-field, data)
+    combination and reused across runs, while a changed case list, a different
+    auxiliary field, a shape change (e.g. the ADR-0028 terminal-frame trim),
+    **or any change to the underlying values** (e.g. the ADR-0030 in-place
+    x1000 patch) forces recomputation under a new filename. The cache never
+    blocks training: a write failure (e.g. read-only dataset root) degrades to
+    a warning, and an unreadable/corrupt cache file is recomputed and
+    rewritten. Writes go through a temp file + atomic rename so a killed run
+    cannot leave a truncated cache behind.
 
     Parameters
     ----------
@@ -141,11 +163,8 @@ def cached_compute_stats(
     -------
     NormalizationStats
     """
-    fingerprint = [
-        f"{tr.case_id}:{tr.positions.shape[0]}x{tr.positions.shape[1]}"
-        for tr in trajectories
-    ]
-    key_material = "\n".join([aux_field, *fingerprint])
+    fingerprint = [_traj_signature(tr) for tr in trajectories]
+    key_material = "\n".join([_STATS_VERSION, aux_field, *fingerprint])
     key = hashlib.sha256(key_material.encode("utf-8")).hexdigest()[:12]
     cache_path = Path(dataset_root) / "derived" / f"norm_{key}.npz"
     if cache_path.exists():

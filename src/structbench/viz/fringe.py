@@ -23,7 +23,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..core import read_case
-from ..datasets.canonical import n_valid_frames, von_mises_from_voigt
+from ..datasets.canonical import (
+    max_principal_strain_from_voigt,
+    n_valid_frames,
+    von_mises_from_voigt,
+)
 
 if TYPE_CHECKING:  # matplotlib types only for annotations; import stays lazy
     from matplotlib.axes import Axes
@@ -77,9 +81,11 @@ FIELDS: dict[str, FieldSpec] = {
     spec.key: spec
     for spec in (
         FieldSpec("von_mises_stress", "von Mises stress", "MPa"),
+        FieldSpec("axial_stress", "axial stress", "MPa"),
         FieldSpec(
             "effective_plastic_strain", "effective plastic strain", None, "{:.3f}"
         ),
+        FieldSpec("max_principal_strain", "max principal strain", None, "{:.4f}"),
         FieldSpec("pressure", "pressure", "MPa"),
         FieldSpec("density", "density", "kg/m³", "{:.0f}"),
         FieldSpec("displacement_magnitude", "displacement magnitude", "mm", "{:.2f}"),
@@ -528,6 +534,14 @@ def _extract_field(case: Any, spec: FieldSpec, idx: NDArray[np.int64]) -> NDArra
         if "stress" not in element:
             raise KeyError(f"case {case.metadata.case_id} has no SPH stress")
         return np.asarray(von_mises_from_voigt(element["stress"]) * 1e-6)
+    if spec.key == "axial_stress":
+        if "stress" not in element:
+            raise KeyError(f"case {case.metadata.case_id} has no SPH stress")
+        return np.asarray(element["stress"], dtype=np.float64)[..., 0] * 1e-6
+    if spec.key == "max_principal_strain":
+        if "strain" not in element:
+            raise KeyError(f"case {case.metadata.case_id} has no SPH strain")
+        return np.asarray(max_principal_strain_from_voigt(element["strain"]))
     if spec.key in _ELEMENT_FIELD_SCALE:
         if spec.key not in element:
             raise KeyError(f"case {case.metadata.case_id} has no SPH {spec.key}")

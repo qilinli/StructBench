@@ -197,15 +197,18 @@ def arrival_time(station_frac: float, *, threshold_frac: float = 0.1) -> QoiFn:
     """
 
     def qoi(inputs: QoiInputs) -> float:
-        x0 = np.asarray(inputs.positions, float)[0, :, 0]
+        x0 = np.asarray(inputs.positions, float)[0, :, 0]  # frame-0 gauge geometry
         gauge_x = x0.min() + station_frac * (x0.max() - x0.min())
         gauge = int(np.argmin(np.abs(x0 - gauge_x)))
-        signal = np.abs(np.asarray(inputs.aux, float)[:, gauge])
-        peak = float(np.abs(np.asarray(inputs.aux, float)).max())
+        # Scan only the scored span; the ground-truth-seeded prefix must not
+        # decide arrival, and the self-referenced peak is over the same span.
+        scored = np.abs(np.asarray(inputs.aux, float)[inputs.init :])
+        signal = scored[:, gauge]
+        peak = float(scored.max())
         if peak == 0.0:
             return float(inputs.time[-1] * 1e3)
         hits = np.nonzero(signal >= threshold_frac * peak)[0]
-        frame = int(hits[0]) if hits.size else -1
+        frame = inputs.init + int(hits[0]) if hits.size else -1
         return float(inputs.time[frame] * 1e3)
 
     return qoi
@@ -257,7 +260,9 @@ def midspan_deflection_peak(
         if concrete_type is not None and inputs.particle_type is not None:
             gauge &= inputs.particle_type == concrete_type
         y = pos[:, gauge, 1].mean(axis=1)
-        return float(np.max(y[0] - y))
+        # Reference is frame-0 geometry; the peak excursion is scored-span only
+        # (the seeded prefix must not leak into the QoI, ADR-0032 §4).
+        return float(np.max(y[0] - y[inputs.init :]))
 
     return qoi
 

@@ -151,3 +151,31 @@ def test_validate_rejects_simulated_case_without_displacement(tmp_path):
     case.response.node = {}  # remove required displacement
     with pytest.raises(SchemaError, match="displacement"):
         write_case(case, tmp_path / "bad.h5")
+
+
+def test_validate_rejects_response_element_type_absent_from_elements(tmp_path):
+    case = _shell_case()
+    assert case.response is not None
+    # response references an element type the case has no block for
+    case.response.element = {"solid": {"stress": np.zeros((3, 1, 6), np.float32)}}
+    with pytest.raises(SchemaError, match="solid"):
+        write_case(case, tmp_path / "bad.h5")
+
+
+def test_validate_rejects_zero_width_connectivity(tmp_path):
+    case = _shell_case()
+    case.elements["shell"].connectivity = np.zeros((1, 0), dtype=np.int64)
+    with pytest.raises(SchemaError, match="node per element|connectivity"):
+        write_case(case, tmp_path / "bad.h5")
+
+
+def test_validate_rejects_zero_frame_response(tmp_path):
+    case = _shell_case()
+    case.response = Response(
+        time=np.zeros((0,), dtype=np.float64),
+        node={"displacement": np.zeros((0, 4, 2), dtype=np.float32)},
+        element={},
+        globals_={},
+    )
+    with pytest.raises(SchemaError, match="frame"):
+        write_case(case, tmp_path / "bad.h5")

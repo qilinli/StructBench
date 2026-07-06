@@ -193,3 +193,13 @@ def test_available_aux_fields_lists_max_principal_strain():
     from structbench.datasets import available_aux_fields
 
     assert "max_principal_strain" in available_aux_fields()
+
+
+def test_max_principal_strain_from_voigt_public_helper():
+    """The public helper mirrors von_mises_from_voigt for reuse by viz."""
+    from structbench.datasets.canonical import max_principal_strain_from_voigt
+
+    voigt = np.array([[0.02, -0.01, 0.0, 0.02, 0.0, 0.0]])  # (1, 6)
+    out = max_principal_strain_from_voigt(voigt)
+    assert out.shape == (1,)
+    np.testing.assert_allclose(out[0], 0.0230278, rtol=1e-5)

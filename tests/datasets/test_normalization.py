@@ -132,6 +132,24 @@ def test_cached_stats_recomputes_when_case_ids_change(tmp_path):
     assert len(list((tmp_path / "derived").glob("norm_*.npz"))) == 2
 
 
+def test_cached_stats_recomputes_when_values_change_but_shapes_match(tmp_path):
+    """A shape-preserving data change (the ADR-0030 x1000 patch) must not
+    silently reuse stale cached stats."""
+    a = _known_vm_traj()  # aux = arange(20)
+    first = cached_compute_stats(
+        [a], dataset_root=tmp_path, aux_field="von_mises_stress"
+    )
+    # Same case-id, same shapes, aux scaled x1000 (the exact ADR-0030 hazard).
+    b = _known_vm_traj()
+    b.aux = (b.aux * 1000.0).astype(np.float32)
+    second = cached_compute_stats(
+        [b], dataset_root=tmp_path, aux_field="von_mises_stress"
+    )
+    np.testing.assert_allclose(second.aux_mean, compute_stats([b]).aux_mean)
+    assert not np.allclose(second.aux_mean, first.aux_mean)  # x1000 -> different
+    assert len(list((tmp_path / "derived").glob("norm_*.npz"))) == 2  # distinct keys
+
+
 def test_cached_stats_recovers_from_corrupt_cache_file(tmp_path):
     traj = _known_vm_traj()
     good = cached_compute_stats(

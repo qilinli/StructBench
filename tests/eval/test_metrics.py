@@ -74,6 +74,19 @@ def test_arrival_time_saturates_when_no_crossing():
     assert arrival_time(0.5)(quiet) == pytest.approx(inputs.time[-1] * 1e3)
 
 
+def test_arrival_time_respects_scored_span():
+    """A gauge crossing in the seeded prefix must not leak (ADR-0032 §4)."""
+    t = np.arange(7, dtype=float) * 1e-3  # seconds; time[f]*1e3 == frame index
+    x = np.linspace(0.0, 100.0, 101, dtype=np.float32)
+    positions = np.zeros((7, 101, 2), np.float32)
+    positions[:, :, 0] = x
+    aux = np.zeros((7, 101), np.float32)
+    aux[1, 50] = 10.0  # spurious spike at the gauge, inside the seeded prefix
+    aux[5, 50] = 10.0  # true arrival, in the scored span
+    inputs = QoiInputs(time=t, positions=positions, aux=aux, init=3)
+    assert arrival_time(0.5)(inputs) == pytest.approx(5.0)  # not 1.0
+
+
 def test_peak_stress_reads_late_half():
     inputs = _plane_wave_inputs()
     # frames 0-10; late half = 5-10; front fills to 5.0 by frame 5 and stays
@@ -123,6 +136,19 @@ def _beam_inputs():
 def test_midspan_deflection_peak_reads_the_sag():
     qoi = midspan_deflection_peak(gauge_halfwidth=5.0)(_beam_inputs())
     assert qoi == pytest.approx(4.0)
+
+
+def test_midspan_deflection_peak_respects_scored_span():
+    """A large sag in the seeded prefix must not leak (ADR-0032 §4)."""
+    t = np.arange(7, dtype=float)
+    positions = np.zeros((7, 3, 2), np.float32)
+    positions[:, :, 0] = np.array([0.0, 50.0, 100.0], np.float32)
+    # middle particle: 100 mm sag in the prefix, 2 mm peak sag in the scored span
+    positions[:, 1, 1] = -np.array([0, 100, 100, 1, 1, 2, 1], np.float32)
+    aux = np.zeros((7, 3), np.float32)
+    inputs = QoiInputs(time=t, positions=positions, aux=aux, init=3)
+    qoi = midspan_deflection_peak(gauge_halfwidth=5.0)(inputs)
+    assert qoi == pytest.approx(2.0)  # not 100.0
 
 
 def test_cracked_fraction_final_frame():
