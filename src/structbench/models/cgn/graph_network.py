@@ -199,7 +199,14 @@ class InteractionNetwork(MessagePassing):
             (nedges, nedge_in=latent_dim of 128)
 
         Returns:
-          tuple: Updated node and edge features
+          tuple: (updated node features, edge features). The node features are
+            the aggregated node update plus residual. The edge stream is the
+            input edge features plus their own residual -- i.e. exactly 2x the
+            input -- NOT the edge-MLP output: ``update`` returns the original
+            ``edge_features`` kwarg, and the ``message`` edge-MLP output feeds
+            only node aggregation. This is faithful to the trained sgnn lineage
+            (ADR-0034); the ``test_interaction_network_edge_stream_is_input_doubled``
+            pin locks it. Changing it is a behavioural change (ADR + retrain).
         """
         # Save particle state and edge features
         x_residual = x
@@ -251,11 +258,14 @@ class InteractionNetwork(MessagePassing):
             (nparticles, nnode_in=latent_dim of 128)
           x: Particle state representation as a torch tensor with shape
             (nparticles, nnode_in=latent_dim of 128)
-          edge_features: Edge features as a torch tensor with shape
-            (nedges, nedge_out=latent_dim of 128)
+          edge_features: The ORIGINAL edge features passed to ``propagate``
+            (shape (nedges, nedge_in)), forwarded through unchanged. The
+            ``message`` edge-MLP output is consumed by aggregation, not here.
 
         Returns:
-          tuple: Updated node and edge features
+          tuple: (node update from ``node_fn``, the unchanged input
+            ``edge_features``). ``forward`` then adds the edge residual,
+            yielding 2x the input on the edge stream (see ``forward``).
         """
         # Concat node features with a final shape of
         # [nparticles, latent_dim (or nnode_in) *2]
