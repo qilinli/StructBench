@@ -88,6 +88,11 @@ def _validate_elements(case: Case, n_nodes: int) -> None:
                 f"elements/{etype}.part_id must have shape ({n_elem},), "
                 f"got {block.part_id.shape}"
             )
+        if n_elem and conn.shape[1] < 1:
+            raise SchemaError(
+                f"elements/{etype}.connectivity must have >=1 node per element, "
+                f"got shape {conn.shape}"
+            )
         if n_elem and (conn.min() < 0 or conn.max() >= n_nodes):
             raise SchemaError(
                 f"elements/{etype}.connectivity references a node outside "
@@ -111,6 +116,11 @@ def _validate_response(case: Case, n_nodes: int, dim: int) -> None:
     if resp.time.ndim != 1:
         raise SchemaError("response.time must be 1D")
     n_frames = int(resp.time.shape[0])
+    if n_frames < 1:
+        raise SchemaError(
+            "a simulated case must have at least one response frame (the t=0 "
+            "state lives at frame 0, ADR-0012)"
+        )
     if "displacement" not in resp.node:
         raise SchemaError("a simulated case must contain response.node['displacement']")
     for fieldname, arr in resp.node.items():
@@ -120,6 +130,11 @@ def _validate_response(case: Case, n_nodes: int, dim: int) -> None:
                 f"({n_frames}, {n_nodes}, {dim}), got {arr.shape}"
             )
     for etype, fields in resp.element.items():
+        if etype not in case.elements:
+            raise SchemaError(
+                f"response.element has type {etype!r} with no matching "
+                f"elements/{etype} block"
+            )
         n_elem = int(case.elements[etype].connectivity.shape[0])
         for fieldname, arr in fields.items():
             if arr.shape[:2] != (n_frames, n_elem):
