@@ -9,6 +9,7 @@ checkpoint would shadow the better one).
 """
 
 import json
+import os
 from dataclasses import asdict
 
 import numpy as np
@@ -21,8 +22,11 @@ from structbench.benchmarks.registry import BenchmarkSpec
 from structbench.cli.train import (
     CGNConfig,
     TrainConfig,
+    _find_checkpoint,
+    _json_safe,
     build_simulator,
     evaluate,
+    main,
     train,
 )
 from structbench.core import (
@@ -406,3 +410,86 @@ def test_evaluate_protocol_standard_is_card_relative(tmp_path):
         case_ids, data_root, out_dir, "cpu", init_frames=3, save_artifacts=False
     )
     assert on_card["protocol_standard"] is True
+
+
+def test_find_checkpoint_selects_by_step_not_mtime(tmp_path):
+    """Checkpoint selection uses the step in the filename, not mtime."""
+    low = tmp_path / "model-best-000100.pt"
+    high = tmp_path / "model-best-000500.pt"
+    low.write_bytes(b"x")
+    high.write_bytes(b"x")
+    os.utime(high, (1, 1))  # higher step, but made OLDER
+    os.utime(low, (10**9, 10**9))  # lower step, but made NEWER
+    assert _find_checkpoint(tmp_path) == high
+
+
+def test_json_safe_maps_non_finite_to_none(tmp_path):
+    """Non-finite metrics become null so the JSON stays strictly parseable."""
+    metrics = {
+        "a": float("nan"),
+        "b": {"c": float("inf")},
+        "d": [1.0, float("-inf")],
+        "e": "ok",
+    }
+    text = json.dumps(_json_safe(metrics), allow_nan=False)  # must not raise
+    assert json.loads(text) == {
+        "a": None,
+        "b": {"c": None},
+        "d": [1.0, None],
+        "e": "ok",
+    }
+
+
+def test_main_valid_without_out_returns_error_not_traceback(tmp_path, capsys):
+    rc = main(["--mode", "valid", "--data-root", str(tmp_path)])
+    assert rc == 2
+    assert "--out is required" in capsys.readouterr().out
+
+
+def test_train_rejects_empty_windowed_dataset(tmp_path):
+    """All-short trajectories yield an empty WindowDataset -> raise, not loop."""
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    _write_tiny_case(data_root, "C-1", n_frames=3)  # n_frames == window -> 0 samples
+    _write_tiny_case(data_root, "V-1", n_frames=3)
+    card = BenchmarkCard(
+        name="Empty",
+        version="0",
+        description="test-only spec",
+        provenance="test",
+        data_license="CC0",
+        solver="test",
+        discretisation="SPH",
+        materials=("MAT_TEST",),
+        erosion=False,
+        loading="none",
+        source_units="SI",
+        geometry="unit box",
+        n_cases=2,
+        splits={"train": 1, "val": 1},
+        task="test",
+        aux_field="von_mises_stress",
+        aux_unit="MPa",
+        qois=(),
+        fields=("positions",),
+        particles_per_case="3",
+        n_frames=3,
+        output_dt_ms=1.0,
+        init_frames=3,
+        protocol_rationale="test-only card",
+    )
+    spec = BenchmarkSpec(
+        card=card,
+        splits={"train": ("C-1",), "val": ("V-1",)},
+        eval_splits=("val",),
+        aux_field="von_mises_stress",
+    )
+    with pytest.raises(ValueError, match="empty training set|window"):
+        train(
+            spec,
+            CGNConfig(**SMALL_CGN),
+            TrainConfig(benchmark=""),
+            data_root,
+            tmp_path / "run",
+            "cpu",
+        )

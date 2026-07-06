@@ -28,6 +28,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
+import re
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -430,6 +432,12 @@ def train(
     )
 
     dataset = WindowDataset(train_trajs, cgn.window)
+    if len(dataset) == 0:
+        raise ValueError(
+            f"empty training set: no TRAIN trajectory has more than "
+            f"window={cgn.window} frames, so there are no autoregressive "
+            f"samples. Check the data root or reduce the window."
+        )
     loader = DataLoader(
         dataset,
         batch_size=train_cfg.batch_size,
@@ -541,9 +549,36 @@ def train(
 
 
 def _find_checkpoint(out_dir: Path) -> Path | None:
-    """Return the most recently modified ``model-*.pt`` in ``out_dir``."""
-    checkpoints = sorted(out_dir.glob("model-*.pt"), key=lambda p: p.stat().st_mtime)
+    """Return the highest-step ``model-*.pt`` in ``out_dir``.
+
+    Selection is by the step number embedded in the (zero-padded) filename,
+    not filesystem mtime, so a run directory whose mtimes were scrambled by a
+    copy or transfer still resolves to the latest (best) checkpoint.
+    """
+
+    def _step(p: Path) -> int:
+        m = re.search(r"(\d+)", p.stem)
+        return int(m.group(1)) if m else -1
+
+    checkpoints = sorted(out_dir.glob("model-*.pt"), key=_step)
     return checkpoints[-1] if checkpoints else None
+
+
+def _json_safe(obj: Any) -> Any:
+    """Recursively map non-finite floats to ``None`` for strict JSON output.
+
+    A diverged rollout can yield NaN/Inf metrics; the default ``json.dumps``
+    emits bare ``NaN``/``Infinity`` tokens that strict JSON parsers reject, so
+    the run directory's evidence files would be unreadable exactly when a run
+    misbehaves.
+    """
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
 
 
 def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
@@ -746,7 +781,8 @@ def evaluate(
     }
     if save_artifacts:
         (out_dir / f"metrics-{split_name}.json").write_text(
-            json.dumps(metrics, indent=2), encoding="utf-8"
+            json.dumps(_json_safe(metrics), indent=2, allow_nan=False),
+            encoding="utf-8",
         )
     return metrics
 
@@ -801,8 +837,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.out is not None:
         out_dir = Path(args.out)
-    else:
+    elif args.mode == "train":
         out_dir = Path("runs") / datetime.now().strftime("run-%Y%m%d-%H%M%S")
+    else:
+        print(
+            "error: --out is required in valid/rollout mode "
+            "(the existing run directory to evaluate)"
+        )
+        return 2
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"mode={args.mode} device={device} out={out_dir}")
