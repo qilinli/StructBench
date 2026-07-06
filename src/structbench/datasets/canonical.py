@@ -68,6 +68,36 @@ def von_mises_from_voigt(stress: NDArray[np.floating]) -> NDArray[np.float64]:
     )
 
 
+def max_principal_strain_from_voigt(
+    strain: NDArray[np.floating],
+) -> NDArray[np.float64]:
+    """Maximum principal strain from a Voigt tensor ``[xx, yy, zz, xy, yz, zx]``.
+
+    Engineering shear components (indices 3-5) are halved to form the symmetric
+    strain tensor before the eigenvalue solve (ADR-0029). Dimensionless.
+
+    Parameters
+    ----------
+    strain:
+        Array with last axis of length 6.
+
+    Returns
+    -------
+    numpy.ndarray
+        Same leading shape as ``strain`` with the last axis removed; the
+        largest eigenvalue (principal strain) of each tensor.
+    """
+    voigt = np.asarray(strain, dtype=np.float64)
+    tensor = np.zeros((*voigt.shape[:-1], 3, 3), dtype=np.float64)
+    tensor[..., 0, 0] = voigt[..., 0]
+    tensor[..., 1, 1] = voigt[..., 1]
+    tensor[..., 2, 2] = voigt[..., 2]
+    tensor[..., 0, 1] = tensor[..., 1, 0] = voigt[..., 3] / 2
+    tensor[..., 1, 2] = tensor[..., 2, 1] = voigt[..., 4] / 2
+    tensor[..., 0, 2] = tensor[..., 2, 0] = voigt[..., 5] / 2
+    return np.asarray(np.linalg.eigvalsh(tensor)[..., -1])
+
+
 AuxExtractor = Callable[
     [Mapping[str, NDArray[np.floating]], float], NDArray[np.float32]
 ]
@@ -166,16 +196,7 @@ def _aux_max_principal_strain(
         Shape ``(T, P)``, float32, dimensionless.
     """
     del stress_scale
-    voigt = sph["strain"][...]
-    t, p = voigt.shape[0], voigt.shape[1]
-    tensor = np.zeros((t, p, 3, 3), dtype=np.float64)
-    tensor[..., 0, 0] = voigt[..., 0]
-    tensor[..., 1, 1] = voigt[..., 1]
-    tensor[..., 2, 2] = voigt[..., 2]
-    tensor[..., 0, 1] = tensor[..., 1, 0] = voigt[..., 3] / 2
-    tensor[..., 1, 2] = tensor[..., 2, 1] = voigt[..., 4] / 2
-    tensor[..., 0, 2] = tensor[..., 2, 0] = voigt[..., 5] / 2
-    return np.linalg.eigvalsh(tensor)[..., -1].astype(np.float32)
+    return max_principal_strain_from_voigt(sph["strain"][...]).astype(np.float32)
 
 
 _AUX_EXTRACTORS: dict[str, AuxExtractor] = {
