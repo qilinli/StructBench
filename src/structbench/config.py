@@ -69,7 +69,7 @@ class CGNConfig:
     particle_type_embedding_size: int = 9
     noise_std: float = 0.02
     dim: int = 2
-    max_neighbors: int = 48
+    max_neighbors: int = 32  # project-wide backstop cap (M-B, 2026-07-06)
 
 
 @dataclass

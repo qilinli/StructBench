@@ -14,7 +14,7 @@ nmlp_layers = 1
 particle_type_embedding_size = 9
 noise_std = 0.02
 dim = 2
-max_neighbors = 48  # FLAGGED (ADR-0032): ~113 physical neighbours at r=15; re-size per ADR-0028's never-binds rule before any notch training
+max_neighbors = 32  # project-wide cap (M-B, 2026-07-06); connectivity_radius=15 is stale-legacy (~113 nbrs), radius reduction to ~10-20 nbrs pending
 
 [train]
 batch_size = 2
