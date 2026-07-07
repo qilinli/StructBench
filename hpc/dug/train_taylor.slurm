@@ -20,7 +20,7 @@
                                             # config is 80k steps at batch 8; the old
                                             # ~4.6k steps/h (=~22h) was measured at the
                                             # batch-32/100k recipe — re-measure for batch 8.
-#SBATCH --output=slurm-taylor-%j.out        # written to the submit dir (always exists)
+#SBATCH --output=logs/slurm-taylor-%j.out   # job stdout in logs/ (gitignored), not the repo root
 # #SBATCH --account=<PROJECT>              # uncomment if submission demands an account
 
 set -euo pipefail

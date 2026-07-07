@@ -4,6 +4,9 @@ scratch/
 # Training run outputs (checkpoints, configs — not tracked)
 runs/
 
+# SLURM job stdout (kept out of the repo root; the logs/ dir is tracked via .gitkeep)
+logs/*.out
+
 # Python
 __pycache__/
 *.py[cod]
