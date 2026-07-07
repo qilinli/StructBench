@@ -1,7 +1,8 @@
 # Taylor 2D CGN baseline (Li et al. 2023; ADR-0034) (ADR-0019 task; grouped per ADR-0032).
 # Recipe: ADR-0028 mechanics + reference capacity and 80k budget, selected on the
-# 2026-07-03/04 ablation fleets and re-validated under the init=3 protocol
-# (scratch/2026-07-05-init3-reeval.md): capacity dominant, noise 0.02, w_aux 1.0.
+# 2026-07-03/04 ablation fleets (capacity dominant, noise 0.02, w_aux 1.0). Protocol
+# is input_frames = 6 (ADR-0035): the model history length is also the rollout seed
+# count (C = 5 velocities, the GNS reference); no constant-velocity backfill.
 
 [run]
 benchmark = "taylor_impact_2d"
@@ -9,7 +10,7 @@ seed = 0                        # torch RNG: init, noise, shuffle
 
 [model]
 family = "cgn"
-window = 11
+input_frames = 6
 connectivity_radius = 1.5  # 3x particle spacing (ADR-0028); 0.6 broke edges under rollout drift
 hidden_dim = 128
 message_passing_steps = 10

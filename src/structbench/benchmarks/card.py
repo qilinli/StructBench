@@ -56,10 +56,12 @@ class BenchmarkCard:
         Response frames per case.
     output_dt_ms : float
         Output interval of the source simulations, milliseconds.
-    init_frames : int
-        Benchmark protocol (ADR-0032 §4): the maximum number of ground-truth
-        frames a model may observe at rollout start. The scored span is
-        frames ``[init_frames, end]`` for every model.
+    input_frames : int
+        Benchmark protocol (ADR-0035): the number of ground-truth frames a
+        model observes at rollout start, which by construction equals the
+        model's input history length (there is no history backfill). The scored
+        span is frames ``[input_frames, end]`` for every model, and a run whose
+        model ``input_frames`` differs from this value is rejected.
     protocol_rationale : str
         Why the protocol values are what they are — the recorded conclusion
         of the mandatory ground-truth timeline analysis (ADR-0032 §5).
@@ -76,7 +78,7 @@ class BenchmarkCard:
     Raises
     ------
     ValueError
-        If ``splits`` does not sum to ``n_cases``, ``init_frames`` is not at
+        If ``splits`` does not sum to ``n_cases``, ``input_frames`` is not at
         least 2, or ``protocol_rationale`` is empty.
     """
 
@@ -105,8 +107,8 @@ class BenchmarkCard:
     particles_per_case: str
     n_frames: int
     output_dt_ms: float
-    # protocol (ADR-0032) — task definition, pinned per benchmark ADR
-    init_frames: int
+    # protocol (ADR-0032, ADR-0035) — task definition, pinned per benchmark ADR
+    input_frames: int
     protocol_rationale: str
     size_gb: float | None = None
     horizon: str = "full"
@@ -116,8 +118,8 @@ class BenchmarkCard:
         total = sum(self.splits.values())
         if self.n_cases != total:
             raise ValueError(f"n_cases ({self.n_cases}) != sum of splits ({total})")
-        if self.init_frames < 2:
-            raise ValueError(f"init_frames must be >= 2, got {self.init_frames}")
+        if self.input_frames < 2:
+            raise ValueError(f"input_frames must be >= 2, got {self.input_frames}")
         if not self.protocol_rationale.strip():
             raise ValueError(
                 "protocol_rationale must record the timeline analysis "

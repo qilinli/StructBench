@@ -1,6 +1,6 @@
 """Ground-truth timeline analysis: the mandatory protocol rationale (ADR-0032 §5).
 
-Before a benchmark's protocol values (``init_frames``, horizon, eval times)
+Before a benchmark's protocol values (``input_frames``, horizon, eval times)
 are pinned, this analysis characterizes the ground-truth dynamics so the
 values can be justified by the task rather than by any baseline's
 performance::
@@ -34,7 +34,7 @@ class CaseTimeline:
     """Timeline characterization of one ground-truth case (ADR-0032 §5).
 
     Times are in the trajectory's time unit (seconds) unless suffixed.
-    ``ke_frac_dissipated_at`` maps a candidate ``init_frames`` to the
+    ``ke_frac_dissipated_at`` maps a candidate ``input_frames`` to the
     fraction of initial kinetic energy already dissipated within that
     observed prefix (what a model would be handed "for free").
     """
@@ -160,7 +160,7 @@ def render_report(benchmark_name: str, timelines: list[CaseTimeline]) -> str:
         "dissipated; settle99 is 99% displacement settlement; tail activity",
         "is the last-20%-of-horizon mean |acceleration| relative to its peak;",
         "`KE diss @k` is the KE fraction dissipated within a k-frame observed",
-        "prefix — what a model at `init_frames = k` is handed for free.",
+        "prefix — what a model at `input_frames = k` is handed for free.",
         "",
         f"| case | frames | dt | KE50 | KE90 | KE99 | settle99 | tail |{init_cols}"
         " peak mean aux | t(peak) |",

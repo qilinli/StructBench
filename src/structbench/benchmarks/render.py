@@ -130,7 +130,7 @@ def _section(spec: BenchmarkSpec) -> list[str]:
         f"- **Materials**: {', '.join(c.materials)}",
         f"- **Geometry**: {c.geometry}; source units {c.source_units}",
         f"- **Splits**: {splits}",
-        f"- **Protocol** (ADR-0032): init {c.init_frames} frames, "
+        f"- **Protocol** (ADR-0032, ADR-0035): {c.input_frames} input frames, "
         f"horizon {c.horizon}, scored at {c.eval_times} output times. "
         f"*Rationale*: {c.protocol_rationale}",
         f"- **QoIs**: {', '.join(c.qois)}",
@@ -181,8 +181,8 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         "",
         "## Evaluation criteria",
         "",
-        f"- Protocol (benchmark-owned, ADR-0032): init {c.init_frames} frames, "
-        f"horizon {c.horizon}, scored at {c.eval_times} output times.",
+        f"- Protocol (benchmark-owned, ADR-0032, ADR-0035): {c.input_frames} "
+        f"input frames, horizon {c.horizon}, scored at {c.eval_times} output times.",
         f"- Protocol rationale: {c.protocol_rationale}",
         f"- Metrics: one-step and full-rollout position RMSE (mm); "
         f"{c.aux_field} RMSE ({c.aux_unit}).",

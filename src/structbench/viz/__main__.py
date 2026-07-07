@@ -68,17 +68,18 @@ def split_and_case(stem: str) -> tuple[str, str]:
     return split, case_id
 
 
-def snapshot_frames(n_frames: int, window: int, columns: int) -> list[int]:
+def snapshot_frames(n_frames: int, input_frames: int, columns: int) -> list[int]:
     """Evenly spaced frame indices from rollout start to the final frame.
 
+    ``input_frames`` is the seeded prefix length (the first predicted frame).
     A single column shows the final frame; ``columns`` below 1 is an error.
     """
     if columns < 1:
         raise ValueError(f"columns must be >= 1, got {columns}")
     if columns == 1:
         return [n_frames - 1]
-    span = n_frames - 1 - window
-    return [window + (span * i) // (columns - 1) for i in range(columns)]
+    span = n_frames - 1 - input_frames
+    return [input_frames + (span * i) // (columns - 1) for i in range(columns)]
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -125,8 +126,8 @@ def main(argv: list[str] | None = None) -> None:
         pred = np.load(npz_path)
         gt = load_case_field(args.data_root / f"{case}.h5", spec.aux_field)
         n_frames = gt.positions.shape[0]
-        window = n_frames - len(pred["position_rmse"])
-        frames = snapshot_frames(n_frames, window, args.columns)
+        input_frames = n_frames - len(pred["position_rmse"])
+        frames = snapshot_frames(n_frames, input_frames, args.columns)
 
         pos_rmse = float(pred["position_rmse"].mean())
         aux_rmse = float(pred["aux_rmse"].mean())

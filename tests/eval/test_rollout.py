@@ -57,15 +57,15 @@ class _PerfectSim:
     ----------
     traj:
         The ground-truth trajectory used by rollout; positions and aux are
-        read at increasing frame indices starting from ``window``.
-    window:
+        read at increasing frame indices starting from ``input_frames``.
+    input_frames:
         History length passed to :func:`rollout`; sets the starting frame.
     """
 
-    def __init__(self, traj: CaseTrajectory, window: int = 2) -> None:
+    def __init__(self, traj: CaseTrajectory, input_frames: int = 2) -> None:
         self._pos = traj.positions  # (T, P, dim)
         self._aux = traj.aux  # (T, P)
-        self._step = window
+        self._step = input_frames
 
     def predict_positions(
         self, position_sequence, nparticles_per_example, particle_types
@@ -92,7 +92,7 @@ def _const_vel_traj(T: int = 6, P: int = 4) -> CaseTrajectory:
 
 def test_rollout_is_exact_for_constant_velocity():
     traj = _const_vel_traj()
-    res = rollout(_ConstVelSim(), traj, window=3)
+    res = rollout(_ConstVelSim(), traj, input_frames=3)
     assert isinstance(res, RolloutResult)
     assert res.predicted_positions.shape == (6, 4, 2)
     np.testing.assert_allclose(res.predicted_positions, traj.positions, atol=1e-5)
@@ -100,7 +100,7 @@ def test_rollout_is_exact_for_constant_velocity():
 
 
 def test_rollout_reports_cumulative_means():
-    res = rollout(_ConstVelSim(), _const_vel_traj(), window=3)
+    res = rollout(_ConstVelSim(), _const_vel_traj(), input_frames=3)
     np.testing.assert_allclose(res.mean_position_rmse, 0.0, atol=1e-5)
     np.testing.assert_allclose(res.mean_aux_rmse, res.aux_rmse.mean(), atol=1e-12)
 
@@ -108,7 +108,7 @@ def test_rollout_reports_cumulative_means():
 def test_rollout_computes_qois_when_given():
     traj = _const_vel_traj()
     qois = {"final_length": final_length, "mushroom_width": mushroom_width}
-    res = rollout(_ConstVelSim(), traj, window=3, qois=qois)
+    res = rollout(_ConstVelSim(), traj, input_frames=3, qois=qois)
     # Perfect prediction: predicted and true QoIs agree, errors vanish.
     true_inputs = QoiInputs(
         time=traj.time,
@@ -123,13 +123,13 @@ def test_rollout_computes_qois_when_given():
 
 
 def test_rollout_qois_default_to_empty():
-    res = rollout(_ConstVelSim(), _const_vel_traj(), window=3)
+    res = rollout(_ConstVelSim(), _const_vel_traj(), input_frames=3)
     assert res.qoi_pred == {} and res.qoi_true == {} and res.qoi_error == {}
 
 
 def test_one_step_position_rmse_zero_for_perfect_simulator():
-    out = one_step_position_rmse(_ConstVelSim(), _const_vel_traj(), window=3)
-    assert out.shape == (3,)  # T - window predicted frames
+    out = one_step_position_rmse(_ConstVelSim(), _const_vel_traj(), input_frames=3)
+    assert out.shape == (3,)  # T - input_frames predicted frames
     np.testing.assert_allclose(out, 0.0, atol=1e-5)
 
 
@@ -137,7 +137,7 @@ def test_one_step_position_rmse_is_teacher_forced():
     # A frozen simulator is off by exactly one frame of motion (1 mm in x) at
     # every step when fed ground-truth history: per-step RMSE stays constant at
     # sqrt(mean([1, 0])) = sqrt(0.5). Autoregressive error would grow instead.
-    out = one_step_position_rmse(_FrozenSim(), _const_vel_traj(), window=3)
+    out = one_step_position_rmse(_FrozenSim(), _const_vel_traj(), input_frames=3)
     np.testing.assert_allclose(out, np.sqrt(0.5), atol=1e-5)
 
 
@@ -149,7 +149,7 @@ def test_rollout_qois_receive_aux_and_time():
         assert inputs.time.shape[0] == inputs.positions.shape[0]
         return float(np.abs(inputs.aux).max())
 
-    result = rollout(sim, traj, window=2, qois={"aux_peak": aux_peak})
+    result = rollout(sim, traj, input_frames=2, qois={"aux_peak": aux_peak})
     assert np.isfinite(result.qoi_true["aux_peak"])
     assert result.qoi_true["aux_peak"] == float(np.abs(traj.aux).max())
 
@@ -157,14 +157,14 @@ def test_rollout_qois_receive_aux_and_time():
 def test_rollout_seeds_predicted_aux_with_ground_truth():
     traj = _const_vel_traj()
     sim = _ConstVelSim()
-    result = rollout(sim, traj, window=2)
+    result = rollout(sim, traj, input_frames=2)
     np.testing.assert_allclose(result.predicted_aux[:2], traj.aux[:2])
 
 
 def test_one_step_aux_rmse_shape_and_finiteness():
     traj = _const_vel_traj()
     sim = _ConstVelSim()
-    per_frame = one_step_aux_rmse(sim, traj, window=2)
+    per_frame = one_step_aux_rmse(sim, traj, input_frames=2)
     assert per_frame.shape == (traj.positions.shape[0] - 2,)
     assert np.all(np.isfinite(per_frame))
 
@@ -177,7 +177,7 @@ def test_rollout_qoi_inputs_carry_particle_type():
         assert inputs.particle_type is not None
         return float(inputs.particle_type.sum())
 
-    result = rollout(sim, traj, window=2, qois={"tc": type_checker})
+    result = rollout(sim, traj, input_frames=2, qois={"tc": type_checker})
     assert result.qoi_true["tc"] == float(traj.particle_type.sum())
 
 
@@ -188,7 +188,7 @@ def test_rollout_prescribes_kinematic_particles():
     ptype[0] = 7
     traj = dataclasses.replace(traj, particle_type=ptype)
     sim = _ZeroSim()
-    result = rollout(sim, traj, window=2, kinematic_types=(7,))
+    result = rollout(sim, traj, input_frames=2, kinematic_types=(7,))
     # particle 0 follows ground truth exactly despite the zero predictor
     np.testing.assert_allclose(
         result.predicted_positions[:, 0, :], traj.positions[:, 0, :]
@@ -203,8 +203,8 @@ def test_rollout_metrics_exclude_kinematic_particles():
     ptype = traj.particle_type.copy()
     ptype[0] = 7
     traj = dataclasses.replace(traj, particle_type=ptype)
-    sim = _PerfectSim(traj, window=2)
-    result = rollout(sim, traj, window=2, kinematic_types=(7,))
+    sim = _PerfectSim(traj, input_frames=2)
+    result = rollout(sim, traj, input_frames=2, kinematic_types=(7,))
     assert np.allclose(result.position_rmse, 0.0)
 
 
@@ -224,49 +224,36 @@ class _RecordSim(_ConstVelSim):
         )
 
 
-def test_rollout_init_frames_defaults_to_window():
-    """init_frames=None reproduces the pre-0032 window-seeded behaviour exactly."""
+def test_rollout_first_input_is_observed_prefix_no_backfill():
+    """The model's first input is the first input_frames real frames (ADR-0035).
+
+    There is no constant-velocity backfill: the observed prefix IS the input
+    window, so the first history the model sees is exactly frames 0..input_frames-1.
+    """
     traj = _const_vel_traj(T=8)
-    legacy = rollout(_FrozenSim(), traj, window=3)
-    explicit = rollout(_FrozenSim(), traj, window=3, init_frames=3)
-    np.testing.assert_array_equal(legacy.position_rmse, explicit.position_rmse)
-    np.testing.assert_array_equal(
-        legacy.predicted_positions, explicit.predicted_positions
-    )
+    sim = _RecordSim()
+    rollout(sim, traj, input_frames=4)
+    seq = sim.first_seq.numpy()  # (P, input_frames, dim)
+    assert seq.shape == (4, 4, 2)
+    # x-history is exactly frames 0,1,2,3 — not a backfilled negative-index past.
+    np.testing.assert_allclose(seq[:, :, 0], np.array([[0.0, 1.0, 2.0, 3.0]] * 4))
 
 
-def test_rollout_init_frames_sets_scored_span():
-    """Scored span is [init, T) — independent of the model window."""
+def test_rollout_scored_span_starts_at_input_frames():
+    """Scored span is [input_frames, T); the observed prefix is ground truth."""
     traj = _const_vel_traj(T=10)
-    res = rollout(_ConstVelSim(), traj, window=2, init_frames=5)
+    res = rollout(_ConstVelSim(), traj, input_frames=5)
     assert res.position_rmse.shape == (5,)  # 10 - 5 predicted frames
     assert res.predicted_positions.shape == (10, 4, 2)
-    # Seeded prefix is ground truth verbatim.
     np.testing.assert_array_equal(res.predicted_positions[:5], traj.positions[:5])
     np.testing.assert_array_equal(res.predicted_aux[:5], traj.aux[:5])
 
 
-def test_rollout_warm_start_backfills_constant_velocity_history():
-    """init < window: backfilled history equals the true constant-velocity past."""
-    traj = _const_vel_traj(T=8)
-    sim = _RecordSim()
-    res = rollout(sim, traj, window=4, init_frames=2)
-    # First model input is (P, window, dim): window=4 with init=2 means two
-    # backfilled frames then p0, p1 -> x-history [-2, -1, 0, 1] per particle.
-    seq = sim.first_seq.numpy()
-    assert seq.shape == (4, 4, 2)
-    np.testing.assert_allclose(seq[:, :, 0], np.array([[-2.0, -1.0, 0.0, 1.0]] * 4))
-    # The trajectory is globally constant-velocity, so the backfill is exact
-    # and a constant-velocity model rolls out perfectly from just 2 frames.
-    np.testing.assert_allclose(res.position_rmse, 0.0, atol=1e-5)
-    assert res.position_rmse.shape == (6,)
-
-
-def test_rollout_init_frames_validation():
+def test_rollout_input_frames_validation():
     traj = _const_vel_traj(T=6)
     import pytest
 
-    with pytest.raises(ValueError, match="init_frames must be >= 2"):
-        rollout(_ConstVelSim(), traj, window=3, init_frames=1)
-    with pytest.raises(ValueError, match="trajectory has"):
-        rollout(_ConstVelSim(), traj, window=3, init_frames=6)
+    with pytest.raises(ValueError, match="input_frames must be >= 2"):
+        rollout(_ConstVelSim(), traj, input_frames=1)
+    with pytest.raises(ValueError, match="trajectory has 6 frames"):
+        rollout(_ConstVelSim(), traj, input_frames=6)

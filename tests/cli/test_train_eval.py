@@ -43,7 +43,7 @@ from structbench.datasets import compute_stats, load_case_trajectory
 #: Tiny architecture so checkpoints build fast; deliberately different from the
 #: CGNConfig defaults so evaluate() fails loudly if it ignores config.json.
 SMALL_CGN = {
-    "window": 3,
+    "input_frames": 3,
     "connectivity_radius": 2.0,
     "hidden_dim": 8,
     "message_passing_steps": 1,
@@ -204,7 +204,9 @@ def test_train_refuses_out_dir_with_existing_checkpoints(tmp_path):
     with pytest.raises(FileExistsError):
         train(
             get_benchmark("taylor_impact_2d"),
-            CGNConfig(**SMALL_CGN),
+            # input_frames must match the taylor card (6) so the existing-
+            # checkpoint guard fires, not the ADR-0035 input_frames guard.
+            CGNConfig(**{**SMALL_CGN, "input_frames": 6}),
             TrainConfig(),
             data_root,
             out_dir,
@@ -242,7 +244,7 @@ def test_train_raises_on_spec_config_benchmark_mismatch(tmp_path):
         particles_per_case="1",
         n_frames=3,
         output_dt_ms=1.0,
-        init_frames=3,
+        input_frames=3,
         protocol_rationale="test-only card",
     )
     local_spec = BenchmarkSpec(
@@ -332,7 +334,7 @@ def _local_spec():
         particles_per_case="3",
         n_frames=6,
         output_dt_ms=1.0,
-        init_frames=3,
+        input_frames=3,
         protocol_rationale="test-only card",
     )
     return BenchmarkSpec(
@@ -389,27 +391,85 @@ def test_train_seed_reproducible_and_recorded(tmp_path):
     assert any(not torch.equal(state_a[key], state_c[key]) for key in state_a)
 
 
-def test_evaluate_protocol_standard_is_card_relative(tmp_path):
-    """Legacy init=11 evals are non-standard; card-init re-evals are standard.
+def _write_nested_run(tmp_path, input_frames, n_frames, benchmark="taylor_impact_2d"):
+    """A run dir with a nested (ADR-0035) config.json benchmarked to `benchmark`."""
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    _write_tiny_case(data_root, "C-1", n_frames=n_frames)
+    out_dir = tmp_path / "run"
+    out_dir.mkdir()
+    trajs = [load_case_trajectory(data_root / "C-1.h5")]
+    stats = compute_stats(trajs)
+    stats.save(out_dir / "normalization_stats.npz")
+    cgn = CGNConfig(**{**SMALL_CGN, "input_frames": input_frames})
+    stats_t = {
+        key: {
+            "mean": torch.tensor(getattr(stats, f"{name}_mean"), dtype=torch.float32),
+            "std": torch.tensor(getattr(stats, f"{name}_std"), dtype=torch.float32),
+        }
+        for key, name in [
+            ("velocity", "velocity"),
+            ("acceleration", "acceleration"),
+            ("aux", "aux"),
+        ]
+    }
+    simulator = build_simulator(
+        stats_t,
+        cgn,
+        n_particle_types=2,
+        boundary_feature_fn=lambda p: p[:, 0:1],
+        device="cpu",
+    )
+    simulator.save(str(out_dir / "model-best-000002.pt"))
+    (out_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "run": {"benchmark": benchmark, "seed": 0, "commit": "test"},
+                "model": {"family": "cgn", **asdict(cgn)},
+                "train": {
+                    k: v
+                    for k, v in asdict(TrainConfig()).items()
+                    if k not in ("benchmark", "seed")
+                },
+                "protocol": {
+                    "input_frames": input_frames,
+                    "horizon": "full",
+                    "eval_times": "native",
+                    "standard": True,
+                },
+                "n_particle_types": 2,
+                "data_root": str(data_root),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return data_root, out_dir
 
-    Pre-0032 run dirs recorded init = window. The protocol_standard flag in
-    metrics must compare against the CARD's pinned init (ADR-0032 §4), not the
-    run's own record — otherwise legacy fleet numbers self-certify as official
-    and card-conforming re-evaluations get excluded.
+
+def test_evaluate_on_card_input_frames_is_standard(tmp_path):
+    """A checkpoint whose input_frames == the card's re-evaluates as standard.
+
+    ADR-0035 fuses input_frames with the benchmark protocol, so a run trained at
+    the taylor card's 6 frames is card-conforming on re-eval.
+    """
+    data_root, out_dir = _write_nested_run(tmp_path, input_frames=6, n_frames=8)
+    on_card = evaluate(["C-1"], data_root, out_dir, "cpu", save_artifacts=False)
+    assert on_card["input_frames"] == 6
+    assert on_card["protocol_standard"] is True
+
+
+def test_evaluate_marks_off_card_input_frames_non_standard(tmp_path):
+    """A legacy checkpoint whose input_frames != the card reads as non-standard.
+
+    ``_prepared_run`` writes a pre-0035 flat record at the tiny SMALL_CGN
+    input_frames = 3, against the default taylor card (6), so it re-evaluates as
+    non-standard while surfacing its own recorded input_frames.
     """
     case_ids = ["C-1"]
     data_root, out_dir = _prepared_run(tmp_path, case_ids)  # legacy flat config.json
-    # Default eval follows the record (window=3 == taylor card init 3 here), so
-    # force a non-card init to emulate a legacy window-11-style record.
-    off_card = evaluate(
-        case_ids, data_root, out_dir, "cpu", init_frames=4, save_artifacts=False
-    )
-    assert off_card["init_frames"] == 4
-    assert off_card["protocol_standard"] is False
-    on_card = evaluate(
-        case_ids, data_root, out_dir, "cpu", init_frames=3, save_artifacts=False
-    )
-    assert on_card["protocol_standard"] is True
+    metrics = evaluate(case_ids, data_root, out_dir, "cpu", save_artifacts=False)
+    assert metrics["input_frames"] == 3
+    assert metrics["protocol_standard"] is False
 
 
 def test_find_checkpoint_selects_by_step_not_mtime(tmp_path):
@@ -450,7 +510,7 @@ def test_train_rejects_empty_windowed_dataset(tmp_path):
     """All-short trajectories yield an empty WindowDataset -> raise, not loop."""
     data_root = tmp_path / "data"
     data_root.mkdir()
-    _write_tiny_case(data_root, "C-1", n_frames=3)  # n_frames == window -> 0 samples
+    _write_tiny_case(data_root, "C-1", n_frames=3)  # n_frames == input_frames -> 0 samples
     _write_tiny_case(data_root, "V-1", n_frames=3)
     card = BenchmarkCard(
         name="Empty",
@@ -475,7 +535,7 @@ def test_train_rejects_empty_windowed_dataset(tmp_path):
         particles_per_case="3",
         n_frames=3,
         output_dt_ms=1.0,
-        init_frames=3,
+        input_frames=3,
         protocol_rationale="test-only card",
     )
     spec = BenchmarkSpec(
@@ -484,7 +544,7 @@ def test_train_rejects_empty_windowed_dataset(tmp_path):
         eval_splits=("val",),
         aux_field="von_mises_stress",
     )
-    with pytest.raises(ValueError, match="empty training set|window"):
+    with pytest.raises(ValueError, match="empty training set|input_frames"):
         train(
             spec,
             CGNConfig(**SMALL_CGN),

@@ -16,8 +16,8 @@ def _traj(case_id, P, T=6):
 
 
 def test_window_dataset_sample_shapes_and_target():
-    ds = WindowDataset([_traj("a", P=5)], window=3)
-    # T=6, window=3 -> next index from 3..5 -> 3 samples
+    ds = WindowDataset([_traj("a", P=5)], input_frames=3)
+    # T=6, input_frames=3 -> next index from 3..5 -> 3 samples
     assert len(ds) == 3
     s = ds[0]
     assert s["position_seq"].shape == (5, 3, 2)
@@ -27,7 +27,7 @@ def test_window_dataset_sample_shapes_and_target():
 
 
 def test_collate_concatenates_particles():
-    ds = WindowDataset([_traj("a", 5), _traj("b", 4)], window=3)
+    ds = WindowDataset([_traj("a", 5), _traj("b", 4)], input_frames=3)
     loader = DataLoader(ds, batch_size=2, collate_fn=collate_samples, shuffle=False)
     batch = next(iter(loader))
     # two examples with 5 and 4 particles -> 9 rows

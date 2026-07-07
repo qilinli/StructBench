@@ -58,8 +58,8 @@ def test_archive_readme_carries_task_eval_and_usage_sections():
     assert "## Evaluation criteria" in text
     assert "## Numbers to beat" in text
     assert "## Using this archive" in text
-    # protocol values + rationale from the card (ADR-0032)
-    assert f"init {spec.card.init_frames} frames" in text
+    # protocol values + rationale from the card (ADR-0032, ADR-0035)
+    assert f"{spec.card.input_frames} input frames" in text
     assert spec.card.protocol_rationale[:40] in text
     # QoIs listed; runnable command names the grouped config
     assert spec.card.qois[0] in text

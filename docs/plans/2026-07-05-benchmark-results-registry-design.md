@@ -74,7 +74,7 @@ against `card.splits` (raise `ValueError` on unknown split).
 
 1. `## Task` — `c.task`; aux target `c.aux_field` (`c.aux_unit`); one fixed
    sentence on the autoregressive rollout setup.
-2. `## Evaluation criteria` — protocol line (init `c.init_frames` frames,
+2. `## Evaluation criteria` — protocol line (`c.input_frames` input frames,
    horizon `c.horizon`, scored at `c.eval_times` output times) + the
    recorded `c.protocol_rationale`; the platform-standard metrics (one-step
    and full-rollout position RMSE in mm; aux RMSE in `c.aux_unit`); QoIs
