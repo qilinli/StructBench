@@ -23,9 +23,8 @@ max_neighbors = 32  # project-wide backstop cap (M-B, 2026-07-06): sized above t
 batch_size = 8   # A100-80GB memory bound at this capacity (batch 16 OOMs)
 lr_init = 1e-4  # reference rate (ADR-0028); the old 1e-3 default drove memorization
 lr_decay = 0.1
-lr_decay_steps = 30000  # one decade per 30k; with the code's +1e-6 floor the
-                        # effective lr runs 1e-4 -> 1.2e-6 over the 80k budget
-training_steps = 80000  # fleet's best ckpt landed on the final step at 40k
+# lr_decay_steps is derived from training_steps by config.py: round(steps * 30000/80000).
+training_steps = 80000  # -> derived lr_decay_steps 30000 (~2.67 periods, anneals to ~1.2x the 1e-6 floor)
 val_every = 2000
 w_pos = 1.0
 w_aux = 1.0

@@ -43,6 +43,7 @@ from torch.utils.data import DataLoader
 from ..benchmarks import BenchmarkSpec, available_benchmarks, get_benchmark
 from ..config import (
     CGNConfig,
+    LR_SCHEDULE_FLOOR,
     ProtocolOverride,
     TrainConfig,
     load_run_config,
@@ -506,7 +507,7 @@ def train(
             lr_new = (
                 train_cfg.lr_init
                 * train_cfg.lr_decay ** (step / train_cfg.lr_decay_steps)
-                + 1e-6
+                + LR_SCHEDULE_FLOOR
             )
             for group in optimizer.param_groups:
                 group["lr"] = lr_new

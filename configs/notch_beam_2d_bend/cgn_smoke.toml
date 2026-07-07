@@ -20,7 +20,7 @@ max_neighbors = 32  # project-wide backstop cap (M-B, 2026-07-06)
 batch_size = 2
 lr_init = 1e-4
 lr_decay = 0.1
-lr_decay_steps = 30000
+# lr_decay_steps is derived from training_steps by config.py (round(steps * 30000/80000)).
 training_steps = 10
 val_every = 5
 w_pos = 1.0

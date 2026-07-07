@@ -11,7 +11,9 @@ Loading is strict: unknown sections or keys are errors, and ``[model]`` /
 ``[train]`` must be complete — a missing key is an error, never a silent
 fallback to a dataclass default. The dataclass defaults below exist only for
 programmatic construction (tests, notebooks); TOML-driven runs state every
-value explicitly.
+value explicitly. The one exception is ``[train].lr_decay_steps``, which is
+*derived* from ``training_steps`` to hold the reference LR-anneal depth and
+must not be set in the file (see :func:`_derive_lr_decay_steps`).
 
 Benchmark *protocol* (``init_frames``, horizon, eval times) is not run
 configuration: it lives on the benchmark card, pinned per ADR-0032 §4. A
@@ -88,7 +90,9 @@ class TrainConfig:
     lr_decay : float
         Multiplicative decay base for the exponential schedule.
     lr_decay_steps : int
-        Step interval over which ``lr_decay`` is applied once.
+        Step interval over which ``lr_decay`` is applied once. In TOML runs this
+        is *derived* from ``training_steps`` (:func:`_derive_lr_decay_steps`), not
+        read from ``[train]``; the field default is for programmatic use only.
     training_steps : int
         Total number of optimizer steps.
     val_every : int
@@ -117,6 +121,21 @@ class TrainConfig:
     seed: int = 0
 
 
+#: Additive floor on the exponential LR schedule applied in ``structbench.cli.train``::
+#:
+#:     lr(step) = lr_init * lr_decay ** (step / lr_decay_steps) + LR_SCHEDULE_FLOOR
+#:
+#: Single source of truth for the trainer's floor; also documents the schedule
+#: whose reference anneal depth :func:`_derive_lr_decay_steps` targets.
+LR_SCHEDULE_FLOOR = 1e-6
+
+#: Reference anneal depth (ADR-0028): the Taylor recipe runs 80k steps against
+#: ``lr_decay_steps = 30000`` (~2.67 periods at ``lr_decay = 0.1``), ending ~1.2x
+#: the floor. :func:`_derive_lr_decay_steps` holds this ``lr_decay_steps /
+#: training_steps`` ratio for every budget, so no run can silently under-anneal.
+_REFERENCE_DECAY_STEPS_RATIO = 30000 / 80000
+
+
 #: Model families dispatchable from ``[model].family`` (ADR-0032 §2).
 #: ``"gns"`` is a deprecated legacy alias for the renamed CGN family
 #: (ADR-0034): pre-rename run directories record ``family = "gns"`` in
@@ -128,6 +147,10 @@ _RUN_KEYS = {"benchmark", "seed"}
 
 #: ``TrainConfig`` fields sourced from ``[run]`` rather than ``[train]``.
 _RUN_SOURCED = {"benchmark", "seed"}
+
+#: ``TrainConfig`` fields computed by :func:`load_run_config`, not read from the
+#: ``[train]`` table (see :func:`_derive_lr_decay_steps`).
+_DERIVED_TRAIN_KEYS = {"lr_decay_steps"}
 
 
 @dataclass(frozen=True)
@@ -189,6 +212,23 @@ def _require_keys(section: str, given: set[str], required: set[str]) -> None:
         problems.append(f"unknown keys: {', '.join(unknown)}")
     if problems:
         raise ConfigError(f"[{section}] {'; '.join(problems)}")
+
+
+def _derive_lr_decay_steps(training_steps: int) -> int:
+    """Derive ``lr_decay_steps`` that holds the reference LR-anneal depth.
+
+    The trainer decays the rate one ``lr_decay`` factor per ``lr_decay_steps``
+    steps, so the end-of-run rate depends only on the ratio
+    ``training_steps / lr_decay_steps`` — not on either alone. Pinning that ratio
+    to the ADR-0028 reference (80k steps / 30000 = ~2.67 periods, ending ~1.2x the
+    ``LR_SCHEDULE_FLOOR``) makes every step budget anneal to the same depth. That
+    removes the footgun a budget override otherwise leaves open: shortening
+    ``training_steps`` while ``lr_decay_steps`` stays put ends the run with the rate
+    far above its floor (the 2026-07-06 CGN fleet ran 40k against an inherited
+    ``lr_decay_steps = 30000`` and ended at ``lr ~ 5.6e-6``, ~4.6x its floor). An
+    80k budget reproduces the reference ``30000`` exactly.
+    """
+    return max(1, round(training_steps * _REFERENCE_DECAY_STEPS_RATIO))
 
 
 def load_run_config(path: str | Path) -> ResolvedRunConfig:
@@ -253,13 +293,21 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
     _require_keys("model", set(model_table), {f.name for f in fields(model_cls)})
     _check_value_types("model", model_table, model_cls)
 
-    train_table = data["train"]
+    train_table = dict(data["train"])
     misplaced = sorted(_RUN_SOURCED & set(train_table))
     if misplaced:
         raise ConfigError(f"[train] keys {', '.join(misplaced)} belong in [run]")
-    train_fields = {f.name for f in fields(TrainConfig)} - _RUN_SOURCED
+    if "lr_decay_steps" in train_table:
+        raise ConfigError(
+            "[train] lr_decay_steps is derived from training_steps and must not be "
+            "set; remove it (config.py computes it to hold the reference anneal depth)"
+        )
+    train_fields = (
+        {f.name for f in fields(TrainConfig)} - _RUN_SOURCED - _DERIVED_TRAIN_KEYS
+    )
     _require_keys("train", set(train_table), train_fields)
     _check_value_types("train", train_table, TrainConfig)
+    train_table["lr_decay_steps"] = _derive_lr_decay_steps(train_table["training_steps"])
 
     override = None
     if "protocol" in data:
@@ -272,10 +320,14 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             )
         override = ProtocolOverride(init_frames=init)
 
+    train_cfg = TrainConfig(
+        benchmark=run["benchmark"], seed=run["seed"], **train_table
+    )
+
     return ResolvedRunConfig(
         family=family,
         model=model_cls(**model_table),
-        train=TrainConfig(benchmark=run["benchmark"], seed=run["seed"], **train_table),
+        train=train_cfg,
         protocol_override=override,
     )
 
