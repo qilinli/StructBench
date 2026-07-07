@@ -18,7 +18,7 @@ nmlp_layers = 2
 particle_type_embedding_size = 9
 noise_std = 0.02
 dim = 2
-max_neighbors = 32  # project-wide backstop cap (M-B, 2026-07-06): sized above the physical degree so truncation never occurs
+max_neighbors = 32  # 32 nearest per hop; taylor's physical degree hits ~53 in the mushroom so this DOES truncate at 1 hop by design — long-range coverage comes from the 10 MP hops, not the 1-hop cap (measured 2026-07-07)
 
 [train]
 batch_size = 8   # A100-80GB memory bound at this capacity (batch 16 OOMs)
