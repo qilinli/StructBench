@@ -14,7 +14,7 @@ seed = 7
 
 [model]
 family = "cgn"
-window = 11
+input_frames = 6
 connectivity_radius = 1.5
 hidden_dim = 64
 message_passing_steps = 5
@@ -50,8 +50,7 @@ def test_load_run_config_happy_path(tmp_path):
     assert rc.train.seed == 7  # [run].seed lands on TrainConfig
     assert rc.train.batch_size == 8
     assert rc.train.lr_decay_steps == 38  # derived: round(100 * 30000/80000)
-    assert rc.model.window == 11
-    assert rc.protocol_override is None
+    assert rc.model.input_frames == 6
 
 
 def test_legacy_gns_family_alias_still_resolves(tmp_path):
@@ -100,12 +99,20 @@ def test_load_run_config_rejects_unknown_section(tmp_path):
         load_run_config(_write(tmp_path, bad))
 
 
-def test_load_run_config_protocol_override(tmp_path):
-    rc = load_run_config(_write(tmp_path, VALID + "\n[protocol]\ninit_frames = 11\n"))
-    assert rc.protocol_override is not None
-    assert rc.protocol_override.init_frames == 11
-    with pytest.raises(ConfigError, match="init_frames must be an int >= 2"):
-        load_run_config(_write(tmp_path, VALID + "\n[protocol]\ninit_frames = 1\n"))
+def test_load_run_config_rejects_input_frames_off_card(tmp_path):
+    # ADR-0035: the model observes exactly the frames it inputs, so a run's
+    # input_frames must equal its benchmark's protocol (taylor card = 6).
+    bad = VALID.replace("input_frames = 6", "input_frames = 11")
+    with pytest.raises(ConfigError, match="must equal benchmark"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_rejects_protocol_section(tmp_path):
+    # The [protocol] research override of ADR-0032 §4 was removed by ADR-0035;
+    # a leftover section is now an unknown-section error.
+    bad = VALID + "\n[protocol]\ninput_frames = 6\n"
+    with pytest.raises(ConfigError, match="unknown sections: protocol"):
+        load_run_config(_write(tmp_path, bad))
 
 
 def test_load_run_config_derives_lr_decay_steps(tmp_path):
@@ -152,9 +159,9 @@ def test_build_simulator_node_input_width():
         boundary_feature_fn=lambda p: p[:, 0:1],
         device="cpu",
     )
-    # (window-1)*dim + 1 boundary + embedding(9) = 10*2 + 1 + 9 = 30
+    # (input_frames-1)*dim + 1 boundary + embedding(9) = 5*2 + 1 + 9 = 20
     out, aux = sim.predict_positions(
-        torch.randn(5, cgn.window, 2),
+        torch.randn(5, cgn.input_frames, 2),
         torch.tensor([5]),
         torch.zeros(5, dtype=torch.long),
     )

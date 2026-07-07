@@ -31,7 +31,7 @@ def _kwargs(**overrides):
         particles_per_case="100",
         n_frames=10,
         output_dt_ms=0.1,
-        init_frames=3,
+        input_frames=6,
         protocol_rationale="test-only rationale",
     )
     base.update(overrides)
@@ -47,6 +47,12 @@ def test_card_accepts_consistent_splits():
 def test_card_rejects_split_sum_mismatch():
     with pytest.raises(ValueError, match="n_cases"):
         BenchmarkCard(**_kwargs(n_cases=99))
+
+
+def test_card_rejects_input_frames_below_two():
+    # Needs >= 2 frames to form one velocity (ADR-0035).
+    with pytest.raises(ValueError, match="input_frames must be >= 2"):
+        BenchmarkCard(**_kwargs(input_frames=1))
 
 
 def test_card_json_dict_serializes():

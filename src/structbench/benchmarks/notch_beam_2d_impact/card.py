@@ -62,12 +62,14 @@ CARD = BenchmarkCard(
     particles_per_case="4264-12966",
     n_frames=502,
     output_dt_ms=1.0,
-    init_frames=3,
+    input_frames=6,
     protocol_rationale=(
-        "Provisional (ADR-0032 s7): init = 3 is the second-order minimum; "
-        "the mandatory GT timeline analysis has not yet run for this "
-        "dataset (ingested data lives on the ingestion machine). Confirm "
-        "before the first trained baseline."
+        "Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities "
+        "(input_frames - 1), the GNS reference history length; the mandatory "
+        "GT timeline analysis has not yet run for this dataset (ingested data "
+        "lives on the ingestion machine), so 6 is not yet confirmed to sit "
+        "before the onset of non-rigid motion. Confirm before the first "
+        "trained baseline."
     ),
     size_gb=24.9,
 )

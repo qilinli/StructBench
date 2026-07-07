@@ -1,6 +1,6 @@
 """Windowed autoregressive training samples from particle trajectories.
 
-A sample is a window of ``window`` consecutive positions plus the next
+A sample is a window of ``input_frames`` consecutive positions plus the next
 position and next auxiliary value, for every particle in one trajectory. The
 collate function concatenates particles across a batch into one big graph, as
 the GNS expects, tracking how many particles each example contributed.
@@ -19,27 +19,30 @@ class WindowDataset(Dataset):
     """Autoregressive ``(position_seq, next_position, next_aux)`` samples.
 
     Each item corresponds to one prediction step for one trajectory: the
-    ``window`` frames immediately preceding the target frame are packed as the
-    input sequence, and the target frame's position and auxiliary field value
-    are the labels.
+    ``input_frames`` frames immediately preceding the target frame are packed
+    as the input sequence, and the target frame's position and auxiliary field
+    value are the labels.
 
     Parameters
     ----------
     trajectories:
         Collection of :class:`~structbench.datasets.canonical.CaseTrajectory`
         objects to draw samples from.
-    window:
-        Number of consecutive input frames per sample.
+    input_frames:
+        Number of consecutive input frames per sample (the model's history
+        length; ADR-0035).
 
     Notes
     -----
-    For a trajectory with ``T`` frames and a given ``window`` the number of
-    samples is ``T - window``.  The first valid target index is ``window``
-    (0-based), the last is ``T - 1``.
+    For a trajectory with ``T`` frames and a given ``input_frames`` the number
+    of samples is ``T - input_frames``.  The first valid target index is
+    ``input_frames`` (0-based), the last is ``T - 1``.
     """
 
-    def __init__(self, trajectories: list[CaseTrajectory], window: int) -> None:
-        self._window = window
+    def __init__(
+        self, trajectories: list[CaseTrajectory], input_frames: int
+    ) -> None:
+        self._input_frames = input_frames
         # index: list of (traj, t) where t is the index of the predicted frame.
         # Interleave across trajectories (t-major, traj-minor) so that a
         # shuffle=False DataLoader places one sample per trajectory in each
@@ -47,7 +50,7 @@ class WindowDataset(Dataset):
         self._index: list[tuple[CaseTrajectory, int]] = []
         if trajectories:
             max_frames = max(tr.positions.shape[0] for tr in trajectories)
-            for t in range(window, max_frames):
+            for t in range(input_frames, max_frames):
                 for tr in trajectories:
                     if t < tr.positions.shape[0]:
                         self._index.append((tr, t))
@@ -66,7 +69,7 @@ class WindowDataset(Dataset):
         Returns
         -------
         dict
-            ``position_seq``: Tensor of shape ``(P, window, dim)``, mm.
+            ``position_seq``: Tensor of shape ``(P, input_frames, dim)``, mm.
             ``particle_type``: LongTensor of shape ``(P,)``.
             ``next_position``: Tensor of shape ``(P, dim)``, mm.
             ``next_aux``: Tensor of shape ``(P,)``; auxiliary target, units are
@@ -75,9 +78,9 @@ class WindowDataset(Dataset):
             ``n_particles``: int number of particles ``P``.
         """
         tr, t = self._index[i]
-        w = self._window
-        seq = tr.positions[t - w : t]  # (window, P, dim)
-        seq = np.transpose(seq, (1, 0, 2))  # (P, window, dim)
+        w = self._input_frames
+        seq = tr.positions[t - w : t]  # (input_frames, P, dim)
+        seq = np.transpose(seq, (1, 0, 2))  # (P, input_frames, dim)
         return {
             "position_seq": torch.from_numpy(np.ascontiguousarray(seq)),
             "particle_type": torch.from_numpy(tr.particle_type),
@@ -103,7 +106,7 @@ def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:
     Returns
     -------
     dict
-        ``position_seq``: Tensor ``(sum_P, window, dim)``, mm.
+        ``position_seq``: Tensor ``(sum_P, input_frames, dim)``, mm.
         ``particle_type``: LongTensor ``(sum_P,)``.
         ``next_position``: Tensor ``(sum_P, dim)``, mm.
         ``next_aux``: Tensor ``(sum_P,)``; auxiliary target, benchmark-dependent units.

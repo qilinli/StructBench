@@ -31,13 +31,13 @@ class _SimulatorLike(Protocol):
 class RolloutResult:
     """Predicted trajectory with per-step, cumulative, and QoI errors.
 
-    Per-step arrays cover the ``T - init`` predicted frames (``init`` is the
-    protocol's observed prefix, ``window`` before ADR-0032). The cumulative
-    means aggregate them; QoI dicts are filled only when :func:`rollout` is
-    given a ``qois`` mapping (``qoi_error`` is signed, predicted − true).
-    Units follow the trajectory's working frame (mm and MPa for Taylor 2D).
-    The seeded frames of ``predicted_aux`` carry ground-truth aux values,
-    mirroring the seeded positions.
+    Per-step arrays cover the ``T - input_frames`` predicted frames (the model
+    observes the first ``input_frames`` ground-truth frames and predicts the
+    rest, ADR-0035). The cumulative means aggregate them; QoI dicts are filled
+    only when :func:`rollout` is given a ``qois`` mapping (``qoi_error`` is
+    signed, predicted − true). Units follow the trajectory's working frame (mm
+    and MPa for Taylor 2D). The seeded frames of ``predicted_aux`` carry
+    ground-truth aux values, mirroring the seeded positions.
     """
 
     predicted_positions: NDArray[np.float32]  # (T, P, dim)
@@ -54,14 +54,18 @@ class RolloutResult:
 def rollout(
     simulator: _SimulatorLike,
     trajectory: CaseTrajectory,
-    window: int,
+    input_frames: int,
     device: str = "cpu",
     qois: Mapping[str, QoiFn] | None = None,
     kinematic_types: tuple[int, ...] = (),
-    *,
-    init_frames: int | None = None,
 ) -> RolloutResult:
-    """Seed with the protocol's observed prefix, then autoregress to the end.
+    """Seed with the observed prefix, then autoregress to the end.
+
+    The model observes exactly ``input_frames`` ground-truth frames (its full
+    history window) and predicts every frame from ``input_frames`` onward; the
+    scored span is ``[input_frames, T)`` (ADR-0035). There is no history
+    backfill: the observed prefix *is* the model's input window, so no rollout
+    step is fed a fabricated (constant-velocity) history.
 
     Parameters
     ----------
@@ -71,8 +75,10 @@ def rollout(
         particle_types) -> (next_positions (P,dim), aux (P,n_aux))``.
     trajectory:
         Ground-truth :class:`CaseTrajectory`.
-    window:
-        The model's history length (frames per prediction input).
+    input_frames:
+        The model's history length in frames, which is also the number of
+        ground-truth frames observed to seed the rollout (they are the same
+        quantity under ADR-0035). Equal to the benchmark card's protocol.
     device:
         Torch device string.
     qois:
@@ -85,16 +91,7 @@ def rollout(
         autoregressive step their predicted positions are overwritten with the
         ground-truth position at that frame.  They are also excluded from the
         reported ``position_rmse`` and ``aux_rmse`` (``keep`` mask).  Defaults
-        to ``()`` (no prescribed particles), which is bit-identical to the
-        previous behaviour.
-    init_frames:
-        Ground-truth frames observed at rollout start — the benchmark
-        protocol's init (ADR-0032). ``None`` defaults to ``window`` (the
-        pre-0032 behaviour). When ``init_frames < window`` the missing
-        history is warm-started by constant-velocity backfill from the first
-        observed velocity — exact while the observed prefix is rigid motion.
-        Prediction begins at frame ``init_frames`` and the scored span is
-        ``[init_frames, T)`` regardless of ``window``.
+        to ``()`` (no prescribed particles).
 
     Returns
     -------
@@ -103,8 +100,8 @@ def rollout(
     Raises
     ------
     ValueError
-        If ``init_frames < 2`` (no velocity can be formed) or
-        ``init_frames >= T``.
+        If ``input_frames < 2`` (no velocity can be formed) or
+        ``input_frames >= T``.
     """
     pos = torch.from_numpy(trajectory.positions).to(device)  # (T, P, dim)
     n_frames, n_particles, _ = pos.shape
@@ -116,27 +113,20 @@ def rollout(
     keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
     kin_idx = torch.from_numpy(np.nonzero(kin_mask_np)[0]).to(device)
 
-    init = window if init_frames is None else init_frames
-    if init < 2:
-        raise ValueError(f"init_frames must be >= 2, got {init}")
-    if init >= n_frames:
-        raise ValueError(f"init_frames={init} but trajectory has {n_frames} frames")
-    if init >= window:
-        seq = pos[init - window : init].clone()  # (window, P, dim)
-    else:
-        # Warm-start (ADR-0032 §4): backfill the model's history before frame 0
-        # by constant-velocity extrapolation of the first observed velocity.
-        v0 = pos[1] - pos[0]  # (P, dim)
-        steps = torch.arange(window - init, 0, -1, device=device, dtype=pos.dtype)
-        backfill = pos[0] - steps[:, None, None] * v0  # (window - init, P, dim)
-        seq = torch.cat([backfill, pos[:init]], dim=0)
-    predicted = [pos[i] for i in range(init)]
+    if input_frames < 2:
+        raise ValueError(f"input_frames must be >= 2, got {input_frames}")
+    if input_frames >= n_frames:
+        raise ValueError(
+            f"input_frames={input_frames} but trajectory has {n_frames} frames"
+        )
+    seq = pos[:input_frames].clone()  # (input_frames, P, dim)
+    predicted = [pos[i] for i in range(input_frames)]
     aux_true = torch.from_numpy(trajectory.aux).to(device)
-    aux_pred = [aux_true[i] for i in range(init)]
+    aux_pred = [aux_true[i] for i in range(input_frames)]
 
     with torch.no_grad():
-        for t in range(init, n_frames):
-            seq_pw = seq.permute(1, 0, 2).contiguous()  # (P, window, dim)
+        for t in range(input_frames, n_frames):
+            seq_pw = seq.permute(1, 0, 2).contiguous()  # (P, input_frames, dim)
             next_pos, aux = simulator.predict_positions(seq_pw, npp, ptype)
             if kin_idx.numel():
                 next_pos = next_pos.clone()
@@ -147,22 +137,26 @@ def rollout(
 
     pred_pos = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     pred_aux = torch.stack(aux_pred, dim=0).cpu().numpy().astype(np.float32)
-    pos_rmse = position_rmse(pred_pos[init:], trajectory.positions[init:], keep=keep)
-    aux_rmse = field_rmse(pred_aux[init:], trajectory.aux[init:], keep=keep)
+    pos_rmse = position_rmse(
+        pred_pos[input_frames:], trajectory.positions[input_frames:], keep=keep
+    )
+    aux_rmse = field_rmse(
+        pred_aux[input_frames:], trajectory.aux[input_frames:], keep=keep
+    )
 
     pred_inputs = QoiInputs(
         time=trajectory.time,
         positions=pred_pos,
         aux=pred_aux,
         particle_type=trajectory.particle_type,
-        init=init,
+        init=input_frames,
     )
     true_inputs = QoiInputs(
         time=trajectory.time,
         positions=trajectory.positions,
         aux=trajectory.aux,
         particle_type=trajectory.particle_type,
-        init=init,
+        init=input_frames,
     )
     qoi_pred = {name: float(fn(pred_inputs)) for name, fn in (qois or {}).items()}
     qoi_true = {name: float(fn(true_inputs)) for name, fn in (qois or {}).items()}
@@ -182,25 +176,26 @@ def rollout(
 def one_step_position_rmse(
     simulator: _SimulatorLike,
     trajectory: CaseTrajectory,
-    window: int,
+    input_frames: int,
     device: str = "cpu",
     kinematic_types: tuple[int, ...] = (),
 ) -> NDArray[np.float64]:
     """Teacher-forced next-step position RMSE per predicted frame (ADR-0019 §5).
 
-    Every frame from ``window`` onward is predicted from its *ground-truth*
+    Every frame from ``input_frames`` onward is predicted from its *ground-truth*
     history, so no rollout error accumulates: this isolates the model's
     single-step accuracy, complementing the full-rollout RMSE from
-    :func:`rollout`.
+    :func:`rollout`.  It scores the same ``[input_frames, T)`` span as the
+    rollout (ADR-0035).
 
     Parameters
     ----------
     simulator:
         Same structural interface as :func:`rollout`.
     trajectory:
-        Ground-truth :class:`CaseTrajectory`; must have more than ``window``
-        frames.
-    window:
+        Ground-truth :class:`CaseTrajectory`; must have more than
+        ``input_frames`` frames.
+    input_frames:
         History length used for each prediction.
     device:
         Torch device string.
@@ -212,13 +207,15 @@ def one_step_position_rmse(
     Returns
     -------
     numpy.ndarray
-        Shape ``(T - window,)``, in the trajectory's working length unit
+        Shape ``(T - input_frames,)``, in the trajectory's working length unit
         (mm for the Taylor benchmark).
     """
     pos = torch.from_numpy(trajectory.positions).to(device)
     n_frames, n_particles, _ = pos.shape
-    if n_frames <= window:
-        raise ValueError(f"trajectory has {n_frames} frames; window={window}")
+    if n_frames <= input_frames:
+        raise ValueError(
+            f"trajectory has {n_frames} frames; input_frames={input_frames}"
+        )
     ptype = torch.from_numpy(trajectory.particle_type).to(device)
     npp = torch.tensor([n_particles], device=device)
 
@@ -227,36 +224,37 @@ def one_step_position_rmse(
 
     predicted = []
     with torch.no_grad():
-        for t in range(window, n_frames):
-            seq_pw = pos[t - window : t].permute(1, 0, 2).contiguous()
+        for t in range(input_frames, n_frames):
+            seq_pw = pos[t - input_frames : t].permute(1, 0, 2).contiguous()
             next_pos, _ = simulator.predict_positions(seq_pw, npp, ptype)
             predicted.append(next_pos)
 
     pred = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
-    return position_rmse(pred, trajectory.positions[window:], keep=keep)
+    return position_rmse(pred, trajectory.positions[input_frames:], keep=keep)
 
 
 def one_step_aux_rmse(
     simulator: _SimulatorLike,
     trajectory: CaseTrajectory,
-    window: int,
+    input_frames: int,
     device: str = "cpu",
     kinematic_types: tuple[int, ...] = (),
 ) -> NDArray[np.float64]:
     """Teacher-forced next-step aux-field RMSE per predicted frame (ADR-0025).
 
     Same protocol as :func:`one_step_position_rmse`, reading the auxiliary
-    prediction instead: each frame from ``window`` onward is predicted from
-    its ground-truth history, isolating single-step accuracy of the aux head.
+    prediction instead: each frame from ``input_frames`` onward is predicted
+    from its ground-truth history, isolating single-step accuracy of the aux
+    head.
 
     Parameters
     ----------
     simulator:
         Same structural interface as :func:`rollout`.
     trajectory:
-        Ground-truth :class:`CaseTrajectory`; must have more than ``window``
-        frames.
-    window:
+        Ground-truth :class:`CaseTrajectory`; must have more than
+        ``input_frames`` frames.
+    input_frames:
         History length used for each prediction.
     device:
         Torch device string.
@@ -268,12 +266,14 @@ def one_step_aux_rmse(
     Returns
     -------
     numpy.ndarray
-        Shape ``(T - window,)``, in the trajectory's working aux unit.
+        Shape ``(T - input_frames,)``, in the trajectory's working aux unit.
     """
     pos = torch.from_numpy(trajectory.positions).to(device)
     n_frames, n_particles, _ = pos.shape
-    if n_frames <= window:
-        raise ValueError(f"trajectory has {n_frames} frames; window={window}")
+    if n_frames <= input_frames:
+        raise ValueError(
+            f"trajectory has {n_frames} frames; input_frames={input_frames}"
+        )
     ptype = torch.from_numpy(trajectory.particle_type).to(device)
     npp = torch.tensor([n_particles], device=device)
 
@@ -282,10 +282,10 @@ def one_step_aux_rmse(
 
     predicted = []
     with torch.no_grad():
-        for t in range(window, n_frames):
-            seq_pw = pos[t - window : t].permute(1, 0, 2).contiguous()
+        for t in range(input_frames, n_frames):
+            seq_pw = pos[t - input_frames : t].permute(1, 0, 2).contiguous()
             _, aux = simulator.predict_positions(seq_pw, npp, ptype)
             predicted.append(aux[:, 0])
 
     pred = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
-    return field_rmse(pred, trajectory.aux[window:], keep=keep)
+    return field_rmse(pred, trajectory.aux[input_frames:], keep=keep)

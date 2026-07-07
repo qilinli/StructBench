@@ -1,11 +1,10 @@
-"""Grouped run configuration: typed sections, strict loading (ADR-0032).
+"""Grouped run configuration: typed sections, strict loading (ADR-0032, ADR-0035).
 
 A run config is a TOML file with sections mirroring ownership::
 
     [run]       benchmark, seed                     (orchestration)
     [model]     family + every field of the family  (architecture)
     [train]     every schedule field                (optimization)
-    [protocol]  optional research override          (ADR-0032 §4)
 
 Loading is strict: unknown sections or keys are errors, and ``[model]`` /
 ``[train]`` must be complete — a missing key is an error, never a silent
@@ -15,10 +14,12 @@ value explicitly. The one exception is ``[train].lr_decay_steps``, which is
 *derived* from ``training_steps`` to hold the reference LR-anneal depth and
 must not be set in the file (see :func:`_derive_lr_decay_steps`).
 
-Benchmark *protocol* (``init_frames``, horizon, eval times) is not run
-configuration: it lives on the benchmark card, pinned per ADR-0032 §4. A
-``[protocol]`` section here overrides it for research runs only, and the run
-records ``protocol.standard = false``.
+Benchmark *protocol* (``input_frames``, horizon, eval times) is not free run
+configuration: it lives on the benchmark card, pinned per benchmark ADR. Under
+ADR-0035 the model's ``input_frames`` (history length) *is* the rollout seed
+count, so a config whose ``[model].input_frames`` disagrees with the benchmark
+card is rejected at load — the model observes exactly the frames it inputs, and
+the constant-velocity backfill of ADR-0032 §4 is gone.
 """
 
 from __future__ import annotations
@@ -37,11 +38,15 @@ class CGNConfig:
 
     Attributes
     ----------
-    window : int
-        Number of consecutive input frames per sample (history length).
-        A model-family choice, not benchmark protocol: at rollout it is
-        warm-started from the protocol's ``init_frames`` observed frames
-        (ADR-0032 §4).
+    input_frames : int
+        Number of consecutive position frames the model takes as input per
+        sample (history length); the network sees ``input_frames - 1``
+        finite-difference velocities (``C`` in Sanchez-Gonzalez et al. 2023,
+        so ``input_frames = C + 1``; the default 6 gives the reference C = 5).
+        Under ADR-0035 this is also the rollout seed count: a rollout observes
+        exactly ``input_frames`` ground-truth frames and scores
+        ``[input_frames, end]`` — there is no backfill, so it must equal the
+        benchmark card's ``input_frames`` (enforced at config load).
     connectivity_radius : float
         Graph connectivity radius in the mm working frame.
     hidden_dim : int
@@ -63,7 +68,7 @@ class CGNConfig:
         physical configurations (ADR-0028).
     """
 
-    window: int = 11
+    input_frames: int = 6
     connectivity_radius: float = 1.5
     hidden_dim: int = 64
     message_passing_steps: int = 5
@@ -153,13 +158,6 @@ _RUN_SOURCED = {"benchmark", "seed"}
 _DERIVED_TRAIN_KEYS = {"lr_decay_steps"}
 
 
-@dataclass(frozen=True)
-class ProtocolOverride:
-    """Research-only protocol override (ADR-0032 §4); marks the run non-standard."""
-
-    init_frames: int
-
-
 @dataclass
 class ResolvedRunConfig:
     """A fully-loaded grouped run config."""
@@ -167,7 +165,6 @@ class ResolvedRunConfig:
     family: str
     model: Any  # instance of MODEL_FAMILIES[family]
     train: TrainConfig
-    protocol_override: ProtocolOverride | None = None
 
 
 class ConfigError(ValueError):
@@ -237,8 +234,7 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
     Parameters
     ----------
     path : str or pathlib.Path
-        TOML file with ``[run]``, ``[model]``, ``[train]`` and optionally
-        ``[protocol]`` sections.
+        TOML file with ``[run]``, ``[model]`` and ``[train]`` sections.
 
     Returns
     -------
@@ -248,7 +244,9 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
     ------
     ConfigError
         On any unknown section or key, any missing required key, a flat
-        (pre-0032) config, or an unregistered model family.
+        (pre-0032) config, an unregistered model family, or a
+        ``[model].input_frames`` that disagrees with the benchmark card
+        (ADR-0035).
     """
     with open(path, "rb") as fh:
         data = tomllib.load(fh)
@@ -266,7 +264,7 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             "supported; use [run]/[model]/[train] sections (ADR-0032)"
         )
     sections = set(data)
-    unknown_sections = sorted(sections - {"run", "model", "train", "protocol"})
+    unknown_sections = sorted(sections - {"run", "model", "train"})
     if unknown_sections:
         raise ConfigError(f"unknown sections: {', '.join(unknown_sections)}")
     missing_sections = sorted({"run", "model", "train"} - sections)
@@ -293,6 +291,22 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
     _require_keys("model", set(model_table), {f.name for f in fields(model_cls)})
     _check_value_types("model", model_table, model_cls)
 
+    # ADR-0035: the model observes exactly the frames it inputs, so a run's
+    # input_frames must equal its benchmark's protocol (no rollout backfill).
+    # Enforced here when the benchmark is registered; train() re-checks against
+    # the resolved spec for programmatically-built configs.
+    from .benchmarks import available_benchmarks, get_benchmark
+
+    bench = run["benchmark"]
+    if bench in available_benchmarks():
+        card_frames = get_benchmark(bench).card.input_frames
+        if model_table.get("input_frames") != card_frames:
+            raise ConfigError(
+                f"[model] input_frames={model_table.get('input_frames')} must equal "
+                f"benchmark {bench!r} protocol input_frames={card_frames} "
+                f"(a model observes exactly the frames it inputs; ADR-0035)"
+            )
+
     train_table = dict(data["train"])
     misplaced = sorted(_RUN_SOURCED & set(train_table))
     if misplaced:
@@ -309,17 +323,6 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
     _check_value_types("train", train_table, TrainConfig)
     train_table["lr_decay_steps"] = _derive_lr_decay_steps(train_table["training_steps"])
 
-    override = None
-    if "protocol" in data:
-        protocol_table = data["protocol"]
-        _require_keys("protocol", set(protocol_table), {"init_frames"})
-        init = protocol_table["init_frames"]
-        if not isinstance(init, int) or init < 2:
-            raise ConfigError(
-                f"[protocol] init_frames must be an int >= 2, got {init!r}"
-            )
-        override = ProtocolOverride(init_frames=init)
-
     train_cfg = TrainConfig(
         benchmark=run["benchmark"], seed=run["seed"], **train_table
     )
@@ -328,7 +331,6 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
         family=family,
         model=model_cls(**model_table),
         train=train_cfg,
-        protocol_override=override,
     )
 
 
@@ -352,31 +354,25 @@ def resolved_config_dict(
     model: Any,
     train: TrainConfig,
     *,
-    init_frames: int,
     horizon: str = "full",
     eval_times: str = "native",
-    standard: bool,
     n_particle_types: int,
     data_root: Path,
 ) -> dict[str, Any]:
-    """The nested ``config.json`` payload for one run (ADR-0032 §3).
+    """The nested ``config.json`` payload for one run (ADR-0032 §3, ADR-0035).
 
     Parameters
     ----------
     family : str
         Model-family registry key.
     model :
-        The family's config instance (dataclass).
+        The family's config instance (dataclass); its ``input_frames`` is the
+        run's rollout seed count and equals the benchmark card's (ADR-0035).
     train : TrainConfig
         Schedule and loss weights; ``benchmark``/``seed`` are emitted under
         ``"run"``.
-    init_frames : int
-        The protocol init actually used by this run (card value or override).
     horizon, eval_times : str
         The card's protocol values (ADR-0032 §4), recorded verbatim.
-    standard : bool
-        False when a ``[protocol]`` override was applied; such runs are
-        ineligible for official card metrics (ADR-0032 §4).
     n_particle_types : int
         As computed from the training trajectories.
     data_root : pathlib.Path
@@ -391,10 +387,10 @@ def resolved_config_dict(
         "model": {"family": family, **asdict(model)},
         "train": {k: v for k, v in asdict(train).items() if k not in _RUN_SOURCED},
         "protocol": {
-            "init_frames": init_frames,
+            "input_frames": model.input_frames,
             "horizon": horizon,
             "eval_times": eval_times,
-            "standard": standard,
+            "standard": True,
         },
         "n_particle_types": n_particle_types,
         "data_root": str(data_root),
@@ -402,12 +398,20 @@ def resolved_config_dict(
 
 
 def read_run_record(config_path: Path) -> dict[str, Any]:
-    """Read a run directory's ``config.json``, normalizing pre-0032 records.
+    """Read a run directory's ``config.json``, normalizing legacy records.
 
-    Pre-0032 run directories store ``{"benchmark", "gns", "train", ...}``
-    with no protocol block; they are normalized to the nested shape with
-    ``family = "gns"`` and ``init_frames = window`` (their historical
-    protocol), so evaluation of fleet-era checkpoints keeps working.
+    Two legacy shapes are adapted so fleet-era checkpoints stay evaluable:
+
+    * **Pre-0032 flat records** ``{"benchmark", "gns", "train", ...}`` (no
+      ``model``/``protocol`` block) are lifted to the nested shape with
+      ``family = "gns"``.
+    * **Records that predate ADR-0035** name the history length ``window`` (in
+      ``model``, or flat in ``gns``); it is renamed to ``input_frames``.
+
+    Either way the historical input window becomes both ``model.input_frames``
+    and ``protocol.input_frames`` — a legacy run seeded its rollout with its
+    window, which is exactly the ADR-0035 rule — so evaluation reproduces how
+    the checkpoint was trained.
 
     Raises
     ------
@@ -418,11 +422,23 @@ def read_run_record(config_path: Path) -> dict[str, Any]:
         raise FileNotFoundError(f"missing run config: {config_path}")
     record = json.loads(config_path.read_text(encoding="utf-8"))
     if "model" in record:
+        model = dict(record["model"])
+        if "window" in model and "input_frames" not in model:
+            model["input_frames"] = model.pop("window")
+        record["model"] = model
+        proto = dict(record.get("protocol") or {})
+        if "init_frames" in proto and "input_frames" not in proto:
+            proto["input_frames"] = proto.pop("init_frames")
+        # Always attach a (possibly empty) protocol block so downstream
+        # record["protocol"].get(...) never KeyErrors on a malformed record.
+        record["protocol"] = proto
         return record
     # Minimal legacy records (e.g. viz-only) may lack the "gns" section; real
     # pre-0032 run dirs always carry it. Window 11 was the only pre-0032
     # default in use.
     gns = dict(record.get("gns") or {})
+    if "window" in gns and "input_frames" not in gns:
+        gns["input_frames"] = gns.pop("window")
     train = dict(record.get("train", {}))
     return {
         "run": {
@@ -433,7 +449,7 @@ def read_run_record(config_path: Path) -> dict[str, Any]:
         "model": {"family": "gns", **gns},
         "train": train,
         "protocol": {
-            "init_frames": gns.get("window", 11),
+            "input_frames": gns.get("input_frames", 11),
             "horizon": "full",
             "eval_times": "native",
             "standard": True,

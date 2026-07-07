@@ -44,7 +44,6 @@ from ..benchmarks import BenchmarkSpec, available_benchmarks, get_benchmark
 from ..config import (
     CGNConfig,
     LR_SCHEDULE_FLOOR,
-    ProtocolOverride,
     TrainConfig,
     load_run_config,
     read_run_record,
@@ -87,7 +86,7 @@ def random_walk_position_noise(
     Parameters
     ----------
     position_sequence : torch.Tensor
-        Position history, shape ``(nparticles, window, dim)``, in mm.
+        Position history, shape ``(nparticles, input_frames, dim)``, in mm.
     noise_std_last_step : float
         Target velocity-noise standard deviation at the final step.
 
@@ -126,8 +125,8 @@ def build_simulator(
     """Construct a :class:`LearnedSimulator` from stats and architecture config.
 
     The node-input width is computed as
-    ``(window - 1) * dim + n_boundary + embedding`` where ``n_boundary`` is 1
-    when ``boundary_feature_fn`` is given (else 0) and ``embedding`` is
+    ``(input_frames - 1) * dim + n_boundary + embedding`` where ``n_boundary``
+    is 1 when ``boundary_feature_fn`` is given (else 0) and ``embedding`` is
     ``particle_type_embedding_size`` when ``n_particle_types > 1`` (else 0). The
     edge-input width is ``dim + 1``. Each normalization std is inflated by the
     training noise as ``sqrt(std**2 + noise_std**2)``, matching the source.
@@ -157,7 +156,7 @@ def build_simulator(
     """
     n_boundary = 1 if boundary_feature_fn is not None else 0
     embedding = cgn.particle_type_embedding_size if n_particle_types > 1 else 0
-    nnode_in = (cgn.window - 1) * cgn.dim + n_boundary + embedding
+    nnode_in = (cgn.input_frames - 1) * cgn.dim + n_boundary + embedding
     nedge_in = cgn.dim + 1
 
     noise_var = cgn.noise_std**2
@@ -242,10 +241,9 @@ def _n_particle_types(trajectories: list[CaseTrajectory]) -> int:
 def _validate(
     simulator: LearnedSimulator,
     trajectories: list[CaseTrajectory],
-    window: int,
+    input_frames: int,
     device: str,
     kinematic_types: tuple[int, ...] = (),
-    init_frames: int | None = None,
 ) -> tuple[float, float]:
     """Mean rollout position RMSE (mm) and von Mises RMSE (MPa) over VAL.
 
@@ -256,12 +254,12 @@ def _validate(
 
     Parameters
     ----------
+    input_frames:
+        History length / rollout seed count, forwarded to :func:`rollout`
+        (ADR-0035); the benchmark card's protocol value.
     kinematic_types:
         Forwarded to :func:`rollout`; kinematic particles are excluded from
         the reported RMSE (ADR-0026).
-    init_frames:
-        Protocol init forwarded to :func:`rollout` (ADR-0032); ``None``
-        seeds with ``window`` frames as before.
     """
     simulator.eval()
     pos_losses: list[float] = []
@@ -270,10 +268,9 @@ def _validate(
         result = rollout(
             simulator,
             tr,
-            window,
+            input_frames,
             device,
             kinematic_types=kinematic_types,
-            init_frames=init_frames,
         )
         pos_losses.append(float(result.position_rmse.mean()))
         aux_losses.append(float(result.aux_rmse.mean()))
@@ -308,7 +305,6 @@ def train(
     device: str,
     *,
     family: str = "cgn",
-    protocol_override: ProtocolOverride | None = None,
 ) -> Path | None:
     """Run config-driven training with periodic validation and checkpoint-best.
 
@@ -338,10 +334,6 @@ def train(
         Torch device string.
     family : str
         Model-family registry key recorded in ``config.json`` (ADR-0032).
-    protocol_override : ProtocolOverride or None
-        Research-only protocol override; when given, validation rollouts use
-        its ``init_frames`` and the run records ``protocol.standard = false``
-        (ADR-0032 §4). ``None`` uses the benchmark card's protocol.
 
     Returns
     -------
@@ -357,7 +349,9 @@ def train(
         so a fresh run into an old directory would shadow a better model.
     ValueError
         If ``train_cfg.benchmark`` names a registered benchmark that is not
-        ``spec``; this would misrecord the benchmark in ``config.json``.
+        ``spec`` (this would misrecord the benchmark in ``config.json``), or if
+        ``cgn.input_frames`` disagrees with the benchmark card's protocol
+        (ADR-0035: the model observes exactly the frames it inputs).
     """
     if (
         train_cfg.benchmark in available_benchmarks()
@@ -366,6 +360,12 @@ def train(
         raise ValueError(
             f"train_cfg.benchmark {train_cfg.benchmark!r} does not resolve to the "
             "spec passed to train(); config.json would misrecord the benchmark"
+        )
+    if cgn.input_frames != spec.card.input_frames:
+        raise ValueError(
+            f"model input_frames ({cgn.input_frames}) must equal benchmark "
+            f"{spec.card.name!r} protocol input_frames ({spec.card.input_frames}); "
+            "a model observes exactly the frames it inputs (ADR-0035)"
         )
     out_dir.mkdir(parents=True, exist_ok=True)
     existing = sorted(out_dir.glob("model-*.pt"))
@@ -409,21 +409,14 @@ def train(
     aux_mean = torch.tensor(stats.aux_mean, dtype=torch.float32, device=device)
     aux_std = torch.tensor(stats.aux_std, dtype=torch.float32, device=device)
 
-    init_frames = (
-        protocol_override.init_frames
-        if protocol_override is not None
-        else spec.card.init_frames
-    )
     (out_dir / "config.json").write_text(
         json.dumps(
             resolved_config_dict(
                 family,
                 cgn,
                 train_cfg,
-                init_frames=init_frames,
                 horizon=spec.card.horizon,
                 eval_times=spec.card.eval_times,
-                standard=protocol_override is None,
                 n_particle_types=n_types,
                 data_root=data_root,
             ),
@@ -432,12 +425,12 @@ def train(
         encoding="utf-8",
     )
 
-    dataset = WindowDataset(train_trajs, cgn.window)
+    dataset = WindowDataset(train_trajs, cgn.input_frames)
     if len(dataset) == 0:
         raise ValueError(
             f"empty training set: no TRAIN trajectory has more than "
-            f"window={cgn.window} frames, so there are no autoregressive "
-            f"samples. Check the data root or reduce the window."
+            f"input_frames={cgn.input_frames} frames, so there are no "
+            f"autoregressive samples. Check the data root or reduce input_frames."
         )
     loader = DataLoader(
         dataset,
@@ -518,10 +511,9 @@ def train(
                 val_pos, val_aux = _validate(
                     simulator,
                     val_trajs,
-                    cgn.window,
+                    cgn.input_frames,
                     device,
                     spec.kinematic_types,
-                    init_frames=init_frames,
                 )
                 logger.info(
                     "step %d: train_loss %.6f val_pos %.4f mm val_aux %.4f MPa "
@@ -614,7 +606,6 @@ def evaluate(
     *,
     split_name: str = "eval",
     save_artifacts: bool = True,
-    init_frames: int | None = None,
 ) -> dict[str, Any]:
     """Roll out the run's checkpoint over ``case_ids`` and report ADR-0019 §5.
 
@@ -646,11 +637,13 @@ def evaluate(
         Label recorded in the report and used in artifact filenames.
     save_artifacts : bool
         Write the metrics JSON and per-case rollout ``.npz`` files.
-    init_frames : int or None
-        Protocol init for the rollouts. ``None`` (the default) uses the
-        run's recorded protocol — pre-0032 runs recorded their window — so
-        checkpoints are evaluated as trained; pass a value explicitly for
-        protocol-sensitivity studies (ADR-0032 §4).
+
+    Notes
+    -----
+    Rollouts seed with the checkpoint's ``input_frames`` (recorded in
+    ``config.json``; pre-0035 runs recorded it as ``window``, normalized by
+    :func:`~structbench.config.read_run_record`), so checkpoints are always
+    evaluated as trained (ADR-0035).
 
     Returns
     -------
@@ -673,7 +666,6 @@ def evaluate(
 
     cgn = CGNConfig(**{k: v for k, v in record["model"].items() if k != "family"})
     n_types = int(record["n_particle_types"])
-    init = init_frames if init_frames is not None else record["protocol"]["init_frames"]
     stats = NormalizationStats.load(stats_path)
 
     simulator = build_simulator(
@@ -702,23 +694,22 @@ def evaluate(
         result = rollout(
             simulator,
             trajectory,
-            cgn.window,
+            cgn.input_frames,
             device,
             qois=spec.qois,
             kinematic_types=spec.kinematic_types,
-            init_frames=init,
         )
         one_step = one_step_position_rmse(
             simulator,
             trajectory,
-            cgn.window,
+            cgn.input_frames,
             device,
             kinematic_types=spec.kinematic_types,
         )
         one_step_aux = one_step_aux_rmse(
             simulator,
             trajectory,
-            cgn.window,
+            cgn.input_frames,
             device,
             kinematic_types=spec.kinematic_types,
         )
@@ -758,12 +749,13 @@ def evaluate(
     metrics: dict[str, Any] = {
         "split": split_name,
         "checkpoint": checkpoint.name,
-        "init_frames": init,
-        # Standard = card-conforming: pre-0032 runs recorded init = window and
-        # would otherwise self-certify; a card-init re-eval of any standard
-        # run IS official (ADR-0032 §4).
-        "protocol_standard": bool(record["protocol"]["standard"])
-        and init == spec.card.init_frames,
+        "input_frames": cgn.input_frames,
+        # Card-conforming by construction: a checkpoint's input_frames is
+        # validated equal to the card's at config load and train (ADR-0035),
+        # so a standard run stays standard on re-eval. Legacy off-card records
+        # (e.g. a pre-0035 window=11 run re-evaluated here) read as non-standard.
+        "protocol_standard": bool(record["protocol"].get("standard", True))
+        and cgn.input_frames == spec.card.input_frames,
         "aux_field": spec.aux_field,
         "aux_unit": spec.card.aux_unit,
         "cases": cases,
@@ -861,16 +853,10 @@ def main(argv: list[str] | None = None) -> int:
             out_dir,
             device,
             family=run_config.family,
-            protocol_override=run_config.protocol_override,
         )
         print(f"training complete; best checkpoint: {ckpt}")
     else:
         spec, _resolved = _resolve_run_spec(out_dir)
-        override_init = (
-            run_config.protocol_override.init_frames
-            if run_config is not None and run_config.protocol_override is not None
-            else None
-        )
         if args.mode == "valid":
             metrics = evaluate(
                 list(spec.splits["val"]),
@@ -878,7 +864,6 @@ def main(argv: list[str] | None = None) -> int:
                 out_dir,
                 device,
                 split_name="val",
-                init_frames=override_init,
             )
             _print_split_report(metrics)
         else:  # rollout: every eval split except val, in spec order
@@ -891,7 +876,6 @@ def main(argv: list[str] | None = None) -> int:
                     out_dir,
                     device,
                     split_name=split_name,
-                    init_frames=override_init,
                 )
                 _print_split_report(metrics)
     return 0

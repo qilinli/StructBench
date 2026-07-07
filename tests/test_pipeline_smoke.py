@@ -37,5 +37,5 @@ def test_stats_and_rollout_shapes_compose() -> None:
             nxt = seq[:, -1] + (seq[:, -1] - seq[:, -2])
             return nxt, torch.zeros(seq.shape[0], 1)
 
-    res = rollout(_Stub(), traj, window=3)
+    res = rollout(_Stub(), traj, input_frames=3)
     assert res.predicted_positions.shape == (6, 5, 2)

@@ -58,14 +58,19 @@ CARD = BenchmarkCard(
     particles_per_case="500-1250",
     n_frames=302,
     output_dt_ms=0.1,
-    init_frames=3,
+    input_frames=6,
     protocol_rationale=(
-        "init = 3 (ADR-0032 s7, second-order minimum). GT timeline analysis "
-        "run 2026-07-06 (docs/timelines/wave_propagation_1d.md): init=3 gives "
-        "away only 3.7% of initial KE (14.8% at init=6), and at the measured "
-        "front speed ~70.7 mm/ms the wave reaches the first (25%) gauge about "
-        "7 frames in, after the seeded prefix, so the arrival_time QoI is not "
-        "given away."
+        "input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - "
+        "1), the GNS reference history length; the model observes exactly "
+        "these 6 ground-truth frames (indices 0-5) to seed the rollout, with "
+        "no constant-velocity backfill. GT timeline analysis run 2026-07-06 "
+        "(docs/timelines/wave_propagation_1d.md): a 6-frame observed prefix "
+        "takes in 14.8% of initial KE worst-case (3.7% at 3 frames), and at "
+        "the measured front speed ~70.7 mm/ms the wave reaches the first (25%) "
+        "gauge about 7 frames in -- after the observed prefix -- so the "
+        "arrival_time QoI is predicted, not observed. 6 is near the ceiling "
+        "for this benchmark: a larger input_frames would risk seeding past "
+        "first arrival."
     ),
     size_gb=0.23,
 )

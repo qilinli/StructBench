@@ -6,7 +6,7 @@ seed = 0                        # torch RNG: init, noise, shuffle
 
 [model]
 family = "cgn"
-window = 11
+input_frames = 6
 connectivity_radius = 4.8  # ~2.4x the 2.0 mm particle spacing
 hidden_dim = 64
 message_passing_steps = 5

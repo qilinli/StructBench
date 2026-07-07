@@ -53,7 +53,7 @@ class LearnedSimulator(nn.Module):
     nnode_in : int
         Number of node input features expected by the encoder. The caller is
         responsible for computing this as
-        ``(window - 1) * particle_dimensions`` plus the width of any boundary
+        ``(input_frames - 1) * particle_dimensions`` plus the width of any boundary
         feature plus ``particle_type_embedding_size`` when
         ``nparticle_types > 1``.
     nedge_in : int
@@ -237,7 +237,7 @@ class LearnedSimulator(nn.Module):
         ----------
         position_sequence : Tensor
             Particle positions with shape
-            ``(nparticles, window, particle_dimensions)`` (current plus history).
+            ``(nparticles, input_frames, particle_dimensions)`` (current plus history).
         nparticles_per_example : Tensor
             Number of particles in each example of the batch.
         particle_types : Tensor
@@ -338,7 +338,7 @@ class LearnedSimulator(nn.Module):
             ``(nparticles, particle_dimensions)``.
         position_sequence : Tensor
             Position sequence with shape
-            ``(nparticles, window, particle_dimensions)``.
+            ``(nparticles, input_frames, particle_dimensions)``.
 
         Returns
         -------
@@ -372,7 +372,7 @@ class LearnedSimulator(nn.Module):
         ----------
         current_positions : Tensor
             Position sequence with shape
-            ``(nparticles, window, particle_dimensions)``.
+            ``(nparticles, input_frames, particle_dimensions)``.
         nparticles_per_example : Tensor
             Number of particles in each example of the batch.
         particle_types : Tensor
@@ -424,7 +424,7 @@ class LearnedSimulator(nn.Module):
             ``position_sequence``.
         position_sequence : Tensor
             Position sequence with shape
-            ``(nparticles, window, particle_dimensions)``.
+            ``(nparticles, input_frames, particle_dimensions)``.
         nparticles_per_example : Tensor
             Number of particles in each example of the batch.
         particle_types : Tensor
@@ -485,7 +485,7 @@ class LearnedSimulator(nn.Module):
             Next positions with shape ``(nparticles, particle_dimensions)``.
         position_sequence : Tensor
             Position sequence with shape
-            ``(nparticles, window, particle_dimensions)``.
+            ``(nparticles, input_frames, particle_dimensions)``.
 
         Returns
         -------
@@ -532,12 +532,12 @@ def time_diff(position_sequence: Tensor) -> Tensor:
     ----------
     position_sequence : Tensor
         Position sequence with shape
-        ``(nparticles, window, particle_dimensions)``.
+        ``(nparticles, input_frames, particle_dimensions)``.
 
     Returns
     -------
     Tensor
         Velocity sequence with shape
-        ``(nparticles, window - 1, particle_dimensions)``.
+        ``(nparticles, input_frames - 1, particle_dimensions)``.
     """
     return (position_sequence[:, 1:] - position_sequence[:, :-1]).contiguous()

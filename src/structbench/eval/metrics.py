@@ -24,8 +24,8 @@ class QoiInputs:
     particle_type:
         ``(P,)`` particle part-ids, when the caller provides them.
     init:
-        First scored frame (the protocol's ``init_frames``, ADR-0032 §4).
-        Frames before it are the ground-truth-seeded prefix; QoIs that scan
+        First scored frame (the protocol's ``input_frames``, ADR-0035).
+        Frames before it are the ground-truth-observed prefix; QoIs that scan
         over time should read ``[init:]``, while frame-0 geometry (gauge
         positions, reference spans) remains available.
     """
@@ -221,7 +221,7 @@ def peak_stress(inputs: QoiInputs) -> float:
     sustains the correct wave amplitude through repeated traversals. The
     second-half restriction was decided (maintainer, 2026-07-03) under the
     pre-ADR-0032 protocol, where the onset peak fell inside the
-    ground-truth-seeded frames; under init_frames = 3 the onset is predicted
+    ground-truth-seeded frames; under input_frames = 6 the onset is predicted
     too, but the late window remains the discriminative regime.
     """
     aux = np.abs(np.asarray(inputs.aux, float))

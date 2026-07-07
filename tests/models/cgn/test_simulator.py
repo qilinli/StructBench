@@ -15,8 +15,8 @@ def _stats(dim=2, aux_mean=0.0, aux_std=1.0):
     }
 
 
-def _sim(n_aux=1, boundary_feature_fn=None, window=3, aux_mean=0.0, aux_std=1.0):
-    nnode_in = (window - 1) * 2  # velocities only; +embedding handled internally
+def _sim(n_aux=1, boundary_feature_fn=None, input_frames=3, aux_mean=0.0, aux_std=1.0):
+    nnode_in = (input_frames - 1) * 2  # velocities only; +embedding handled internally
     return LearnedSimulator(
         particle_dimensions=2,
         nnode_in=nnode_in,
@@ -37,8 +37,8 @@ def _sim(n_aux=1, boundary_feature_fn=None, window=3, aux_mean=0.0, aux_std=1.0)
 
 def test_predict_positions_shapes():
     sim = _sim(n_aux=1)
-    P, window = 4, 3
-    pos_seq = torch.randn(P, window, 2)
+    P, input_frames = 4, 3
+    pos_seq = torch.randn(P, input_frames, 2)
     npp = torch.tensor([P])
     ptype = torch.zeros(P, dtype=torch.long)
     next_pos, aux = sim.predict_positions(pos_seq, npp, ptype)
@@ -55,14 +55,14 @@ def test_predict_positions_denormalizes_aux():
     mean, std = 5.0, 2.0
     sim = _sim(n_aux=1, aux_mean=mean, aux_std=std)
     sim.eval()
-    P, window = 4, 3
-    pos_seq = torch.randn(P, window, 2)
+    P, input_frames = 4, 3
+    pos_seq = torch.randn(P, input_frames, 2)
     npp = torch.tensor([P])
     ptype = torch.zeros(P, dtype=torch.long)
 
     _, _, pred_aux_norm = sim.predict_accelerations(
         next_positions=torch.zeros(P, 2),
-        position_sequence_noise=torch.zeros(P, window, 2),
+        position_sequence_noise=torch.zeros(P, input_frames, 2),
         position_sequence=pos_seq,
         nparticles_per_example=npp,
         particle_types=ptype,
