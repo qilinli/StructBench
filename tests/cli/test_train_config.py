@@ -28,7 +28,6 @@ max_neighbors = 48
 batch_size = 8
 lr_init = 1e-4
 lr_decay = 0.1
-lr_decay_steps = 30000
 training_steps = 100
 val_every = 50
 w_pos = 1.0
@@ -50,6 +49,7 @@ def test_load_run_config_happy_path(tmp_path):
     assert rc.train.benchmark == "taylor_impact_2d"
     assert rc.train.seed == 7  # [run].seed lands on TrainConfig
     assert rc.train.batch_size == 8
+    assert rc.train.lr_decay_steps == 38  # derived: round(100 * 30000/80000)
     assert rc.model.window == 11
     assert rc.protocol_override is None
 
@@ -106,6 +106,33 @@ def test_load_run_config_protocol_override(tmp_path):
     assert rc.protocol_override.init_frames == 11
     with pytest.raises(ConfigError, match="init_frames must be an int >= 2"):
         load_run_config(_write(tmp_path, VALID + "\n[protocol]\ninit_frames = 1\n"))
+
+
+def test_load_run_config_derives_lr_decay_steps(tmp_path):
+    # lr_decay_steps is not in [train]; it is derived from training_steps to hold
+    # the reference anneal depth. 40000 * 30000/80000 = 15000 (the value the
+    # 2026-07-06 fleet should have used instead of the inherited 30000).
+    cfg = VALID.replace("training_steps = 100", "training_steps = 40000")
+    rc = load_run_config(_write(tmp_path, cfg))
+    assert rc.train.lr_decay_steps == 15000
+
+
+def test_derived_lr_decay_steps_reproduces_reference(tmp_path):
+    # The 80k Taylor budget must reproduce the validated ADR-0028 lr_decay_steps
+    # (30000) exactly, so the flagship recipe's schedule is byte-for-byte unchanged.
+    cfg = VALID.replace("training_steps = 100", "training_steps = 80000")
+    rc = load_run_config(_write(tmp_path, cfg))
+    assert rc.train.lr_decay_steps == 30000
+
+
+def test_load_run_config_rejects_explicit_lr_decay_steps(tmp_path):
+    # Setting it by hand is exactly the footgun this derivation removes; reject it
+    # with a clear message rather than silently honoring a mis-scaled value.
+    bad = VALID.replace(
+        "training_steps = 100", "lr_decay_steps = 30000\ntraining_steps = 100"
+    )
+    with pytest.raises(ConfigError, match="lr_decay_steps is derived"):
+        load_run_config(_write(tmp_path, bad))
 
 
 def _stats_dict():
