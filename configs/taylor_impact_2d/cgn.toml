@@ -1,6 +1,8 @@
 # Taylor 2D CGN baseline (Li et al. 2023; ADR-0034) (ADR-0019 task; grouped per ADR-0032).
-# Recipe: ADR-0028 mechanics + reference capacity and 80k budget, selected on the
-# 2026-07-03/04 ablation fleets (capacity dominant, noise 0.02, w_aux 1.0). Protocol
+# Recipe: ADR-0028 mechanics + reference capacity and 100k budget (extended from
+# ADR-0028's 80k reference as the default baseline, 2026-07-07; lr_decay_steps derives
+# to 37500, same anneal depth), selected on the 2026-07-03/04 ablation fleets
+# (capacity dominant, noise 0.02, w_aux 1.0). Protocol
 # is input_frames = 6 (ADR-0035): the model history length is also the rollout seed
 # count (C = 5 velocities, the GNS reference); no constant-velocity backfill.
 
@@ -25,7 +27,7 @@ batch_size = 8   # A100-80GB memory bound at this capacity (batch 16 OOMs)
 lr_init = 1e-4  # reference rate (ADR-0028); the old 1e-3 default drove memorization
 lr_decay = 0.1
 # lr_decay_steps is derived from training_steps by config.py: round(steps * 30000/80000).
-training_steps = 80000  # -> derived lr_decay_steps 30000 (~2.67 periods, anneals to ~1.2x the 1e-6 floor)
+training_steps = 100000  # -> derived lr_decay_steps 37500 (~2.67 periods, anneals to ~1.2x the 1e-6 floor)
 val_every = 2000
 w_pos = 1.0
 w_aux = 1.0
