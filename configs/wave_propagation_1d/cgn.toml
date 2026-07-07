@@ -20,7 +20,7 @@ max_neighbors = 32  # project-wide backstop cap (M-B, 2026-07-06): sized above t
 batch_size = 32
 lr_init = 1e-4  # reference rate (ADR-0028); the old 1e-3 default drove memorization
 lr_decay = 0.1
-# lr_decay_steps is derived from training_steps by config.py (round(steps * 30000/80000)).
+# lr_decay_steps is derived from training_steps by config.py (round(steps * 40000/100000)).
 training_steps = 50000  # 16 small cases; half the Taylor budget
 val_every = 2000
 w_pos = 1.0

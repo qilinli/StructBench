@@ -49,7 +49,7 @@ def test_load_run_config_happy_path(tmp_path):
     assert rc.train.benchmark == "taylor_impact_2d"
     assert rc.train.seed == 7  # [run].seed lands on TrainConfig
     assert rc.train.batch_size == 8
-    assert rc.train.lr_decay_steps == 38  # derived: round(100 * 30000/80000)
+    assert rc.train.lr_decay_steps == 40  # derived: round(100 * 40000/100000)
     assert rc.model.input_frames == 6
 
 
@@ -117,19 +117,18 @@ def test_load_run_config_rejects_protocol_section(tmp_path):
 
 def test_load_run_config_derives_lr_decay_steps(tmp_path):
     # lr_decay_steps is not in [train]; it is derived from training_steps to hold
-    # the reference anneal depth. 40000 * 30000/80000 = 15000 (the value the
-    # 2026-07-06 fleet should have used instead of the inherited 30000).
+    # the reference anneal depth. 40000 * 40000/100000 = 16000.
     cfg = VALID.replace("training_steps = 100", "training_steps = 40000")
     rc = load_run_config(_write(tmp_path, cfg))
-    assert rc.train.lr_decay_steps == 15000
+    assert rc.train.lr_decay_steps == 16000
 
 
 def test_derived_lr_decay_steps_reproduces_reference(tmp_path):
-    # The 80k Taylor budget must reproduce the validated ADR-0028 lr_decay_steps
-    # (30000) exactly, so the flagship recipe's schedule is byte-for-byte unchanged.
-    cfg = VALID.replace("training_steps = 100", "training_steps = 80000")
+    # The 100k Taylor baseline budget reproduces the reference lr_decay_steps
+    # (40000) exactly — clean decade drops at 40k/80k (re-pinned from 80k/30000).
+    cfg = VALID.replace("training_steps = 100", "training_steps = 100000")
     rc = load_run_config(_write(tmp_path, cfg))
-    assert rc.train.lr_decay_steps == 30000
+    assert rc.train.lr_decay_steps == 40000
 
 
 def test_load_run_config_rejects_explicit_lr_decay_steps(tmp_path):

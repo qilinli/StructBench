@@ -134,11 +134,13 @@ class TrainConfig:
 #: whose reference anneal depth :func:`_derive_lr_decay_steps` targets.
 LR_SCHEDULE_FLOOR = 1e-6
 
-#: Reference anneal depth (ADR-0028): the Taylor recipe runs 80k steps against
-#: ``lr_decay_steps = 30000`` (~2.67 periods at ``lr_decay = 0.1``), ending ~1.2x
-#: the floor. :func:`_derive_lr_decay_steps` holds this ``lr_decay_steps /
-#: training_steps`` ratio for every budget, so no run can silently under-anneal.
-_REFERENCE_DECAY_STEPS_RATIO = 30000 / 80000
+#: Reference anneal depth: the Taylor baseline runs 100k steps against
+#: ``lr_decay_steps = 40000`` (2.5 periods at ``lr_decay = 0.1`` — clean decade
+#: drops at 40k and 80k), ending ~1.3x the floor. :func:`_derive_lr_decay_steps`
+#: holds this ``lr_decay_steps / training_steps`` ratio for every budget, so no
+#: run can silently under-anneal. (Was 30000/80000 under the ADR-0028 80k
+#: reference; re-pinned to the 100k default baseline, 2026-07-07.)
+_REFERENCE_DECAY_STEPS_RATIO = 40000 / 100000
 
 
 #: Model families dispatchable from ``[model].family`` (ADR-0032 §2).
@@ -217,13 +219,13 @@ def _derive_lr_decay_steps(training_steps: int) -> int:
     The trainer decays the rate one ``lr_decay`` factor per ``lr_decay_steps``
     steps, so the end-of-run rate depends only on the ratio
     ``training_steps / lr_decay_steps`` — not on either alone. Pinning that ratio
-    to the ADR-0028 reference (80k steps / 30000 = ~2.67 periods, ending ~1.2x the
+    to the reference (100k steps / 40000 = 2.5 periods, ending ~1.3x the
     ``LR_SCHEDULE_FLOOR``) makes every step budget anneal to the same depth. That
     removes the footgun a budget override otherwise leaves open: shortening
     ``training_steps`` while ``lr_decay_steps`` stays put ends the run with the rate
     far above its floor (the 2026-07-06 CGN fleet ran 40k against an inherited
-    ``lr_decay_steps = 30000`` and ended at ``lr ~ 5.6e-6``, ~4.6x its floor). An
-    80k budget reproduces the reference ``30000`` exactly.
+    ``lr_decay_steps = 30000`` and ended at ``lr ~ 5.6e-6``, ~4.6x its floor). A
+    100k budget reproduces the reference ``40000`` exactly.
     """
     return max(1, round(training_steps * _REFERENCE_DECAY_STEPS_RATIO))
 
