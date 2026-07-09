@@ -67,8 +67,9 @@ def test_archive_readme_carries_task_eval_and_usage_sections():
 
 
 def test_archive_readme_without_results_carries_placeholder():
-    spec = get_benchmark("taylor_impact_2d")
-    text = render_archive_readme(spec, "taylor_impact_2d")
+    # Taylor is blessed (ADR-0033); wave is still unblessed and covers the path.
+    spec = get_benchmark("wave_propagation_1d")
+    text = render_archive_readme(spec, "wave_propagation_1d")
     assert "No official baseline yet" in text
 
 

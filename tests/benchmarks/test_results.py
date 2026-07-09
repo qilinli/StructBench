@@ -49,9 +49,17 @@ def test_metrics_are_read_only():
         result.metrics["test_interp"]["rollout_pos_rmse_mm"] = 0.0
 
 
-def test_all_registered_benchmarks_expose_empty_results():
-    for name in available_benchmarks():
-        assert get_benchmark(name).results == ()
+def test_taylor_is_the_only_blessed_benchmark():
+    blessed = {n for n in available_benchmarks() if get_benchmark(n).results}
+    assert blessed == {"taylor_impact_2d"}
+
+
+def test_taylor_baseline_is_the_cgn_reference_run():
+    (result,) = get_benchmark("taylor_impact_2d").results
+    assert result.family == "cgn"
+    assert result.run_commit == "7be9d4b"
+    # val selects the checkpoint, so only the held-out splits are numbers to beat.
+    assert set(result.metrics) == {"test_interp", "test_extrap"}
 
 
 def test_spec_rejects_result_with_unknown_split():
