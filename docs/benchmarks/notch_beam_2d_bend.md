@@ -21,9 +21,15 @@ autoregressive transition (ADR-0026). Auxiliary target: `max_principal_strain` (
 ## Evaluation criteria
 
 - Protocol (benchmark-owned, ADR-0032, ADR-0035): 6 input frames, horizon full, scored at native output times.
-- Protocol rationale: Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine), so 6 is not yet confirmed to sit before the onset of non-rigid motion. Confirm before the first trained baseline.
 - Metrics: one-step and full-rollout position RMSE (mm); max_principal_strain RMSE (-).
 - Quantities of interest: midspan_deflection_peak, cracked_fraction.
+
+<details>
+<summary>Protocol rationale — the ground-truth timeline analysis behind these values (ADR-0032 §5)</summary>
+
+Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine), so 6 is not yet confirmed to sit before the onset of non-rigid motion. Confirm before the first trained baseline.
+
+</details>
 
 ## Numbers to beat
 

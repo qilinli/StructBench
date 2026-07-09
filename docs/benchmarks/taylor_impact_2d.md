@@ -33,21 +33,17 @@ interpolation and degrades honestly at 200 m/s; the numbers are below.
 
 ## Figures
 
-![Animation of a copper bar mushrooming against a rigid wall.](../../assets/taylor_rollout.gif)
+![Side-by-side animation of ground-truth and CGN-predicted copper-bar impact at 150 m/s.](../../assets/taylor_rollout.gif)
 
-*Ground-truth LS-DYNA SPH rollout: a 20x80 mm copper bar mushrooming against the wall at 200 m/s, coloured by von Mises stress.*
-
-![Prediction-vs-truth von Mises snapshots at 150 m/s.](../../assets/taylor_vms_val_150.png)
-
-*In-distribution (val, 150 m/s): CGN prediction (bottom) vs ground truth (top), von Mises stress at 12 / 108 / 204 / 300 us. The mushroom head, bar shortening, and impact-face stress band are reproduced.*
+*Ground truth (left) vs CGN prediction (right) at 150 m/s (in-distribution), a 20x80 mm copper bar coloured by von Mises stress. The surrogate tracks the mushroom head, bar shortening, and impact-face stress band frame by frame over the 300 us rollout.*
 
 ![Prediction-vs-truth von Mises snapshots at 200 m/s showing degradation.](../../assets/taylor_vms_extrap_200.png)
 
-*Extrapolation (test_extrap, 200 m/s): the same comparison. The model under-flares the mushroom rim and smears the localized high-stress band — the visible face of the ~6x rollout-position degradation beyond the training range.*
+*Extrapolation (test_extrap, 200 m/s): ground truth (top) vs CGN prediction (bottom), von Mises stress at 12 / 108 / 204 / 300 us. The model under-flares the mushroom rim and smears the localized high-stress band — the visible face of the ~6x rollout-position degradation beyond the training range.*
 
 ![Line charts of rollout position and von Mises error over time.](../../assets/taylor_rollout_error_vs_time.png)
 
-*Rollout error vs time for the four training seeds: position RMSE (top) and von Mises RMSE (bottom) across val / interp / extrap. Position error accumulates monotonically; the von Mises error spikes at first wall contact (~20-40 us) then re-grows. Extrapolation is where it blows up.*
+*Rollout error vs time for the CGN baseline (seed s1): position RMSE (top) and von Mises RMSE (bottom), case-averaged across val / interp / extrap. Position error accumulates monotonically; the von Mises error spikes at first wall contact (~20-40 us) then re-grows. Extrapolation to 200 m/s is where it blows up.*
 
 ## Data at a glance
 
@@ -68,18 +64,33 @@ autoregressive transition (ADR-0019). Auxiliary target: `von_mises_stress` (MPa)
 ## Evaluation criteria
 
 - Protocol (benchmark-owned, ADR-0032, ADR-0035): 6 input frames, horizon full, scored at native output times.
-- Protocol rationale: input_frames = 6 gives the model C = 5 input velocities (input_frames - 1), the GNS reference history length (Sanchez-Gonzalez et al. 2023); under ADR-0035 the model observes exactly these 6 ground-truth frames to seed the rollout, with no constant-velocity history backfill. GT timeline analysis over all 33 cases (2026-07-05, python -m structbench.benchmarks.timeline; evidence table in docs/timelines/taylor_impact_2d.md): the rod is in free flight until first wall contact near frame 7, so a 6-frame observed prefix takes in 0.0% of the impact in every case, while the historical init = 11 handed models the shock onset (up to 10.6% of total KE already dissipated; nonzero in every case above 100 m/s). 99% displacement settlement lands as late as 296 us of the 300 us record and the last fifth of the horizon retains 1.6-8.1% of peak mean acceleration (elastic ringing), so the full horizon is dynamically active. n_frames = 152 counts stored frames; the working trajectory drops the terminal solver-output artifact frame (ADR-0028), giving a 151-frame / 300 us protocol horizon and a scored span of frames [6, 151) -- 145 predicted frames. Predictions are scored at the native 2 us output times; peak_von_mises/t_peak_von_mises (peak of the particle-mean field, e.g. 191 MPa at 44 us in T-20-80-150 ground truth) penalize temporally coarse surrogates.
 - Metrics: one-step and full-rollout position RMSE (mm); von_mises_stress RMSE (MPa).
 - Quantities of interest: final_length, mushroom_width, peak_von_mises, t_peak_von_mises.
+
+<details>
+<summary>Protocol rationale — the ground-truth timeline analysis behind these values (ADR-0032 §5)</summary>
+
+input_frames = 6 gives the model C = 5 input velocities (input_frames - 1), the GNS reference history length (Sanchez-Gonzalez et al. 2023); under ADR-0035 the model observes exactly these 6 ground-truth frames to seed the rollout, with no constant-velocity history backfill. GT timeline analysis over all 33 cases (2026-07-05, python -m structbench.benchmarks.timeline; evidence table in docs/timelines/taylor_impact_2d.md): the rod is in free flight until first wall contact near frame 7, so a 6-frame observed prefix takes in 0.0% of the impact in every case, while the historical init = 11 handed models the shock onset (up to 10.6% of total KE already dissipated; nonzero in every case above 100 m/s). 99% displacement settlement lands as late as 296 us of the 300 us record and the last fifth of the horizon retains 1.6-8.1% of peak mean acceleration (elastic ringing), so the full horizon is dynamically active. n_frames = 152 counts stored frames; the working trajectory drops the terminal solver-output artifact frame (ADR-0028), giving a 151-frame / 300 us protocol horizon and a scored span of frames [6, 151) -- 145 predicted frames. Predictions are scored at the native 2 us output times; peak_von_mises/t_peak_von_mises (peak of the particle-mean field, e.g. 191 MPa at 44 us in T-20-80-150 ground truth) penalize temporally coarse surrogates.
+
+</details>
 
 ## Numbers to beat
 
 **CGN baseline** (cgn, 2026-07-08, commit `7be9d4b`)
 
-| split | rollout_pos_rmse_mm | rollout_vm_rmse_mpa | one_step_pos_rmse_mm | one_step_vm_rmse_mpa | qoi_final_length_mae_mm | qoi_mushroom_width_mae_mm | qoi_peak_vm_mae_mpa | qoi_t_peak_vm_mae_ms |
-|---|---|---|---|---|---|---|---|---|
-| test_interp | 1.274 | 52.57 | 0.003244 | 36.09 | 3.083 | 4.754 | 2.865 | 0.003993 |
-| test_extrap | 7.645 | 79.46 | 0.004649 | 40.43 | 3.198 | 11.59 | 19.21 | 0.2293 |
+_Trajectory error (RMSE)_
+
+| split | rollout_pos_rmse_mm | rollout_vm_rmse_mpa | one_step_pos_rmse_mm | one_step_vm_rmse_mpa |
+|---|---|---|---|---|
+| test_interp | 1.274 | 52.57 | 0.003244 | 36.09 |
+| test_extrap | 7.645 | 79.46 | 0.004649 | 40.43 |
+
+_Quantities of interest (MAE)_
+
+| split | qoi_final_length_mae_mm | qoi_mushroom_width_mae_mm | qoi_peak_vm_mae_mpa | qoi_t_peak_vm_mae_ms |
+|---|---|---|---|---|
+| test_interp | 3.083 | 4.754 | 2.865 | 0.003993 |
+| test_extrap | 3.198 | 11.59 | 19.21 | 0.2293 |
 
 *Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp.*
 

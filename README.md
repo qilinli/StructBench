@@ -10,11 +10,12 @@ baseline to beat — for structures under dynamic and extreme loading.
 > **Status: pre-release (v0.1 imminent).** What exists is real and tested;
 > what doesn't is on the [roadmap](#roadmap).
 
-![Taylor bar rollout: copper bar mushrooming against a rigid wall, colored by von Mises stress](assets/taylor_rollout.gif)
+![Taylor bar rollout: ground truth vs CGN prediction, copper bar mushrooming against a rigid wall, colored by von Mises stress](assets/taylor_rollout.gif)
 
-*A 2D copper bar striking a rigid wall at 200 m/s — LS-DYNA SPH ground truth,
-colored by von Mises stress. The prediction-vs-truth comparison replaces this
-once the baseline training run completes.*
+*A 2D copper bar striking a rigid wall at 150 m/s — LS-DYNA SPH ground truth
+(left) vs the CGN baseline's prediction (right), colored by von Mises stress.
+See the [Taylor2D-Impact benchmark page](docs/benchmarks/taylor_impact_2d.md)
+for the full problem, data, and numbers to beat.*
 
 ## Benchmarks
 
