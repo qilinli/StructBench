@@ -84,6 +84,7 @@ What becomes easier, harder, or constrained as a result.
 | 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted |
 | 0034 | The reference baseline is CGN (Concrete Graph Network, Li et al. 2023) | Durable | Accepted |
 | 0035 | The model input window is the rollout init; no history backfill (amends 0019, 0032) | Durable | Accepted |
+| 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted |
 
 ---
 

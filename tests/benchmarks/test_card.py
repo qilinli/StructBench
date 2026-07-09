@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from structbench.benchmarks.card import BenchmarkCard
+from structbench.benchmarks.card import BenchmarkCard, BenchmarkFigure
 
 
 def _kwargs(**overrides):
@@ -59,3 +59,34 @@ def test_card_json_dict_serializes():
     card = BenchmarkCard(**_kwargs())
     payload = json.dumps(card.to_json_dict())
     assert "Demo-Bench" in payload
+
+
+def test_card_defaults_to_no_overview_or_figures():
+    card = BenchmarkCard(**_kwargs())
+    assert card.overview == ""
+    assert card.figures == ()
+
+
+def test_card_json_dict_serializes_figures():
+    # asdict recurses into nested BenchmarkFigure records (ADR-0036).
+    card = BenchmarkCard(
+        **_kwargs(
+            overview="## Demo\n\nText.",
+            figures=(BenchmarkFigure(path="assets/x.png", caption="a plot"),),
+        )
+    )
+    payload = json.loads(json.dumps(card.to_json_dict()))
+    assert payload["figures"][0]["path"] == "assets/x.png"
+    assert payload["overview"].startswith("## Demo")
+
+
+@pytest.mark.parametrize("bad", [{"path": "  "}, {"caption": " "}])
+def test_figure_rejects_blank_path_or_caption(bad):
+    kwargs = {"path": "assets/x.png", "caption": "ok"}
+    kwargs.update(bad)
+    with pytest.raises(ValueError):
+        BenchmarkFigure(**kwargs)
+
+
+def test_figure_alt_defaults_blank():
+    assert BenchmarkFigure(path="assets/x.png", caption="c").alt == ""

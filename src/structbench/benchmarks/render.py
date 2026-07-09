@@ -24,6 +24,59 @@ def _fmt_value(value: float) -> str:
     return f"{value:g}"
 
 
+def _registry_name(spec: BenchmarkSpec) -> str | None:
+    """The registry key owning ``spec``, matched by unique card name.
+
+    Landing pages live at ``docs/benchmarks/<registry-name>.md``; the index
+    links to them. Matching by ``card.name`` (unique per benchmark) keeps
+    working for ``dataclasses.replace``-d specs used in tests, which no longer
+    share object identity with the registry's ``SPEC``.
+    """
+    from .registry import available_benchmarks, get_benchmark
+
+    for name in available_benchmarks():
+        if get_benchmark(name).card.name == spec.card.name:
+            return name
+    return None
+
+
+def _page_asset(path: str) -> str:
+    """Rewrite a repo-relative asset path for a page at ``docs/benchmarks/``.
+
+    A committed figure path like ``assets/foo.png`` becomes ``../../assets/foo.png``
+    so the link resolves from the two-deep page location; absolute URLs pass
+    through unchanged.
+    """
+    if path.startswith(("http://", "https://")):
+        return path
+    return f"../../{path}"
+
+
+def _task_lines(c: BenchmarkCard) -> list[str]:
+    """The shared 'Task' section (archive README and landing page)."""
+    return [
+        "## Task",
+        "",
+        f"{c.task}. Auxiliary target: `{c.aux_field}` ({c.aux_unit}). "
+        "Models advance the particle state autoregressively from a short "
+        "ground-truth prefix and are scored on the full predicted rollout.",
+    ]
+
+
+def _eval_lines(c: BenchmarkCard) -> list[str]:
+    """The shared 'Evaluation criteria' section (archive README and page)."""
+    return [
+        "## Evaluation criteria",
+        "",
+        f"- Protocol (benchmark-owned, ADR-0032, ADR-0035): {c.input_frames} "
+        f"input frames, horizon {c.horizon}, scored at {c.eval_times} output times.",
+        f"- Protocol rationale: {c.protocol_rationale}",
+        f"- Metrics: one-step and full-rollout position RMSE (mm); "
+        f"{c.aux_field} RMSE ({c.aux_unit}).",
+        f"- Quantities of interest: {', '.join(c.qois)}.",
+    ]
+
+
 def _baseline_line(spec: BenchmarkSpec) -> str:
     """Compact one-line results summary for the docs index (ADR-0033)."""
     if not spec.results:
@@ -121,7 +174,8 @@ def render_index(specs: list[BenchmarkSpec]) -> str:
 def _section(spec: BenchmarkSpec) -> list[str]:
     c = spec.card
     splits = ", ".join(f"{name} {n}" for name, n in c.splits.items())
-    return [
+    name = _registry_name(spec)
+    lines = [
         f"## {c.name} (v{c.version})",
         "",
         c.description,
@@ -139,6 +193,11 @@ def _section(spec: BenchmarkSpec) -> list[str]:
         f"- **Provenance**: {c.provenance}",
         f"- **License**: {c.data_license}",
     ]
+    if name is not None:
+        lines.append(
+            f"- **Full page**: [docs/benchmarks/{name}.md](benchmarks/{name}.md)"
+        )
+    return lines
 
 
 def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
@@ -173,20 +232,9 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         f"- Provenance: {c.provenance}",
         f"- License: {c.data_license}",
         "",
-        "## Task",
+        *_task_lines(c),
         "",
-        f"{c.task}. Auxiliary target: `{c.aux_field}` ({c.aux_unit}). "
-        "Models advance the particle state autoregressively from a short "
-        "ground-truth prefix and are scored on the full predicted rollout.",
-        "",
-        "## Evaluation criteria",
-        "",
-        f"- Protocol (benchmark-owned, ADR-0032, ADR-0035): {c.input_frames} "
-        f"input frames, horizon {c.horizon}, scored at {c.eval_times} output times.",
-        f"- Protocol rationale: {c.protocol_rationale}",
-        f"- Metrics: one-step and full-rollout position RMSE (mm); "
-        f"{c.aux_field} RMSE ({c.aux_unit}).",
-        f"- Quantities of interest: {', '.join(c.qois)}.",
+        *_eval_lines(c),
         "",
         *_numbers_to_beat(spec),
         "",
@@ -203,6 +251,77 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         "scalar targets are loader-derived (see the card's aux field).",
         "Consume with `structbench.datasets.load_case_trajectory` or any "
         "HDF5 reader (layout per ADR-0013).",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
+    """The committed, browsable landing page for one benchmark (ADR-0036).
+
+    Reuses the archive README's Task / Evaluation / Numbers-to-beat bodies —
+    so the numbers keep a single source — and adds the card's non-derivable
+    ``overview`` narrative and ``figures``, plus a quickstart. Generated to
+    ``docs/benchmarks/<name>.md``; a drift test asserts the committed page
+    matches this render.
+
+    Parameters
+    ----------
+    spec : BenchmarkSpec
+        The benchmark to render.
+    name : str
+        Its registry name (page filename and grouped-config path).
+
+    Returns
+    -------
+    str
+        Markdown for the landing page, with the generation marker.
+    """
+    c = spec.card
+    splits_str = ", ".join(f"{k} {v}" for k, v in c.splits.items())
+    size = f"; {c.size_gb} GB on disk" if c.size_gb else ""
+    lines = [_MARKER, "", f"# {c.name} — StructBench benchmark", ""]
+    if c.overview.strip():
+        lines += [c.overview.strip(), ""]
+    if c.figures:
+        lines += ["## Figures", ""]
+        for fig in c.figures:
+            lines += [
+                f"![{fig.alt or fig.caption}]({_page_asset(fig.path)})",
+                "",
+                f"*{fig.caption}*",
+                "",
+            ]
+    lines += [
+        "## Data at a glance",
+        "",
+        f"- Solver: {c.solver} ({c.discretisation}; erosion: {_yesno(c.erosion)})",
+        f"- Loading: {c.loading}",
+        f"- Geometry: {c.geometry}",
+        f"- Source units: {c.source_units} (canonical storage is strict SI, ADR-0012)",
+        f"- Cases: {c.n_cases} ({splits_str})",
+        f"- Particles per case: {c.particles_per_case}; "
+        f"{c.n_frames} frames at {c.output_dt_ms} ms{size}",
+        f"- Fields: {', '.join(c.fields)}",
+        f"- Provenance: {c.provenance}",
+        f"- License: {c.data_license}",
+        "",
+        *_task_lines(c),
+        "",
+        *_eval_lines(c),
+        "",
+        *_numbers_to_beat(spec),
+        "",
+        "## Quickstart",
+        "",
+        "```bash",
+        "pip install structbench  # or: pip install -e . from the repo",
+        f"structbench-train --mode train --config configs/{name}/cgn.toml \\",
+        f"    --data-root /path/to/{name} --out runs/{name}-cgn",
+        "```",
+        "",
+        "Dataset download and hosting: see the repository README. The "
+        "cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); "
+        "machine-readable card metadata ships as `card.json` with the data archive.",
     ]
     return "\n".join(lines) + "\n"
 
