@@ -158,10 +158,10 @@ decisions/         # architecture decision records
   - [x] ~~checkpoint + recorded ADR-0019 metrics: seed s1 blessed into the
         ADR-0033 results registry~~ (2026-07-09; publishing the checkpoint
         itself remains a later item)
-- [ ] Release (human action): dataset link + version tag are all that remain.
-      Baseline metrics (per-benchmark README + ADR-0033 results registry) and
-      the prediction-vs-truth hero GIF (`assets/taylor_rollout.gif`) are in
-      place; the dataset link is gated on Zenodo hosting (see v0.2 below)
+- [ ] Release (human action): tag the version (`0.1.0`). Baseline metrics
+      (per-benchmark README + ADR-0033 results registry) and the
+      prediction-vs-truth hero GIF (`assets/taylor_rollout.gif`) are in place;
+      public dataset hosting is no longer a v0.1 gate (deferred, see Later)
 
 ### v0.2 — wave-1d + notch-beam pair
 
@@ -180,10 +180,6 @@ decisions/         # architecture decision records
   - [ ] `notch_beam_2d_impact`
 - [ ] Validate the provisional `cracked_fraction` threshold 0.01 (ADR-0029;
       version bump if revised)
-- [ ] Dataset hosting: direction agreed 2026-07-05 — Zenodo, one record per
-      benchmark, versions ↔ record DOIs; OneDrive stays the private master.
-      Publish deferred until benchmark versions are final (gates the v0.1
-      release; ADR to be drafted at publish time)
 - [x] ~~Archive packaging: measure `size_gb` per benchmark (2.4 / 0.23 /
       24.1 / 24.9), generate per-archive README + card.json~~ (2026-07-05)
 
@@ -246,6 +242,9 @@ decisions/         # architecture decision records
   per-region probe metrics · convergence check
 - Checkpoint-publishing workflow · second aux target (effective plastic
   strain)
+- Public dataset hosting (parked): Zenodo direction agreed 2026-07-05 — one
+  record per benchmark, versions ↔ record DOIs, OneDrive stays the private
+  master — but no near-term plan to publish; picked up when it is
 - Data-generation autonomy (deck templating or a Python-native solver)
 - Scale: cell-list `radius_graph` backend when a ≥10⁶-node dataset lands
 - Other solvers (Kratos, OpenSees, OpenRadioss) · SHM expansion ·
