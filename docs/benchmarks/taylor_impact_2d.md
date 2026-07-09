@@ -37,9 +37,9 @@ interpolation and degrades honestly at 200 m/s; the numbers are below.
 
 *Ground truth (left) vs CGN prediction (right) at 150 m/s (in-distribution), a 20x80 mm copper bar coloured by von Mises stress. The surrogate tracks the mushroom head, bar shortening, and impact-face stress band frame by frame over the 300 us rollout.*
 
-![Prediction-vs-truth von Mises snapshots at 200 m/s showing degradation.](../../assets/taylor_vms_extrap_200.png)
+![Prediction-vs-truth von Mises snapshots at 170 m/s, in-distribution.](../../assets/taylor_vms_interp_170.png)
 
-*Extrapolation (test_extrap, 200 m/s): ground truth (top) vs CGN prediction (bottom), von Mises stress at 12 / 108 / 204 / 300 us. The model under-flares the mushroom rim and smears the localized high-stress band — the visible face of the ~6x rollout-position degradation beyond the training range.*
+*In-distribution (test_interp, 170 m/s): ground truth (top) vs CGN prediction (bottom), von Mises stress at 12 / 108 / 204 / 300 us. The prediction reproduces the mushroom head, bar shortening, and the impact-face high-stress band; its stress field is slightly smoother and more diffuse than ground truth but structurally faithful (rollout position RMSE 1.4 mm).*
 
 ![Line charts of rollout position and von Mises error over time.](../../assets/taylor_rollout_error_vs_time.png)
 

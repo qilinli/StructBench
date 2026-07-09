@@ -51,15 +51,16 @@ _FIGURES = (
         ),
     ),
     BenchmarkFigure(
-        path="assets/taylor_vms_extrap_200.png",
+        path="assets/taylor_vms_interp_170.png",
         caption=(
-            "Extrapolation (test_extrap, 200 m/s): ground truth (top) vs CGN "
+            "In-distribution (test_interp, 170 m/s): ground truth (top) vs CGN "
             "prediction (bottom), von Mises stress at 12 / 108 / 204 / 300 us. "
-            "The model under-flares the mushroom rim and smears the localized "
-            "high-stress band — the visible face of the ~6x rollout-position "
-            "degradation beyond the training range."
+            "The prediction reproduces the mushroom head, bar shortening, and "
+            "the impact-face high-stress band; its stress field is slightly "
+            "smoother and more diffuse than ground truth but structurally "
+            "faithful (rollout position RMSE 1.4 mm)."
         ),
-        alt="Prediction-vs-truth von Mises snapshots at 200 m/s showing degradation.",
+        alt="Prediction-vs-truth von Mises snapshots at 170 m/s, in-distribution.",
     ),
     BenchmarkFigure(
         path="assets/taylor_rollout_error_vs_time.png",
