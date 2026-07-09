@@ -7,6 +7,7 @@ from structbench.benchmarks import available_benchmarks, get_benchmark
 from structbench.benchmarks.render import (
     card_json,
     render_archive_readme,
+    render_benchmark_page,
     render_index,
 )
 from structbench.benchmarks.results import BaselineResult
@@ -105,3 +106,52 @@ def test_card_json_round_trips():
 def test_committed_index_is_up_to_date():
     committed = (REPO_ROOT / "docs" / "benchmarks.md").read_text(encoding="utf-8")
     assert committed == render_index(_all_specs())
+
+
+# --- per-benchmark landing pages (ADR-0036) ---
+
+
+def test_committed_benchmark_pages_are_up_to_date():
+    for name in available_benchmarks():
+        page = REPO_ROOT / "docs" / "benchmarks" / f"{name}.md"
+        assert page.read_text(encoding="utf-8") == render_benchmark_page(
+            get_benchmark(name), name
+        ), name
+
+
+def test_index_links_to_each_benchmark_page():
+    text = render_index(_all_specs())
+    for name in available_benchmarks():
+        assert f"(benchmarks/{name}.md)" in text, name
+
+
+def test_benchmark_page_embeds_overview_numbers_and_figures():
+    spec = get_benchmark("taylor_impact_2d")
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    # narrative from the card
+    assert spec.card.overview[:24] in text
+    # each figure renders as a markdown image at a page-relative asset path
+    assert spec.card.figures  # guard: taylor has figures
+    for fig in spec.card.figures:
+        assert f"(../../{fig.path})" in text
+        assert fig.caption in text
+    # the blessed baseline table + quickstart are present
+    assert "## Numbers to beat" in text
+    assert "CGN baseline" in text
+    assert "## Quickstart" in text
+    assert "configs/taylor_impact_2d/cgn.toml" in text
+
+
+def test_benchmark_page_omits_absent_optional_sections():
+    # wave has neither overview nor figures nor a baseline
+    spec = get_benchmark("wave_propagation_1d")
+    text = render_benchmark_page(spec, "wave_propagation_1d")
+    assert "## Figures" not in text
+    assert "## The problem" not in text
+    assert "No official baseline yet" in text
+
+
+def test_card_figure_paths_exist():
+    for name in available_benchmarks():
+        for fig in get_benchmark(name).card.figures:
+            assert (REPO_ROOT / fig.path).is_file(), f"{name}: missing {fig.path}"

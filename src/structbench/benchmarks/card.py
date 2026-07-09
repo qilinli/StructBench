@@ -16,6 +16,39 @@ Discretisation = Literal["SPH", "FEM", "coupled"]
 
 
 @dataclass(frozen=True)
+class BenchmarkFigure:
+    """One figure on a benchmark's generated landing page (ADR-0036).
+
+    Parameters
+    ----------
+    path : str
+        Repo-relative path to a committed asset (e.g.
+        ``"assets/taylor_rollout.gif"``), or an absolute URL. Figures are
+        deliberately promoted from gitignored ``runs/**/plots`` into
+        ``assets/``; a test checks every path exists.
+    caption : str
+        One-line caption rendered beneath the figure.
+    alt : str
+        Accessibility alt text; falls back to ``caption`` when blank.
+
+    Raises
+    ------
+    ValueError
+        If ``path`` or ``caption`` is blank.
+    """
+
+    path: str
+    caption: str
+    alt: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.path.strip():
+            raise ValueError("figure path must be non-empty")
+        if not self.caption.strip():
+            raise ValueError("figure caption must be non-empty")
+
+
+@dataclass(frozen=True)
 class BenchmarkCard:
     """Descriptive metadata for one benchmark (ADR-0027).
 
@@ -74,6 +107,12 @@ class BenchmarkCard:
     eval_times : str
         Benchmark protocol: where predictions are scored. ``"native"`` means
         the solver's output times; internal time-stepping is a model choice.
+    overview : str
+        Optional multi-paragraph problem/physics narrative (markdown) for the
+        benchmark's landing page (ADR-0036); empty renders no lead section.
+    figures : tuple of BenchmarkFigure
+        Optional ordered figures for the landing page (ADR-0036); empty
+        renders no figures section.
 
     Raises
     ------
@@ -113,6 +152,9 @@ class BenchmarkCard:
     size_gb: float | None = None
     horizon: str = "full"
     eval_times: str = "native"
+    # landing page (ADR-0036) — non-derivable narrative + figures
+    overview: str = ""
+    figures: tuple[BenchmarkFigure, ...] = ()
 
     def __post_init__(self) -> None:
         total = sum(self.splits.values())

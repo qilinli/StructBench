@@ -26,6 +26,7 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under const
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (3 spans x 9 load-notch combos x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - **License**: CC BY 4.0
+- **Full page**: [docs/benchmarks/notch_beam_2d_bend.md](benchmarks/notch_beam_2d_bend.md)
 
 ## NotchBeam2D-Impact (v0.1)
 
@@ -41,6 +42,7 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under drop-
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - **License**: CC BY 4.0
+- **Full page**: [docs/benchmarks/notch_beam_2d_impact.md](benchmarks/notch_beam_2d_impact.md)
 
 ## Taylor2D-Impact (v0.1)
 
@@ -56,6 +58,7 @@ Autoregressive next-step surrogate of a 2D SPH copper bar under Taylor impact ag
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (3 bar lengths x 11 impact velocities) produced by Curtin collaborators; benchmark protocol per ADR-0019. One extra Convergence run is held aside for a mesh-resolution check.
 - **License**: CC BY 4.0
+- **Full page**: [docs/benchmarks/taylor_impact_2d.md](benchmarks/taylor_impact_2d.md)
 
 ## Wave1D-Propagation (v0.1)
 
@@ -71,3 +74,4 @@ Autoregressive next-step surrogate of an elastic stress wave in a 2D SPH bar str
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - **Provenance**: LS-DYNA parametric sweep (4 bar lengths x 4 initial velocities) produced by Curtin collaborators; benchmark protocol per ADR-0025.
 - **License**: CC BY 4.0
+- **Full page**: [docs/benchmarks/wave_propagation_1d.md](benchmarks/wave_propagation_1d.md)
