@@ -7,7 +7,7 @@ baseline to beat — for structures under dynamic and extreme loading.
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 
-> **Status: pre-release (v0.1 imminent).** What exists is real and tested;
+> **Status: v0.1.0 — first tagged release.** What exists is real and tested;
 > what doesn't is on the [roadmap](#roadmap).
 
 ![Taylor bar rollout: ground truth vs CGN prediction, copper bar mushrooming against a rigid wall, colored by von Mises stress](assets/taylor_rollout.gif)
@@ -144,24 +144,10 @@ decisions/         # architecture decision records
 
 ### v0.1 — Taylor 2D substrate proof
 
-- [x] ~~Canonical case format + round-trip-tested HDF5 I/O (ADR-0011..0013)~~
-- [x] ~~General LS-DYNA adapter on lasso-python (ADR-0016)~~
-- [x] ~~Taylor 2D benchmark: fixed split, eval protocol, QoIs (ADR-0019)~~
-- [x] ~~Config-driven pipeline `structbench-train` (train/valid/rollout)~~
-- [x] ~~`radius_graph` batch-partition fix: 50.9 s → 0.22 s per batch~~ (2026-07-02)
-- [x] ~~Public GitHub repository~~ (2026-07-02)
-- [x] ~~First full baseline run → training-recipe rework (ADR-0028)~~ (2026-07-03)
-- [x] ~~Trained CGN baseline with the ADR-0028 recipe (DUG A100; baseline
-      named CGN per ADR-0034)~~ (2026-07-08)
-  - [x] ~~full retrain: 4 seeds x 100k steps, about 22.4 h each on one
-        A100-80GB~~ (2026-07-08)
-  - [x] ~~checkpoint + recorded ADR-0019 metrics: seed s1 blessed into the
-        ADR-0033 results registry~~ (2026-07-09; publishing the checkpoint
-        itself remains a later item)
-- [ ] Release (human action): tag the version (`0.1.0`). Baseline metrics
-      (per-benchmark README + ADR-0033 results registry) and the
-      prediction-vs-truth hero GIF (`assets/taylor_rollout.gif`) are in place;
-      public dataset hosting is no longer a v0.1 gate (deferred, see Later)
+- [x] ~~Shipped 2026-07-09 (tag `v0.1.0`): canonical schema + HDF5 I/O, the
+      LS-DYNA adapter, the Taylor2D-Impact benchmark (ADR-0019), and the CGN
+      baseline blessed from run s1 (ADR-0033/0034). Public dataset hosting
+      deferred (see Later); the release publishes the spec + baseline numbers.~~
 
 ### v0.2 — wave-1d + notch-beam pair
 
