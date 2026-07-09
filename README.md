@@ -150,11 +150,13 @@ decisions/         # architecture decision records
 - [x] ~~`radius_graph` batch-partition fix: 50.9 s → 0.22 s per batch~~ (2026-07-02)
 - [x] ~~Public GitHub repository~~ (2026-07-02)
 - [x] ~~First full baseline run → training-recipe rework (ADR-0028)~~ (2026-07-03)
-- [ ] Trained CGN baseline with the ADR-0028 recipe (DUG A100; SSH-side
-      steps are human-gated; baseline named CGN per ADR-0034)
-  - [ ] full retrain (~⅓ of the first run's 14k steps/h — plan walltime
-        accordingly)
-  - [ ] checkpoint + recorded ADR-0019 metrics
+- [x] ~~Trained CGN baseline with the ADR-0028 recipe (DUG A100; baseline
+      named CGN per ADR-0034)~~ (2026-07-08)
+  - [x] ~~full retrain: 4 seeds x 100k steps, about 22.4 h each on one
+        A100-80GB~~ (2026-07-08)
+  - [x] ~~checkpoint + recorded ADR-0019 metrics: seed s1 blessed into the
+        ADR-0033 results registry~~ (2026-07-09; publishing the checkpoint
+        itself remains a later item)
 - [ ] Release: baseline metrics recorded (per-benchmark README),
       prediction-vs-truth hero GIF, dataset link, version tag (human action)
 
