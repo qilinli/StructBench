@@ -21,9 +21,15 @@ autoregressive transition (ADR-0025). Auxiliary target: `axial_stress` (MPa). Mo
 ## Evaluation criteria
 
 - Protocol (benchmark-owned, ADR-0032, ADR-0035): 6 input frames, horizon full, scored at native output times.
-- Protocol rationale: input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS reference history length; the model observes exactly these 6 ground-truth frames (indices 0-5) to seed the rollout, with no constant-velocity backfill. GT timeline analysis run 2026-07-06 (docs/timelines/wave_propagation_1d.md): a 6-frame observed prefix takes in 14.8% of initial KE worst-case (3.7% at 3 frames), and at the measured front speed ~70.7 mm/ms the wave reaches the first (25%) gauge about 7 frames in -- after the observed prefix -- so the arrival_time QoI is predicted, not observed. 6 is near the ceiling for this benchmark: a larger input_frames would risk seeding past first arrival.
 - Metrics: one-step and full-rollout position RMSE (mm); axial_stress RMSE (MPa).
 - Quantities of interest: arrival_time_25, arrival_time_50, arrival_time_75, peak_stress.
+
+<details>
+<summary>Protocol rationale — the ground-truth timeline analysis behind these values (ADR-0032 §5)</summary>
+
+input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS reference history length; the model observes exactly these 6 ground-truth frames (indices 0-5) to seed the rollout, with no constant-velocity backfill. GT timeline analysis run 2026-07-06 (docs/timelines/wave_propagation_1d.md): a 6-frame observed prefix takes in 14.8% of initial KE worst-case (3.7% at 3 frames), and at the measured front speed ~70.7 mm/ms the wave reaches the first (25%) gauge about 7 frames in -- after the observed prefix -- so the arrival_time QoI is predicted, not observed. 6 is near the ceiling for this benchmark: a larger input_frames would risk seeding past first arrival.
+
+</details>
 
 ## Numbers to beat
 

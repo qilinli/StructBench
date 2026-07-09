@@ -155,3 +155,47 @@ def test_card_figure_paths_exist():
     for name in available_benchmarks():
         for fig in get_benchmark(name).card.figures:
             assert (REPO_ROOT / fig.path).is_file(), f"{name}: missing {fig.path}"
+
+
+def test_numbers_to_beat_splits_qoi_into_its_own_table():
+    # A result with both RMSE and QoI metrics renders two narrower tables.
+    text = render_archive_readme(get_benchmark("taylor_impact_2d"), "taylor_impact_2d")
+    assert "_Trajectory error (RMSE)_" in text
+    assert "_Quantities of interest (MAE)_" in text
+    # the QoI columns sit under the QoI subheading, not the RMSE one
+    qoi_section = text.split("_Quantities of interest (MAE)_", 1)[1]
+    assert "qoi_final_length_mae_mm" in qoi_section
+    rmse_section = text.split("_Trajectory error (RMSE)_", 1)[1].split(
+        "_Quantities of interest (MAE)_", 1
+    )[0]
+    assert "qoi_" not in rmse_section
+    assert "rollout_pos_rmse_mm" in rmse_section
+
+
+def test_single_metric_group_stays_one_unlabelled_table():
+    # No qoi_ metrics -> one table, no subheadings (unchanged behaviour).
+    result = BaselineResult(
+        family="cgn",
+        label="CGN baseline",
+        run_commit="abc1234",
+        run_date="2026-07-05",
+        metrics={"test_interp": {"rollout_pos_rmse_mm": 1.5}},
+    )
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(result,))
+    text = render_archive_readme(spec, "taylor_impact_2d")
+    assert "_Trajectory error (RMSE)_" not in text
+    assert "| test_interp | 1.5 |" in text
+
+
+def test_landing_page_folds_protocol_rationale_but_index_does_not():
+    spec = get_benchmark("taylor_impact_2d")
+    page = render_benchmark_page(spec, "taylor_impact_2d")
+    # full rationale text is present, but inside a collapsed <details>, not an
+    # inline "- Protocol rationale:" bullet
+    assert "<details>" in page
+    assert spec.card.protocol_rationale[:40] in page
+    assert "- Protocol rationale:" not in page
+    # the archive README keeps it inline (fold is page-only)
+    archive = render_archive_readme(spec, "taylor_impact_2d")
+    assert "- Protocol rationale:" in archive
+    assert "<details>" not in archive

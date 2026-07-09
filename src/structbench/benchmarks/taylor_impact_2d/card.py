@@ -39,27 +39,23 @@ _FIGURES = (
     BenchmarkFigure(
         path="assets/taylor_rollout.gif",
         caption=(
-            "Ground-truth LS-DYNA SPH rollout: a 20x80 mm copper bar "
-            "mushrooming against the wall at 200 m/s, coloured by von Mises "
-            "stress."
+            "Ground truth (left) vs CGN prediction (right) at 150 m/s "
+            "(in-distribution), a 20x80 mm copper bar coloured by von Mises "
+            "stress. The surrogate tracks the mushroom head, bar shortening, "
+            "and impact-face stress band frame by frame over the 300 us "
+            "rollout."
         ),
-        alt="Animation of a copper bar mushrooming against a rigid wall.",
-    ),
-    BenchmarkFigure(
-        path="assets/taylor_vms_val_150.png",
-        caption=(
-            "In-distribution (val, 150 m/s): CGN prediction (bottom) vs "
-            "ground truth (top), von Mises stress at 12 / 108 / 204 / 300 us. "
-            "The mushroom head, bar shortening, and impact-face stress band "
-            "are reproduced."
+        alt=(
+            "Side-by-side animation of ground-truth and CGN-predicted copper-"
+            "bar impact at 150 m/s."
         ),
-        alt="Prediction-vs-truth von Mises snapshots at 150 m/s.",
     ),
     BenchmarkFigure(
         path="assets/taylor_vms_extrap_200.png",
         caption=(
-            "Extrapolation (test_extrap, 200 m/s): the same comparison. The "
-            "model under-flares the mushroom rim and smears the localized "
+            "Extrapolation (test_extrap, 200 m/s): ground truth (top) vs CGN "
+            "prediction (bottom), von Mises stress at 12 / 108 / 204 / 300 us. "
+            "The model under-flares the mushroom rim and smears the localized "
             "high-stress band — the visible face of the ~6x rollout-position "
             "degradation beyond the training range."
         ),
@@ -68,11 +64,11 @@ _FIGURES = (
     BenchmarkFigure(
         path="assets/taylor_rollout_error_vs_time.png",
         caption=(
-            "Rollout error vs time for the four training seeds: position RMSE "
-            "(top) and von Mises RMSE (bottom) across val / interp / extrap. "
-            "Position error accumulates monotonically; the von Mises error "
-            "spikes at first wall contact (~20-40 us) then re-grows. "
-            "Extrapolation is where it blows up."
+            "Rollout error vs time for the CGN baseline (seed s1): position "
+            "RMSE (top) and von Mises RMSE (bottom), case-averaged across "
+            "val / interp / extrap. Position error accumulates monotonically; "
+            "the von Mises error spikes at first wall contact (~20-40 us) then "
+            "re-grows. Extrapolation to 200 m/s is where it blows up."
         ),
         alt="Line charts of rollout position and von Mises error over time.",
     ),

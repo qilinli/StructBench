@@ -453,6 +453,114 @@ def animate_rollout(
     return out
 
 
+def animate_comparison(
+    gt_positions: NDArray[np.floating],
+    gt_values: NDArray[np.floating],
+    pred_positions: NDArray[np.floating],
+    pred_values: NDArray[np.floating],
+    out_path: str | Path,
+    *,
+    field: str | FieldSpec = "von_mises_stress",
+    times_us: NDArray[np.floating] | None = None,
+    titles: tuple[str, str] = ("Ground truth", "CGN prediction"),
+    vmin: float | None = None,
+    vmax: float | None = None,
+    bands: int | None = None,
+    wall_x: float | None = None,
+    size: float = 2.0,
+    fps: int = 15,
+    dpi: int = 100,
+) -> Path:
+    """Write a side-by-side ground-truth vs prediction fringe animation (GIF).
+
+    The animated companion to :func:`compare_rollout`: two panels
+    (ground truth left, prediction right) sharing one fringe scale — set by
+    the *ground truth*, FEM convention — and one spatial extent, so the
+    deformation and stress fields are directly comparable frame by frame.
+
+    Parameters
+    ----------
+    gt_positions, gt_values, pred_positions, pred_values:
+        Ground-truth and predicted trajectories ``(T, P, dim)`` in mm and
+        fields ``(T, P)``. Animated over ``min`` of the two frame counts.
+    out_path:
+        Output file; ``.gif`` uses the pillow writer.
+    field, vmin, vmax, bands, wall_x, size:
+        As in :func:`compare_rollout` / :func:`fringe_scatter`.
+    times_us:
+        Per-frame times (microseconds) for the shared time stamp.
+    titles:
+        Per-panel titles.
+    fps, dpi:
+        Animation frame rate and raster resolution.
+
+    Returns
+    -------
+    pathlib.Path
+        The written file.
+    """
+    plt = _plt()
+    from matplotlib.animation import FuncAnimation, PillowWriter
+
+    spec = _resolve(field)
+    vmin, vmax = _limits(np.asarray(gt_values), vmin, vmax)
+    shown = np.concatenate(
+        [
+            gt_positions[..., :2].reshape(-1, 2),
+            pred_positions[..., :2].reshape(-1, 2),
+        ]
+    )
+    (x0, y0), (x1, y1) = shown.min(axis=0) - 2.0, shown.max(axis=0) + 2.0
+
+    fig, axes = plt.subplots(1, 2, figsize=(9.2, 3.6), constrained_layout=True)
+    panels = (
+        (titles[0], gt_positions, gt_values),
+        (titles[1], pred_positions, pred_values),
+    )
+    scatters = []
+    for ax, (label, positions, values) in zip(axes, panels, strict=True):
+        sc = fringe_scatter(
+            ax,
+            positions[0],
+            values[0],
+            field=spec,
+            vmin=vmin,
+            vmax=vmax,
+            bands=bands,
+            size=size,
+        )
+        if wall_x is not None:
+            _draw_wall(ax, wall_x)
+        ax.set_xlim(x0, x1)
+        ax.set_ylim(y0, y1)
+        ax.set_aspect("equal")
+        ax.set_xlabel("x (mm)")
+        ax.set_title(label, fontsize=10)
+        scatters.append(sc)
+    axes[0].set_ylabel("y (mm)")
+    _fringe_bar(fig, scatters[0], spec, axes=list(axes))
+
+    def _stamp(frame: int) -> str:
+        return f"t = {times_us[frame]:.1f} µs" if times_us is not None else ""
+
+    text = fig.suptitle(_stamp(0), fontsize=11)
+    trajectories = ((gt_positions, gt_values), (pred_positions, pred_values))
+
+    def _update(frame: int) -> tuple[Any, ...]:
+        for sc, (positions, values) in zip(scatters, trajectories, strict=True):
+            sc.set_offsets(positions[frame][:, :2])
+            sc.set_array(np.clip(values[frame], vmin, vmax))
+        text.set_text(_stamp(frame))
+        return (*scatters, text)
+
+    n_frames = min(gt_positions.shape[0], pred_positions.shape[0])
+    anim = FuncAnimation(fig, _update, frames=n_frames, blit=False)
+    out = Path(out_path)
+    anim.save(out, writer=PillowWriter(fps=fps), dpi=dpi)
+    plt.close(fig)
+    return out
+
+
 @dataclass(frozen=True)
 class CaseField:
     """One case's trajectory of a single physics field (working frame)."""

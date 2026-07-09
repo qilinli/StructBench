@@ -16,6 +16,7 @@ from structbench.core import (  # noqa: E402
 from structbench.viz import (  # noqa: E402
     FIELDS,
     FieldSpec,
+    animate_comparison,
     animate_rollout,
     compare_rollout,
     fringe_scatter,
@@ -90,6 +91,20 @@ def test_compare_rollout_shares_scale_and_extent():
 def test_animate_rollout_writes_gif(tmp_path):
     out = animate_rollout(
         POSITIONS, VALUES, tmp_path / "roll.gif", times_us=np.zeros(T), fps=5, dpi=50
+    )
+    assert out.exists() and out.stat().st_size > 0
+
+
+def test_animate_comparison_writes_gif(tmp_path):
+    out = animate_comparison(
+        POSITIONS,
+        VALUES,
+        POSITIONS + 1.0,
+        VALUES * 2.0,  # prediction hotter than GT
+        tmp_path / "cmp.gif",
+        times_us=np.zeros(T),
+        fps=5,
+        dpi=50,
     )
     assert out.exists() and out.stat().st_size > 0
 
