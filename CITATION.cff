@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use StructBench, please cite it as below."
+title: StructBench
+abstract: >-
+  Standardized benchmarks for machine learning on structural simulation:
+  a task definition, a fixed split, metrics in physical units, and a
+  reference baseline to beat — for structures under dynamic and extreme
+  loading.
+type: software
+authors:
+  - family-names: Li
+    given-names: Qilin
+version: 0.1.0
+date-released: "2026-07-09"
+license: Apache-2.0
+repository-code: "https://github.com/qilinli/StructBench"
+url: "https://github.com/qilinli/StructBench"
+keywords:
+  - machine learning
+  - structural engineering
+  - surrogate modeling
+  - graph neural networks
+  - LS-DYNA
+  - impact dynamics
