@@ -140,7 +140,7 @@ decisions/         # architecture decision records
      crossed-out block may be compressed to one line. Reasoning lives in
      decisions/, not here. Substrate-layer work only (ADR-0014). -->
 
-*Last revised: 2026-07-05.*
+*Last revised: 2026-07-09.*
 
 ### v0.1 — Taylor 2D substrate proof
 
@@ -158,8 +158,10 @@ decisions/         # architecture decision records
   - [x] ~~checkpoint + recorded ADR-0019 metrics: seed s1 blessed into the
         ADR-0033 results registry~~ (2026-07-09; publishing the checkpoint
         itself remains a later item)
-- [ ] Release: baseline metrics recorded (per-benchmark README),
-      prediction-vs-truth hero GIF, dataset link, version tag (human action)
+- [ ] Release (human action): dataset link + version tag are all that remain.
+      Baseline metrics (per-benchmark README + ADR-0033 results registry) and
+      the prediction-vs-truth hero GIF (`assets/taylor_rollout.gif`) are in
+      place; the dataset link is gated on Zenodo hosting (see v0.2 below)
 
 ### v0.2 — wave-1d + notch-beam pair
 
@@ -187,22 +189,33 @@ decisions/         # architecture decision records
 
 ### Inbox — untriaged, add freely
 
-- [ ] per-benchmark landing pages: mechanics settled (generated via a
-      `--landing` mode + handwritten `intro.md`; arc dataset → results),
-      venue undecided — leaning top-level `benchmarks/` (self-indexing);
-      `src`-module and `examples/` considered and set aside. Deliberation
-      state in `scratch/2026-07-05-taylor-landing-page-deliberation.md`
-- [ ] qualitative comparison figures in `viz/`: truth-vs-prediction von
-      Mises fringe panels at 2–3 time instants + deformed-contour overlay
-      (per-benchmark eval artifact; wanted for the release, out of metric
-      scope — ADR-0019 review note 2026-07-05)
+- [x] ~~per-benchmark landing pages~~ (2026-07-09, ADR-0036): one generated
+      page per benchmark at `docs/benchmarks/<name>.md`, built by
+      `render_benchmark_page` (`benchmarks/render.py`, driven by
+      `tools/gen_benchmark_docs.py` with a `--check` drift guard) from the
+      card + results registry; narrative and figures live in the card's new
+      `overview`/`figures` fields. The open questions resolved differently than
+      sketched here: venue is `docs/benchmarks/` (not top-level `benchmarks/`),
+      no `--landing` mode, no handwritten `intro.md`. Taylor page authored and
+      tuned; the other three render without narrative until authored
+- [x] ~~qualitative comparison figures in `viz/`: truth-vs-prediction von
+      Mises fringe panels at 2–3 time instants~~ (2026-07-06): per-benchmark
+      eval artifact via `python -m structbench.viz` (`compare_rollout` in
+      `viz/fringe.py`, resolving each benchmark's aux field — `9b53b19`); on
+      the Taylor page as `assets/taylor_vms_interp_170.png` (`61c3ad3`).
+      ADR-0019 review note 2026-07-05
+- [ ] deformed-contour overlay figure in `viz/`: truth-vs-prediction outlines
+      on shared axes — the second half of that ADR-0019 review-note item; not
+      yet built (only side-by-side panels exist)
 - [x] ~~mypy fails on numpy 2.5 stubs (`type` statement needs py3.12
       target)~~ (resolved 2026-07-05: floor raised to Python 3.12 —
       numpy ≥ 2.5 requires it, so the 3.11 floor was untestable; mypy
       green again)
 - [ ] DUG remote data dir is `data/taylor_impact`; rename to
-      `taylor_impact_2d` (archive name) and update `train_taylor.slurm` +
-      `hpc/dug/README.md` together, between job fleets
+      `taylor_impact_2d` (archive name) and update `train_taylor.slurm`,
+      `ablate_taylor.slurm`, and `hpc/dug/README.md` together, between job
+      fleets (still pending 2026-07-09 — all three read `.../data/taylor_impact`;
+      the 07-08 retrain fleet has run, so this is due before the next v0.2 fleet)
 - [x] ~~per-benchmark README: dataset info, evaluation criteria, and
       baseline results~~ (2026-07-05, ADR-0033: archive README gains
       Task/Evaluation/Numbers-to-beat/Usage sections; results live in
@@ -215,8 +228,10 @@ decisions/         # architecture decision records
 - [x] ~~confirm the Taylor deck genuinely is g-mm-ms~~ (verified against
       `scratch/Taylor.k`: RO/G/EOS-C physical only under g-mm-ms; recorded
       in ADR-0030, 2026-07-05)
-- [ ] reconcile ADR-0012's "4 Voigt components in 2D" prose
-      (CORRECTIONS.md item)
+- [x] ~~reconcile ADR-0012's "4 Voigt components in 2D" prose
+      (CORRECTIONS.md item)~~ (2026-07-06, `8c6d364`): ADR-0012's
+      tensor-component line now records that the full 6-component Voigt layout
+      is stored verbatim for all case dimensions; CORRECTIONS entry promoted
 
 ### Later (each becomes an ADR/spec when picked up)
 
