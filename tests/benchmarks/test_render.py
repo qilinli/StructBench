@@ -68,9 +68,9 @@ def test_archive_readme_carries_task_eval_and_usage_sections():
 
 
 def test_archive_readme_without_results_carries_placeholder():
-    # Taylor is blessed (ADR-0033); wave is still unblessed and covers the path.
-    spec = get_benchmark("wave_propagation_1d")
-    text = render_archive_readme(spec, "wave_propagation_1d")
+    # Taylor and wave are blessed (ADR-0033); notch-bend covers the path.
+    spec = get_benchmark("notch_beam_2d_bend")
+    text = render_archive_readme(spec, "notch_beam_2d_bend")
     assert "No official baseline yet" in text
 
 
@@ -87,7 +87,7 @@ def test_archive_readme_renders_result_table():
 
 
 def test_index_section_renders_baseline_line_both_ways():
-    bare = get_benchmark("wave_propagation_1d")
+    bare = get_benchmark("notch_beam_2d_bend")
     assert "no official baseline yet" in render_index([bare])
     with_result = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
     text = render_index([with_result])
@@ -143,9 +143,9 @@ def test_benchmark_page_embeds_overview_numbers_and_figures():
 
 
 def test_benchmark_page_omits_absent_optional_sections():
-    # wave has neither overview nor figures nor a baseline
-    spec = get_benchmark("wave_propagation_1d")
-    text = render_benchmark_page(spec, "wave_propagation_1d")
+    # notch-bend has neither overview nor figures nor a baseline
+    spec = get_benchmark("notch_beam_2d_bend")
+    text = render_benchmark_page(spec, "notch_beam_2d_bend")
     assert "## Figures" not in text
     assert "## The problem" not in text
     assert "No official baseline yet" in text

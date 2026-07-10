@@ -49,9 +49,9 @@ def test_metrics_are_read_only():
         result.metrics["test_interp"]["rollout_pos_rmse_mm"] = 0.0
 
 
-def test_taylor_is_the_only_blessed_benchmark():
+def test_taylor_and_wave_are_the_blessed_benchmarks():
     blessed = {n for n in available_benchmarks() if get_benchmark(n).results}
-    assert blessed == {"taylor_impact_2d"}
+    assert blessed == {"taylor_impact_2d", "wave_propagation_1d"}
 
 
 def test_taylor_baseline_is_the_cgn_reference_run():
@@ -60,6 +60,14 @@ def test_taylor_baseline_is_the_cgn_reference_run():
     assert result.run_commit == "7be9d4b"
     # val selects the checkpoint, so only the held-out splits are numbers to beat.
     assert set(result.metrics) == {"test_interp", "test_extrap"}
+
+
+def test_wave_baseline_is_the_cgn_reference_run():
+    (result,) = get_benchmark("wave_propagation_1d").results
+    assert result.family == "cgn"
+    assert result.run_commit == "48046ea"
+    # val selects the checkpoint; wave's only held-out split is test_interp.
+    assert set(result.metrics) == {"test_interp"}
 
 
 def test_spec_rejects_result_with_unknown_split():
