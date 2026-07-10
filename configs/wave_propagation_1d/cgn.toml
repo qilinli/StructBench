@@ -1,18 +1,22 @@
 # Wave-1D CGN baseline (Li et al. 2023; ADR-0034) (ADR-0025 task; grouped per ADR-0032).
+# Recipe = the 2026-07-10 round-2 fleet winner (arm X1): the 128/10/2 capacity
+# cell with noise_std 0.06 beat the previous 64/5/1 @ 0.02 recipe ~2-3x on both
+# val rollout channels at the same step budget. The blessed baseline
+# (runs/fleet-2026-07-10/x1-s1, ADR-0033 entry) trained with this config.
 
 [run]
 benchmark = "wave_propagation_1d"
-seed = 0                        # torch RNG: init, noise, shuffle
+seed = 1                        # torch RNG: init, noise, shuffle (seed sets start at 1, CORRECTIONS 2026-07-10)
 
 [model]
 family = "cgn"
 input_frames = 6
 connectivity_radius = 4.8  # ~2.4x the 2.0 mm particle spacing
-hidden_dim = 64
-message_passing_steps = 5
-nmlp_layers = 1
+hidden_dim = 128
+message_passing_steps = 10
+nmlp_layers = 2
 particle_type_embedding_size = 9
-noise_std = 0.02
+noise_std = 0.06  # ~= Taylor's validated relative noise (17% of axial velocity std)
 dim = 2
 max_neighbors = 32  # project-wide backstop cap (M-B, 2026-07-06): sized above the physical degree so truncation never occurs
 

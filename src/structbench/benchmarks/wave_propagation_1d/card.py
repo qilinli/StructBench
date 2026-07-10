@@ -1,6 +1,6 @@
 """Benchmark card for the wave-1d benchmark (ADR-0027)."""
 
-from ..card import BenchmarkCard
+from ..card import BenchmarkCard, BenchmarkFigure
 from .benchmark import AUX_FIELD, QOIS, TEST_INTERP, TRAIN, VAL
 
 CARD = BenchmarkCard(
@@ -73,4 +73,50 @@ CARD = BenchmarkCard(
         "first arrival."
     ),
     size_gb=0.23,
+    figures=(
+        BenchmarkFigure(
+            path="assets/wave_rollout.gif",
+            caption=(
+                "Ground truth (top) vs CGN prediction (bottom) on held-out "
+                "W1D-300-4 (test_interp): a 300 mm bar at 4 mm/ms initial "
+                "velocity, coloured by axial stress, y-axis exaggerated x8. "
+                "The surrogate tracks the compression front, the free-end "
+                "reflections, and the cycle timing over the 30 ms rollout; "
+                "degradation concentrates in the final ~5 ms."
+            ),
+            alt=(
+                "Stacked animation of ground-truth and CGN-predicted axial "
+                "stress waves in a slender bar."
+            ),
+        ),
+        BenchmarkFigure(
+            path="assets/wave_axial_interp_400_2.png",
+            caption=(
+                "In-distribution (test_interp, 400 mm bar at 2 mm/ms): ground "
+                "truth (top) vs CGN prediction (bottom), axial stress at "
+                "t = 0.6 / 10.4 / 20.2 / 30.0 ms (y x8). The prediction "
+                "reproduces the wavefront position and reflection cycles; "
+                "late-horizon fields roughen and overshoot near the impact "
+                "end (rollout position RMSE 0.95 mm)."
+            ),
+            alt=(
+                "Prediction-vs-truth axial-stress snapshots for the 400 mm "
+                "bar, in-distribution."
+            ),
+        ),
+        BenchmarkFigure(
+            path="assets/wave_rollout_error_vs_time.png",
+            caption=(
+                "Rollout error vs time for the CGN baseline (fleet run "
+                "x1-s1): position RMSE (top) and axial-stress RMSE (bottom) "
+                "for each eval case. Error is concentrated in the final ~5 ms "
+                "of the 30 ms horizon; the held-out test_interp cases match "
+                "the val cases (no interpolation cliff)."
+            ),
+            alt=(
+                "Line charts of rollout position and axial-stress error over "
+                "time for four cases."
+            ),
+        ),
+    ),
 )

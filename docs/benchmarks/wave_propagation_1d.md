@@ -2,6 +2,20 @@
 
 # Wave1D-Propagation — StructBench benchmark
 
+## Figures
+
+![Stacked animation of ground-truth and CGN-predicted axial stress waves in a slender bar.](../../assets/wave_rollout.gif)
+
+*Ground truth (top) vs CGN prediction (bottom) on held-out W1D-300-4 (test_interp): a 300 mm bar at 4 mm/ms initial velocity, coloured by axial stress, y-axis exaggerated x8. The surrogate tracks the compression front, the free-end reflections, and the cycle timing over the 30 ms rollout; degradation concentrates in the final ~5 ms.*
+
+![Prediction-vs-truth axial-stress snapshots for the 400 mm bar, in-distribution.](../../assets/wave_axial_interp_400_2.png)
+
+*In-distribution (test_interp, 400 mm bar at 2 mm/ms): ground truth (top) vs CGN prediction (bottom), axial stress at t = 0.6 / 10.4 / 20.2 / 30.0 ms (y x8). The prediction reproduces the wavefront position and reflection cycles; late-horizon fields roughen and overshoot near the impact end (rollout position RMSE 0.95 mm).*
+
+![Line charts of rollout position and axial-stress error over time for four cases.](../../assets/wave_rollout_error_vs_time.png)
+
+*Rollout error vs time for the CGN baseline (fleet run x1-s1): position RMSE (top) and axial-stress RMSE (bottom) for each eval case. Error is concentrated in the final ~5 ms of the 30 ms horizon; the held-out test_interp cases match the val cases (no interpolation cliff).*
+
 ## Data at a glance
 
 - Solver: LS-DYNA (SPH; erosion: no)
@@ -33,7 +47,21 @@ input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS 
 
 ## Numbers to beat
 
-*No official baseline yet — the reference run's metrics land here.*
+**CGN baseline** (cgn, 2026-07-10, commit `48046ea`)
+
+_Trajectory error (RMSE)_
+
+| split | rollout_pos_rmse_mm | rollout_axial_rmse_mpa | one_step_pos_rmse_mm | one_step_axial_rmse_mpa |
+|---|---|---|---|---|
+| test_interp | 0.875 | 0.1676 | 0.004882 | 0.01547 |
+
+_Quantities of interest (MAE)_
+
+| split | qoi_arrival_time_25_mae_ms | qoi_arrival_time_50_mae_ms | qoi_arrival_time_75_mae_ms | qoi_peak_stress_mae_mpa |
+|---|---|---|---|---|
+| test_interp | 0.1007 | 0.05045 | 0.1006 | 0.9665 |
+
+*Single-scale CGN (ADR-0034) on the round-2 capacity recipe (hidden 128 / 10 MP steps / 2-layer node MLP, noise_std 0.06) at 50k steps, batch 32; seed 1 of the X1 arm (seeds 1-2) of the 2026-07-10 17-run recipe fleet, val-selected checkpoint model-best-050000.pt (50k), one A100-80GB, ~3.9 h. The winning arm beats the shipped-config control (64/5/1, noise 0.02) by ~2-3x on both rollout channels at half the step budget; blessed from the round-2 winner on maintainer instruction without the pre-declared 4-seed confirmation fleet. Caveats: test_interp is a 2-case split; rollout RMSE is dominated by the final ~5 ms of the 30 ms horizon; the pointwise-max peak_stress QoI overshoots in both held-out cases (pred 1.738/1.481 MPa vs true 0.860/0.426 MPa) - arrival-time QoIs are the trustworthy wave quantities (all within ~1 output frame).*
 
 ## Quickstart
 
