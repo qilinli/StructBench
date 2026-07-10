@@ -72,6 +72,14 @@ __all__ = [
     "train",
 ]
 
+#: Cadence (steps) of the periodic ``ckpt-<step>.pt`` snapshots written
+#: alongside the selection checkpoints. Fleet tooling, not recipe: they let
+#: post-hoc smoothed selection re-score a run's trajectory of states
+#: identically across ablation arms (ADR-0028, 2026-07-10 note). The name
+#: sits outside the ``model-*.pt`` glob so default evaluation never picks
+#: them up.
+PERIODIC_CKPT_EVERY = 10_000
+
 
 def random_walk_position_noise(
     position_sequence: Tensor, noise_std_last_step: float
@@ -314,8 +322,11 @@ def train(
     ``w_pos * ||Δacc||^2 + w_aux * (Δaux)^2``, where both the acceleration and
     the auxiliary targets are normalized so the two terms are O(1) and balanced.
     Every ``val_every`` steps it runs a validation rollout over the spec's val
-    split and saves the model when the mean RMSE improves. The resolved config
-    and normalization stats are written under ``out_dir``.
+    split and saves the model when the mean RMSE improves. Every
+    :data:`PERIODIC_CKPT_EVERY` steps it additionally snapshots
+    ``ckpt-<step>.pt`` for post-hoc analysis (never read by default
+    evaluation). The resolved config and normalization stats are written
+    under ``out_dir``.
 
     Parameters
     ----------
@@ -344,9 +355,10 @@ def train(
     Raises
     ------
     FileExistsError
-        If ``out_dir`` already holds ``model-*.pt`` checkpoints. Training has
-        no resume, and :func:`evaluate` picks the newest checkpoint by mtime,
-        so a fresh run into an old directory would shadow a better model.
+        If ``out_dir`` already holds ``model-*.pt`` or ``ckpt-*.pt``
+        checkpoints. Training has no resume, and :func:`evaluate` picks the
+        highest-step ``model-*.pt``, so a fresh run into an old directory
+        would shadow a better model.
     ValueError
         If ``train_cfg.benchmark`` names a registered benchmark that is not
         ``spec`` (this would misrecord the benchmark in ``config.json``), or if
@@ -368,7 +380,7 @@ def train(
             "a model observes exactly the frames it inputs (ADR-0035)"
         )
     out_dir.mkdir(parents=True, exist_ok=True)
-    existing = sorted(out_dir.glob("model-*.pt"))
+    existing = sorted(out_dir.glob("model-*.pt")) + sorted(out_dir.glob("ckpt-*.pt"))
     if existing:
         raise FileExistsError(
             f"{out_dir} already contains checkpoints (e.g. {existing[0].name}); "
@@ -531,6 +543,11 @@ def train(
                     logger.info("saved improved checkpoint: %s", best_ckpt)
                 simulator.train()
 
+            if step % PERIODIC_CKPT_EVERY == 0:
+                periodic_ckpt = out_dir / f"ckpt-{step:06d}.pt"
+                simulator.save(str(periodic_ckpt))
+                logger.info("saved periodic checkpoint: %s", periodic_ckpt)
+
             if step >= train_cfg.training_steps:
                 break
 
@@ -546,7 +563,9 @@ def _find_checkpoint(out_dir: Path) -> Path | None:
 
     Selection is by the step number embedded in the (zero-padded) filename,
     not filesystem mtime, so a run directory whose mtimes were scrambled by a
-    copy or transfer still resolves to the latest (best) checkpoint.
+    copy or transfer still resolves to the latest (best) checkpoint. Periodic
+    ``ckpt-*.pt`` snapshots are deliberately outside the glob: default
+    evaluation always scores the run's selected (best/final) checkpoint.
     """
 
     def _step(p: Path) -> int:
@@ -606,6 +625,7 @@ def evaluate(
     *,
     split_name: str = "eval",
     save_artifacts: bool = True,
+    checkpoint: str | Path | None = None,
 ) -> dict[str, Any]:
     """Roll out the run's checkpoint over ``case_ids`` and report ADR-0019 §5.
 
@@ -637,6 +657,14 @@ def evaluate(
         Label recorded in the report and used in artifact filenames.
     save_artifacts : bool
         Write the metrics JSON and per-case rollout ``.npz`` files.
+    checkpoint : str, pathlib.Path or None
+        Explicit checkpoint file to evaluate (e.g. a periodic
+        ``ckpt-<step>.pt``); a relative path is resolved against ``out_dir``.
+        When given, the metrics file is suffixed
+        (``metrics-<split_name>@<checkpoint stem>.json``) and rollout ``.npz``
+        artifacts are skipped, so the canonical selected-checkpoint artifacts
+        are never overwritten. ``None`` evaluates the run's selected
+        checkpoint (highest-step ``model-*.pt``).
 
     Notes
     -----
@@ -648,8 +676,8 @@ def evaluate(
     Returns
     -------
     dict
-        ``{"split", "checkpoint", "cases": {case_id: ...}, "mean": ...}`` with
-        plain JSON-serializable values.
+        ``{"split", "checkpoint", "checkpoint_path", "cases": {case_id: ...},
+        "mean": ...}`` with plain JSON-serializable values.
 
     Raises
     ------
@@ -675,15 +703,30 @@ def evaluate(
         boundary_feature_fn=_bind_boundary_feature(spec, cgn),
         device=device,
     )
-    checkpoint = _find_checkpoint(out_dir)
-    if checkpoint is None:
-        raise FileNotFoundError(f"no checkpoint found under {out_dir}")
-    simulator.load(str(checkpoint))
+    if checkpoint is not None:
+        ckpt_path = Path(checkpoint)
+        # Relative paths resolve against out_dir ONLY (never the CWD): fleet
+        # arms all hold identically named ckpt-<step>.pt snapshots, so a CWD
+        # fallback would silently score another arm's weights.
+        if not ckpt_path.is_absolute():
+            ckpt_path = out_dir / ckpt_path
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"checkpoint not found: {ckpt_path}")
+    else:
+        found = _find_checkpoint(out_dir)
+        if found is None:
+            raise FileNotFoundError(f"no checkpoint found under {out_dir}")
+        ckpt_path = found
+    simulator.load(str(ckpt_path))
     simulator.to(device)
     simulator.eval()
 
+    # Explicit-checkpoint sweeps must not clobber the selected checkpoint's
+    # canonical artifacts: suffix the metrics file and skip the rollout .npz.
+    save_rollouts = save_artifacts and checkpoint is None
+    metrics_tag = split_name if checkpoint is None else f"{split_name}@{ckpt_path.stem}"
     rollout_dir = out_dir / "rollouts"
-    if save_artifacts:
+    if save_rollouts:
         rollout_dir.mkdir(parents=True, exist_ok=True)
 
     cases: dict[str, dict[str, Any]] = {}
@@ -732,7 +775,7 @@ def evaluate(
             result.mean_aux_rmse,
             spec.card.aux_unit,
         )
-        if save_artifacts:
+        if save_rollouts:
             np.savez(
                 rollout_dir / f"{split_name}-{case_id}.npz",
                 predicted_positions=result.predicted_positions,
@@ -748,7 +791,10 @@ def evaluate(
 
     metrics: dict[str, Any] = {
         "split": split_name,
-        "checkpoint": checkpoint.name,
+        "checkpoint": ckpt_path.name,
+        # Full resolved path so an explicitly scored checkpoint (possibly from
+        # outside out_dir, via an absolute --checkpoint) stays traceable.
+        "checkpoint_path": str(ckpt_path),
         "input_frames": cgn.input_frames,
         # Card-conforming by construction: a checkpoint's input_frames is
         # validated equal to the card's at config load and train (ADR-0035),
@@ -773,7 +819,7 @@ def evaluate(
         },
     }
     if save_artifacts:
-        (out_dir / f"metrics-{split_name}.json").write_text(
+        (out_dir / f"metrics-{metrics_tag}.json").write_text(
             json.dumps(_json_safe(metrics), indent=2, allow_nan=False),
             encoding="utf-8",
         )
@@ -812,6 +858,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--data-root", type=str, default=None, help="Directory of <case_id>.h5 cases."
     )
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Evaluate this specific checkpoint file (e.g. a periodic "
+        "ckpt-<step>.pt; a relative path resolves against --out). "
+        "valid/rollout only. Metrics land in metrics-<split>@<name>.json and "
+        "rollout .npz artifacts are skipped, so the canonical "
+        "selected-checkpoint artifacts are never overwritten.",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -820,6 +876,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.mode == "train" and args.config is None:
         print("error: --config is required in train mode (ADR-0032)")
+        return 2
+    if args.mode == "train" and args.checkpoint is not None:
+        print("error: --checkpoint applies to valid/rollout modes only")
         return 2
     run_config = load_run_config(args.config) if args.config is not None else None
 
@@ -864,6 +923,7 @@ def main(argv: list[str] | None = None) -> int:
                 out_dir,
                 device,
                 split_name="val",
+                checkpoint=args.checkpoint,
             )
             _print_split_report(metrics)
         else:  # rollout: every eval split except val, in spec order
@@ -876,6 +936,7 @@ def main(argv: list[str] | None = None) -> int:
                     out_dir,
                     device,
                     split_name=split_name,
+                    checkpoint=args.checkpoint,
                 )
                 _print_split_report(metrics)
     return 0

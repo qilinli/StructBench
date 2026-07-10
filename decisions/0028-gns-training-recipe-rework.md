@@ -92,3 +92,19 @@ in `configs/<benchmark>/<family>.toml`; the fleet evidence also predates the
 ADR-0032 protocol change (init 11 → 3), so recipe conclusions must be
 re-established under the new protocol before the final baseline. Stress-history
 features and push-forward training remain open.*
+
+---
+
+*2026-07-10 — checkpoint tooling addendum after the wave-1D round-1 fleet
+(drafted by Claude Code, maintainer to confirm). That fleet showed the
+validation selection signal is volatile at 2-case scale (adjacent-eval swings
+of 14–66%, 8–18% same-weights CUDA eval spread; one seed's outcome was set by
+a single transient eval whose better later states were never written to
+disk). The trainer therefore now also snapshots `ckpt-<step>.pt` every 10k
+steps — deliberately outside the `model-*.pt` selection glob, ignored by
+default evaluation — and the eval modes accept `--checkpoint` to score one
+explicitly (metrics land in a `metrics-<split>@<stem>.json` side file; the
+canonical artifacts of the selected checkpoint are never overwritten). This
+enables post-hoc SMOOTHED selection applied identically across recipe-fleet
+arms. The in-run selection rule this ADR set — best checkpoint on rollout
+position RMSE alone — is unchanged.*

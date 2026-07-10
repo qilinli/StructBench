@@ -10,6 +10,7 @@ checkpoint would shadow the better one).
 
 import json
 import os
+import shutil
 from dataclasses import asdict
 
 import numpy as np
@@ -553,3 +554,175 @@ def test_train_rejects_empty_windowed_dataset(tmp_path):
             tmp_path / "run",
             "cpu",
         )
+
+
+def test_train_writes_periodic_checkpoints_outside_selection_glob(
+    tmp_path, monkeypatch
+):
+    """Periodic ckpt-<step>.pt snapshots land on cadence and never shadow the
+    selected model-*.pt checkpoint (ADR-0028, 2026-07-10 note)."""
+    import structbench.cli.train as train_mod
+
+    monkeypatch.setattr(train_mod, "PERIODIC_CKPT_EVERY", 2)
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for cid in ("S-1", "S-2"):
+        _write_tiny_case(data_root, cid)
+    out_dir = tmp_path / "run"
+    train(
+        _local_spec(),
+        CGNConfig(**SMALL_CGN),
+        TrainConfig(
+            benchmark="seed-test-local",
+            batch_size=2,
+            training_steps=4,
+            val_every=2,
+            seed=1,
+        ),
+        data_root,
+        out_dir,
+        "cpu",
+    )
+    assert (out_dir / "ckpt-000002.pt").exists()
+    assert (out_dir / "ckpt-000004.pt").exists()
+    selected = _find_checkpoint(out_dir)
+    assert selected is not None
+    assert selected.name.startswith("model-")
+
+
+def test_train_refuses_out_dir_with_periodic_checkpoints(tmp_path):
+    """The fresh-out guard fires on leftover ckpt-*.pt, not just model-*.pt."""
+    out_dir = tmp_path / "run"
+    out_dir.mkdir()
+    (out_dir / "ckpt-000100.pt").touch()
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    with pytest.raises(FileExistsError):
+        train(
+            get_benchmark("taylor_impact_2d"),
+            CGNConfig(**{**SMALL_CGN, "input_frames": 6}),
+            TrainConfig(),
+            data_root,
+            out_dir,
+            "cpu",
+        )
+
+
+def test_evaluate_explicit_checkpoint_suffixes_metrics_and_skips_rollouts(tmp_path):
+    """--checkpoint evaluations never clobber the canonical artifacts:
+    metrics get an @<stem> suffix and rollout .npz files are skipped."""
+    case_ids = ["C-1"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    shutil.copy(out_dir / "model-best-000002.pt", out_dir / "ckpt-000002.pt")
+    metrics = evaluate(case_ids, data_root, out_dir, "cpu", checkpoint="ckpt-000002.pt")
+    assert metrics["checkpoint"] == "ckpt-000002.pt"
+    assert (out_dir / "metrics-eval@ckpt-000002.json").exists()
+    assert not (out_dir / "metrics-eval.json").exists()
+    assert not (out_dir / "rollouts").exists()
+
+
+def test_evaluate_explicit_checkpoint_missing_raises(tmp_path):
+    case_ids = ["C-1"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    with pytest.raises(FileNotFoundError, match="checkpoint not found"):
+        evaluate(case_ids, data_root, out_dir, "cpu", checkpoint="ckpt-999999.pt")
+
+
+def test_main_train_mode_rejects_checkpoint_flag(tmp_path, capsys):
+    rc = main(
+        [
+            "--mode",
+            "train",
+            "--config",
+            "does-not-matter.toml",
+            "--data-root",
+            str(tmp_path),
+            "--checkpoint",
+            "ckpt-000002.pt",
+        ]
+    )
+    assert rc == 2
+    assert "--checkpoint" in capsys.readouterr().out
+
+
+def test_evaluate_relative_checkpoint_ignores_cwd(tmp_path, monkeypatch):
+    """A relative --checkpoint resolves against out_dir ONLY, never the CWD.
+
+    Fleet arms all hold identically named ckpt-<step>.pt snapshots; a CWD
+    fallback would silently score another arm's weights (review 2026-07-10).
+    """
+    case_ids = ["C-1"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    shutil.copy(out_dir / "model-best-000002.pt", out_dir / "ckpt-000002.pt")
+    cwd = tmp_path / "elsewhere"
+    cwd.mkdir()
+    (cwd / "ckpt-000002.pt").write_bytes(b"not a checkpoint")  # CWD decoy
+    monkeypatch.chdir(cwd)
+    metrics = evaluate(case_ids, data_root, out_dir, "cpu", checkpoint="ckpt-000002.pt")
+    # The decoy would raise on load; reaching metrics proves out_dir won.
+    assert metrics["checkpoint_path"] == str(out_dir / "ckpt-000002.pt")
+
+
+def test_default_eval_ignores_dir_with_only_periodic_checkpoints(tmp_path):
+    """Default evaluation never falls back to ckpt-*.pt snapshots."""
+    case_ids = ["C-1"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    (out_dir / "model-best-000002.pt").rename(out_dir / "ckpt-000002.pt")
+    with pytest.raises(FileNotFoundError, match="no checkpoint found"):
+        evaluate(case_ids, data_root, out_dir, "cpu")
+
+
+def test_main_valid_mode_passes_absolute_checkpoint_through(tmp_path, monkeypatch):
+    """--checkpoint reaches evaluate() from main() and absolute paths load.
+
+    Guards the CLI wiring: dropping checkpoint=args.checkpoint from the eval
+    branches must fail this test (review 2026-07-10).
+    """
+    import structbench.cli.train as train_mod
+
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for cid in ("S-1", "S-2"):
+        _write_tiny_case(data_root, cid)
+    out_dir = tmp_path / "run"
+    spec = _local_spec()
+    train(
+        spec,
+        CGNConfig(**SMALL_CGN),
+        TrainConfig(
+            benchmark="seed-test-local",
+            batch_size=2,
+            training_steps=2,
+            val_every=2,
+            seed=1,
+        ),
+        data_root,
+        out_dir,
+        "cpu",
+    )
+    selected = _find_checkpoint(out_dir)
+    assert selected is not None
+    snapshot = out_dir / "ckpt-000002.pt"
+    shutil.copy(selected, snapshot)
+    # config.json records the unregistered "seed-test-local" benchmark; route
+    # main()'s spec resolution back to the local spec.
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    rc = main(
+        [
+            "--mode",
+            "valid",
+            "--data-root",
+            str(data_root),
+            "--out",
+            str(out_dir),
+            "--checkpoint",
+            str(snapshot.resolve()),
+        ]
+    )
+    assert rc == 0
+    tagged = out_dir / "metrics-val@ckpt-000002.json"
+    assert tagged.exists()
+    assert json.loads(tagged.read_text(encoding="utf-8"))["checkpoint_path"] == str(
+        snapshot.resolve()
+    )
+    assert not (out_dir / "metrics-val.json").exists()
