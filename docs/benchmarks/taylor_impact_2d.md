@@ -76,7 +76,7 @@ input_frames = 6 gives the model C = 5 input velocities (input_frames - 1), the 
 
 ## Numbers to beat
 
-**CGN baseline** (cgn, 2026-07-08, commit `7be9d4b`)
+**CGN baseline** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)
 
 _Trajectory error (RMSE)_
 

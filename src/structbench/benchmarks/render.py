@@ -149,7 +149,14 @@ def _numbers_to_beat(spec: BenchmarkSpec) -> list[str]:
         )
         return lines
     for r in spec.results:
-        suffix = f", checkpoint: {r.checkpoint}" if r.checkpoint else ""
+        if r.checkpoint:
+            # Private archive-relative pointers carry an explicit marker until
+            # rewritten to a public URL (ADR-0037) — honest rather than silent.
+            published = r.checkpoint.startswith(("http://", "https://"))
+            marker = "" if published else " — private archive; publication parked"
+            suffix = f", checkpoint: `{r.checkpoint}`{marker}"
+        else:
+            suffix = ""
         lines.append(
             f"**{r.label}** ({r.family}, {r.run_date}, commit `{r.run_commit}`{suffix})"
         )

@@ -49,6 +49,10 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_t_peak_vm_mae_ms": 0.2293,
             },
         },
+        checkpoint="models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt",
+        checkpoint_sha256=(
+            "4950d798a774be111d7096a16a112d38385d44e7832c7577bb1fa82eb7b76060"
+        ),
         notes=(
             "Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, "
             "seed 1 of the s0-s3 fleet; val-selected checkpoint "

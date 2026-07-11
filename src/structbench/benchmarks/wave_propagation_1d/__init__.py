@@ -46,6 +46,10 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_peak_stress_mae_mpa": 0.9665,
             },
         },
+        checkpoint="models/wave_propagation_1d/cgn-48046ea/model-best-050000.pt",
+        checkpoint_sha256=(
+            "2139335fb0cb2f6cccaf9be69e69cced369deb6eda80f6970b292deeba07dc0a"
+        ),
         notes=(
             "Single-scale CGN (ADR-0034) on the round-2 capacity recipe "
             "(hidden 128 / 10 MP steps / 2-layer node MLP, noise_std 0.06) at "

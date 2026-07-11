@@ -12,6 +12,7 @@ or revising a result never bumps the benchmark version; protocol changes do
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -36,15 +37,21 @@ class BaselineResult:
         Split names are validated against the owning card's splits where the
         spec wires results (``BenchmarkSpec.__post_init__``).
     checkpoint : str or None
-        Pointer/URL to the published checkpoint, once checkpoints publish.
+        Pointer to the blessed checkpoint: an archive-relative path into the
+        private ``models/`` mirror (ADR-0037), rewritten to a public URL if
+        and when checkpoints publish.
+    checkpoint_sha256 : str or None
+        SHA-256 digest of the checkpoint file (64 lowercase hex chars),
+        making the pointer verifiable. Requires ``checkpoint``.
     notes : str
         Free-text caveats (hardware, walltime, deviations).
 
     Raises
     ------
     ValueError
-        If a required text field is blank, ``metrics`` is empty, or any
-        split's metric mapping is empty.
+        If a required text field is blank, ``metrics`` is empty, any split's
+        metric mapping is empty, or ``checkpoint_sha256`` is malformed or set
+        without ``checkpoint``.
     """
 
     family: str
@@ -53,12 +60,18 @@ class BaselineResult:
     run_date: str
     metrics: Mapping[str, Mapping[str, float]]
     checkpoint: str | None = None
+    checkpoint_sha256: str | None = None
     notes: str = ""
 
     def __post_init__(self) -> None:
         for name in ("family", "label", "run_commit", "run_date"):
             if not getattr(self, name).strip():
                 raise ValueError(f"{name} must be non-empty")
+        if self.checkpoint_sha256 is not None:
+            if self.checkpoint is None:
+                raise ValueError("checkpoint_sha256 requires checkpoint")
+            if not re.fullmatch(r"[0-9a-f]{64}", self.checkpoint_sha256):
+                raise ValueError("checkpoint_sha256 must be 64 lowercase hex chars")
         if not self.metrics:
             raise ValueError("metrics must record at least one split")
         for split, values in self.metrics.items():

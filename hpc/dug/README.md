@@ -104,6 +104,48 @@ rsync -avP <user>@<dug-host>:<proj>/structbench/runs/taylor-cgn-v01/ ./runs/tayl
 Use the JupyterLab-over-localhost option for interactive inspection — load a
 checkpoint and plot rollouts — rather than for the long training run itself.
 
+## 5. Bless and archive
+
+When the maintainer blesses a run, the full mechanical checklist lives here
+(ADR-0033 defines what blessing *is*; ADR-0037 adds the archive steps):
+
+1. **Transcribe** the run's `metrics-*.json` split means into a
+   `BaselineResult` in the benchmark's `RESULTS` registry (ADR-0033), with
+   the run commit and date from its `config.json` / fleet `MANIFEST.tsv`.
+2. **Regenerate the views**: `python tools/gen_benchmark_docs.py`.
+3. **Assemble the bundle** in a `scratch/` staging folder (ADR-0037): the
+   blessed run directory verbatim minus editor droppings (hidden dirs such
+   as `.ipynb_checkpoints/`), plus `provenance/` holding the fleet ledger
+   and selection record (MANIFEST/SUMMARY/REPORT, disambiguated names when
+   several MANIFESTs apply):
+
+   ```bash
+   B=scratch/models-staging/<benchmark>/<family>-<run_commit>
+   rsync -a --exclude='.*' runs/<blessed-run>/ "$B/"
+   mkdir "$B/provenance"   # then cp the fleet MANIFEST/SUMMARY/REPORT in
+   ```
+
+4. **Checksum** from the bundle root:
+
+   ```bash
+   (cd "$B" && find . -type f ! -name SHA256SUMS -print0 | sort -z \
+      | xargs -0 sha256sum > SHA256SUMS)
+   ```
+
+5. **Sync to the OneDrive private master** — the `models/` mirror beside
+   `canonical/` and `raw/` (adjust remote name/path to your rclone config):
+
+   ```bash
+   rclone copy scratch/models-staging/<benchmark> \
+     onedrive:"<path-to>/data/StructBench/models/<benchmark>" --progress
+   ```
+
+6. **Point the registry at it**: set `checkpoint=` (archive-relative path,
+   `models/<benchmark>/<family>-<commit>/<file>.pt`) and
+   `checkpoint_sha256=` on the blessed entry, then regenerate the views
+   again (the pointer renders with a private-archive marker until it is a
+   public URL).
+
 ---
 
 ## Wave-1D baseline (v0.2)
