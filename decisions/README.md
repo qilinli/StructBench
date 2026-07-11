@@ -79,12 +79,13 @@ What becomes easier, harder, or constrained as a result.
 | 0028 | GNS baseline training-recipe rework after the first full run | Ephemeral | Accepted |
 | 0029 | Notch-beam aux is max principal strain, not K&C damage (amends 0026) | Durable | Accepted |
 | 0030 | Concrete-Beam decks are kg-mm-ms; canonical data patched in place | Durable | Accepted |
-| 0031 | Data archive layout: canonical/raw mirrors named by benchmark | Durable | Accepted |
+| 0031 | Data archive layout: canonical/raw mirrors named by benchmark | Durable | Accepted (amended by 0037) |
 | 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted (amended by 0035) |
-| 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted |
+| 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted (amended by 0037) |
 | 0034 | The reference baseline is CGN (Concrete Graph Network, Li et al. 2023) | Durable | Accepted |
 | 0035 | The model input window is the rollout init; no history backfill (amends 0019, 0032) | Durable | Accepted |
 | 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted |
+| 0037 | Blessed runs archive: `models/` mirror and registry checkpoint pointers (amends 0031, 0033) | Durable | Proposed |
 
 ---
 
