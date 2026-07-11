@@ -49,6 +49,22 @@ def test_metrics_are_read_only():
         result.metrics["test_interp"]["rollout_pos_rmse_mm"] = 0.0
 
 
+def test_checkpoint_sha256_requires_checkpoint():
+    with pytest.raises(ValueError, match="requires checkpoint"):
+        _result(checkpoint_sha256="0" * 64)
+
+
+@pytest.mark.parametrize("digest", ["", "abc", "G" * 64, "A" * 64, "0" * 63])
+def test_malformed_checkpoint_sha256_raises(digest):
+    with pytest.raises(ValueError, match="checkpoint_sha256"):
+        _result(checkpoint="models/x/cgn-abc1234/m.pt", checkpoint_sha256=digest)
+
+
+def test_checkpoint_pointer_with_digest_constructs():
+    result = _result(checkpoint="models/x/cgn-abc1234/m.pt", checkpoint_sha256="0" * 64)
+    assert result.checkpoint_sha256 == "0" * 64
+
+
 def test_taylor_and_wave_are_the_blessed_benchmarks():
     blessed = {n for n in available_benchmarks() if get_benchmark(n).results}
     assert blessed == {"taylor_impact_2d", "wave_propagation_1d"}
@@ -68,6 +84,15 @@ def test_wave_baseline_is_the_cgn_reference_run():
     assert result.run_commit == "48046ea"
     # val selects the checkpoint; wave's only held-out split is test_interp.
     assert set(result.metrics) == {"test_interp"}
+
+
+def test_blessed_entries_point_at_the_models_archive():
+    # ADR-0037: blessed entries carry an archive-relative pointer + digest.
+    for name in ("taylor_impact_2d", "wave_propagation_1d"):
+        (result,) = get_benchmark(name).results
+        assert result.checkpoint is not None
+        assert result.checkpoint.startswith(f"models/{name}/cgn-{result.run_commit}/")
+        assert result.checkpoint_sha256 is not None
 
 
 def test_spec_rejects_result_with_unknown_split():

@@ -172,6 +172,29 @@ def test_numbers_to_beat_splits_qoi_into_its_own_table():
     assert "rollout_pos_rmse_mm" in rmse_section
 
 
+def test_private_checkpoint_pointer_renders_with_marker():
+    # ADR-0037: an archive-relative pointer carries the private-archive marker
+    # in both generated views; a public URL renders unmarked.
+    private = replace(
+        _fake_result(),
+        checkpoint="models/taylor_impact_2d/cgn-abc1234/model-best-096000.pt",
+        checkpoint_sha256="0" * 64,
+    )
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(private,))
+    for text in (
+        render_archive_readme(spec, "taylor_impact_2d"),
+        render_benchmark_page(spec, "taylor_impact_2d"),
+    ):
+        assert "checkpoint: `models/taylor_impact_2d/cgn-abc1234/" in text
+        assert "private archive; publication parked" in text
+
+    published = replace(private, checkpoint="https://example.org/m.pt")
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(published,))
+    text = render_archive_readme(spec, "taylor_impact_2d")
+    assert "checkpoint: `https://example.org/m.pt`" in text
+    assert "publication parked" not in text
+
+
 def test_single_metric_group_stays_one_unlabelled_table():
     # No qoi_ metrics -> one table, no subheadings (unchanged behaviour).
     result = BaselineResult(

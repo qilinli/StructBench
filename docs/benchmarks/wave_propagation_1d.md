@@ -81,7 +81,7 @@ input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS 
 
 ## Numbers to beat
 
-**CGN baseline** (cgn, 2026-07-10, commit `48046ea`)
+**CGN baseline** (cgn, 2026-07-10, commit `48046ea`, checkpoint: `models/wave_propagation_1d/cgn-48046ea/model-best-050000.pt` — private archive; publication parked)
 
 _Trajectory error (RMSE)_
 
