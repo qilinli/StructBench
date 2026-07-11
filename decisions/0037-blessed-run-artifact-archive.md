@@ -1,6 +1,6 @@
 # 0037 — Blessed runs archive: `models/` mirror and registry checkpoint pointers (amends 0031, 0033)
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-07-12
 
