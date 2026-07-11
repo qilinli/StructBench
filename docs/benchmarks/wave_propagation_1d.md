@@ -2,15 +2,49 @@
 
 # Wave1D-Propagation — StructBench benchmark
 
+## The problem
+
+Set a slender elastic bar moving along its axis and stop it dead at one end:
+a compression front leaps from the impact end, sweeps back along the bar at
+the material wave speed, reflects off the free end, and keeps traversing —
+the textbook one-dimensional stress-wave problem. The particles barely move;
+the travelling stress wave *is* the physics. That leaves a learned surrogate
+nothing to hide behind: it must carry a sharp front through hundreds of
+autoregressive steps and keep the wave speed, the reflection timing, and the
+stress amplitude honest over 4–11 bar traversals, depending on length.
+
+StructBench ships the 2D SPH version: an LS-DYNA `*MAT_ELASTIC` strip
+(scaled toy constants) five particle rows deep, 8 mm wide and 200 / 300 /
+400 / 500 mm long, arrested from an initial axial velocity of 1–8 mm/ms
+(wave speed ~70.7 mm/ms). The task is an **autoregressive next-step
+surrogate** — from a short ground-truth prefix the model advances the
+particle state one output step at a time over the 30 ms record, predicting
+position and the per-particle axial stress. Axial stress is the headline
+target and position the sanity check — the reverse of Taylor 2D's emphasis.
+
+## The entry tier
+
+This is the platform's entry benchmark — 16 linear-elastic cases, 0.23 GB —
+sized for onboarding, the docs tutorial, and CI-scale runs rather than for
+separating strong methods. The split is an interior holdout on the 4-length
+× 4-velocity grid, interpolation only: every length and every velocity
+appears in training, `val` (300 mm at 2, 400 mm at 4 mm/ms) only picks each
+run's checkpoint, and `test_interp` (300 mm at 4, 400 mm at 2 mm/ms) is
+scored. Everything is reported in physical units — axial-stress RMSE in MPa,
+position RMSE in mm — and the quantities of interest read the wave directly:
+arrival time at the 25 / 50 / 75 % gauge stations and the peak stress. The
+reference CGN baseline nails the arrival times and overshoots the peak; the
+numbers are below.
+
 ## Figures
 
 ![Stacked animation of ground-truth and CGN-predicted axial stress waves in a slender bar.](../../assets/wave_rollout.gif)
 
-*Ground truth (top) vs CGN prediction (bottom) on held-out W1D-300-4 (test_interp): a 300 mm bar at 4 mm/ms initial velocity, coloured by axial stress, y-axis exaggerated x8. The surrogate tracks the compression front, the free-end reflections, and the cycle timing over the 30 ms rollout; degradation concentrates in the final ~5 ms.*
+*Ground truth (top) vs CGN prediction (bottom) on held-out W1D-300-4 (test_interp): a 300 mm bar at 4 mm/ms initial velocity, coloured by axial stress, y-axis exaggerated x4. The surrogate tracks the compression front, the free-end reflections, and the cycle timing over the 30 ms rollout; degradation concentrates in the final ~5 ms.*
 
 ![Prediction-vs-truth axial-stress snapshots for the 400 mm bar, in-distribution.](../../assets/wave_axial_interp_400_2.png)
 
-*In-distribution (test_interp, 400 mm bar at 2 mm/ms): ground truth (top) vs CGN prediction (bottom), axial stress at t = 0.6 / 10.4 / 20.2 / 30.0 ms (y x8). The prediction reproduces the wavefront position and reflection cycles; late-horizon fields roughen and overshoot near the impact end (rollout position RMSE 0.95 mm).*
+*In-distribution (test_interp, 400 mm bar at 2 mm/ms): ground truth (top) vs CGN prediction (bottom), axial stress at t = 0.6 / 10.4 / 20.2 / 30.0 ms (y x4). The prediction reproduces the wavefront position and reflection cycles; late-horizon fields roughen and overshoot near the impact end (rollout position RMSE 0.95 mm).*
 
 ![Line charts of rollout position and axial-stress error over time for four cases.](../../assets/wave_rollout_error_vs_time.png)
 
@@ -19,7 +53,7 @@
 ## Data at a glance
 
 - Solver: LS-DYNA (SPH; erosion: no)
-- Loading: initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (~10 traversals per trajectory)
+- Loading: initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (4-11 traversals per trajectory, by bar length)
 - Geometry: 2D strip, 5 particle rows, {200, 300, 400, 500} mm x 8 mm
 - Source units: kg-mm-ms (canonical storage is strict SI, ADR-0012)
 - Cases: 16 (train 12, val 2, test_interp 2)

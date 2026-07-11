@@ -10,7 +10,7 @@ Note: `sph/stress` and `sph/strain` are full 6-component Voigt tensors; each ben
 | NotchBeam2D-Bend | LS-DYNA | SPH | no | constant-velocity pin, 3-point bend, 8-20 mm/s | 111 | 2394-8280 | 502 | max_principal_strain (-) |
 | NotchBeam2D-Impact | LS-DYNA | SPH | no | drop-weight impact, initial velocity 40-160 mm/s, impactor shapes Bullet/Rectangular/Sphere | 110 | 4264-12966 | 502 | max_principal_strain (-) |
 | Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4800-8000 | 152 | von_mises_stress (MPa) |
-| Wave1D-Propagation | LS-DYNA | SPH | no | initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (~10 traversals per trajectory) | 16 | 500-1250 | 302 | axial_stress (MPa) |
+| Wave1D-Propagation | LS-DYNA | SPH | no | initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (4-11 traversals per trajectory, by bar length) | 16 | 500-1250 | 302 | axial_stress (MPa) |
 
 ## NotchBeam2D-Bend (v0.1)
 
