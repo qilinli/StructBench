@@ -67,11 +67,14 @@ README Roadmap → Later). Preservation cannot wait on publication.
    entries gain pointer + digest; generated views regenerate.
 5. **Blessing gains one final mechanical step, with one operational
    home**: `hpc/dug/README.md` gains a blessing-and-archiving section
-   holding the full checklist (transcribe metrics → regenerate docs →
-   assemble the bundle in a `scratch/` staging folder → write
-   `SHA256SUMS` → `rclone copy` to the OneDrive `models/` mirror → set
-   registry pointer + digest). ADR-0033 defines what blessing *is*; the
-   runbook holds the *how*.
+   holding the full checklist (rewrite the grouped config to the blessed
+   recipe → transcribe metrics → regenerate docs → assemble the bundle
+   in a `scratch/` staging folder → write `SHA256SUMS` → `rclone copy`
+   to the OneDrive `models/` mirror → set registry pointer + digest).
+   The config-rewrite step (added 2026-07-12) keeps the committed
+   grouped config equal to the blessed recipe verbatim — seed included —
+   the invariant the landing pages' reproduction guidance relies on.
+   ADR-0033 defines what blessing *is*; the runbook holds the *how*.
 
 ## Alternatives considered
 
