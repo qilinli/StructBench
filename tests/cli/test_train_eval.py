@@ -511,7 +511,9 @@ def test_train_rejects_empty_windowed_dataset(tmp_path):
     """All-short trajectories yield an empty WindowDataset -> raise, not loop."""
     data_root = tmp_path / "data"
     data_root.mkdir()
-    _write_tiny_case(data_root, "C-1", n_frames=3)  # n_frames == input_frames -> 0 samples
+    _write_tiny_case(
+        data_root, "C-1", n_frames=3
+    )  # n_frames == input_frames -> 0 samples
     _write_tiny_case(data_root, "V-1", n_frames=3)
     card = BenchmarkCard(
         name="Empty",
