@@ -109,11 +109,16 @@ checkpoint and plot rollouts — rather than for the long training run itself.
 When the maintainer blesses a run, the full mechanical checklist lives here
 (ADR-0033 defines what blessing *is*; ADR-0037 adds the archive steps):
 
-1. **Transcribe** the run's `metrics-*.json` split means into a
+1. **Rewrite the grouped config** `configs/<benchmark>/<family>.toml` to
+   match the blessed run's `config.toml` — seed included. The committed
+   config at HEAD *is* the blessed recipe; the landing page's "Reproducing
+   the baseline" section sends users to it, so any drift (a fleet-override
+   winner, a different seed) breaks reproduction silently.
+2. **Transcribe** the run's `metrics-*.json` split means into a
    `BaselineResult` in the benchmark's `RESULTS` registry (ADR-0033), with
    the run commit and date from its `config.json` / fleet `MANIFEST.tsv`.
-2. **Regenerate the views**: `python tools/gen_benchmark_docs.py`.
-3. **Assemble the bundle** in a `scratch/` staging folder (ADR-0037): the
+3. **Regenerate the views**: `python tools/gen_benchmark_docs.py`.
+4. **Assemble the bundle** in a `scratch/` staging folder (ADR-0037): the
    blessed run directory verbatim minus editor droppings (hidden dirs such
    as `.ipynb_checkpoints/`), plus `provenance/` holding the fleet ledger
    and selection record (MANIFEST/SUMMARY/REPORT, disambiguated names when
@@ -125,14 +130,14 @@ When the maintainer blesses a run, the full mechanical checklist lives here
    mkdir "$B/provenance"   # then cp the fleet MANIFEST/SUMMARY/REPORT in
    ```
 
-4. **Checksum** from the bundle root:
+5. **Checksum** from the bundle root:
 
    ```bash
    (cd "$B" && find . -type f ! -name SHA256SUMS -print0 | sort -z \
       | xargs -0 sha256sum > SHA256SUMS)
    ```
 
-5. **Sync to the OneDrive private master** — the `models/` mirror beside
+6. **Sync to the OneDrive private master** — the `models/` mirror beside
    `canonical/` and `raw/` (adjust remote name/path to your rclone config):
 
    ```bash
@@ -140,7 +145,7 @@ When the maintainer blesses a run, the full mechanical checklist lives here
      onedrive:"<path-to>/data/StructBench/models/<benchmark>" --progress
    ```
 
-6. **Point the registry at it**: set `checkpoint=` (archive-relative path,
+7. **Point the registry at it**: set `checkpoint=` (archive-relative path,
    `models/<benchmark>/<family>-<commit>/<file>.pt`) and
    `checkpoint_sha256=` on the blessed entry, then regenerate the views
    again (the pointer renders with a private-archive marker until it is a

@@ -97,12 +97,20 @@ _Quantities of interest (MAE)_
 
 *Single-scale CGN (ADR-0034) on the round-2 capacity recipe (hidden 128 / 10 MP steps / 2-layer node MLP, noise_std 0.06) at 50k steps, batch 32; seed 1 of the X1 arm (seeds 1-2) of the 2026-07-10 17-run recipe fleet, val-selected checkpoint model-best-050000.pt (50k), one A100-80GB, ~3.9 h. The winning arm beats the shipped-config control (64/5/1, noise 0.02) by ~2-3x on both rollout channels at half the step budget; blessed from the round-2 winner on maintainer instruction without the pre-declared 4-seed confirmation fleet. Caveats: test_interp is a 2-case split; rollout RMSE is dominated by the final ~5 ms of the 30 ms horizon; the pointwise-max peak_stress QoI overshoots in both held-out cases (pred 1.738/1.481 MPa vs true 0.860/0.426 MPa) - arrival-time QoIs are the trustworthy wave quantities (all within ~1 output frame).*
 
-## Quickstart
+## Reproducing the baseline
+
+The committed config `configs/wave_propagation_1d/cgn.toml` is the blessed recipe verbatim, seed included (the archived run bundle carries the same config, ADR-0037). Train, then score the trained run directory with the two evaluation modes:
 
 ```bash
 pip install structbench  # or: pip install -e . from the repo
-structbench-train --mode train --config configs/wave_propagation_1d/cgn.toml \
+structbench-train --mode train   --config configs/wave_propagation_1d/cgn.toml \
     --data-root /path/to/wave_propagation_1d --out runs/wave_propagation_1d-cgn
+structbench-train --mode valid   --data-root /path/to/wave_propagation_1d \
+    --out runs/wave_propagation_1d-cgn
+structbench-train --mode rollout --data-root /path/to/wave_propagation_1d \
+    --out runs/wave_propagation_1d-cgn
 ```
+
+Evaluation scores the run's selected checkpoint (best validation position RMSE) and writes `metrics-<split>.json` into the run directory; the tables above are transcribed from those files. The recorded commit pins the code version the blessed run used — the recipe lives in the config. Expect recipe-level reproduction: GPU nondeterminism makes retrained numbers statistically similar, not bit-identical; the checkpoint pointer and its SHA-256 in the results registry identify the exact blessed artifact.
 
 Dataset download and hosting: see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.

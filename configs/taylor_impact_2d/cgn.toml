@@ -8,7 +8,7 @@
 
 [run]
 benchmark = "taylor_impact_2d"
-seed = 0                        # torch RNG: init, noise, shuffle
+seed = 1                        # torch RNG: init, noise, shuffle; s1 is the blessed baseline run (ADR-0033) — this config is that recipe verbatim
 
 [model]
 family = "cgn"

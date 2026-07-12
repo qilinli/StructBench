@@ -135,10 +135,10 @@ def test_benchmark_page_embeds_overview_numbers_and_figures():
     for fig in spec.card.figures:
         assert f"(../../{fig.path})" in text
         assert fig.caption in text
-    # the blessed baseline table + quickstart are present
+    # the blessed baseline table + reproduce section are present
     assert "## Numbers to beat" in text
     assert "CGN baseline" in text
-    assert "## Quickstart" in text
+    assert "## Reproducing the baseline" in text
     assert "configs/taylor_impact_2d/cgn.toml" in text
 
 
@@ -149,6 +149,24 @@ def test_benchmark_page_omits_absent_optional_sections():
     assert "## Figures" not in text
     assert "## The problem" not in text
     assert "No official baseline yet" in text
+    # without a blessed result the page keeps the plain quickstart
+    assert "## Quickstart" in text
+    assert "## Reproducing the baseline" not in text
+
+
+def test_benchmark_page_reproduce_section_carries_the_command_triple():
+    # A blessed result replaces the quickstart with train + the two eval
+    # modes that regenerate the transcribed metrics-<split>.json files.
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    assert "## Quickstart" not in text
+    assert "--mode train   --config configs/taylor_impact_2d/cgn.toml" in text
+    assert "--mode valid" in text
+    assert "--mode rollout" in text
+    assert "`metrics-<split>.json`" in text
+    # honesty caveats: recipe-level reproduction, exact artifact via digest
+    assert "not bit-identical" in text
+    assert "SHA-256" in text
 
 
 def test_card_figure_paths_exist():
