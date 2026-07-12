@@ -203,3 +203,35 @@ walltime 24 h). Arms, seeds, and the pre-registered analysis protocol live in
 the maintainer's round-2 proposal; smoke-test cap-128 memory on a worst-case
 composed batch before submitting capacity arms, and avoid seed 0
 (CORRECTIONS 2026-07-10).
+
+---
+
+## Notch-impact baseline (v0.2)
+
+Same machine, env build (§2), result bring-back (§4), and bless flow (§5) as
+the others. The dataset is already staged and rclone-verified on DUG:
+`/data/curtin_eecms/curtin_qilin/data/notch_beam_2d_impact` (113 files,
+25 GB). Notch beams (H80 × span {320, 480, 640} mm at 2.5 mm spacing) carry
+several times Taylor's particle count, so expect Taylor-like or slower
+steps/h at the capacity cell and a small memory-bound batch — smoke-test
+memory and throughput before any fleet (30-step capacity smoke against a
+`scratch/` config; the first run also builds the dataset's `derived/`
+normalization cache, a one-off ~25 GB read).
+
+**Round-1 recipe fleet (recipe first, seeds later)**: the base
+`configs/notch_beam_2d_impact/cgn.toml` still carries the pre-round-1 small
+recipe (64/5/1, seed 0), so round-1 arms pass the capacity cell and seed
+explicitly via `ablate_notch_impact.slurm` — one arm per job, noise_std as
+the primary sweep axis, everything at `SEED=1`:
+
+```bash
+FLEET=runs/fleet-$(date +%F)
+sbatch --job-name=ni-n002-s1 \
+  --export=ALL,NAME=n002-s1,HIDDEN=128,MP=10,NMLP=2,BATCH=8,SEED=1,NOISE=0.02,STEPS=50000,FLEET=$FLEET \
+  hpc/dug/ablate_notch_impact.slurm
+```
+
+Rank arms on val rollout metrics at the reduced step budget; the winner gets
+the full budget (plus a seed fleet if the maintainer wants spread evidence)
+and rewrites `cgn.toml` at bless time — the wave round-2 precedent. Keep ≥2
+jobs running concurrently (CORRECTIONS 2026-07-10) and avoid seed 0.
