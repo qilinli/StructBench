@@ -169,6 +169,19 @@ def test_benchmark_page_reproduce_section_carries_the_command_triple():
     assert "SHA-256" in text
 
 
+def test_reproduce_section_renders_one_block_per_unique_family():
+    # Two families, one of them blessed twice -> one command block per
+    # unique family, and the closing caveat paragraph exactly once.
+    cgn = _fake_result()
+    cgn_old = replace(cgn, run_date="2026-07-01")
+    mlp = replace(cgn, family="mlp", label="MLP baseline")
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(cgn, mlp, cgn_old))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    assert text.count("--config configs/taylor_impact_2d/cgn.toml") == 1
+    assert text.count("--config configs/taylor_impact_2d/mlp.toml") == 1
+    assert text.count("Expect recipe-level reproduction") == 1
+
+
 def test_card_figure_paths_exist():
     for name in available_benchmarks():
         for fig in get_benchmark(name).card.figures:
