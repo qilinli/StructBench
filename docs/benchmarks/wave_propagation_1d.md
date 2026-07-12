@@ -105,4 +105,6 @@ structbench-train --mode train --config configs/wave_propagation_1d/cgn.toml \
     --data-root /path/to/wave_propagation_1d --out runs/wave_propagation_1d-cgn
 ```
 
+This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
+
 Dataset download and hosting: see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.

@@ -42,8 +42,8 @@ from torch.utils.data import DataLoader
 
 from ..benchmarks import BenchmarkSpec, available_benchmarks, get_benchmark
 from ..config import (
-    CGNConfig,
     LR_SCHEDULE_FLOOR,
+    CGNConfig,
     TrainConfig,
     load_run_config,
     read_run_record,

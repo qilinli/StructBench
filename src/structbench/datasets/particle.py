@@ -39,9 +39,7 @@ class WindowDataset(Dataset):
     ``input_frames`` (0-based), the last is ``T - 1``.
     """
 
-    def __init__(
-        self, trajectories: list[CaseTrajectory], input_frames: int
-    ) -> None:
+    def __init__(self, trajectories: list[CaseTrajectory], input_frames: int) -> None:
         self._input_frames = input_frames
         # index: list of (traj, t) where t is the index of the predicted frame.
         # Interleave across trajectories (t-major, traj-minor) so that a

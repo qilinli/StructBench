@@ -149,6 +149,34 @@ def test_benchmark_page_omits_absent_optional_sections():
     assert "## Figures" not in text
     assert "## The problem" not in text
     assert "No official baseline yet" in text
+    # without a blessed result the quickstart stays a plain quickstart
+    assert "## Quickstart" in text
+    assert "blessed baseline recipe" not in text
+
+
+def test_blessed_page_quickstart_carries_the_reproduction_sentence():
+    # A blessed result adds one sentence to the quickstart: the config is
+    # the recipe verbatim, and the two eval modes regenerate the transcribed
+    # metrics-<split>.json files (with the honesty caveats).
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    assert "## Quickstart" in text
+    assert "blessed baseline recipe verbatim, seed included" in text
+    assert "--mode valid" in text
+    assert "--mode rollout" in text
+    assert "`metrics-<split>.json`" in text
+    # honesty caveats: recipe-level reproduction, exact artifact via digest
+    assert "bit-identical" in text
+    assert "SHA-256" in text
+
+
+def test_blessed_page_quickstart_trains_the_blessed_family():
+    # The quickstart command follows the blessed family, not a hardcoded cgn.
+    mlp = replace(_fake_result(), family="mlp", label="MLP baseline")
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(mlp,))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    assert "configs/taylor_impact_2d/mlp.toml" in text
+    assert "runs/taylor_impact_2d-mlp" in text
 
 
 def test_card_figure_paths_exist():

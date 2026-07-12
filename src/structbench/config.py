@@ -323,11 +323,11 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
     )
     _require_keys("train", set(train_table), train_fields)
     _check_value_types("train", train_table, TrainConfig)
-    train_table["lr_decay_steps"] = _derive_lr_decay_steps(train_table["training_steps"])
-
-    train_cfg = TrainConfig(
-        benchmark=run["benchmark"], seed=run["seed"], **train_table
+    train_table["lr_decay_steps"] = _derive_lr_decay_steps(
+        train_table["training_steps"]
     )
+
+    train_cfg = TrainConfig(benchmark=run["benchmark"], seed=run["seed"], **train_table)
 
     return ResolvedRunConfig(
         family=family,

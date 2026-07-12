@@ -317,7 +317,8 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
 
     Reuses the archive README's Task / Evaluation / Numbers-to-beat bodies —
     so the numbers keep a single source — and adds the card's non-derivable
-    ``overview`` narrative and ``figures``, plus a quickstart. Generated to
+    ``overview`` narrative and ``figures``, plus a quickstart (which gains a
+    reproduction sentence once a baseline is blessed). Generated to
     ``docs/benchmarks/<name>.md``; a drift test asserts the committed page
     matches this render.
 
@@ -368,13 +369,33 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
         "",
         *_numbers_to_beat(spec),
         "",
+    ]
+    # The quickstart trains the (first) blessed family; without a baseline it
+    # defaults to the cgn reference config.
+    family = spec.results[0].family if spec.results else "cgn"
+    lines += [
         "## Quickstart",
         "",
         "```bash",
         "pip install structbench  # or: pip install -e . from the repo",
-        f"structbench-train --mode train --config configs/{name}/cgn.toml \\",
-        f"    --data-root /path/to/{name} --out runs/{name}-cgn",
+        f"structbench-train --mode train --config configs/{name}/{family}.toml \\",
+        f"    --data-root /path/to/{name} --out runs/{name}-{family}",
         "```",
+    ]
+    if spec.results:
+        # The committed grouped config is the blessed recipe verbatim, kept
+        # so by the bless checklist (hpc/dug/README.md §5, ADR-0037).
+        lines += [
+            "",
+            "This config is the blessed baseline recipe verbatim, seed "
+            "included — after training, `structbench-train --mode valid` and "
+            "`--mode rollout` against the run directory regenerate the "
+            "`metrics-<split>.json` files behind the numbers above (expect "
+            "statistically similar rather than bit-identical numbers under "
+            "GPU nondeterminism; the registry's checkpoint pointer and "
+            "SHA-256 identify the exact blessed artifact).",
+        ]
+    lines += [
         "",
         "Dataset download and hosting: see the repository README. The "
         "cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); "
