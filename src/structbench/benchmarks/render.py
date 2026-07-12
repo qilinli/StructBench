@@ -312,59 +312,13 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _reproduce_lines(spec: BenchmarkSpec, name: str) -> list[str]:
-    """The landing page's 'Reproducing the baseline' section.
-
-    Emitted only when the benchmark has blessed results (it subsumes the
-    plain quickstart, which pages without results keep). The committed
-    grouped config is the blessed recipe verbatim — seed included — kept so
-    by the bless checklist (``hpc/dug/README.md`` §5), and the eval modes
-    regenerate the ``metrics-<split>.json`` files the registry transcribes.
-    """
-    lines = ["## Reproducing the baseline", ""]
-    families: list[str] = []
-    for r in spec.results:
-        if r.family not in families:
-            families.append(r.family)
-    for family in families:
-        config = f"configs/{name}/{family}.toml"
-        lines += [
-            f"The committed config `{config}` is the blessed recipe verbatim, "
-            "seed included (the archived run bundle carries the same config, "
-            "ADR-0037). Train, then score the trained run directory with the "
-            "two evaluation modes:",
-            "",
-            "```bash",
-            "pip install structbench  # or: pip install -e . from the repo",
-            f"structbench-train --mode train   --config {config} \\",
-            f"    --data-root /path/to/{name} --out runs/{name}-{family}",
-            f"structbench-train --mode valid   --data-root /path/to/{name} \\",
-            f"    --out runs/{name}-{family}",
-            f"structbench-train --mode rollout --data-root /path/to/{name} \\",
-            f"    --out runs/{name}-{family}",
-            "```",
-            "",
-        ]
-    lines += [
-        "Evaluation scores the run's selected checkpoint (best validation "
-        "position RMSE) and writes `metrics-<split>.json` into the run "
-        "directory; the tables above are transcribed from those files. The "
-        "recorded commit pins the code version the blessed run used — the "
-        "recipe lives in the config. Expect recipe-level reproduction: GPU "
-        "nondeterminism makes retrained numbers statistically similar, not "
-        "bit-identical; the checkpoint pointer and its SHA-256 in the results "
-        "registry identify the exact blessed artifact.",
-    ]
-    return lines
-
-
 def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
     """The committed, browsable landing page for one benchmark (ADR-0036).
 
     Reuses the archive README's Task / Evaluation / Numbers-to-beat bodies —
     so the numbers keep a single source — and adds the card's non-derivable
-    ``overview`` narrative and ``figures``, plus a quickstart (or, once a
-    baseline is blessed, the reproduce section). Generated to
+    ``overview`` narrative and ``figures``, plus a quickstart (which gains a
+    reproduction sentence once a baseline is blessed). Generated to
     ``docs/benchmarks/<name>.md``; a drift test asserts the committed page
     matches this render.
 
@@ -416,17 +370,30 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
         *_numbers_to_beat(spec),
         "",
     ]
+    # The quickstart trains the (first) blessed family; without a baseline it
+    # defaults to the cgn reference config.
+    family = spec.results[0].family if spec.results else "cgn"
+    lines += [
+        "## Quickstart",
+        "",
+        "```bash",
+        "pip install structbench  # or: pip install -e . from the repo",
+        f"structbench-train --mode train --config configs/{name}/{family}.toml \\",
+        f"    --data-root /path/to/{name} --out runs/{name}-{family}",
+        "```",
+    ]
     if spec.results:
-        lines += _reproduce_lines(spec, name)
-    else:
+        # The committed grouped config is the blessed recipe verbatim, kept
+        # so by the bless checklist (hpc/dug/README.md §5, ADR-0037).
         lines += [
-            "## Quickstart",
             "",
-            "```bash",
-            "pip install structbench  # or: pip install -e . from the repo",
-            f"structbench-train --mode train --config configs/{name}/cgn.toml \\",
-            f"    --data-root /path/to/{name} --out runs/{name}-cgn",
-            "```",
+            "This config is the blessed baseline recipe verbatim, seed "
+            "included — after training, `structbench-train --mode valid` and "
+            "`--mode rollout` against the run directory regenerate the "
+            "`metrics-<split>.json` files behind the numbers above (expect "
+            "statistically similar rather than bit-identical numbers under "
+            "GPU nondeterminism; the registry's checkpoint pointer and "
+            "SHA-256 identify the exact blessed artifact).",
         ]
     lines += [
         "",

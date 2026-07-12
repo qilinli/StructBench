@@ -94,20 +94,14 @@ _Quantities of interest (MAE)_
 
 *Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp.*
 
-## Reproducing the baseline
-
-The committed config `configs/taylor_impact_2d/cgn.toml` is the blessed recipe verbatim, seed included (the archived run bundle carries the same config, ADR-0037). Train, then score the trained run directory with the two evaluation modes:
+## Quickstart
 
 ```bash
 pip install structbench  # or: pip install -e . from the repo
-structbench-train --mode train   --config configs/taylor_impact_2d/cgn.toml \
+structbench-train --mode train --config configs/taylor_impact_2d/cgn.toml \
     --data-root /path/to/taylor_impact_2d --out runs/taylor_impact_2d-cgn
-structbench-train --mode valid   --data-root /path/to/taylor_impact_2d \
-    --out runs/taylor_impact_2d-cgn
-structbench-train --mode rollout --data-root /path/to/taylor_impact_2d \
-    --out runs/taylor_impact_2d-cgn
 ```
 
-Evaluation scores the run's selected checkpoint (best validation position RMSE) and writes `metrics-<split>.json` into the run directory; the tables above are transcribed from those files. The recorded commit pins the code version the blessed run used — the recipe lives in the config. Expect recipe-level reproduction: GPU nondeterminism makes retrained numbers statistically similar, not bit-identical; the checkpoint pointer and its SHA-256 in the results registry identify the exact blessed artifact.
+This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
 
 Dataset download and hosting: see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
