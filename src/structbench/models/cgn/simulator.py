@@ -32,6 +32,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+from ...datasets.normalization import aux_inverse_transform
 from .graph_network import EncodeProcessDecode
 from .graph_ops import radius_graph
 
@@ -86,6 +87,14 @@ class LearnedSimulator(nn.Module):
         Number of auxiliary output channels predicted alongside the
         acceleration (default ``1``). The decoder produces
         ``particle_dimensions + n_aux`` outputs.
+    aux_transform : str, optional
+        Auxiliary target-space transform (``"none"`` or ``"asinh"``,
+        ``CGNConfig.aux_transform``). When set, the ``"aux"`` normalization
+        stats are in transformed space and :meth:`predict_positions` applies
+        the inverse transform after de-normalizing, so callers always receive
+        raw auxiliary units. Parameter-free: checkpoints are unaffected.
+    aux_transform_scale : float, optional
+        Scale of the transform's linear-to-log knee.
     max_neighbors : int, optional
         Per-node neighbour cap passed to ``radius_graph`` (default ``20``).
         Size it above the true maximum degree at the chosen
@@ -114,6 +123,8 @@ class LearnedSimulator(nn.Module):
         particle_type_embedding_size: int,
         *,
         n_aux: int = 1,
+        aux_transform: str = "none",
+        aux_transform_scale: float = 0.01,
         max_neighbors: int = 20,
         boundary_feature_fn: Callable[[Tensor], Tensor] | None = None,
         device: str = "cpu",
@@ -125,6 +136,8 @@ class LearnedSimulator(nn.Module):
         self._nparticle_types = nparticle_types
         self._particle_dimensions = particle_dimensions
         self._n_aux = n_aux
+        self._aux_transform = aux_transform
+        self._aux_transform_scale = aux_transform_scale
         self._boundary_feature_fn = boundary_feature_fn
 
         # Particle-type embedding lookup.
@@ -397,10 +410,14 @@ class LearnedSimulator(nn.Module):
         next_positions = self._decoder_postprocessor(
             predicted_normalized_acceleration, current_positions
         )
-        # The decoder emits the auxiliary channel in normalized space; recover
-        # raw units (e.g. MPa) so rollout/metrics operate on physical values.
+        # The decoder emits the auxiliary channel in normalized (and, under
+        # aux_transform, transformed) space; recover raw units (e.g. MPa) so
+        # rollout/metrics operate on physical values.
         aux_stats = self._normalization_stats["aux"]
         predicted_aux = predicted_normalized_aux * aux_stats["std"] + aux_stats["mean"]
+        predicted_aux = aux_inverse_transform(
+            predicted_aux, self._aux_transform, self._aux_transform_scale
+        )
 
         return next_positions, predicted_aux
 

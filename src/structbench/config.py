@@ -66,6 +66,19 @@ class CGNConfig:
         Per-node neighbour cap for the radius graph. Size it above the true
         maximum degree at ``connectivity_radius`` so it never binds on
         physical configurations (ADR-0028).
+    aux_transform : str
+        Target-space transform for the auxiliary channel: ``"none"`` (raw
+        values, the reference behaviour) or ``"asinh"``
+        (``asinh(aux / aux_transform_scale)``). A heavy-tailed auxiliary field
+        (notch-impact max principal strain: bulk ~1e-3, tail ~1) z-scores its
+        decision region into the distribution bulk where MSE under-resolves
+        it; the transform spreads that region before normalization. Stats,
+        the training target, and the decoder all live in transformed space;
+        predictions are inverted back to raw units inside the simulator, so
+        the evaluation contract is unchanged.
+    aux_transform_scale : float
+        Scale ``s`` of the transform's linear-to-log knee. For a thresholded
+        crack field, the QoI threshold (0.01 strain) is the natural knee.
     """
 
     input_frames: int = 6
@@ -77,6 +90,8 @@ class CGNConfig:
     noise_std: float = 0.02
     dim: int = 2
     max_neighbors: int = 32  # project-wide backstop cap (M-B, 2026-07-06)
+    aux_transform: str = "none"
+    aux_transform_scale: float = 0.01
 
 
 @dataclass
@@ -106,6 +121,12 @@ class TrainConfig:
         Weight on the acceleration (position) loss term.
     w_aux : float
         Weight on the auxiliary loss term.
+    aux_tail_weight : float
+        Extra per-particle weight on the auxiliary loss where the (normalized,
+        possibly transformed) target is above its mean:
+        ``1 + aux_tail_weight * relu(z_target)``. ``0.0`` (reference) leaves
+        the plain MSE. Counteracts the heavy-tail starvation of the crack
+        decision region without moving the loss minimizer wholesale.
     seed : int
         Torch RNG seed set at the start of training; fixes weight
         initialization, training-noise draws, and shuffle order. Sourced from
@@ -123,6 +144,7 @@ class TrainConfig:
     val_every: int = 2000
     w_pos: float = 1.0
     w_aux: float = 1.0
+    aux_tail_weight: float = 0.0
     seed: int = 0
 
 
@@ -329,9 +351,19 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
 
     train_cfg = TrainConfig(benchmark=run["benchmark"], seed=run["seed"], **train_table)
 
+    model = model_cls(**model_table)
+    transform = getattr(model, "aux_transform", "none")
+    from .datasets.normalization import AUX_TRANSFORMS
+
+    if transform not in AUX_TRANSFORMS:
+        raise ConfigError(
+            f"[model] unknown aux_transform {transform!r}; "
+            f"supported: {', '.join(sorted(AUX_TRANSFORMS))}"
+        )
+
     return ResolvedRunConfig(
         family=family,
-        model=model_cls(**model_table),
+        model=model,
         train=train_cfg,
     )
 
