@@ -23,6 +23,8 @@ particle_type_embedding_size = 9
 noise_std = 0.02
 dim = 2
 max_neighbors = 48
+aux_transform = "none"
+aux_transform_scale = 0.01
 
 [train]
 batch_size = 8
@@ -32,6 +34,7 @@ training_steps = 100
 val_every = 50
 w_pos = 1.0
 w_aux = 1.0
+aux_tail_weight = 0.0
 """
 
 
@@ -180,3 +183,17 @@ def test_build_simulator_includes_aux_stats():
     # Aux carries no training-noise inflation, so mean/std pass through verbatim.
     torch.testing.assert_close(aux_stats["mean"], torch.tensor([5.0]))
     torch.testing.assert_close(aux_stats["std"], torch.tensor([2.0]))
+
+
+def test_load_run_config_rejects_unknown_aux_transform(tmp_path):
+    bad = VALID.replace('aux_transform = "none"', 'aux_transform = "rank"')
+    with pytest.raises(ConfigError, match="unknown aux_transform"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_requires_the_aux_knobs_explicitly(tmp_path):
+    # ADR-0032 exact-keys: the new strain-channel knobs are recipe record
+    # entries like any other; a config omitting them must not load silently.
+    bad = VALID.replace("aux_tail_weight = 0.0\n", "")
+    with pytest.raises(ConfigError, match="missing keys: aux_tail_weight"):
+        load_run_config(_write(tmp_path, bad))

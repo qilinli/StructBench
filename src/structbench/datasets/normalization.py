@@ -15,6 +15,45 @@ from .canonical import CaseTrajectory
 
 logger = logging.getLogger(__name__)
 
+#: Supported auxiliary target-space transforms (``CGNConfig.aux_transform``).
+AUX_TRANSFORMS = frozenset({"none", "asinh"})
+
+
+def aux_forward_transform(values, transform: str, scale: float):
+    """Map raw auxiliary values into training target space.
+
+    ``"none"`` returns the input unchanged; ``"asinh"`` returns
+    ``asinh(values / scale)`` — linear below ``scale``, logarithmic above it,
+    spreading a heavy-tailed field's decision region before z-scoring.
+    Accepts numpy arrays or torch tensors and preserves the input kind.
+    """
+    if transform == "none":
+        return values
+    if transform == "asinh":
+        import torch
+
+        if isinstance(values, torch.Tensor):
+            return torch.asinh(values / scale)
+        return np.arcsinh(np.asarray(values) / scale)
+    raise ValueError(
+        f"unknown aux_transform {transform!r}; supported: {sorted(AUX_TRANSFORMS)}"
+    )
+
+
+def aux_inverse_transform(values, transform: str, scale: float):
+    """Invert :func:`aux_forward_transform`, back to raw auxiliary units."""
+    if transform == "none":
+        return values
+    if transform == "asinh":
+        import torch
+
+        if isinstance(values, torch.Tensor):
+            return torch.sinh(values) * scale
+        return np.sinh(np.asarray(values)) * scale
+    raise ValueError(
+        f"unknown aux_transform {transform!r}; supported: {sorted(AUX_TRANSFORMS)}"
+    )
+
 
 @dataclass
 class NormalizationStats:
@@ -59,14 +98,22 @@ class NormalizationStats:
         )
 
 
-def compute_stats(trajectories: list[CaseTrajectory]) -> NormalizationStats:
+def compute_stats(
+    trajectories: list[CaseTrajectory],
+    *,
+    aux_transform: str = "none",
+    aux_transform_scale: float = 0.01,
+) -> NormalizationStats:
     """Pool velocity/acceleration/aux stats over all particles, frames, and cases.
 
     Velocity is the first finite difference of positions along the frame axis;
     acceleration is the second. The auxiliary target field (e.g. von Mises
     stress for Taylor) is a direct quantity, so its stats are pooled over the
-    raw values with no finite difference. Statistics are stacked over every
-    particle in every frame of every trajectory.
+    values with no finite difference — in **target space**: when
+    ``aux_transform`` is set, the aux stats are computed over the transformed
+    values (:func:`aux_forward_transform`), matching the space the training
+    target and decoder live in. Statistics are stacked over every particle in
+    every frame of every trajectory.
 
     Parameters
     ----------
@@ -74,6 +121,8 @@ def compute_stats(trajectories: list[CaseTrajectory]) -> NormalizationStats:
         List of :class:`~structbench.datasets.canonical.CaseTrajectory` objects.
         Each must have at least 3 frames (``T >= 3``) so that both velocity and
         acceleration samples exist.
+    aux_transform, aux_transform_scale:
+        Auxiliary target-space transform (``CGNConfig`` fields).
 
     Returns
     -------
@@ -89,7 +138,10 @@ def compute_stats(trajectories: list[CaseTrajectory]) -> NormalizationStats:
         a = v[1:] - v[:-1]  # (T-2, P, dim)
         vels.append(v.reshape(-1, p.shape[-1]))
         accs.append(a.reshape(-1, p.shape[-1]))
-        auxs.append(tr.aux.astype(np.float64).reshape(-1))  # (T*P,)
+        aux = aux_forward_transform(
+            tr.aux.astype(np.float64), aux_transform, aux_transform_scale
+        )
+        auxs.append(np.asarray(aux).reshape(-1))  # (T*P,)
     v_all = np.concatenate(vels, axis=0)
     a_all = np.concatenate(accs, axis=0)
     aux_all = np.concatenate(auxs, axis=0)
@@ -130,6 +182,8 @@ def cached_compute_stats(
     *,
     dataset_root: str | Path,
     aux_field: str,
+    aux_transform: str = "none",
+    aux_transform_scale: float = 0.01,
 ) -> NormalizationStats:
     """:func:`compute_stats` with a dataset-level cache.
 
@@ -158,13 +212,20 @@ def cached_compute_stats(
         Name of the auxiliary field (e.g., "von_mises_stress", "axial_stress").
         Different auxiliary fields produce separate cache files even for the
         same trajectories.
+    aux_transform, aux_transform_scale:
+        Auxiliary target-space transform, forwarded to :func:`compute_stats`.
+        A non-``"none"`` transform keys its own cache file; ``"none"`` keeps
+        the pre-transform cache keys, so existing caches stay valid.
 
     Returns
     -------
     NormalizationStats
     """
     fingerprint = [_traj_signature(tr) for tr in trajectories]
-    key_material = "\n".join([_STATS_VERSION, aux_field, *fingerprint])
+    key_parts = [_STATS_VERSION, aux_field]
+    if aux_transform != "none":
+        key_parts.append(f"aux_transform={aux_transform}:{aux_transform_scale!r}")
+    key_material = "\n".join([*key_parts, *fingerprint])
     key = hashlib.sha256(key_material.encode("utf-8")).hexdigest()[:12]
     cache_path = Path(dataset_root) / "derived" / f"norm_{key}.npz"
     if cache_path.exists():
@@ -179,7 +240,11 @@ def cached_compute_stats(
                 exc,
             )
 
-    stats = compute_stats(trajectories)
+    stats = compute_stats(
+        trajectories,
+        aux_transform=aux_transform,
+        aux_transform_scale=aux_transform_scale,
+    )
     # Unique temp name (ends in .npz so np.savez appends nothing), then an
     # atomic replace: concurrent or killed runs can never leave a truncated
     # file at the final path.

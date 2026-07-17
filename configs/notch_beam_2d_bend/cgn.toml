@@ -15,6 +15,8 @@ particle_type_embedding_size = 9
 noise_std = 0.02
 dim = 2
 max_neighbors = 32  # project-wide backstop cap (M-B, 2026-07-06): sized above the physical degree so truncation never occurs
+aux_transform = "none"          # aux target space: "none" (raw) or "asinh" (tail-compressed; see aux_transform_scale)
+aux_transform_scale = 0.01      # asinh knee; unused under "none"
 
 [train]
 batch_size = 32
@@ -25,3 +27,4 @@ training_steps = 100000
 val_every = 2000
 w_pos = 1.0
 w_aux = 1.0
+aux_tail_weight = 0.0   # extra loss weight on above-mean aux targets; 0 = plain MSE (reference)

@@ -53,6 +53,7 @@ from ..datasets import (
     CaseTrajectory,
     NormalizationStats,
     WindowDataset,
+    aux_forward_transform,
     cached_compute_stats,
     collate_samples,
     load_case_trajectory,
@@ -194,6 +195,8 @@ def build_simulator(
         nparticle_types=n_particle_types,
         particle_type_embedding_size=cgn.particle_type_embedding_size,
         n_aux=1,
+        aux_transform=cgn.aux_transform,
+        aux_transform_scale=cgn.aux_transform_scale,
         max_neighbors=cgn.max_neighbors,
         boundary_feature_fn=boundary_feature_fn,
         device=device,
@@ -401,7 +404,11 @@ def train(
     # Dataset-level cache (spec resolved-choice 2); the run-dir copy below is
     # the self-contained record evaluate() reads.
     stats = cached_compute_stats(
-        train_trajs, dataset_root=data_root, aux_field=spec.aux_field
+        train_trajs,
+        dataset_root=data_root,
+        aux_field=spec.aux_field,
+        aux_transform=cgn.aux_transform,
+        aux_transform_scale=cgn.aux_transform_scale,
     )
     stats.save(out_dir / "normalization_stats.npz")
     n_types = _n_particle_types(train_trajs)
@@ -416,8 +423,9 @@ def train(
     simulator.to(device)
 
     # Auxiliary-target normalization: the decoder predicts the auxiliary
-    # channel in normalized space, so the target is normalized to match before
-    # the loss, keeping it O(1) and balanced against the position loss.
+    # channel in normalized (and, under aux_transform, transformed) space, so
+    # the target is transformed and normalized to match before the loss,
+    # keeping it O(1) and balanced against the position loss.
     aux_mean = torch.tensor(stats.aux_mean, dtype=torch.float32, device=device)
     aux_std = torch.tensor(stats.aux_std, dtype=torch.float32, device=device)
 
@@ -482,8 +490,18 @@ def train(
                 particle_types=particle_type,
             )
             loss_pos = ((pred_acc - target_acc) ** 2).sum(dim=-1)
-            next_aux_norm = (next_aux - aux_mean) / aux_std
+            next_aux_t = aux_forward_transform(
+                next_aux, cgn.aux_transform, cgn.aux_transform_scale
+            )
+            next_aux_norm = (next_aux_t - aux_mean) / aux_std
             loss_aux = (pred_aux[:, 0] - next_aux_norm) ** 2
+            if train_cfg.aux_tail_weight > 0.0:
+                # Upweight above-mean (tail) targets so the heavy-tailed crack
+                # field's decision region is not starved by the bulk; weights
+                # follow the target, never the prediction.
+                loss_aux = loss_aux * (
+                    1.0 + train_cfg.aux_tail_weight * torch.relu(next_aux_norm)
+                )
             per_particle = train_cfg.w_pos * loss_pos + train_cfg.w_aux * loss_aux
             if spec.kinematic_types:
                 free = ~torch.isin(

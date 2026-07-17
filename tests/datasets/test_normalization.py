@@ -177,3 +177,78 @@ def test_cached_stats_survives_unwritable_cache(tmp_path, monkeypatch):
         [traj], dataset_root=tmp_path, aux_field="von_mises_stress"
     )  # must not raise
     np.testing.assert_array_equal(stats.aux_mean, compute_stats([traj]).aux_mean)
+
+
+# --- auxiliary target-space transform (strain-channel study, 2026-07-15) ---
+
+
+def test_aux_transform_round_trips_numpy_and_torch():
+    import torch
+
+    from structbench.datasets.normalization import (
+        aux_forward_transform,
+        aux_inverse_transform,
+    )
+
+    raw = np.array([0.0, 1e-4, 0.01, 0.3, 1.0])
+    fwd = aux_forward_transform(raw, "asinh", 0.01)
+    np.testing.assert_allclose(fwd, np.arcsinh(raw / 0.01))
+    np.testing.assert_allclose(
+        aux_inverse_transform(fwd, "asinh", 0.01), raw, atol=1e-12
+    )
+    t = torch.tensor(raw)
+    t_fwd = aux_forward_transform(t, "asinh", 0.01)
+    assert isinstance(t_fwd, torch.Tensor)
+    torch.testing.assert_close(
+        aux_inverse_transform(t_fwd, "asinh", 0.01), t, atol=1e-9, rtol=0
+    )
+    # "none" is the identity, object-preserving
+    assert aux_forward_transform(raw, "none", 0.01) is raw
+    assert aux_inverse_transform(raw, "none", 0.01) is raw
+
+
+def test_aux_transform_rejects_unknown_name():
+    import pytest
+
+    from structbench.datasets.normalization import aux_forward_transform
+
+    with pytest.raises(ValueError, match="unknown aux_transform"):
+        aux_forward_transform(np.zeros(3), "log-rank", 0.01)
+
+
+def test_compute_stats_pools_aux_in_transformed_space():
+    traj = _known_vm_traj()  # aux = arange(20)
+    stats = compute_stats([traj], aux_transform="asinh", aux_transform_scale=0.01)
+    expected = np.arcsinh(np.arange(5 * 4, dtype=np.float64) / 0.01)
+    np.testing.assert_allclose(stats.aux_mean, [expected.mean()], atol=1e-6)
+    np.testing.assert_allclose(stats.aux_std, [expected.std()], atol=1e-6)
+    # kinematic stats are untouched by the aux transform
+    plain = compute_stats([traj])
+    np.testing.assert_array_equal(stats.velocity_mean, plain.velocity_mean)
+    np.testing.assert_array_equal(stats.acceleration_std, plain.acceleration_std)
+
+
+def test_cache_key_separates_transform_but_none_keeps_legacy_key(tmp_path):
+    traj = _known_vm_traj()
+    plain = cached_compute_stats(
+        [traj], dataset_root=tmp_path, aux_field="von_mises_stress"
+    )
+    # transform="none" must hit the SAME cache file as the legacy call...
+    again = cached_compute_stats(
+        [traj],
+        dataset_root=tmp_path,
+        aux_field="von_mises_stress",
+        aux_transform="none",
+    )
+    assert len(list((tmp_path / "derived").glob("norm_*.npz"))) == 1
+    np.testing.assert_array_equal(again.aux_mean, plain.aux_mean)
+    # ...while a real transform keys (and computes) its own stats.
+    transformed = cached_compute_stats(
+        [traj],
+        dataset_root=tmp_path,
+        aux_field="von_mises_stress",
+        aux_transform="asinh",
+        aux_transform_scale=0.01,
+    )
+    assert len(list((tmp_path / "derived").glob("norm_*.npz"))) == 2
+    assert not np.allclose(transformed.aux_mean, plain.aux_mean)

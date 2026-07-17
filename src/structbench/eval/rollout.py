@@ -37,7 +37,8 @@ class RolloutResult:
     only when :func:`rollout` is given a ``qois`` mapping (``qoi_error`` is
     signed, predicted − true). Units follow the trajectory's working frame (mm
     and MPa for Taylor 2D). The seeded frames of ``predicted_aux`` carry
-    ground-truth aux values, mirroring the seeded positions.
+    ground-truth aux values, mirroring the seeded positions; kinematic
+    particles carry zero aux on every frame.
     """
 
     predicted_positions: NDArray[np.float32]  # (T, P, dim)
@@ -89,9 +90,11 @@ def rollout(
     kinematic_types:
         Particle part-ids whose motion is prescribed (ADR-0026).  At every
         autoregressive step their predicted positions are overwritten with the
-        ground-truth position at that frame.  They are also excluded from the
-        reported ``position_rmse`` and ``aux_rmse`` (``keep`` mask).  Defaults
-        to ``()`` (no prescribed particles).
+        ground-truth position at that frame, and their ``predicted_aux`` is
+        zeroed over all frames (no aux training signal reaches them, so the
+        decoder's output there is meaningless).  They are also excluded from
+        the reported ``position_rmse`` and ``aux_rmse`` (``keep`` mask).
+        Defaults to ``()`` (no prescribed particles).
 
     Returns
     -------
@@ -137,6 +140,12 @@ def rollout(
 
     pred_pos = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     pred_aux = torch.stack(aux_pred, dim=0).cpu().numpy().astype(np.float32)
+    if kin_mask_np.any():
+        # Kinematic particles receive no aux training signal (their loss is
+        # masked, ADR-0026), so the decoder's output there is meaningless;
+        # zero it so saved rollouts and visualizations cannot mistake it for
+        # a prediction.
+        pred_aux[:, kin_mask_np] = 0.0
     pos_rmse = position_rmse(
         pred_pos[input_frames:], trajectory.positions[input_frames:], keep=keep
     )

@@ -728,3 +728,121 @@ def test_main_valid_mode_passes_absolute_checkpoint_through(tmp_path, monkeypatc
         snapshot.resolve()
     )
     assert not (out_dir / "metrics-val.json").exists()
+
+
+# --- aux target transform + tail weight (strain-channel study, 2026-07-15) ---
+
+
+def test_simulator_inverts_aux_transform_to_raw_units(tmp_path):
+    """predict_positions returns raw-unit aux under aux_transform.
+
+    Two simulators with identical weights and stats, differing only in
+    aux_transform, must satisfy aux_asinh == sinh(aux_none) * s: both
+    de-normalize the decoder output identically (shared stats), then only the
+    transformed simulator applies the inverse transform on top.
+    """
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    _write_tiny_case(data_root, "C-1")
+    traj = load_case_trajectory(data_root / "C-1.h5")
+    stats = compute_stats([traj])
+    stats_t = {
+        key: {
+            "mean": torch.tensor(getattr(stats, f"{name}_mean"), dtype=torch.float32),
+            "std": torch.tensor(getattr(stats, f"{name}_std"), dtype=torch.float32),
+        }
+        for key, name in [
+            ("velocity", "velocity"),
+            ("acceleration", "acceleration"),
+            ("aux", "aux"),
+        ]
+    }
+    sims = {}
+    for transform in ("none", "asinh"):
+        torch.manual_seed(11)  # identical weights across the pair
+        sims[transform] = build_simulator(
+            stats_t,
+            CGNConfig(**SMALL_CGN, aux_transform=transform, aux_transform_scale=0.02),
+            n_particle_types=2,
+            boundary_feature_fn=None,
+            device="cpu",
+        )
+    window = torch.from_numpy(traj.positions[:3]).permute(1, 0, 2)  # (P, frames, dim)
+    npp = torch.tensor([window.shape[0]])
+    ptype = torch.from_numpy(traj.particle_type)
+    with torch.no_grad():
+        _, aux_none = sims["none"].predict_positions(window, npp, ptype)
+        _, aux_asinh = sims["asinh"].predict_positions(window, npp, ptype)
+    expected = torch.sinh(aux_none) * 0.02
+    torch.testing.assert_close(aux_asinh, expected, atol=1e-6, rtol=1e-5)
+
+
+def test_train_with_transform_and_tail_weight_end_to_end(tmp_path):
+    """Tiny training run under asinh transform + tail weight: stats land in
+    transformed space, config.json records the knobs, eval metrics are finite
+    (i.e. predictions come back in raw units)."""
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for cid in ("S-1", "S-2"):
+        _write_tiny_case(data_root, cid)
+    out_dir = tmp_path / "run-transform"
+    cgn = CGNConfig(**SMALL_CGN, aux_transform="asinh", aux_transform_scale=0.02)
+    train(
+        _local_spec(),
+        cgn,
+        TrainConfig(
+            benchmark="seed-test-local",
+            batch_size=2,
+            training_steps=2,
+            val_every=2,
+            seed=5,
+            aux_tail_weight=3.0,
+        ),
+        data_root,
+        out_dir,
+        "cpu",
+    )
+    config = json.loads((out_dir / "config.json").read_text(encoding="utf-8"))
+    assert config["model"]["aux_transform"] == "asinh"
+    assert config["model"]["aux_transform_scale"] == 0.02
+    assert config["train"]["aux_tail_weight"] == 3.0
+
+    # The run-dir stats are in transformed space: they match a direct
+    # transformed computation and differ from the raw-space stats.
+    from structbench.datasets import NormalizationStats
+
+    saved = NormalizationStats.load(out_dir / "normalization_stats.npz")
+    traj = load_case_trajectory(data_root / "S-1.h5")
+    expected = compute_stats([traj], aux_transform="asinh", aux_transform_scale=0.02)
+    np.testing.assert_allclose(saved.aux_mean, expected.aux_mean)
+    raw = compute_stats([traj])
+    assert not np.allclose(saved.aux_mean, raw.aux_mean)
+
+    # Rebuild the trained simulator from the run's own record (transform
+    # included) and roll out against raw-unit ground truth: a finite aux RMSE
+    # proves predictions came back through the inverse transform. (The tiny
+    # spec is not registry-registered, so evaluate() itself is out of reach.)
+    from structbench.eval import rollout
+
+    stats_t = {
+        key: {
+            "mean": torch.tensor(getattr(saved, f"{name}_mean"), dtype=torch.float32),
+            "std": torch.tensor(getattr(saved, f"{name}_std"), dtype=torch.float32),
+        }
+        for key, name in [
+            ("velocity", "velocity"),
+            ("acceleration", "acceleration"),
+            ("aux", "aux"),
+        ]
+    }
+    sim = build_simulator(
+        stats_t,
+        cgn,
+        n_particle_types=config["n_particle_types"],
+        boundary_feature_fn=None,
+        device="cpu",
+    )
+    sim.load(str(_find_checkpoint(out_dir)))
+    result = rollout(sim, load_case_trajectory(data_root / "S-2.h5"), 3, "cpu")
+    assert np.isfinite(result.mean_aux_rmse)
+    assert np.isfinite(result.predicted_aux).all()

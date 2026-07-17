@@ -86,6 +86,7 @@ What becomes easier, harder, or constrained as a result.
 | 0035 | The model input window is the rollout init; no history backfill (amends 0019, 0032) | Durable | Accepted |
 | 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted |
 | 0037 | Blessed runs archive: `models/` mirror and registry checkpoint pointers (amends 0031, 0033) | Durable | Accepted |
+| 0038 | Auxiliary-channel training knobs: target-space transform and tail weight | Durable | Draft |
 
 ---
 
