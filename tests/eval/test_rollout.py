@@ -208,6 +208,23 @@ def test_rollout_metrics_exclude_kinematic_particles():
     assert np.allclose(result.position_rmse, 0.0)
 
 
+def test_rollout_zeroes_kinematic_aux():
+    """Kinematic particles carry zero aux on every frame; free aux is kept."""
+    traj = _const_vel_traj()  # aux = arange: particle 0 is nonzero from frame 1
+    ptype = traj.particle_type.copy()
+    ptype[0] = 7
+    traj = dataclasses.replace(traj, particle_type=ptype)
+    sim = _PerfectSim(traj, input_frames=2)
+    result = rollout(sim, traj, input_frames=2, kinematic_types=(7,))
+    # The predictor emits ground-truth (nonzero) aux for particle 0 too, and
+    # its seeded frames carry nonzero ground truth — both must be zeroed.
+    np.testing.assert_allclose(result.predicted_aux[:, 0], 0.0)
+    # Free particles keep the predictor's aux (here: exact ground truth).
+    np.testing.assert_allclose(result.predicted_aux[:, 1:], traj.aux[:, 1:])
+    # The masked metric is untouched by the zeroing.
+    assert np.allclose(result.aux_rmse, 0.0)
+
+
 class _RecordSim(_ConstVelSim):
     """Constant-velocity stub that records the first input history it sees."""
 
