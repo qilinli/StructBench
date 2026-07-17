@@ -17,7 +17,7 @@ dist/
 .eggs/
 
 # Virtual environments
-.venv/
+.venv
 venv/
 env/
 
