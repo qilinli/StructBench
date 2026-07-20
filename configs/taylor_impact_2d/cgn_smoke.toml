@@ -28,3 +28,4 @@ val_every = 10
 w_pos = 1.0
 w_aux = 1.0
 aux_tail_weight = 0.0   # extra loss weight on above-mean aux targets; 0 = plain MSE (reference)
+train_frames = 0        # truncate training trajectories to first N frames (ADR-0039 recipe); 0 = full

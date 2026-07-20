@@ -35,6 +35,7 @@ val_every = 50
 w_pos = 1.0
 w_aux = 1.0
 aux_tail_weight = 0.0
+train_frames = 0
 """
 
 
