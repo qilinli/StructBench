@@ -47,4 +47,5 @@ SPEC = BenchmarkSpec(
     boundary_feature_fn=None,
     dataset_id="2D-Notched-Beam",
     kinematic_types=(PIN_TYPE, SUPPORT_TYPE),
+    scored_frames=250,
 )

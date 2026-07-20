@@ -70,6 +70,13 @@ class BenchmarkSpec:
     """Official baseline results (ADR-0033), rendered by the generated views;
     empty until a run is blessed. Metric split names must exist in ``splits``
     — validated at construction."""
+    scored_frames: int | None = None
+    """Exclusive upper frame bound of the scored span (ADR-0039), mirroring
+    the trajectory-end bound ``T``: rollout/one-step aggregates and QoIs are
+    computed over ``[card.input_frames, scored_frames)``; per-frame arrays
+    still cover the full trajectory as the long-horizon diagnostic. ``None``
+    scores to the trajectory end. Must exceed ``card.input_frames`` and not
+    exceed ``card.n_frames`` — validated at construction."""
 
     def __post_init__(self) -> None:
         for required in ("train", "val"):
@@ -91,6 +98,14 @@ class BenchmarkSpec:
                 raise ValueError(
                     f"result {result.label!r} references unknown splits {unknown}"
                 )
+        if self.scored_frames is not None and not (
+            self.card.input_frames < self.scored_frames <= self.card.n_frames
+        ):
+            raise ValueError(
+                f"scored_frames={self.scored_frames} must satisfy "
+                f"input_frames ({self.card.input_frames}) < scored_frames "
+                f"<= n_frames ({self.card.n_frames})"
+            )
         # Wrap in read-only proxies to prevent accidental mutation
         object.__setattr__(self, "splits", MappingProxyType(dict(self.splits)))
         object.__setattr__(self, "qois", MappingProxyType(dict(self.qois)))
