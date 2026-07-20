@@ -5,11 +5,11 @@
 ## Data at a glance
 
 - Solver: LS-DYNA (SPH; erosion: no)
-- Loading: drop-weight impact, initial velocity 40-160 mm/s, impactor shapes Bullet/Rectangular/Sphere
+- Loading: drop-weight impact, initial velocity 40-160 m/s, impactor shapes Bullet/Rectangular/Sphere
 - Geometry: 2D SPH notched beam, H80 x span {320,480,640} mm
 - Source units: kg-mm-ms (canonical storage is strict SI, ADR-0012)
 - Cases: 110 (train 88, val 8, test_interp 12, probe 2)
-- Particles per case: 4264-12966; 502 frames at 1.0 ms; 24.9 GB on disk
+- Particles per case: 4264-12966; 502 frames at 0.001 ms; 24.9 GB on disk
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - Provenance: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - License: CC BY 4.0
@@ -27,7 +27,7 @@ autoregressive transition (ADR-0026). Auxiliary target: `max_principal_strain` (
 <details>
 <summary>Protocol rationale — the ground-truth timeline analysis behind these values (ADR-0032 §5)</summary>
 
-Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine), so 6 is not yet confirmed to sit before the onset of non-rigid motion. Confirm before the first trained baseline.
+Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine), so 6 is not yet confirmed to sit before the onset of non-rigid motion. Confirm before the first trained baseline. Scored horizon (ADR-0039): rollout metrics and QoIs are scored on frames [input_frames, 250] (250 µs). Internal energy reaches 99% of its final value by frame 77-213 (span-dependent); the remaining frames are ballistic separation and elastic ringing, which dominated full-horizon RMSE (half the final error accrued after frame 301 in baseline rollouts) while adding no fracture physics. The full 502-frame error curve remains a non-leaderboard long-horizon diagnostic.
 
 </details>
 
