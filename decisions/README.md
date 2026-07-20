@@ -87,6 +87,7 @@ What becomes easier, harder, or constrained as a result.
 | 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted |
 | 0037 | Blessed runs archive: `models/` mirror and registry checkpoint pointers (amends 0031, 0033) | Durable | Accepted |
 | 0038 | Auxiliary-channel training knobs: target-space transform and tail weight | Durable | Draft |
+| 0039 | Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe | Durable | Draft |
 
 ---
 
