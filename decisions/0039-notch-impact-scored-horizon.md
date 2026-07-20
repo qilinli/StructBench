@@ -1,6 +1,6 @@
 # 0039 — Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe
 
-**Status**: Draft
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-07-20
 
