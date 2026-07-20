@@ -846,3 +846,72 @@ def test_train_with_transform_and_tail_weight_end_to_end(tmp_path):
     result = rollout(sim, load_case_trajectory(data_root / "S-2.h5"), 3, "cpu")
     assert np.isfinite(result.mean_aux_rmse)
     assert np.isfinite(result.predicted_aux).all()
+
+
+def test_train_frames_truncates_pool_and_records(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for cid in ("S-1", "S-2"):
+        _write_tiny_case(data_root, cid)
+    out_dir = tmp_path / "truncated"
+    train(
+        _local_spec(),
+        CGNConfig(**SMALL_CGN),
+        TrainConfig(
+            benchmark="seed-test-local",
+            batch_size=2,
+            training_steps=2,
+            val_every=2,
+            seed=1,
+            train_frames=5,
+        ),
+        data_root,
+        out_dir,
+        "cpu",
+    )
+    record = json.loads((out_dir / "config.json").read_text(encoding="utf-8"))
+    assert record["train"]["train_frames"] == 5
+    full_dir = tmp_path / "full"
+    train(
+        _local_spec(),
+        CGNConfig(**SMALL_CGN),
+        TrainConfig(
+            benchmark="seed-test-local",
+            batch_size=2,
+            training_steps=2,
+            val_every=2,
+            seed=1,
+        ),
+        data_root,
+        full_dir,
+        "cpu",
+    )
+    # The aux target varies with time, so stats over 5 frames must differ
+    # from stats over all 6 — proving the pool (and its normalization) was
+    # actually truncated, not just recorded.
+    truncated = np.load(out_dir / "normalization_stats.npz")
+    full = np.load(full_dir / "normalization_stats.npz")
+    assert not np.allclose(truncated["aux_mean"], full["aux_mean"])
+
+
+def test_train_frames_too_small_raises(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for cid in ("S-1", "S-2"):
+        _write_tiny_case(data_root, cid)
+    with pytest.raises(ValueError, match="train_frames"):
+        train(
+            _local_spec(),
+            CGNConfig(**SMALL_CGN),
+            TrainConfig(
+                benchmark="seed-test-local",
+                batch_size=2,
+                training_steps=2,
+                val_every=2,
+                seed=1,
+                train_frames=4,  # == input_frames + 1: no window remains
+            ),
+            data_root,
+            tmp_path / "bad",
+            "cpu",
+        )

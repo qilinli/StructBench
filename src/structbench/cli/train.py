@@ -400,6 +400,28 @@ def train(
     train_ids = list(spec.splits["train"])
     logger.info("loading %d TRAIN trajectories from %s", len(train_ids), data_root)
     train_trajs = _load_trajectories(train_ids, data_root, spec.aux_field)
+    if train_cfg.train_frames > 0:
+        # ADR-0039 §4 recipe: train only on the scored window's frames. Must
+        # precede cached_compute_stats so normalization follows the truncated
+        # pool (the cache signature covers frame counts, so no stale hit).
+        if train_cfg.train_frames <= cgn.input_frames + 1:
+            raise ValueError(
+                f"train_frames={train_cfg.train_frames} leaves no training "
+                f"window (input_frames={cgn.input_frames})"
+            )
+        train_trajs = [
+            replace(
+                tr,
+                positions=tr.positions[: train_cfg.train_frames],
+                aux=tr.aux[: train_cfg.train_frames],
+                time=tr.time[: train_cfg.train_frames],
+            )
+            for tr in train_trajs
+        ]
+        logger.info(
+            "train_frames=%d: training pool truncated (ADR-0039 recipe)",
+            train_cfg.train_frames,
+        )
     val_trajs = _load_trajectories(list(spec.splits["val"]), data_root, spec.aux_field)
     if spec.scored_frames is not None:
         # In-training validation rolls out only the scored span (ADR-0039):

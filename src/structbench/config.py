@@ -127,6 +127,12 @@ class TrainConfig:
         ``1 + aux_tail_weight * relu(z_target)``. ``0.0`` (reference) leaves
         the plain MSE. Counteracts the heavy-tail starvation of the crack
         decision region without moving the loss minimizer wholesale.
+    train_frames : int
+        Truncate every training trajectory to its first ``train_frames``
+        frames before normalization statistics and windowing (the ADR-0039 §4
+        recipe: train only on the scored window's frames). ``0`` (default)
+        trains on full trajectories. Recipe, not protocol — the scored
+        evaluation span is the benchmark spec's ``scored_frames``.
     seed : int
         Torch RNG seed set at the start of training; fixes weight
         initialization, training-noise draws, and shuffle order. Sourced from
@@ -145,6 +151,7 @@ class TrainConfig:
     w_pos: float = 1.0
     w_aux: float = 1.0
     aux_tail_weight: float = 0.0
+    train_frames: int = 0
     seed: int = 0
 
 

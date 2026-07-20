@@ -21,6 +21,7 @@
 #   AUXT    aux_transform override        (e.g. asinh; quoted automatically)
 #   AUXS    aux_transform_scale override
 #   TAILW   aux_tail_weight override
+#   TRAINF  train_frames override         (ADR-0039 recipe: 250 = scored window; 0 = full)
 #   HIDDEN  hidden_dim override
 #   NMLP    nmlp_layers override
 #   MP      message_passing_steps override
@@ -60,7 +61,7 @@ MANIFEST="$FLEET/MANIFEST.tsv"
 [ -f "$MANIFEST" ] || echo -e "name\tjobid\tstatus\tdeltas\tstart\tend\tcommit" > "$MANIFEST"
 
 DELTAS="steps=$STEPS"
-for v in NOISE WAUX AUXT AUXS TAILW HIDDEN NMLP MP BATCH SEED; do
+for v in NOISE WAUX AUXT AUXS TAILW TRAINF HIDDEN NMLP MP BATCH SEED; do
   [ -n "${!v:-}" ] && DELTAS="$DELTAS,$(echo $v | tr 'A-Z' 'a-z')=${!v}"
 done
 COMMIT=$(PATH=/d/sw/git/latest/bin:$PATH git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -84,6 +85,7 @@ overrides = {
     "aux_transform": os.environ.get("AUXT"),
     "aux_transform_scale": os.environ.get("AUXS"),
     "aux_tail_weight": os.environ.get("TAILW"),
+    "train_frames": os.environ.get("TRAINF"),
     "hidden_dim": os.environ.get("HIDDEN"),
     "nmlp_layers": os.environ.get("NMLP"),
     "message_passing_steps": os.environ.get("MP"),
