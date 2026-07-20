@@ -5,11 +5,11 @@
 ## Data at a glance
 
 - Solver: LS-DYNA (SPH; erosion: no)
-- Loading: drop-weight impact, initial velocity 40-160 mm/s, impactor shapes Bullet/Rectangular/Sphere
+- Loading: drop-weight impact, initial velocity 40-160 m/s, impactor shapes Bullet/Rectangular/Sphere
 - Geometry: 2D SPH notched beam, H80 x span {320,480,640} mm
 - Source units: kg-mm-ms (canonical storage is strict SI, ADR-0012)
 - Cases: 110 (train 88, val 8, test_interp 12, probe 2)
-- Particles per case: 4264-12966; 502 frames at 1.0 ms; 24.9 GB on disk
+- Particles per case: 4264-12966; 502 frames at 0.001 ms; 24.9 GB on disk
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - Provenance: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - License: CC BY 4.0

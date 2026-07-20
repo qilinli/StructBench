@@ -24,7 +24,7 @@ CARD = BenchmarkCard(
     ),
     erosion=False,
     loading=(
-        "drop-weight impact, initial velocity 40-160 mm/s,"
+        "drop-weight impact, initial velocity 40-160 m/s,"
         " impactor shapes Bullet/Rectangular/Sphere"
     ),
     source_units="kg-mm-ms",
@@ -61,7 +61,7 @@ CARD = BenchmarkCard(
     ),
     particles_per_case="4264-12966",
     n_frames=502,
-    output_dt_ms=1.0,
+    output_dt_ms=0.001,
     input_frames=6,
     protocol_rationale=(
         "Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities "
