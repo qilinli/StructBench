@@ -65,12 +65,12 @@ CARD = BenchmarkCard(
     input_frames=6,
     horizon="frames [6, 250) of 502 scored (250 µs, ADR-0039); full-length diagnostic",
     protocol_rationale=(
-        "Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities "
-        "(input_frames - 1), the GNS reference history length; the mandatory "
-        "GT timeline analysis has not yet run for this dataset (ingested data "
-        "lives on the ingestion machine), so 6 is not yet confirmed to sit "
-        "before the onset of non-rigid motion. Confirm before the first "
-        "trained baseline. Scored horizon (ADR-0039): rollout metrics and "
+        "Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 "
+        "input velocities (input_frames - 1), the GNS reference history "
+        "length — the velocity budget is the criterion, not a rigid prefix. "
+        "The timeline analysis (2026-07-20, on the DUG data copy) shows "
+        "impact contact from frame 0, so the observed window takes in the "
+        "first 6 us of contact; accepted. Scored horizon (ADR-0039): rollout metrics and "
         "QoIs are scored on frames [input_frames, 250) (250 µs). Internal "
         "energy reaches 99% of its final value by frame 77-213 "
         "(span-dependent); the remaining frames are ballistic separation and "
