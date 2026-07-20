@@ -55,3 +55,18 @@ def test_spec_split_mappings_are_read_only():
 def test_spec_kinematic_types_default_empty():
     spec = get_benchmark("taylor_impact_2d")
     assert spec.kinematic_types == ()
+
+
+def test_notch_impact_pins_scored_frames():
+    assert get_benchmark("notch_beam_2d_impact").scored_frames == 250
+
+
+def test_spec_validates_scored_frames_bounds():
+    from dataclasses import replace
+
+    spec = get_benchmark("notch_beam_2d_impact")
+    with pytest.raises(ValueError, match="scored_frames"):
+        replace(spec, scored_frames=spec.card.input_frames)  # not > input_frames
+    with pytest.raises(ValueError, match="scored_frames"):
+        replace(spec, scored_frames=spec.card.n_frames + 1)  # beyond trajectory
+    assert replace(spec, scored_frames=None).scored_frames is None

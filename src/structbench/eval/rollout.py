@@ -33,10 +33,14 @@ class RolloutResult:
 
     Per-step arrays cover the ``T - input_frames`` predicted frames (the model
     observes the first ``input_frames`` ground-truth frames and predicts the
-    rest, ADR-0035). The cumulative means aggregate them; QoI dicts are filled
+    rest, ADR-0035) and always run to the trajectory end as the long-horizon
+    diagnostic. The cumulative means aggregate the *scored* span — every
+    predicted frame, or ``[input_frames, scored_frames)`` when the benchmark
+    pins a scored horizon (ADR-0039). QoI dicts are filled
     only when :func:`rollout` is given a ``qois`` mapping (``qoi_error`` is
-    signed, predicted − true). Units follow the trajectory's working frame (mm
-    and MPa for Taylor 2D). The seeded frames of ``predicted_aux`` carry
+    signed, predicted − true); QoIs see only the scored span's frames. Units
+    follow the trajectory's working frame (mm and MPa for Taylor 2D). The
+    seeded frames of ``predicted_aux`` carry
     ground-truth aux values, mirroring the seeded positions; kinematic
     particles carry zero aux on every frame.
     """
@@ -59,12 +63,15 @@ def rollout(
     device: str = "cpu",
     qois: Mapping[str, QoiFn] | None = None,
     kinematic_types: tuple[int, ...] = (),
+    scored_frames: int | None = None,
 ) -> RolloutResult:
     """Seed with the observed prefix, then autoregress to the end.
 
     The model observes exactly ``input_frames`` ground-truth frames (its full
     history window) and predicts every frame from ``input_frames`` onward; the
-    scored span is ``[input_frames, T)`` (ADR-0035). There is no history
+    scored span is ``[input_frames, T)`` (ADR-0035), narrowed to
+    ``[input_frames, scored_frames)`` when a benchmark pins a scored horizon
+    (ADR-0039). There is no history
     backfill: the observed prefix *is* the model's input window, so no rollout
     step is fed a fabricated (constant-velocity) history.
 
@@ -95,6 +102,13 @@ def rollout(
         decoder's output there is meaningless).  They are also excluded from
         the reported ``position_rmse`` and ``aux_rmse`` (``keep`` mask).
         Defaults to ``()`` (no prescribed particles).
+    scored_frames:
+        Exclusive upper frame bound of the scored span (ADR-0039), mirroring
+        the full-trajectory bound ``T``: ``mean_position_rmse``,
+        ``mean_aux_rmse``, and the QoIs are computed over
+        ``[input_frames, min(scored_frames, T))``, while the per-step arrays
+        and predicted trajectories still run to ``T`` as the long-horizon
+        diagnostic. ``None`` (default) scores every predicted frame.
 
     Returns
     -------
@@ -153,17 +167,22 @@ def rollout(
         pred_aux[input_frames:], trajectory.aux[input_frames:], keep=keep
     )
 
+    # Scored span (ADR-0039): scored_frames mirrors T as an exclusive bound,
+    # clamped so short (e.g. fixture) trajectories keep their full span.
+    scored_end = n_frames if scored_frames is None else min(scored_frames, n_frames)
+    n_scored = scored_end - input_frames
+
     pred_inputs = QoiInputs(
-        time=trajectory.time,
-        positions=pred_pos,
-        aux=pred_aux,
+        time=trajectory.time[:scored_end],
+        positions=pred_pos[:scored_end],
+        aux=pred_aux[:scored_end],
         particle_type=trajectory.particle_type,
         init=input_frames,
     )
     true_inputs = QoiInputs(
-        time=trajectory.time,
-        positions=trajectory.positions,
-        aux=trajectory.aux,
+        time=trajectory.time[:scored_end],
+        positions=trajectory.positions[:scored_end],
+        aux=trajectory.aux[:scored_end],
         particle_type=trajectory.particle_type,
         init=input_frames,
     )
@@ -174,8 +193,8 @@ def rollout(
         predicted_aux=pred_aux,
         position_rmse=pos_rmse,
         aux_rmse=aux_rmse,
-        mean_position_rmse=float(pos_rmse.mean()),
-        mean_aux_rmse=float(aux_rmse.mean()),
+        mean_position_rmse=float(pos_rmse[:n_scored].mean()),
+        mean_aux_rmse=float(aux_rmse[:n_scored].mean()),
         qoi_pred=qoi_pred,
         qoi_true=qoi_true,
         qoi_error={name: qoi_pred[name] - qoi_true[name] for name in qoi_pred},

@@ -31,6 +31,7 @@ import logging
 import math
 import re
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -400,6 +401,19 @@ def train(
     logger.info("loading %d TRAIN trajectories from %s", len(train_ids), data_root)
     train_trajs = _load_trajectories(train_ids, data_root, spec.aux_field)
     val_trajs = _load_trajectories(list(spec.splits["val"]), data_root, spec.aux_field)
+    if spec.scored_frames is not None:
+        # In-training validation rolls out only the scored span (ADR-0039):
+        # checkpoint selection then keys on the same window the benchmark
+        # reports, and each val pass costs proportionally less.
+        val_trajs = [
+            replace(
+                tr,
+                positions=tr.positions[: spec.scored_frames],
+                aux=tr.aux[: spec.scored_frames],
+                time=tr.time[: spec.scored_frames],
+            )
+            for tr in val_trajs
+        ]
 
     # Dataset-level cache (spec resolved-choice 2); the run-dir copy below is
     # the self-contained record evaluate() reads.
@@ -775,6 +789,7 @@ def evaluate(
             device,
             qois=spec.qois,
             kinematic_types=spec.kinematic_types,
+            scored_frames=spec.scored_frames,
         )
         one_step = one_step_position_rmse(
             simulator,
@@ -790,9 +805,16 @@ def evaluate(
             device,
             kinematic_types=spec.kinematic_types,
         )
+        # One-step aggregates cover the same scored span as the rollout means
+        # (ADR-0035 parity, ADR-0039 horizon); per-frame arrays stay full.
+        n_scored = (
+            None
+            if spec.scored_frames is None
+            else min(spec.scored_frames, len(trajectory.time)) - cgn.input_frames
+        )
         cases[case_id] = {
-            "one_step_position_rmse": float(one_step.mean()),
-            "one_step_aux_rmse": float(one_step_aux.mean()),
+            "one_step_position_rmse": float(one_step[:n_scored].mean()),
+            "one_step_aux_rmse": float(one_step_aux[:n_scored].mean()),
             "rollout_position_rmse": result.mean_position_rmse,
             "rollout_aux_rmse": result.mean_aux_rmse,
             "qoi_pred": result.qoi_pred,
@@ -830,6 +852,10 @@ def evaluate(
         # outside out_dir, via an absolute --checkpoint) stays traceable.
         "checkpoint_path": str(ckpt_path),
         "input_frames": cgn.input_frames,
+        # Metric definition (ADR-0039): rollout/one-step means and QoIs cover
+        # frames [input_frames, scored_frames); null means scored to the end.
+        # Records with different scored_frames are not comparable.
+        "scored_frames": spec.scored_frames,
         # Card-conforming by construction: a checkpoint's input_frames is
         # validated equal to the card's at config load and train (ADR-0035),
         # so a standard run stays standard on re-eval. Legacy off-card records

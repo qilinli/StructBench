@@ -274,3 +274,45 @@ def test_rollout_input_frames_validation():
         rollout(_ConstVelSim(), traj, input_frames=1)
     with pytest.raises(ValueError, match="trajectory has 6 frames"):
         rollout(_ConstVelSim(), traj, input_frames=6)
+
+
+def test_rollout_scored_frames_truncates_means_keeps_full_arrays():
+    # Frozen sim on constant-velocity motion: error at frame t is t-1, so the
+    # scored mean is sensitive to exactly which frames are aggregated.
+    traj = _const_vel_traj(T=8)
+    res = rollout(_FrozenSim(), traj, input_frames=2, scored_frames=5)
+    # Per-frame diagnostics still cover every predicted frame [2, 8).
+    assert res.position_rmse.shape == (6,)
+    assert res.predicted_positions.shape == (8, 4, 2)
+    # Aggregates cover the scored span [2, 5) only: the mean equals the mean
+    # of the first three per-frame values and sits below the full-span mean
+    # (per-frame error grows with t under a frozen prediction).
+    np.testing.assert_allclose(
+        res.mean_position_rmse, res.position_rmse[:3].mean(), atol=1e-12
+    )
+    assert res.mean_position_rmse < res.position_rmse.mean()
+    np.testing.assert_allclose(res.mean_aux_rmse, res.aux_rmse[:3].mean(), atol=1e-12)
+
+
+def test_rollout_scored_frames_clamped_to_trajectory_end():
+    traj = _const_vel_traj(T=6)
+    full = rollout(_FrozenSim(), traj, input_frames=2)
+    clamped = rollout(_FrozenSim(), traj, input_frames=2, scored_frames=100)
+    np.testing.assert_allclose(
+        clamped.mean_position_rmse, full.mean_position_rmse, atol=1e-12
+    )
+    np.testing.assert_allclose(clamped.mean_aux_rmse, full.mean_aux_rmse, atol=1e-12)
+
+
+def test_rollout_scored_frames_windows_qois():
+    # QoIs must see only the scored span's frames (ADR-0039): a final-frame
+    # QoI evaluated under scored_frames=5 reads frame 4, not frame 7.
+    traj = _const_vel_traj(T=8)
+    qois = {
+        "last_x": lambda inp: float(inp.positions[-1, 0, 0]),
+        "last_t": lambda inp: float(inp.time[-1]),
+    }
+    res = rollout(_ConstVelSim(), traj, input_frames=2, qois=qois, scored_frames=5)
+    assert res.qoi_true["last_x"] == 4.0
+    assert res.qoi_true["last_t"] == 4.0
+    np.testing.assert_allclose(res.qoi_error["last_x"], 0.0, atol=1e-5)
