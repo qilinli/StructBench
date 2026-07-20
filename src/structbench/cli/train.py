@@ -470,6 +470,8 @@ def train(
     step = 0
     best_pos = float("inf")
     best_ckpt: Path | None = None
+    window_loss_sum: torch.Tensor | None = None
+    window_loss_n = 0
     simulator.train()
     while step < train_cfg.training_steps:
         for batch in loader:
@@ -537,7 +539,20 @@ def train(
 
             step += 1
 
+            # Accumulate on-device so the mean costs one .item() sync per
+            # window instead of one per step; the instantaneous train_loss
+            # field stays for continuity with pre-2026-07 fleet logs.
+            window_loss_sum = (
+                loss.detach()
+                if window_loss_sum is None
+                else window_loss_sum + loss.detach()
+            )
+            window_loss_n += 1
+
             if step % train_cfg.val_every == 0:
+                train_mean = (window_loss_sum / window_loss_n).item()
+                window_loss_sum = None
+                window_loss_n = 0
                 val_pos, val_aux = _validate(
                     simulator,
                     val_trajs,
@@ -546,10 +561,11 @@ def train(
                     spec.kinematic_types,
                 )
                 logger.info(
-                    "step %d: train_loss %.6f val_pos %.4f mm val_aux %.4f MPa "
-                    "(best_pos %.4f)",
+                    "step %d: train_loss %.6f train_mean %.6f val_pos %.4f mm "
+                    "val_aux %.4f MPa (best_pos %.4f)",
                     step,
                     loss.item(),
+                    train_mean,
                     val_pos,
                     val_aux,
                     best_pos,
