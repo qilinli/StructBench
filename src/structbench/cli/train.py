@@ -598,12 +598,13 @@ def train(
                 )
                 logger.info(
                     "step %d: train_loss %.6f train_mean %.6f val_pos %.4f mm "
-                    "val_aux %.4f MPa (best_pos %.4f)",
+                    "val_aux %.4f %s (best_pos %.4f)",
                     step,
                     loss.item(),
                     train_mean,
                     val_pos,
                     val_aux,
+                    spec.card.aux_unit,
                     best_pos,
                 )
                 if val_pos < best_pos:
@@ -839,6 +840,11 @@ def evaluate(
             "one_step_aux_rmse": float(one_step_aux[:n_scored].mean()),
             "rollout_position_rmse": result.mean_position_rmse,
             "rollout_aux_rmse": result.mean_aux_rmse,
+            # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
+            # frame to trajectory end. Non-leaderboard; equals the scored value
+            # when the benchmark pins no horizon. Field name matches the
+            # 2026-07-20 bless-fleet rescore (metrics-rescore-adr0039.json).
+            "rollout_position_rmse_full": float(result.position_rmse.mean()),
             "qoi_pred": result.qoi_pred,
             "qoi_true": result.qoi_true,
             "qoi_error": result.qoi_error,
@@ -892,6 +898,9 @@ def evaluate(
             "one_step_aux_rmse": _mean_over_cases("one_step_aux_rmse"),
             "rollout_position_rmse": _mean_over_cases("rollout_position_rmse"),
             "rollout_aux_rmse": _mean_over_cases("rollout_aux_rmse"),
+            "rollout_position_rmse_full": _mean_over_cases(
+                "rollout_position_rmse_full"
+            ),
             "qoi_abs_error": {
                 name: float(
                     np.mean([abs(case["qoi_error"][name]) for case in cases.values()])

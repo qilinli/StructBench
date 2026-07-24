@@ -315,6 +315,9 @@ class Processor(MessagePassing):
           nmlp_layers: Number of hidden layers in the MLP (typically of 2).
           mlp_hidden_dim: Size of the hidden layer (latent dimension of 128).
         """
+        # aggr="max" is inert: Processor never calls ``propagate`` (forward
+        # only iterates the InteractionNetwork stack, whose aggr="add" is what
+        # actually runs). Kept verbatim per the module-docstring port contract.
         super().__init__(aggr="max")
         # Create a stack of M Graph Networks GNs.
         self.gnn_stacks = nn.ModuleList(
