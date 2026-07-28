@@ -1,6 +1,6 @@
 """Benchmark card for the notch-beam impact benchmark (ADR-0027)."""
 
-from ..card import BenchmarkCard
+from ..card import BenchmarkCard, BenchmarkFigure
 from .benchmark import AUX_FIELD, PROBE, QOIS, TEST_INTERP, TRAIN, VAL
 
 CARD = BenchmarkCard(
@@ -81,4 +81,56 @@ CARD = BenchmarkCard(
         "non-leaderboard long-horizon diagnostic."
     ),
     size_gb=24.9,
+    figures=(
+        BenchmarkFigure(
+            path="assets/notch_impact_rollout.gif",
+            caption=(
+                "Ground truth (top) vs CGN prediction (bottom) on held-out "
+                "NB-I-640-Sphere-c-120 (test_interp): a 640 mm span beam "
+                "under 120 m/s sphere impact, coloured by max principal "
+                "strain (fringe capped at 0.05, 5x the 1% crack threshold). "
+                "The surrogate tracks the impact wedge and beam deflection "
+                "through the 250 µs scored window; the marked frames beyond "
+                "it are the unscored long-horizon diagnostic, where the "
+                "prediction visibly degrades."
+            ),
+            alt=(
+                "Stacked animation of ground-truth and CGN-predicted strain "
+                "fringes on a notched concrete beam under drop-weight impact."
+            ),
+        ),
+        BenchmarkFigure(
+            path="assets/notch_impact_strain_interp_640_c_120.png",
+            caption=(
+                "In-distribution snapshots (test_interp, 640 mm span, sphere "
+                "at 120 m/s): ground truth (top) vs CGN baseline (bottom) at "
+                "four scored-window times plus the beyond-horizon diagnostic "
+                "frame. The model follows the central shear wedge and the "
+                "deflection but diffuses the discrete flexural cracks into "
+                "streaky bands and over-counts cracked fraction (0.39 vs "
+                "0.29 at 250 µs) — the damage field, not the kinematics, is "
+                "the open gap."
+            ),
+            alt=(
+                "Grid of strain fringe snapshots comparing ground truth and "
+                "CGN prediction at five times."
+            ),
+        ),
+        BenchmarkFigure(
+            path="assets/notch_impact_rollout_error_vs_time.png",
+            caption=(
+                "Per-frame rollout position RMSE for the 12 test_interp "
+                "cases (gray) and their mean (blue). Error grows smoothly to "
+                "~0.7 mm at the 250 µs scored horizon (dashed) and keeps "
+                "growing to ~2.3 mm over the full 502-frame record — the "
+                "ballistic-separation and ringing tail the ADR-0039 horizon "
+                "deliberately excludes from scoring."
+            ),
+            alt=(
+                "Line plot of rollout position error versus time for twelve "
+                "test cases with the scored horizon marked at 250 "
+                "microseconds."
+            ),
+        ),
+    ),
 )
