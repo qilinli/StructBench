@@ -2,6 +2,20 @@
 
 # NotchBeam2D-Impact — StructBench benchmark
 
+## Figures
+
+![Stacked animation of ground-truth and CGN-predicted strain fringes on a notched concrete beam under drop-weight impact.](../../assets/notch_impact_rollout.gif)
+
+*Ground truth (top) vs CGN prediction (bottom) on held-out NB-I-640-Sphere-c-120 (test_interp): a 640 mm span beam under 120 m/s sphere impact, coloured by max principal strain (fringe capped at 0.05, 5x the 1% crack threshold). The surrogate tracks the impact wedge and beam deflection through the 250 µs scored window; the marked frames beyond it are the unscored long-horizon diagnostic, where the prediction visibly degrades.*
+
+![Grid of strain fringe snapshots comparing ground truth and CGN prediction at five times.](../../assets/notch_impact_strain_interp_640_c_120.png)
+
+*In-distribution snapshots (test_interp, 640 mm span, sphere at 120 m/s): ground truth (top) vs CGN baseline (bottom) at four scored-window times plus the beyond-horizon diagnostic frame. The model follows the central shear wedge and the deflection but diffuses the discrete flexural cracks into streaky bands and over-counts cracked fraction (0.39 vs 0.29 at 250 µs) — the damage field, not the kinematics, is the open gap.*
+
+![Line plot of rollout position error versus time for twelve test cases with the scored horizon marked at 250 microseconds.](../../assets/notch_impact_rollout_error_vs_time.png)
+
+*Per-frame rollout position RMSE for the 12 test_interp cases (gray) and their mean (blue). Error grows smoothly to ~0.7 mm at the 250 µs scored horizon (dashed) and keeps growing to ~2.3 mm over the full 502-frame record — the ballistic-separation and ringing tail the ADR-0039 horizon deliberately excludes from scoring.*
+
 ## Data at a glance
 
 - Solver: LS-DYNA (SPH; erosion: no)
@@ -33,7 +47,23 @@ Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 input velocitie
 
 ## Numbers to beat
 
-*No official baseline yet — the reference run's metrics land here.*
+**CGN baseline** (cgn, 2026-07-24, commit `5956d81`, checkpoint: `models/notch_beam_2d_impact/cgn-5956d81/model-best-186000.pt` — private archive; publication parked)
+
+_Trajectory error (RMSE)_
+
+| split | rollout_pos_rmse_mm | rollout_strain_rmse | one_step_pos_rmse_mm | one_step_strain_rmse |
+|---|---|---|---|---|
+| test_interp | 0.2497 | 0.01697 | 0.0006992 | 0.0006181 |
+| probe | 0.3951 | 0.01931 | 0.0006437 | 0.0009397 |
+
+_Quantities of interest (MAE)_
+
+| split | qoi_midspan_deflection_peak_mae_mm | qoi_cracked_fraction_mae |
+|---|---|---|
+| test_interp | 0.5843 | 0.1892 |
+| probe | 1.337 | 0.186 |
+
+*Single-scale CGN (ADR-0034) on the ADR-0039 §4 truncated recipe with the ADR-0038 strain knobs (train_frames 250, aux_tail_weight 3, asinh aux transform at scale 0.01; hidden 192 / 15 MP steps / 2-layer node MLP, noise_std 0.01, batch 4) at 250k steps; seed 1 of the 2026-07-24 h250c pair (seeds 1-2), val-selected checkpoint model-best-186000.pt (186k), one A100-80GB, ~80 h. Extending the same recipe from 200k to 250k steps cut seed-mean test rollout position RMSE 21% and deflection MAE 30% while validation strain RMSE stayed flat (0.0173 -> 0.0163): the extra budget buys kinematics, not damage-field quality. Caveats: the model over-predicts cracked fraction on the reviewed cases (crack MAE 0.19 vs sibling seed s2's 0.13, the one metric s2 wins); the off-grid probe case S_80_400_V140 is this seed's worst rollout (0.59 mm scored vs 0.40 for s2); predictions break the mirror symmetry of centered-notch cases while the ground truth stays symmetric (2026-07-24 finding); full-horizon (502-frame) rollout position RMSE is 0.87 mm on test_interp - diagnostic only, not scored.*
 
 ## Quickstart
 
@@ -42,5 +72,7 @@ pip install structbench  # or: pip install -e . from the repo
 structbench-train --mode train --config configs/notch_beam_2d_impact/cgn.toml \
     --data-root /path/to/notch_beam_2d_impact --out runs/notch_beam_2d_impact-cgn
 ```
+
+This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
 
 Dataset download and hosting: see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.

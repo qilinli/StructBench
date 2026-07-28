@@ -65,9 +65,13 @@ def test_checkpoint_pointer_with_digest_constructs():
     assert result.checkpoint_sha256 == "0" * 64
 
 
-def test_taylor_and_wave_are_the_blessed_benchmarks():
+def test_taylor_wave_and_notch_impact_are_the_blessed_benchmarks():
     blessed = {n for n in available_benchmarks() if get_benchmark(n).results}
-    assert blessed == {"taylor_impact_2d", "wave_propagation_1d"}
+    assert blessed == {
+        "taylor_impact_2d",
+        "wave_propagation_1d",
+        "notch_beam_2d_impact",
+    }
 
 
 def test_taylor_baseline_is_the_cgn_reference_run():
@@ -86,9 +90,17 @@ def test_wave_baseline_is_the_cgn_reference_run():
     assert set(result.metrics) == {"test_interp"}
 
 
+def test_notch_impact_baseline_is_the_cgn_reference_run():
+    (result,) = get_benchmark("notch_beam_2d_impact").results
+    assert result.family == "cgn"
+    assert result.run_commit == "5956d81"
+    # val selects the checkpoint; test_interp and probe are the held-out splits.
+    assert set(result.metrics) == {"test_interp", "probe"}
+
+
 def test_blessed_entries_point_at_the_models_archive():
     # ADR-0037: blessed entries carry an archive-relative pointer + digest.
-    for name in ("taylor_impact_2d", "wave_propagation_1d"):
+    for name in ("taylor_impact_2d", "wave_propagation_1d", "notch_beam_2d_impact"):
         (result,) = get_benchmark(name).results
         assert result.checkpoint is not None
         assert result.checkpoint.startswith(f"models/{name}/cgn-{result.run_commit}/")

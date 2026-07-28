@@ -29,8 +29,64 @@ __all__ = [
     "VAL",
 ]
 
-#: Official baseline results (ADR-0033); empty until a run is blessed.
-RESULTS: tuple[BaselineResult, ...] = ()
+#: Official baseline results (ADR-0033). Transcribed from the ``mean`` block
+#: of the blessed run's held-out ``metrics-test_interp.json`` and
+#: ``metrics-probe.json`` at 4 significant figures; full precision, per-case
+#: numbers and the fleet spread stay in the run directory. ``val`` selects the
+#: checkpoint, so it is not a number to beat and is omitted here. All scored
+#: metrics use the ADR-0039 horizon (frames [6, 250) of 502).
+RESULTS: tuple[BaselineResult, ...] = (
+    BaselineResult(
+        family="cgn",
+        label="CGN baseline",
+        run_commit="5956d81",
+        run_date="2026-07-24",
+        metrics={
+            "test_interp": {
+                "rollout_pos_rmse_mm": 0.2497,
+                "rollout_strain_rmse": 0.01697,
+                "one_step_pos_rmse_mm": 0.0006992,
+                "one_step_strain_rmse": 0.0006181,
+                "qoi_midspan_deflection_peak_mae_mm": 0.5843,
+                "qoi_cracked_fraction_mae": 0.1892,
+            },
+            "probe": {
+                "rollout_pos_rmse_mm": 0.3951,
+                "rollout_strain_rmse": 0.01931,
+                "one_step_pos_rmse_mm": 0.0006437,
+                "one_step_strain_rmse": 0.0009397,
+                "qoi_midspan_deflection_peak_mae_mm": 1.337,
+                "qoi_cracked_fraction_mae": 0.1860,
+            },
+        },
+        checkpoint=(
+            "models/notch_beam_2d_impact/cgn-5956d81/model-best-186000.pt"
+        ),
+        checkpoint_sha256=(
+            "a1d75cfaa643ee5d3a09aa2de8eb8338c675a59118057a5fcb0ff5337cb310c8"
+        ),
+        notes=(
+            "Single-scale CGN (ADR-0034) on the ADR-0039 §4 truncated recipe "
+            "with the ADR-0038 strain knobs (train_frames 250, "
+            "aux_tail_weight 3, asinh aux transform at scale 0.01; hidden "
+            "192 / 15 MP steps / 2-layer node MLP, noise_std 0.01, batch 4) "
+            "at 250k steps; seed 1 of the 2026-07-24 h250c pair (seeds 1-2), "
+            "val-selected checkpoint model-best-186000.pt (186k), one "
+            "A100-80GB, ~80 h. Extending the same recipe from 200k to 250k "
+            "steps cut seed-mean test rollout position RMSE 21% and "
+            "deflection MAE 30% while validation strain RMSE stayed flat "
+            "(0.0173 -> 0.0163): the extra budget buys kinematics, not "
+            "damage-field quality. Caveats: the model over-predicts cracked "
+            "fraction on the reviewed cases (crack MAE 0.19 vs sibling seed "
+            "s2's 0.13, the one metric s2 wins); the off-grid probe case "
+            "S_80_400_V140 is this seed's worst rollout (0.59 mm scored vs "
+            "0.40 for s2); predictions break the mirror symmetry of "
+            "centered-notch cases while the ground truth stays symmetric "
+            "(2026-07-24 finding); full-horizon (502-frame) rollout position "
+            "RMSE is 0.87 mm on test_interp - diagnostic only, not scored."
+        ),
+    ),
+)
 
 SPEC = BenchmarkSpec(
     card=CARD,
