@@ -85,9 +85,9 @@ to train against a different benchmark.
 **Data availability:** each benchmark ships as a self-contained canonical
 archive — a `canonical/<benchmark>/` folder of `<case_id>.h5` files with a
 generated `README.md`, `card.json`, and CC BY 4.0 license — and `--data-root`
-points at that folder. Public hosting is still being finalised (see the
-[roadmap](#roadmap)); until then, request the canonical archive from the
-maintainer, or ingest your own LS-DYNA output via the adapter.
+points at that folder. The archives are maintainer-held on institutional
+storage (ADR-0040): request them from the maintainer, or ingest your own
+LS-DYNA output via the adapter.
 
 ## How the pieces fit
 
@@ -168,8 +168,9 @@ decisions/         # architecture decision records
 - `notch_beam_2d_bend` baseline **parked** (2026-08-06, ADR-0024 amendment):
   no immediate plan — the benchmark ships without a blessed baseline; moved
   to Later
-- [ ] Public dataset hosting decision (~35 GB canonical across 4 benchmarks;
-      deferred from v0.1, gates the v0.2 release — ADR-0024)
+- [x] ~~Public dataset hosting decision (~35 GB canonical across 4
+      benchmarks): settled — OneDrive stays the master, archives shared on
+      request, Zenodo direction dropped (ADR-0040)~~ (2026-08-06)
 - [ ] Validate the provisional `cracked_fraction` threshold 0.01 (ADR-0029;
       version bump if revised)
 - [x] ~~Archive packaging: measure `size_gb` per benchmark (2.4 / 0.23 /
@@ -237,9 +238,6 @@ decisions/         # architecture decision records
   per-region probe metrics · convergence check
 - Checkpoint-publishing workflow · second aux target (effective plastic
   strain)
-- Public dataset hosting (parked): Zenodo direction agreed 2026-07-05 — one
-  record per benchmark, versions ↔ record DOIs, OneDrive stays the private
-  master — but no near-term plan to publish; picked up when it is
 - Data-generation autonomy (deck templating or a Python-native solver)
 - Scale: cell-list `radius_graph` backend when a ≥10⁶-node dataset lands
 - Other solvers (Kratos, OpenSees, OpenRadioss) · SHM expansion ·
