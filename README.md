@@ -152,32 +152,13 @@ decisions/         # architecture decision records
 
 ### v0.2 — wave-1d + notch-beam pair
 
-- [x] ~~Ingestion: 16 wave runs + 221 notch-beam cases to canonical HDF5~~ (2026-07-04)
-- [x] ~~Three benchmark modules: frozen splits + QoIs (ADR-0025/0026)~~ (2026-07-03)
-- [x] ~~Benchmark cards + generated views (ADR-0027), Taylor retrofitted~~ (2026-07-03)
-- [x] ~~Benchmark-selection registry in `structbench-train`~~ (2026-07-03)
-- [x] ~~Notch aux → max principal strain; damaged→cracked fraction (ADR-0029)~~ (2026-07-04)
-- [x] ~~Data archive reorganized to the hosting layout:
-      `StructBench/{canonical,raw}` mirrors (ADR-0031)~~ (2026-07-05)
-- [x] ~~ADR-0030 unit-fix follow-through: patch confirmed on all 237 files,
-      converters + cards corrected, ADR written + indexed~~ (2026-07-05)
-- [x] ~~Trained CGN baselines (checkpoint + metrics each):
-      `wave_propagation_1d` blessed from round-2 run x1-s1 (2026-07-10);
-      `notch_beam_2d_impact` blessed from h250c-s1 under the ADR-0039
-      scored horizon (2026-07-28)~~
-- `notch_beam_2d_bend` baseline **parked** (2026-08-06, ADR-0024 amendment):
-  no immediate plan — the benchmark ships without a blessed baseline; moved
-  to Later
-- [x] ~~Public dataset hosting decision (~35 GB canonical across 4
-      benchmarks): settled — OneDrive stays the master, archives shared on
-      request, Zenodo direction dropped (ADR-0040)~~ (2026-08-06)
-- [x] ~~Validate the provisional `cracked_fraction` threshold 0.01: resolved
-      by reframing — the SPH source has no erosion or crack criterion, and a
-      221-case sweep shows no empirical knee (±0.03–0.05 mean shift across
-      the factor-2 band); 0.01 stays as a declared protocol definition, no
-      version bump (ADR-0029 amendment)~~ (2026-08-06)
-- [x] ~~Archive packaging: measure `size_gb` per benchmark (2.4 / 0.23 /
-      24.1 / 24.9), generate per-archive README + card.json~~ (2026-07-05)
+- [x] ~~Shipped 2026-08-06 (tag `v0.2.0`): Wave1D-Propagation and the
+      notch-beam pair with cards, grouped configs, and results registries
+      (ADRs 0024–0039); CGN baselines blessed for wave-1d (x1-s1) and
+      notch-impact (h250c-s1, 250 µs scored horizon); notch-bend baseline
+      parked (ADR-0024 amendment, see Later); hosting settled as
+      OneDrive-on-request (ADR-0040); `cracked_fraction` 0.01 declared a
+      protocol definition (ADR-0029 amendment).~~
 
 ### Inbox — untriaged, add freely
 
