@@ -10,8 +10,8 @@ type: software
 authors:
   - family-names: Li
     given-names: Qilin
-version: 0.1.0
-date-released: "2026-07-09"
+version: 0.2.0
+date-released: "2026-08-06"
 license: Apache-2.0
 repository-code: "https://github.com/qilinli/StructBench"
 url: "https://github.com/qilinli/StructBench"
