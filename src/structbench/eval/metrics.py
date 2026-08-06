@@ -273,13 +273,15 @@ def cracked_fraction(
     """QoI factory: final-frame fraction of particles past the crack threshold.
 
     Operates on the max-principal-strain auxiliary field (ADR-0029). The
-    default ``threshold=0.01`` (1% principal strain) is **provisional**
-    (maintainer, 2026-07-04): it sits clearly beyond the elastic band in
-    the ingested data (median ~3e-4, p90 ~1e-2 in a damaged bend case),
-    but the crack criterion has not been validated against the prior
-    study and may be revised before the first trained leaderboard
-    entries. Changing it is a benchmark version change (ADR-0019
-    precedent).
+    default ``threshold=0.01`` (1% principal strain) is a **declared
+    protocol definition**, not an approximation of a solver constant: the
+    source SPH simulations use no erosion and no crack criterion, so any
+    crack count draws a line on a continuous field (ADR-0029 amendment,
+    2026-08-06). A 221-case sweep found no empirical knee; within the
+    factor-2 band [0.005, 0.02] the ground-truth fraction shifts by
+    ~0.03-0.05 mean per case, second-order against baseline QoI error and
+    identical for every model under the shared definition. Changing it is
+    a benchmark version change (ADR-0019 precedent).
 
     Parameters
     ----------
