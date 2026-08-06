@@ -40,7 +40,7 @@ What becomes easier, harder, or constrained as a result.
 
 ### Type
 
-- **Durable** — effectively permanent. Revising requires a new superseding ADR with explicit reasoning.
+- **Durable** — effectively permanent. Revising requires a new superseding ADR with explicit reasoning. Small adjustments that do not reverse the decision (timing slips, parking a sub-item) may instead be recorded as a dated amendment note appended to the ADR and reflected in the index Status column *(maintainer, 2026-08-06)*; supersession remains required for genuine reversals.
 - **Ephemeral** — expected to change as the project evolves. Can be updated in place with a dated note appended to the ADR; supersession is not required.
 
 ---
@@ -72,7 +72,7 @@ What becomes easier, harder, or constrained as a result.
 | 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
 | 0022 | FEM-convention visualization harness (`viz/`, matplotlib as optional extra) | Durable | Accepted |
 | 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted |
-| 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Durable | Accepted |
+| 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Durable | Accepted (amended in place 2026-08-06: notch-bend baseline parked) |
 | 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted |
 | 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted (amended by ADR-0029) |
 | 0027 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Accepted (amended by 0032) |

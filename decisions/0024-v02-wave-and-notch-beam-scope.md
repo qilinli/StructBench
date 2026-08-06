@@ -105,3 +105,17 @@ Three facts decided the shape:
 - ROADMAP.md's near horizon is rewritten against this ADR on acceptance
   (RC beam → v0.3; wave + notch-beam pair become the v0.2 definition of
   done).
+
+---
+
+**Amendment (2026-08-06, maintainer).** The v0.2 definition of done narrows
+to the wave-1d and notch-impact trained baselines — both since blessed
+(`x1-s1`, 2026-07-10; `h250c-s1` under the ADR-0039 scored horizon,
+2026-07-28). The notch-bend trained baseline is dropped from v0.2 and parked
+with no immediate plan to include it: the maintainer is satisfied with
+notch-impact covering the concrete-fracture rung of the ladder. The
+`notch_beam_2d_bend` benchmark itself is unchanged (ADR-0026 stands) — its
+module, frozen split, card, and configs remain in the repo with an empty
+results registry, ready if it is ever picked back up. Recorded as a dated
+amendment note rather than a superseding ADR per the convention adopted the
+same day (see Status in the index README).
