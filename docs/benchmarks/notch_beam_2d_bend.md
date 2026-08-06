@@ -43,4 +43,4 @@ structbench-train --mode train --config configs/notch_beam_2d_bend/cgn.toml \
     --data-root /path/to/notch_beam_2d_bend --out runs/notch_beam_2d_bend-cgn
 ```
 
-Dataset download and hosting: see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
+Dataset access: the canonical archive is maintainer-held on institutional storage and shared on request (ADR-0040) — contact the maintainer, or ingest your own LS-DYNA output via the adapter; see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.

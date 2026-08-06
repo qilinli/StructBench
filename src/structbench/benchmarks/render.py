@@ -397,9 +397,12 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
         ]
     lines += [
         "",
-        "Dataset download and hosting: see the repository README. The "
-        "cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); "
-        "machine-readable card metadata ships as `card.json` with the data archive.",
+        "Dataset access: the canonical archive is maintainer-held on "
+        "institutional storage and shared on request (ADR-0040) — contact the "
+        "maintainer, or ingest your own LS-DYNA output via the adapter; see "
+        "the repository README. The cross-benchmark index is "
+        "[docs/benchmarks.md](../benchmarks.md); machine-readable card "
+        "metadata ships as `card.json` with the data archive.",
     ]
     return "\n".join(lines) + "\n"
 
