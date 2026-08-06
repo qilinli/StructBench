@@ -85,8 +85,9 @@ to train against a different benchmark.
 **Data availability:** each benchmark ships as a self-contained canonical
 archive — a `canonical/<benchmark>/` folder of `<case_id>.h5` files with a
 generated `README.md`, `card.json`, and CC BY 4.0 license — and `--data-root`
-points at that folder. Hosting is being finalised for the v0.1 release; until
-then, the adapter can ingest your own LS-DYNA output.
+points at that folder. Public hosting is still being finalised (see the
+[roadmap](#roadmap)); until then, request the canonical archive from the
+maintainer, or ingest your own LS-DYNA output via the adapter.
 
 ## How the pieces fit
 
