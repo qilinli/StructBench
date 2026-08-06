@@ -141,14 +141,14 @@ decisions/         # architecture decision records
      crossed-out block may be compressed to one line. Reasoning lives in
      decisions/, not here. Substrate-layer work only (ADR-0014). -->
 
-*Last revised: 2026-07-09.*
+*Last revised: 2026-08-06.*
 
 ### v0.1 — Taylor 2D substrate proof
 
 - [x] ~~Shipped 2026-07-09 (tag `v0.1.0`): canonical schema + HDF5 I/O, the
       LS-DYNA adapter, the Taylor2D-Impact benchmark (ADR-0019), and the CGN
       baseline blessed from run s1 (ADR-0033/0034). Public dataset hosting
-      deferred (see Later); the release publishes the spec + baseline numbers.~~
+      deferred (now a v0.2 item); the release publishes the spec + baseline numbers.~~
 
 ### v0.2 — wave-1d + notch-beam pair
 
@@ -161,10 +161,15 @@ decisions/         # architecture decision records
       `StructBench/{canonical,raw}` mirrors (ADR-0031)~~ (2026-07-05)
 - [x] ~~ADR-0030 unit-fix follow-through: patch confirmed on all 237 files,
       converters + cards corrected, ADR written + indexed~~ (2026-07-05)
-- [ ] Three trained CGN baselines (checkpoint + metrics each)
-  - [ ] `wave_propagation_1d`
-  - [ ] `notch_beam_2d_bend`
-  - [ ] `notch_beam_2d_impact`
+- [x] ~~Trained CGN baselines (checkpoint + metrics each):
+      `wave_propagation_1d` blessed from round-2 run x1-s1 (2026-07-10);
+      `notch_beam_2d_impact` blessed from h250c-s1 under the ADR-0039
+      scored horizon (2026-07-28)~~
+- `notch_beam_2d_bend` baseline **parked** (2026-08-06, ADR-0024 amendment):
+  no immediate plan — the benchmark ships without a blessed baseline; moved
+  to Later
+- [ ] Public dataset hosting decision (~35 GB canonical across 4 benchmarks;
+      deferred from v0.1, gates the v0.2 release — ADR-0024)
 - [ ] Validate the provisional `cracked_fraction` threshold 0.01 (ADR-0029;
       version bump if revised)
 - [x] ~~Archive packaging: measure `size_gb` per benchmark (2.4 / 0.23 /
@@ -220,6 +225,9 @@ decisions/         # architecture decision records
 
 - **v0.3 — RC beam benchmark**: erosion, twice (numerically for the FEM
   data; structurally for the surrogate — particles vanishing mid-rollout)
+- Notch-bend trained CGN baseline (parked 2026-08-06, ADR-0024 amendment;
+  SNR caveat in the training ledger and the card's provisional
+  `input_frames` remain the pre-training gates if revived)
 - Segmented beam benchmark (parked) · multi-scale CGN second Taylor baseline (spec
   Proposed)
 - Training: resume support (optimizer state + `--resume`) ·
