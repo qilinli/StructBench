@@ -27,7 +27,7 @@ autoregressive transition (ADR-0026). Auxiliary target: `max_principal_strain` (
 <details>
 <summary>Protocol rationale — the ground-truth timeline analysis behind these values (ADR-0032 §5)</summary>
 
-Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine), so 6 is not yet confirmed to sit before the onset of non-rigid motion. Confirm before the first trained baseline.
+Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine), so 6 is not yet confirmed to sit before the onset of non-rigid motion. Confirm before the first trained baseline. The cracked_fraction QoI threshold 0.01 is a declared protocol definition (ADR-0029, amended 2026-08-06): the SPH source model has no erosion or crack criterion, and a 221-case sweep shows no empirical knee — the GT fraction shifts ~0.03 mean per case across the factor-2 band [0.005, 0.02].
 
 </details>
 

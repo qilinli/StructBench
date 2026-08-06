@@ -78,7 +78,13 @@ CARD = BenchmarkCard(
         "elastic ringing, which dominated full-horizon RMSE (half the final "
         "error accrued after frame 301 in baseline rollouts) while adding no "
         "fracture physics. The full 502-frame error curve remains a "
-        "non-leaderboard long-horizon diagnostic."
+        "non-leaderboard long-horizon diagnostic. The cracked_fraction QoI "
+        "threshold 0.01 is a declared protocol definition (ADR-0029, "
+        "amended 2026-08-06): the SPH source model has no erosion or crack "
+        "criterion; a 221-case sweep shows the GT fraction shifts ~0.05 "
+        "mean per case across the factor-2 band [0.005, 0.02], and "
+        "frame-249 vs frame-501 fractions are nearly identical (0.305 vs "
+        "0.317 mean), corroborating the 250 us horizon."
     ),
     size_gb=24.9,
     figures=(

@@ -171,8 +171,11 @@ decisions/         # architecture decision records
 - [x] ~~Public dataset hosting decision (~35 GB canonical across 4
       benchmarks): settled — OneDrive stays the master, archives shared on
       request, Zenodo direction dropped (ADR-0040)~~ (2026-08-06)
-- [ ] Validate the provisional `cracked_fraction` threshold 0.01 (ADR-0029;
-      version bump if revised)
+- [x] ~~Validate the provisional `cracked_fraction` threshold 0.01: resolved
+      by reframing — the SPH source has no erosion or crack criterion, and a
+      221-case sweep shows no empirical knee (±0.03–0.05 mean shift across
+      the factor-2 band); 0.01 stays as a declared protocol definition, no
+      version bump (ADR-0029 amendment)~~ (2026-08-06)
 - [x] ~~Archive packaging: measure `size_gb` per benchmark (2.4 / 0.23 /
       24.1 / 24.9), generate per-archive README + card.json~~ (2026-07-05)
 

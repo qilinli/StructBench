@@ -86,3 +86,33 @@ are the max principal strain derived from the Voigt strain tensor.
   ADR (index updated). The text of ADR-0026 is kept for history.
 
 - Cards and generated docs (`docs/benchmarks.md`) are regenerated.
+
+---
+
+**Amendment (2026-08-06, maintainer).** The 0.01 threshold is no longer
+provisional — it stands as a **declared protocol definition**, resolved by
+reframing rather than external validation:
+
+- The source simulations are SPH with no erosion and no solver-side crack
+  criterion of any kind: fracture is emergent — particles separate and the
+  strain field localizes along the opening. There is no threshold inside
+  the numerical model for 0.01 to approximate, and the prior study's crack
+  figures are themselves post-processing choices over the same continuous
+  field. "Validate the threshold against the prior study" was therefore
+  ill-posed as originally stated.
+- A full-population sensitivity sweep (all 221 canonical cases, scored
+  frames, scratch script `2026-08-06-cracked-fraction-sweep.py`) found no
+  empirical knee either: GT cracked fraction declines smoothly with the
+  threshold. Across the factor-2 band [0.005, 0.02], the mean per-case
+  shift vs 0.01 is ±0.031 for bend at frame 501 (max 0.076) and ±0.052
+  for impact at frame 249 (max 0.120) — second-order against the blessed
+  baseline's `qoi_cracked_fraction_mae` ≈ 0.19, and identical for every
+  model scored under the shared definition.
+- The sweep independently corroborates ADR-0039: impact GT cracked
+  fraction at frame 249 vs frame 501 is nearly unchanged (0.305 vs 0.317
+  mean) — the crack pattern is set within the 250 µs scored horizon.
+
+The threshold stays 0.01: no protocol change, no version bump, blessed
+results stand. The `cracked_fraction` docstring and both notch cards now
+state the definition and its measured sensitivity in place of the
+provisional flag.
