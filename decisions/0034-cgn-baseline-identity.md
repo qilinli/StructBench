@@ -59,3 +59,15 @@ on.
   their GNS wording as records of their time (ADR-0009 precedent).
 - The DUG seat should pull before its next fleet: job scripts and config
   paths changed (`configs/<benchmark>/cgn.toml`, job name `taylor-cgn`).
+
+---
+
+**Amendment (2026-08-07, maintainer).** ADR-0041 broadens the platform beyond a
+single reference baseline: v0.3 adds MGN, Transolver, and GeoFLARE as further
+reference implementations on the `DeformingPlate` benchmark. This ADR's "the
+reference baseline is CGN" should now be read as **"CGN is the reference GNN /
+incumbent baseline"** — it remains the baseline carried across the v0.1/v0.2
+benchmarks, but is no longer the platform's only reference implementation. The
+CGN identity, citation, and `family="cgn"` conventions decided here are
+otherwise unchanged. Recorded as a dated amendment note (not a reversal) per the
+convention in the index README.

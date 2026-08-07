@@ -72,7 +72,7 @@ What becomes easier, harder, or constrained as a result.
 | 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
 | 0022 | FEM-convention visualization harness (`viz/`, matplotlib as optional extra) | Durable | Accepted |
 | 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted |
-| 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Durable | Accepted (amended in place 2026-08-06: notch-bend baseline parked) |
+| 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Durable | Accepted (amended 2026-08-06: notch-bend parked; v0.3 scope superseded by 0041, 2026-08-07) |
 | 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted |
 | 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted (amended by ADR-0029) |
 | 0027 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Accepted (amended by 0032) |
@@ -89,6 +89,7 @@ What becomes easier, harder, or constrained as a result.
 | 0038 | Auxiliary-channel training knobs: target-space transform and tail weight | Durable | Draft |
 | 0039 | Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe | Durable | Accepted |
 | 0040 | Dataset hosting: maintainer's OneDrive stays the master; archives shared on request | Ephemeral | Accepted |
+| 0041 | v0.3 pivots to a public multi-method benchmark: DeformingPlate with native MGN/Transolver/GeoFLARE (supersedes ADR-0024's v0.3 scope) | Durable | Accepted (amends 0034) |
 
 ---
 
