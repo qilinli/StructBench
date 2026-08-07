@@ -89,7 +89,8 @@ What becomes easier, harder, or constrained as a result.
 | 0038 | Auxiliary-channel training knobs: target-space transform and tail weight | Durable | Draft |
 | 0039 | Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe | Durable | Accepted |
 | 0040 | Dataset hosting: maintainer's OneDrive stays the master; archives shared on request | Ephemeral | Accepted |
-| 0041 | v0.3 pivots to a public multi-method benchmark: DeformingPlate with native MGN/Transolver/GeoFLARE (supersedes ADR-0024's v0.3 scope) | Durable | Accepted (amends 0034) |
+| 0041 | v0.3 pivots to a public multi-method benchmark: DeformingPlate with native MGN/Transolver/GeoFLARE (supersedes ADR-0024's v0.3 scope) | Durable | Accepted (amends 0034; corrected in place 2026-08-07 re schema, see 0042) |
+| 0042 | Schema 0.2.0 adds per-node fields; nodal-FE ingestion via download-and-convert (deforming_plate) | Durable | Accepted (corrects 0041) |
 
 ---
 

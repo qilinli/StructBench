@@ -199,3 +199,21 @@ published rollout numbers to reproduce.
   from v0.1/v0.2's "ship the maintainer's datasets + a single baseline." It is
   the first release whose contribution is the *comparison infrastructure and a
   set of reusable method implementations*, not a new physics dataset.
+
+---
+
+**Correction (2026-08-07, maintainer).** Two claims in this ADR are revised by
+ADR-0042, drafted while implementing ingestion:
+
+1. Decision clause 3 says ingesting deforming_plate requires "no schema change."
+   That holds for `cells` → `elements/connectivity`, but the dataset's per-node
+   fields (`node_type`, per-node von Mises `stress`, `mesh_pos`) have no home in
+   schema 0.1.0. ADR-0042 adds them via an **additive schema 0.2.0** bump
+   (per-node `Nodes.node_type`/`reference_coords` and a relaxed `response.node`
+   trailing-dim rule).
+2. The Consequences "hosting" note offers "link or rehost." The dataset has no
+   explicit redistribution licence, so ADR-0042 settles ingestion as
+   **download-from-source-and-convert-locally, no rehost**.
+
+Recorded as a dated correction note (not a reversal of the v0.3 scope decision,
+which stands) per the index-README convention.
