@@ -978,13 +978,25 @@ def test_model_config_from_record_returns_cgn_config(tmp_path):
 
 
 def _mesh_case_file(tmp_path, case_id="dp-0", n_nodes=6, n_cells=2, n_frames=5):
-    """Tiny deforming-plate-shaped mesh case, all-NORMAL nodes (SI units)."""
+    """Tiny deforming-plate-shaped mesh case with one kinematic (OBSTACLE)
+    node among otherwise-NORMAL nodes (SI units).
+
+    Every node -- including the OBSTACLE one -- moves every frame
+    (``world0 + i * 1e-4``), so gt_positions differs frame-to-frame at the
+    kinematic row. That's load-bearing for the MeshSimulator rollout-pointer
+    tripwire (see its module docstring): with a STATIONARY kinematic node the
+    tripwire's ``torch.allclose`` check would spuriously pass under a stale
+    pointer (any frame's identical GT value matches), silently defeating the
+    very discrimination evaluate()'s reset_rollout() calls exist to test.
+    """
     rng = np.random.default_rng(7)
     world0 = rng.random((n_nodes, 3)).astype(np.float32) * 0.01  # metres, tiny box
     world = np.stack([world0 + i * 1e-4 for i in range(n_frames)]).astype(np.float32)
+    node_type = np.zeros(n_nodes, dtype=np.int32)
+    node_type[-1] = 1  # OBSTACLE: kinematic, prescribed from ground truth
     arrays = {
         "cells": rng.integers(0, n_nodes, (n_cells, 4)).astype(np.int32),
-        "node_type": np.zeros(n_nodes, dtype=np.int32),  # all NORMAL
+        "node_type": node_type,
         "mesh_pos": world0.copy(),
         "world_pos": world,
         "stress": rng.random((n_frames, n_nodes, 1)).astype(np.float32),
@@ -996,9 +1008,12 @@ def _mesh_case_file(tmp_path, case_id="dp-0", n_nodes=6, n_cells=2, n_frames=5):
 
 
 def _mesh_local_spec(case_id, n_frames):
-    """Registry-free mesh BenchmarkSpec; kinematic_types=(1,) only to satisfy
-    MeshSimulator's scripted_types-subset-of-kinematic_types constructor
-    check (no node in the fixture actually carries type 1)."""
+    """Registry-free mesh BenchmarkSpec. ``kinematic_types=(1,)`` matches the
+    fixture's genuinely-present OBSTACLE node (type 1), so MeshSimulator's
+    ``_has_kinematic`` is True and the rollout-pointer tripwire actually
+    engages -- both satisfying the scripted_types-subset-of-kinematic_types
+    constructor check AND letting the tripwire discriminate a stale pointer
+    across eval passes."""
     card = BenchmarkCard(
         name="MeshTest",
         version="0",
