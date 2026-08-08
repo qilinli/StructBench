@@ -7,7 +7,13 @@ validator, and the custom exceptions. Other packages import only from here.
 from __future__ import annotations
 
 from .exceptions import SchemaError, StructBenchError
-from .io import lsdyna_to_case, read_case, write_case
+from .io import (
+    build_deforming_plate_case,
+    lsdyna_to_case,
+    parse_meta,
+    read_case,
+    write_case,
+)
 from .schema import (
     SCHEMA_VERSION,
     UNITS_CONVENTION,
@@ -37,4 +43,6 @@ __all__ = [
     "write_case",
     "lsdyna_to_case",
     "validate",
+    "build_deforming_plate_case",
+    "parse_meta",
 ]

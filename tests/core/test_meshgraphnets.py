@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
-from structbench.core.io.meshgraphnets import parse_meta
+from structbench.core import validate
+from structbench.core.io.meshgraphnets import build_deforming_plate_case, parse_meta
 
 _DEFORMING_PLATE_META = {
     "simulator": "comsol",
@@ -35,3 +37,52 @@ def test_parse_meta_rejects_unknown_type():
     }
     with pytest.raises(ValueError, match="bogus"):
         parse_meta(bad)
+
+
+def _synthetic_traj(n_nodes=5, n_cells=2, T=4):
+    rng = np.random.default_rng(0)
+    world0 = rng.random((n_nodes, 3)).astype(np.float32)
+    world = np.stack([world0 + i * 0.1 for i in range(T)]).astype(np.float32)  # (T,N,3)
+    return {
+        "cells": rng.integers(0, n_nodes, (n_cells, 4)).astype(np.int32),
+        "node_type": np.array([0, 0, 1, 3, 0][:n_nodes], dtype=np.int32),
+        "mesh_pos": world0.copy(),
+        "world_pos": world,
+        "stress": rng.random((T, n_nodes, 1)).astype(np.float32),
+    }
+
+
+def test_build_case_maps_fields_and_validates():
+    a = _synthetic_traj()
+    case = build_deforming_plate_case(a, source_units="kg-m-s", case_id="dp-000")
+    validate(case)  # must not raise
+    assert case.metadata.dimension == 3
+    assert case.metadata.units_convention == "SI"
+    # coords == world_pos[0]; displacement is delta-from-initial
+    np.testing.assert_allclose(case.nodes.coords, a["world_pos"][0], rtol=1e-6)
+    np.testing.assert_allclose(
+        case.response.node["displacement"][0], np.zeros((5, 3)), atol=1e-6
+    )
+    np.testing.assert_allclose(
+        case.response.node["displacement"][2],
+        a["world_pos"][2] - a["world_pos"][0],
+        rtol=1e-5,
+    )
+    # per-node static fields
+    np.testing.assert_array_equal(case.nodes.node_type, a["node_type"].astype(np.int64))
+    np.testing.assert_allclose(case.nodes.reference_coords, a["mesh_pos"], rtol=1e-6)
+    # mesh edges live as tetra connectivity
+    np.testing.assert_array_equal(
+        case.elements["tetra"].connectivity, a["cells"].astype(np.int64)
+    )
+    # per-node von Mises stress
+    assert case.response.node["von_mises_stress"].shape == (4, 5, 1)
+    # exactly one material with non-empty source_model
+    assert len(case.materials) == 1 and case.materials[0].source_model
+
+
+def test_build_case_identity_units_are_si():
+    a = _synthetic_traj()
+    case = build_deforming_plate_case(a, source_units="kg-m-s", case_id="dp-000")
+    # kg-m-s is SI identity: coords equal raw world_pos[0]
+    np.testing.assert_allclose(case.nodes.coords, a["world_pos"][0], rtol=1e-6)

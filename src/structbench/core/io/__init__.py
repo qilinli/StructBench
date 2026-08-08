@@ -42,6 +42,7 @@ from .lsdyna import (
     read_d3plot,
     unit_factors,
 )
+from .meshgraphnets import build_deforming_plate_case, parse_meta
 
 __all__ = [
     "read_case",
@@ -53,6 +54,8 @@ __all__ = [
     "extract_response",
     "parse_deck_materials",
     "unit_factors",
+    "build_deforming_plate_case",
+    "parse_meta",
 ]
 
 _STR_DT = h5py.string_dtype(encoding="utf-8")
