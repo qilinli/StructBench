@@ -54,9 +54,9 @@ input is always zero.
 **``world_edge_radius``.** Given in the WORKING FRAME — the same units as
 the positions passed to ``bind_case``/``predict_positions`` (mm, for a
 metre-native source, per ADR-0043 §8's ``0.03 x f_length x 1e3``
-conversion). The default ``30.0`` is PROVISIONAL pending Task 8's real-data
-unit measurement; the ①-c2 training config is the source of truth for a
-blessed run.
+conversion). The default ``30.0`` is CONFIRMED by the full-dataset unit
+measurement (metre-native source; ADR-0042 §2b dated note); the training
+config remains the source of truth for a blessed run.
 """
 
 from __future__ import annotations
@@ -104,7 +104,7 @@ class MeshSimulator(nn.Module):
     world_edge_radius:
         Radius (working-frame units) for :func:`~.mesh_ops.world_edges`,
         recomputed from the current positions on every call. See the module
-        docstring's provisional-units note.
+        docstring's units note (measured-SI confirmed).
     device:
         Device the network and normalizer buffers are moved to at
         construction time.

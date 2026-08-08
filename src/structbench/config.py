@@ -119,7 +119,7 @@ class MGNConfig:
         Embedding width for the node-type one-hot lookup.
     world_edge_radius : float
         World-space (radius-graph) connectivity radius in the mm working
-        frame; provisional pending the Task 8 measurement.
+        frame; measured-SI confirmed (0.03 m × 1e3, ADR-0042 §2b note).
     noise_std : float
         Standard deviation of the random-walk training noise at the last
         step.
@@ -134,7 +134,7 @@ class MGNConfig:
     message_passing_steps: int = 15
     nmlp_layers: int = 2
     node_type_size: int = 9
-    world_edge_radius: float = 30.0  # working frame (mm); provisional — Task 8
+    world_edge_radius: float = 30.0  # working frame (mm); measured (ADR-0042 §2b)
     noise_std: float = 0.003
     normalizer_warmup_steps: int = 1000
 

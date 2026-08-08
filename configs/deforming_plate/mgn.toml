@@ -7,8 +7,8 @@
 # N(0, 3e-3) on NORMAL-node positions; Adam, batch 2, lr 1e-4, 10M steps).
 # [model] values mirror the MGNConfig dataclass defaults, which already
 # encode this recipe. world_edge_radius=30.0 is the working-frame (mm)
-# placeholder — provisional pending the Task 8 real-data measurement of the
-# dataset's native r_W = 0.03 collision radius (ADR-0043 §8). [train]'s
+# value — CONFIRMED by the 2026-08-08 full-dataset measurement (ADR-0042 §2b
+# note): the source is metre-native, so r_W = 0.03 m × 1e3 = 30.0 mm exactly. [train]'s
 # non-recipe keys (lr_decay, val_every, aux_tail_weight, train_frames) mirror
 # configs/taylor_impact_2d/cgn.toml's structure at MGN-neutral values (val_every
 # scaled to this config's much larger step budget — see its own comment
@@ -31,7 +31,7 @@ hidden_dim = 128
 message_passing_steps = 15
 nmlp_layers = 2
 node_type_size = 9
-world_edge_radius = 30.0        # working frame (mm); provisional — Task 8 measurement pins the dataset-native r_W = 0.03 conversion
+world_edge_radius = 30.0        # working frame (mm); measured-SI confirmed (ADR-0042 §2b note): 0.03 m × 1e3
 noise_std = 0.003
 normalizer_warmup_steps = 1000
 
