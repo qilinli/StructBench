@@ -2,8 +2,10 @@
 
 The ML layer works in millimetres and megapascals (ADR-0019); canonical
 storage is strict SI, so positions are scaled by ``length_scale`` (m->mm) and
-stress by ``stress_scale`` (Pa->MPa) here. Only SPH particles are returned;
-visualization shell nodes are dropped.
+stress by ``stress_scale`` (Pa->MPa) here. Two loading paths exist: SPH cases
+(``"sph" in case.elements``) return SPH particles only, dropping
+visualization shell nodes; mesh (nodal-FE) cases return every node as a
+particle, with connectivity and reference coordinates alongside (ADR-0043).
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from ..core import read_case
+from ..core import Case, read_case
 
 
 def n_valid_frames(time: NDArray[np.floating]) -> int:
@@ -208,12 +210,19 @@ _AUX_EXTRACTORS: dict[str, AuxExtractor] = {
 
 
 def available_aux_fields() -> frozenset[str]:
-    """Names accepted by :func:`load_case_trajectory`'s ``aux_field``.
+    """Names accepted by :func:`load_case_trajectory`'s ``aux_field`` on the SPH path.
+
+    This registry governs SPH cases only; the mesh path reads ``aux_field``
+    directly as a ``response.node`` key instead (ADR-0043).
+    :class:`~structbench.benchmarks.registry.BenchmarkSpec` still validates
+    every benchmark's ``aux_field`` against this set, which
+    ``"von_mises_stress"`` satisfies for both paths — accepted debt until a
+    mesh-only aux name arrives.
 
     Returns
     -------
     frozenset of str
-        The set of valid ``aux_field`` strings.
+        The set of valid SPH-path ``aux_field`` strings.
     """
     return frozenset(_AUX_EXTRACTORS)
 
@@ -227,6 +236,8 @@ class CaseTrajectory:
     particle_type: NDArray[np.int64]  # (P,)
     aux: NDArray[np.float32]  # (T, P); units depend on aux_field
     time: NDArray[np.float64]  # (T,), s
+    cells: NDArray[np.int64] | None = None  # (n_cells, nodes_per_cell); mesh only
+    reference_coords: NDArray[np.float32] | None = None  # (P, dim), mm; mesh only
 
 
 def load_case_trajectory(
@@ -236,17 +247,23 @@ def load_case_trajectory(
     length_scale: float = 1e3,
     stress_scale: float = 1e-6,
 ) -> CaseTrajectory:
-    """Load a canonical case into a :class:`CaseTrajectory` (SPH particles only).
+    """Load a canonical case into a :class:`CaseTrajectory`.
+
+    Dispatches on the case's element types: SPH cases (``"sph" in
+    case.elements``) return SPH particles only, dropping visualization shell
+    nodes; mesh (nodal-FE) cases return every node as a particle, with
+    ``cells``/``reference_coords`` populated (ADR-0043).
 
     Parameters
     ----------
     h5_path:
         Path to a canonical ``.h5`` case.
     aux_field:
-        Name of the auxiliary extraction strategy to apply.  Must be one of
-        :func:`available_aux_fields`.  Stress-like extractors receive
-        ``stress_scale`` to convert from SI to the working unit.  Defaults to
-        ``"von_mises_stress"``.
+        SPH path: name of the auxiliary extraction strategy to apply, must be
+        one of :func:`available_aux_fields`, and receives ``stress_scale`` to
+        convert stress-like values from SI to the working unit. Mesh path: a
+        ``response.node`` key read directly (``stress_scale`` still applies).
+        Defaults to ``"von_mises_stress"``.
     length_scale:
         Multiplier applied to SI positions (default 1e3: m -> mm).
     stress_scale:
@@ -259,38 +276,98 @@ def load_case_trajectory(
     Raises
     ------
     KeyError
-        If ``aux_field`` is not in :func:`available_aux_fields`.
+        SPH path: if ``aux_field`` is not in :func:`available_aux_fields`.
     ValueError
-        If the case has no response data.
+        If the case has no response data; or (mesh path) if
+        ``nodes.node_type`` is absent, the case has more than one element
+        type, or ``aux_field`` is not a ``response.node`` key.
     """
-    try:
-        extractor = _AUX_EXTRACTORS[aux_field]
-    except KeyError:
-        raise KeyError(
-            f"unknown aux_field {aux_field!r}; available: "
-            f"{', '.join(sorted(_AUX_EXTRACTORS))}"
-        ) from None
-
     case = read_case(h5_path)
     if case.response is None:
         raise ValueError(f"case {case.metadata.case_id} has no response")
-    sph = case.elements["sph"]
-    idx = sph.connectivity[:, 0]  # node indices of the SPH particles
-    dim = case.metadata.dimension
-    n_frames = n_valid_frames(np.asarray(case.response.time))
 
-    coords0 = case.nodes.coords[idx][:, :dim]  # (P, dim) SI
-    disp = case.response.node["displacement"][:n_frames, idx, :]  # (T, P, dim) SI
-    positions = ((coords0[None] + disp) * length_scale).astype(np.float32)
+    if "sph" in case.elements:
+        try:
+            extractor = _AUX_EXTRACTORS[aux_field]
+        except KeyError:
+            raise KeyError(
+                f"unknown aux_field {aux_field!r}; available: "
+                f"{', '.join(sorted(_AUX_EXTRACTORS))}"
+            ) from None
 
-    # The extractor sees the full response; the terminal-artifact trim
-    # (ADR-0028) is applied to its output alongside positions and time.
-    aux = extractor(case.response.element["sph"], stress_scale)[:n_frames]
+        sph = case.elements["sph"]
+        idx = sph.connectivity[:, 0]  # node indices of the SPH particles
+        dim = case.metadata.dimension
+        n_frames = n_valid_frames(np.asarray(case.response.time))
 
+        coords0 = case.nodes.coords[idx][:, :dim]  # (P, dim) SI
+        disp = case.response.node["displacement"][:n_frames, idx, :]  # (T, P, dim) SI
+        positions = ((coords0[None] + disp) * length_scale).astype(np.float32)
+
+        # The extractor sees the full response; the terminal-artifact trim
+        # (ADR-0028) is applied to its output alongside positions and time.
+        aux = extractor(case.response.element["sph"], stress_scale)[:n_frames]
+
+        return CaseTrajectory(
+            case_id=case.metadata.case_id,
+            positions=positions,
+            particle_type=np.asarray(sph.part_id, dtype=np.int64),
+            aux=aux,
+            time=np.asarray(case.response.time[:n_frames], dtype=np.float64),
+        )
+
+    return _load_mesh_trajectory(
+        case,
+        aux_field=aux_field,
+        length_scale=length_scale,
+        stress_scale=stress_scale,
+    )
+
+
+def _load_mesh_trajectory(
+    case: Case,
+    *,
+    aux_field: str,
+    length_scale: float,
+    stress_scale: float,
+) -> CaseTrajectory:
+    """Load a nodal-FE (mesh) case: nodes are the particles (ADR-0043)."""
+    nodes = case.nodes
+    if nodes.node_type is None:
+        raise ValueError(
+            f"mesh case {case.metadata.case_id!r} has no nodes.node_type; "
+            "mesh benchmarks require it (schema 0.2.0, ADR-0042)"
+        )
+    if len(case.elements) != 1:
+        raise ValueError(
+            f"mesh case {case.metadata.case_id!r} has element types "
+            f"{sorted(case.elements)}; exactly one is supported"
+        )
+    response = case.response
+    assert response is not None  # guaranteed: shared response-None check runs first
+    if aux_field not in response.node:
+        raise ValueError(
+            f"aux field {aux_field!r} not in response.node "
+            f"(available: {sorted(response.node)})"
+        )
+    n = n_valid_frames(np.asarray(response.time))  # same trim as the SPH path
+    disp = response.node["displacement"][:n].astype(np.float64)
+    positions = ((nodes.coords[None, :, :] + disp) * length_scale).astype(np.float32)
+    aux = (response.node[aux_field][:n, :, 0].astype(np.float64) * stress_scale).astype(
+        np.float32
+    )
+    (block,) = case.elements.values()
+    reference = (
+        (nodes.reference_coords * length_scale).astype(np.float32)
+        if nodes.reference_coords is not None
+        else None
+    )
     return CaseTrajectory(
         case_id=case.metadata.case_id,
         positions=positions,
-        particle_type=np.asarray(sph.part_id, dtype=np.int64),
+        particle_type=nodes.node_type.astype(np.int64),
         aux=aux,
-        time=np.asarray(case.response.time[:n_frames], dtype=np.float64),
+        time=response.time[:n].copy(),
+        cells=block.connectivity.astype(np.int64),
+        reference_coords=reference,
     )
