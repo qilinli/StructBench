@@ -217,11 +217,11 @@ def test_trunc_normal_init_applied() -> None:
     lin = net.preprocess[0]
     assert isinstance(lin, torch.nn.Linear)
     assert torch.all(lin.bias == 0.0)
-    assert abs(float(lin.weight.std()) - 0.02) < 0.006
+    assert abs(float(lin.weight.detach().std()) - 0.02) < 0.006
     # The overwrite happened: slice projection is trunc_normal, NOT orthonormal
     # (orthogonal_ on the (slice_num=64, dim_head=16) weight gives Wᵀ W = I₁₆).
     w = net.blocks[0].attn.in_project_slice.weight
-    assert abs(float(w.std()) - 0.02) < 0.006
+    assert abs(float(w.detach().std()) - 0.02) < 0.006
     assert not torch.allclose(w.T @ w, torch.eye(w.shape[1]), atol=0.1)
     for mod in net.modules():  # secondary: LayerNorm resets
         if isinstance(mod, torch.nn.LayerNorm):
