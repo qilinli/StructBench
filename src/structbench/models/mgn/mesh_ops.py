@@ -31,7 +31,7 @@ def cells_to_edges(cells: Tensor) -> Tensor:
     dst = torch.cat([cells[:, b] for a, b in pairs])
     und = torch.stack([torch.cat([src, dst]), torch.cat([dst, src])])  # (2, 2*n)
     und = und[:, und[0] != und[1]]
-    return torch.unique(und, dim=1)
+    return torch.unique(und, dim=1).to(torch.int64)
 
 
 def world_edges(positions: Tensor, radius: float, mesh_edge_index: Tensor) -> Tensor:

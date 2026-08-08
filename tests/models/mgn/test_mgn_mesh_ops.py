@@ -26,6 +26,11 @@ def test_cells_to_edges_shared_face_dedup():
     assert len(es) == 18
 
 
+def test_cells_to_edges_coerces_int32_input_to_int64():
+    cells = torch.tensor([[0, 1, 2, 3]], dtype=torch.int32)
+    assert cells_to_edges(cells).dtype == torch.int64
+
+
 def test_world_edges_radius_and_mesh_exclusion():
     #  nodes: 0-(0,0,0), 1-(1,0,0), 2-(10,0,0); mesh edge 0-1
     pos = torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [10.0, 0.0, 0.0]])

@@ -64,7 +64,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-import torch.nn.functional as tf
+import torch.nn.functional as F
 from torch import Tensor, nn
 
 from .mesh_ops import cells_to_edges, world_edges
@@ -185,7 +185,7 @@ class MeshSimulator(nn.Module):
         """
         self._mesh_edge_index = cells_to_edges(cells)
         self._reference_coords = reference_coords
-        self._node_type_onehot = tf.one_hot(
+        self._node_type_onehot = F.one_hot(
             particle_types, num_classes=self._node_type_size
         ).to(torch.float32)
 
