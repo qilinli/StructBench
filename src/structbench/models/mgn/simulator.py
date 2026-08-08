@@ -380,6 +380,22 @@ class MeshSimulator(nn.Module):
             is passed through unchanged (returned for the caller's
             convenience, since it flows straight into the network call).
 
+        Raises
+        ------
+        ValueError
+            If ``n_particles_per_example`` is given and ``mesh_edge_index``
+            contains an edge whose sender and receiver fall in different
+            example blocks (a malformed batch). This is checked explicitly
+            rather than trusted: :func:`~.mesh_ops.world_edges` never
+            *indexes* with ``mesh_edge_index`` -- it only builds an
+            arithmetic hash key from it (``sender * n + receiver``) to
+            exclude mesh-connected pairs from the radius query -- so a
+            cross-example edge would NOT raise on its own. It would instead
+            run to completion on finite-but-wrong output, and an
+            out-of-range local key can even spuriously collide with a valid
+            candidate pair (phantom exclusion of a real world edge). Silent
+            corruption, not a crash, hence the explicit check.
+
         Notes
         -----
         **Batched world-edge partition (load-bearing):** when
@@ -392,7 +408,8 @@ class MeshSimulator(nn.Module):
         over the collated batch, which would invent cross-example edges
         between unrelated cases whose node coordinates happen to be close
         (or, worst case, coincide) after collation. ``None`` selects the
-        single-example fast path used by inference.
+        single-example fast path used by inference (single example, so the
+        cross-boundary check above does not apply).
         """
         node_feats_raw = torch.cat([one_hot, scripted_velocity], dim=-1)
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
@@ -412,6 +429,18 @@ class MeshSimulator(nn.Module):
                 x_last, self._world_edge_radius, mesh_edge_index
             )
         else:
+            example_of = torch.repeat_interleave(
+                torch.arange(
+                    n_particles_per_example.numel(), device=mesh_edge_index.device
+                ),
+                n_particles_per_example,
+            )
+            if (example_of[sender] != example_of[receiver]).any():
+                raise ValueError(
+                    "mesh_edge_index crosses example boundaries — collate "
+                    "must offset per-trajectory edges"
+                )
+
             world_parts: list[Tensor] = []
             offset = 0
             for count in n_particles_per_example.tolist():

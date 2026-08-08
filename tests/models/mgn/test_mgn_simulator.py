@@ -284,3 +284,25 @@ def test_forward_train_never_builds_cross_example_world_edges():
     world_ei = captured[0][3]  # (2, Ew) — bind index to the real net arg order
     example_of = torch.tensor([0, 0, 1, 1])
     assert (example_of[world_ei[0]] == example_of[world_ei[1]]).all()
+
+
+def test_forward_train_rejects_mesh_edge_crossing_example_boundary():
+    """A malformed batch whose mesh_edge_index has an edge spanning two
+    examples must fail loudly. world_edges() only builds an arithmetic hash
+    key from mesh_edge_index (never indexes with it), so an unchecked
+    cross-example edge would silently corrupt the world-edge exclusion
+    (including possible phantom exclusions from key collisions) rather than
+    crash — hence the explicit invariant check in _graph_features."""
+    torch.manual_seed(0)
+    sim = MeshSimulator(latent=8, mp_steps=1, world_edge_radius=0.5)
+    P = 2  # per example -> 4 nodes total, example 0 = {0,1}, example 1 = {2,3}
+    x = torch.rand(2 * P, 3)
+    nxt = x + 0.1
+    aux = torch.zeros(2 * P)
+    types = torch.zeros(2 * P, dtype=torch.int64)
+    mesh = torch.tensor([[0, 1], [1, 2]], dtype=torch.int64)  # edge (1,2) crosses
+    ref = torch.rand(2 * P, 3)
+    with pytest.raises(ValueError, match="example boundaries"):
+        sim.forward_train(
+            x, nxt, aux, types, mesh, ref, torch.tensor([P, P]), accumulate=False
+        )
