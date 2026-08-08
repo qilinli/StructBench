@@ -398,6 +398,12 @@ def train(
 ) -> Path | None:
     """Run config-driven training with periodic validation and checkpoint-best.
 
+    Every :data:`PERIODIC_CKPT_EVERY` steps, in both the ``"cgn"``/``"gns"``
+    path and the ``"mgn"`` path, an additional ``ckpt-<step>.pt`` snapshot is
+    written alongside the selection checkpoints for post-hoc analysis (never
+    read by default evaluation) — this lets fleet tooling re-score a run's
+    state trajectory retrospectively (ADR-0028 smoothed selection).
+
     For ``family="mgn"`` this immediately delegates to :func:`_train_mgn`
     after the shared trajectory loading and ADR-0039 truncation (MGN has its
     own training loop and inline validation; it needs no normalization-stats
@@ -411,11 +417,8 @@ def train(
     ``w_pos * ||Δacc||^2 + w_aux * (Δaux)^2``, where both the acceleration and
     the auxiliary targets are normalized so the two terms are O(1) and balanced.
     Every ``val_every`` steps it runs a validation rollout over the spec's val
-    split and saves the model when the mean RMSE improves. Every
-    :data:`PERIODIC_CKPT_EVERY` steps it additionally snapshots
-    ``ckpt-<step>.pt`` for post-hoc analysis (never read by default
-    evaluation). The resolved config and normalization stats are written
-    under ``out_dir``.
+    split and saves the model when the mean RMSE improves. The resolved config
+    and normalization stats are written under ``out_dir``.
 
     Parameters
     ----------
@@ -742,7 +745,7 @@ def _train_mgn(
     needs no separate normalization-stats file: its four
     :class:`~structbench.models.mgn.normalizers.OnlineNormalizer` buffers
     live inside the checkpoint's own ``state_dict`` (ADR-0043 §8), so
-    ``config.json`` plus the checkpoint are the run's only artifacts.
+    ``config.json`` plus the checkpoint(s) are the run's only artifacts.
 
     Each step adds random-walk noise (std ``mgn.noise_std``) to the last
     input frame's world positions of non-kinematic (NORMAL) nodes only —
@@ -759,6 +762,9 @@ def _train_mgn(
     :func:`~structbench.eval.rollout`, after :meth:`bind_case`/
     :meth:`reset_rollout` per trajectory) over ``val_trajs``; the model is
     saved as ``model-best-<step>.pt`` when the mean position RMSE improves.
+    Every :data:`PERIODIC_CKPT_EVERY` steps it additionally snapshots
+    ``ckpt-<step>.pt`` for post-hoc analysis (never read by default
+    evaluation), mirroring the CGN loop.
 
     Parameters
     ----------
@@ -937,6 +943,11 @@ def _train_mgn(
                     sim.save(str(best_ckpt))
                     logger.info("saved improved checkpoint: %s", best_ckpt)
                 sim.train()
+
+            if step % PERIODIC_CKPT_EVERY == 0:
+                periodic_ckpt = out_dir / f"ckpt-{step:06d}.pt"
+                sim.save(str(periodic_ckpt))
+                logger.info("saved periodic checkpoint: %s", periodic_ckpt)
 
             if step >= train_cfg.training_steps:
                 break

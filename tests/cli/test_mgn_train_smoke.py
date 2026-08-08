@@ -118,7 +118,14 @@ def _run_mgn_smoke(tmp_path):
     return spec, data_root, out, mgn, tcfg, ids
 
 
-def test_mgn_train_smoke(tmp_path):
+def test_mgn_train_smoke(tmp_path, monkeypatch):
+    # PERIODIC_CKPT_EVERY defaults to 10_000 -- far beyond this smoke's
+    # 12-step budget, so it's patched down here to make the periodic-ckpt
+    # assertion below reachable without slowing the smoke (still 12 steps).
+    import structbench.cli.train as cli_train
+
+    monkeypatch.setattr(cli_train, "PERIODIC_CKPT_EVERY", 5)
+
     _spec, _data_root, out, _mgn, _tcfg, _ids = _run_mgn_smoke(tmp_path)
 
     assert (out / "config.json").exists()
@@ -127,6 +134,11 @@ def test_mgn_train_smoke(tmp_path):
     # a validation pass genuinely ran: best starts at inf, so the first val
     # always writes model-best-<step>.pt (model-final alone == dead val loop)
     assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
+    # periodic ckpt-<step>.pt snapshots (ADR-0028 smoothed selection):
+    # training_steps=12 with PERIODIC_CKPT_EVERY patched to 5 crosses two
+    # snapshot boundaries (steps 5 and 10), so at least one must exist.
+    periodic = list(out.glob("ckpt-*.pt"))
+    assert periodic, "no periodic checkpoint written"
     # normalizers actually warmed up: reload and check accumulation happened
     from structbench.models.mgn import MeshSimulator
 

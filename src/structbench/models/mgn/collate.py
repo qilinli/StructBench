@@ -100,6 +100,15 @@ def collate_mesh_samples(batch: list[dict], statics: Sequence[MeshStatic]) -> di
         crosses a sample's particle-row range.
         ``reference_coords``: ``(sum_P, dim)`` float32 — each sample's static
         reference coordinates, row-concatenated in batch order.
+
+    Raises
+    ------
+    ValueError
+        If a sample's ``statics[traj_idx].reference_coords`` row count
+        disagrees with the sample's own ``n_particles`` — a static/sample
+        misalignment (e.g. ``statics`` built from a different trajectory
+        list than the one passed to ``WindowDataset``) that would otherwise
+        silently offset edges against the wrong particle rows.
     """
     out: dict = dict(collate_samples(batch))
 
@@ -108,6 +117,13 @@ def collate_mesh_samples(batch: list[dict], statics: Sequence[MeshStatic]) -> di
     offset = 0
     for sample in batch:
         static = statics[sample["traj_idx"]]
+        if static.reference_coords.shape[0] != sample["n_particles"]:
+            raise ValueError(
+                f"traj_idx={sample['traj_idx']}: static reference_coords has "
+                f"{static.reference_coords.shape[0]} rows but the sample reports "
+                f"n_particles={sample['n_particles']}; statics is misaligned with "
+                "the trajectory list passed to WindowDataset"
+            )
         edge_parts.append(static.mesh_edge_index + offset)
         coord_parts.append(static.reference_coords)
         offset += sample["n_particles"]
