@@ -59,5 +59,5 @@ CARD = BenchmarkCard(
         "GT-prescribed and excluded from scoring either way. Scored span is "
         "[2, 400), exclusive end (ADR-0043 §6)."
     ),
-    size_gb=None,
+    size_gb=6.1,
 )

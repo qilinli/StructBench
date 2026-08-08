@@ -9,7 +9,7 @@
 - Geometry: 3D tetrahedral mesh, ~0.5 m plate + rigid actuator; 672-2189 nodes per case (mean ~1270, ragged)
 - Source units: kg-m-s (SI; measured 2026-08-08, ADR-0042 §2b) (canonical storage is strict SI, ADR-0012)
 - Cases: 1200 (train 1000, val 100, test 100)
-- Particles per case: 672-2189; 400 frames at 1.0 ms
+- Particles per case: 672-2189; 400 frames at 1.0 ms; 6.1 GB on disk
 - Fields: node/displacement, node/von_mises_stress
 - Provenance: MeshGraphNets dataset (Pfaff et al., ICLR 2021; COMSOL ground truth), downloaded from the DeepMind source bucket and converted locally to canonical HDF5 (ADR-0042; not redistributed).
 - License: None stated by the source; downloaded from source, not redistributed (ADR-0042)
