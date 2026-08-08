@@ -1,6 +1,6 @@
 # 0043 — DeformingPlate benchmark protocol: task, split, eval, and the MGN blessing gate
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-08-08
 
