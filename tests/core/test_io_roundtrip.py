@@ -208,3 +208,33 @@ def test_validate_rejects_bad_reference_coords_shape():
     case.nodes.reference_coords = np.zeros((4, 3), dtype=np.float64)  # dim=2, not 3
     with pytest.raises(SchemaError, match="reference_coords"):
         validate(case)
+
+
+def test_validate_accepts_per_node_scalar_field():
+    from structbench.core import validate
+
+    case = _shell_case()  # 2D, 4 nodes, 3 frames
+    case.response.node["von_mises_stress"] = np.zeros((3, 4, 1), dtype=np.float32)
+    validate(case)  # (T, N, 1) must be allowed now
+
+
+def test_validate_still_requires_displacement_dim_wide():
+    from structbench.core import validate
+    from structbench.core.exceptions import SchemaError
+
+    case = _shell_case()
+    # not dim=2
+    case.response.node["displacement"] = np.zeros((3, 4, 1), dtype=np.float32)
+    with pytest.raises(SchemaError, match="displacement"):
+        validate(case)
+
+
+def test_validate_rejects_per_node_field_wrong_node_count():
+    from structbench.core import validate
+    from structbench.core.exceptions import SchemaError
+
+    case = _shell_case()
+    # 5 != 4
+    case.response.node["von_mises_stress"] = np.zeros((3, 5, 1), dtype=np.float32)
+    with pytest.raises(SchemaError, match="von_mises_stress"):
+        validate(case)

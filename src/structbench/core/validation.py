@@ -137,10 +137,17 @@ def _validate_response(case: Case, n_nodes: int, dim: int) -> None:
     if "displacement" not in resp.node:
         raise SchemaError("a simulated case must contain response.node['displacement']")
     for fieldname, arr in resp.node.items():
-        if arr.shape != (n_frames, n_nodes, dim):
+        if arr.ndim != 3 or arr.shape[0] != n_frames or arr.shape[1] != n_nodes:
             raise SchemaError(
-                f"response.node[{fieldname!r}] must have shape "
-                f"({n_frames}, {n_nodes}, {dim}), got {arr.shape}"
+                f"response.node[{fieldname!r}] shape {arr.shape} != "
+                f"({n_frames}, {n_nodes}, k>=1)"
+            )
+        if arr.shape[2] < 1:
+            raise SchemaError(f"response.node[{fieldname!r}] trailing dim must be >= 1")
+        if fieldname == "displacement" and arr.shape[2] != dim:
+            raise SchemaError(
+                f"response.node['displacement'] must be dim-wide: "
+                f"{arr.shape[2]} != {dim}"
             )
     for etype, fields in resp.element.items():
         if etype not in case.elements:
