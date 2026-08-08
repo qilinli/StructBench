@@ -8,6 +8,9 @@ features to zero mean / unit variance, with statistics persisted through
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Self
+
 import torch
 from torch import Tensor, nn
 
@@ -21,6 +24,12 @@ class OnlineNormalizer(nn.Module):
     ``_count``). Once the cap is reached, further ``accumulate=True`` calls
     are no-ops. Before any accumulation (``_count == 0``), ``forward`` and
     ``inverse`` are the identity, so an untrained simulator can still run.
+
+    The ``_sum``/``_sum_sq``/``_count`` accumulator buffers are dtype-pinned
+    to ``float64`` (``_n_accumulations`` to ``int64``): a whole-module cast
+    such as ``.float()``, ``.half()``, ``.to(dtype=...)``, or an AMP wrapper
+    cannot downcast them, since :meth:`_apply` re-pins their dtype after any
+    such cast (device moves are preserved as normal).
 
     Parameters
     ----------
@@ -64,6 +73,24 @@ class OnlineNormalizer(nn.Module):
         self._sum: Tensor
         self._sum_sq: Tensor
         self._n_accumulations: Tensor
+
+    def _apply(self, fn: Callable[[Tensor], Tensor], recurse: bool = True) -> Self:
+        """Apply ``fn`` (device/dtype cast) then re-pin accumulator dtypes.
+
+        ``nn.Module``-wide casts (``.float()``, ``.half()``, ``.to(dtype=...)``,
+        AMP wrappers) route every floating-point buffer through ``fn``
+        indiscriminately, which would silently downcast the float64
+        accumulators — including their already-accumulated values — that
+        this normalizer relies on for precision (see ``__init__``). Re-pin
+        the accumulator dtypes immediately after the module-wide cast so
+        that only the device move (if any) survives.
+        """
+        super()._apply(fn, recurse)
+        self._sum = self._sum.to(dtype=torch.float64)
+        self._sum_sq = self._sum_sq.to(dtype=torch.float64)
+        self._count = self._count.to(dtype=torch.float64)
+        self._n_accumulations = self._n_accumulations.to(dtype=torch.int64)
+        return self
 
     def _accumulate(self, x: Tensor) -> None:
         """Fold ``x`` into the running sums, unless the call cap is reached."""

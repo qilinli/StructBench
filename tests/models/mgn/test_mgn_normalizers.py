@@ -48,3 +48,17 @@ def test_state_dict_roundtrip():
     m.load_state_dict(n.state_dict())
     x = torch.randn(4, 2)
     torch.testing.assert_close(n(x), m(x))
+
+
+def test_module_dtype_cast_does_not_downcast_accumulators():
+    n = OnlineNormalizer(size=2)
+    n(torch.randn(50, 2) + 5.0, accumulate=True)
+    n.float()  # module-wide cast must not degrade the accumulators
+    assert n._sum.dtype == torch.float64
+    assert n._sum_sq.dtype == torch.float64
+    assert n._count.dtype == torch.float64
+    assert n._n_accumulations.dtype == torch.int64
+    out = n(torch.randn(4, 2))  # still normalizes correctly, correct output dtype
+    assert out.dtype == torch.float32
+    x = torch.randn(3, 2)
+    torch.testing.assert_close(n.inverse(n(x)), x, rtol=1e-4, atol=1e-4)
