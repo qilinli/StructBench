@@ -10,6 +10,7 @@ from structbench.core import (
     Response,
     write_case,
 )
+from structbench.core.io.meshgraphnets import build_deforming_plate_case
 from structbench.datasets.canonical import (
     CaseTrajectory,
     load_case_trajectory,
@@ -203,3 +204,50 @@ def test_max_principal_strain_from_voigt_public_helper():
     out = max_principal_strain_from_voigt(voigt)
     assert out.shape == (1,)
     np.testing.assert_allclose(out[0], 0.0230278, rtol=1e-5)
+
+
+def _mesh_case_file(tmp_path, n_nodes=5, n_cells=2, T=4):
+    """Synthetic deforming-plate-shaped canonical file (SI units)."""
+    rng = np.random.default_rng(3)
+    world0 = rng.random((n_nodes, 3)).astype(np.float32)
+    world = np.stack([world0 + i * 0.01 for i in range(T)]).astype(np.float32)
+    arrays = {
+        "cells": rng.integers(0, n_nodes, (n_cells, 4)).astype(np.int32),
+        "node_type": np.array([0, 0, 1, 3, 0], dtype=np.int32)[:n_nodes],
+        "mesh_pos": world0.copy(),
+        "world_pos": world,
+        "stress": rng.random((T, n_nodes, 1)).astype(np.float32),
+    }
+    case = build_deforming_plate_case(arrays, source_units="kg-m-s", case_id="dp-t")
+    path = tmp_path / "dp-t.h5"
+    write_case(case, path)
+    return path, arrays
+
+
+def test_mesh_trajectory_loads_nodes_as_particles(tmp_path):
+    path, a = _mesh_case_file(tmp_path)
+    traj = load_case_trajectory(path, aux_field="von_mises_stress")
+    T, P = a["world_pos"].shape[0], a["world_pos"].shape[1]
+    assert traj.positions.shape == (T, P, 3)
+    # positions are world_pos in mm (SI m * 1e3), frame 0 == initial coords
+    np.testing.assert_allclose(traj.positions[0], a["world_pos"][0] * 1e3, rtol=1e-5)
+    np.testing.assert_allclose(traj.positions[2], a["world_pos"][2] * 1e3, rtol=1e-5)
+    np.testing.assert_array_equal(traj.particle_type, a["node_type"].astype(np.int64))
+    # aux: stored Pa scalar -> MPa working frame
+    np.testing.assert_allclose(traj.aux, a["stress"][:, :, 0] * 1e-6, rtol=1e-5)
+    np.testing.assert_array_equal(traj.cells, a["cells"].astype(np.int64))
+    np.testing.assert_allclose(traj.reference_coords, a["mesh_pos"] * 1e3, rtol=1e-5)
+
+
+def test_mesh_trajectory_missing_aux_field_raises(tmp_path):
+    # Deliberately an UNREGISTERED aux name: proves the mesh branch raises its
+    # own ValueError and the _AUX_EXTRACTORS KeyError gate no longer runs first.
+    path, _ = _mesh_case_file(tmp_path)
+    with pytest.raises(ValueError, match="response.node"):
+        load_case_trajectory(path, aux_field="volumetric_strain")
+
+
+def test_sph_trajectory_leaves_mesh_fields_none(tmp_path):
+    traj = load_case_trajectory(_sph_case(tmp_path))  # the file's existing helper
+    assert traj.cells is None
+    assert traj.reference_coords is None

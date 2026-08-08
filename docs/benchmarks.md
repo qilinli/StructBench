@@ -7,10 +7,27 @@ Note: `sph/stress` and `sph/strain` are full 6-component Voigt tensors; each ben
 
 | Benchmark | Solver | Discretisation | Erosion | Loading | Cases | Particles | Frames | Aux target |
 |---|---|---|---|---|---|---|---|---|
+| DeformingPlate | COMSOL | FEM | no | Scripted rigid actuator (OBSTACLE nodes, kinematic); HANDLE nodes fixed | 1200 | ~1,271 nodes avg (lo-hi range measured at Task 8) | 400 | von_mises_stress (MPa) |
 | NotchBeam2D-Bend | LS-DYNA | SPH | no | constant-velocity pin, 3-point bend, 8-20 mm/s | 111 | 2394-8280 | 502 | max_principal_strain (-) |
 | NotchBeam2D-Impact | LS-DYNA | SPH | no | drop-weight impact, initial velocity 40-160 m/s, impactor shapes Bullet/Rectangular/Sphere | 110 | 4264-12966 | 502 | max_principal_strain (-) |
 | Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4800-8000 | 152 | von_mises_stress (MPa) |
 | Wave1D-Propagation | LS-DYNA | SPH | no | initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (4-11 traversals per trajectory, by bar length) | 16 | 500-1250 | 302 | axial_stress (MPa) |
+
+## DeformingPlate (v0.1)
+
+Quasi-static deformation of a hyperelastic 3D plate pressed by a scripted rigid actuator; the MeshGraphNets deforming_plate dataset (Pfaff et al. 2021) under the ADR-0043 rollout protocol.
+
+- **Task**: quasi-static load-stepping autoregressive rollout (ADR-0043)
+- **Materials**: Hyperelastic (constants not published with the dataset)
+- **Geometry**: 3D tetrahedral mesh: deformable plate + actuator, ~1,271 nodes avg (ragged); source units kg-m-s (ingestion placeholder — measured at conversion, ADR-0042 §2b)
+- **Splits**: train 1000, val 100, test 100
+- **Protocol** (ADR-0032, ADR-0035): 2 input frames, horizon full, scored at native output times. *Rationale*: input_frames=2 is the floor (a velocity needs two frames) and the faithful value: the source model uses h=0 history — node inputs are the one-hot node type only — so no window tuning question exists and no ground-truth timeline analysis can move it (ADR-0043 §3). Pseudo-time: dt=0 in the source (quasi-static); time is the frame index and output_dt_ms=1.0 is nominal, not milliseconds. aux_unit MPa assumes the source stress is Pa (SI); confirmed or corrected when the units measurement lands (ADR-0042 §2b). Scored span is [2, 400), exclusive end (ADR-0043 §6).
+- **QoIs**: peak_vm_stress, terminal_peak_deflection
+- **Baseline**: *no official baseline yet*
+- **Fields**: node/displacement, node/von_mises_stress
+- **Provenance**: MeshGraphNets dataset (Pfaff et al., ICLR 2021; COMSOL ground truth), downloaded from the DeepMind source bucket and converted locally to canonical HDF5 (ADR-0042; not redistributed).
+- **License**: None stated by the source; downloaded from source, not redistributed (ADR-0042)
+- **Full page**: [docs/benchmarks/deforming_plate.md](benchmarks/deforming_plate.md)
 
 ## NotchBeam2D-Bend (v0.1)
 

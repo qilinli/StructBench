@@ -306,3 +306,61 @@ def cracked_fraction(
         return float((strain >= threshold).mean())
 
     return qoi
+
+
+def peak_nodal_aux(*, exclude_types: tuple[int, ...] = ()) -> QoiFn:
+    """QoI factory: peak nodal aux value over the scored span (ADR-0043).
+
+    The maximum is taken pointwise over kept nodes and scored frames, so it
+    reads the single hottest node at its hottest scored frame — a stricter
+    read than the particle-mean peak (:func:`peak_mean_aux`). This is the
+    ADR-0043 ``peak_vm_stress`` QoI.
+
+    Parameters
+    ----------
+    exclude_types:
+        Part-ids to drop from the node set (e.g. kinematically prescribed
+        boundary nodes). Ignored when ``inputs.particle_type`` is ``None``.
+
+    Returns
+    -------
+    QoiFn
+        Maps :class:`QoiInputs` to the peak aux value, in the card's
+        working aux unit.
+    """
+
+    def qoi(inputs: QoiInputs) -> float:
+        aux = inputs.aux[inputs.init :]
+        if exclude_types and inputs.particle_type is not None:
+            aux = aux[:, ~np.isin(inputs.particle_type, exclude_types)]
+        return float(aux.max())
+
+    return qoi
+
+
+def terminal_peak_displacement(*, exclude_types: tuple[int, ...] = ()) -> QoiFn:
+    """QoI factory: peak final-frame displacement magnitude, mm (ADR-0043).
+
+    Displacement is measured node-by-node from the ground-truth initial
+    frame (frame 0) to the final frame; the QoI is the maximum L2 norm over
+    kept nodes. This is the ADR-0043 ``terminal_peak_deflection`` QoI.
+
+    Parameters
+    ----------
+    exclude_types:
+        Part-ids to drop from the node set (e.g. kinematically prescribed
+        boundary nodes). Ignored when ``inputs.particle_type`` is ``None``.
+
+    Returns
+    -------
+    QoiFn
+        Maps :class:`QoiInputs` to the peak displacement magnitude (mm).
+    """
+
+    def qoi(inputs: QoiInputs) -> float:
+        disp = np.linalg.norm(inputs.positions[-1] - inputs.positions[0], axis=-1)
+        if exclude_types and inputs.particle_type is not None:
+            disp = disp[~np.isin(inputs.particle_type, exclude_types)]
+        return float(disp.max())
+
+    return qoi
