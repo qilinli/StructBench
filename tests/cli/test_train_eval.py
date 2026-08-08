@@ -1311,3 +1311,94 @@ def test_train_transolver_wiring_adamw_cosine_clip(tmp_path, monkeypatch):
         for name, p in sim.named_parameters()
     )
     assert changed, "no model parameter changed -- gradient flow is broken"
+
+
+# --- transolver family evaluation (Task 6, ADR-0041) ---
+
+#: Tiny architecture so a checkpoint builds fast; matches `_mesh_local_spec`'s
+#: input_frames=2 and node_type_size high enough for the (1,)-kinematic fixture.
+SMALL_TRANSOLVER = {
+    "input_frames": 2,
+    "dim": 3,
+    "hidden_dim": 16,
+    "n_layers": 2,
+    "n_heads": 2,
+    "slice_num": 4,
+    "node_type_size": 4,
+}
+
+
+def test_model_config_from_record_returns_transolver_config(tmp_path):
+    """A round-tripped transolver run record reconstructs TransolverConfig
+    with matching fields (mirrors the mgn-family regression above)."""
+    cfg = TransolverConfig(**SMALL_TRANSOLVER)
+    record_dict = resolved_config_dict(
+        "transolver",
+        cfg,
+        TrainConfig(benchmark="deforming_plate"),
+        horizon="full",
+        eval_times="native",
+        n_particle_types=cfg.node_type_size,
+        data_root=tmp_path,
+    )
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(record_dict), encoding="utf-8")
+    record = read_run_record(config_path)
+    model_cfg = _model_config_from_record(record)
+    assert isinstance(model_cfg, TransolverConfig)
+    assert model_cfg == cfg
+
+
+def _prepared_transolver_run(tmp_path, case_path_fn, spec):
+    """Run dir holding a transolver checkpoint + nested config.json, NO stats
+    file (mirrors ``_prepared_mgn_run``)."""
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    case_path = case_path_fn(data_root)
+    out_dir = tmp_path / "run"
+    out_dir.mkdir()
+
+    cfg = TransolverConfig(**SMALL_TRANSOLVER)
+    simulator = build_transolver_simulator(
+        cfg, kinematic_types=spec.kinematic_types, device="cpu"
+    )
+    simulator.save(str(out_dir / "model-best-000002.pt"))
+
+    record_dict = resolved_config_dict(
+        "transolver",
+        cfg,
+        TrainConfig(benchmark="mesh-test-local"),
+        horizon="full",
+        eval_times="native",
+        n_particle_types=cfg.node_type_size,
+        data_root=data_root,
+    )
+    (out_dir / "config.json").write_text(json.dumps(record_dict), encoding="utf-8")
+    return data_root, out_dir, case_path.stem
+
+
+def test_evaluate_transolver_family_needs_no_stats_file(tmp_path, monkeypatch):
+    """transolver evaluation runs with no normalization_stats.npz in out_dir
+    at all.
+
+    Transolver checkpoints are self-contained: the OnlineNormalizer buffers
+    live in the state_dict, loaded by simulator.load() -- like mgn, no
+    separate stats file is ever read.
+    """
+    import structbench.cli.train as train_mod
+
+    spec = _mesh_local_spec("dp-0", n_frames=5)
+    data_root, out_dir, case_id = _prepared_transolver_run(
+        tmp_path, lambda root: _mesh_case_file(root, "dp-0", n_frames=5), spec
+    )
+    assert not (out_dir / "normalization_stats.npz").exists()
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+
+    metrics = evaluate([case_id], data_root, out_dir, "cpu", save_artifacts=False)
+
+    assert not (out_dir / "normalization_stats.npz").exists()  # still never created
+    assert metrics["input_frames"] == 2
+    per_case = metrics["cases"][case_id]
+    assert np.isfinite(per_case["one_step_position_rmse"])
+    assert np.isfinite(per_case["rollout_position_rmse"])
+    assert np.isfinite(per_case["rollout_aux_rmse"])

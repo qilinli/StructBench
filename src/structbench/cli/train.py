@@ -1341,7 +1341,9 @@ def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
     return get_benchmark(record["run"]["benchmark"]), record
 
 
-def _model_config_from_record(record: dict[str, Any]) -> CGNConfig | MGNConfig:
+def _model_config_from_record(
+    record: dict[str, Any],
+) -> CGNConfig | MGNConfig | TransolverConfig:
     """Reconstruct the family-appropriate model config from a run record.
 
     Parameters
@@ -1354,7 +1356,7 @@ def _model_config_from_record(record: dict[str, Any]) -> CGNConfig | MGNConfig:
 
     Returns
     -------
-    CGNConfig or MGNConfig
+    CGNConfig, MGNConfig, or TransolverConfig
         Constructed from ``record["model"]`` with ``"family"`` dropped
         before the fields are splatted in. The legacy ``"gns"`` alias
         (pre-ADR-0034 records) resolves to :class:`CGNConfig` like ``"cgn"``.
@@ -1383,9 +1385,9 @@ def evaluate(
     trained checkpoint; no caller-supplied architecture is accepted. A
     ``cgn``-family run additionally rebuilds its normalizer from
     ``normalization_stats.npz`` (both files are written by :func:`train`); an
-    ``mgn``-family run needs no stats file at all, since its normalizer
-    buffers live in the checkpoint's own ``state_dict`` (ADR-0043 §8,
-    verified in ①-c1).
+    ``mgn``- or ``transolver``-family run needs no stats file at all, since
+    its normalizer buffers live in the checkpoint's own ``state_dict``
+    (ADR-0043 §8, verified in ①-c1; extended to ``transolver`` in ADR-0041).
 
     Per case, reports the one-step (teacher-forced) position RMSE, the
     full-rollout position RMSE (mm), the rollout auxiliary-field RMSE (in the
@@ -1424,11 +1426,12 @@ def evaluate(
     Rollouts seed with the checkpoint's ``input_frames`` (recorded in
     ``config.json``; pre-0035 runs recorded it as ``window``, normalized by
     :func:`~structbench.config.read_run_record`), so checkpoints are always
-    evaluated as trained (ADR-0035). For an ``mgn``-family run, each case's
-    mesh (cells, reference coordinates, and full ground-truth trajectory) is
-    bound to the simulator before its three eval passes (rollout, one-step
-    position, one-step aux), and the rollout pointer is reset before each
-    pass, per :class:`~structbench.models.mgn.MeshSimulator`'s statefulness
+    evaluated as trained (ADR-0035). For an ``mgn``- or ``transolver``-family
+    run, each case's mesh (cells, reference coordinates, and full
+    ground-truth trajectory) is bound to the simulator before its three eval
+    passes (rollout, one-step position, one-step aux), and the rollout
+    pointer is reset before each pass, per
+    :class:`~structbench.models.common.CaseBoundSimulator`'s statefulness
     contract.
 
     Returns
@@ -1442,11 +1445,11 @@ def evaluate(
     FileNotFoundError
         If ``config.json`` or a checkpoint is missing from ``out_dir``; for a
         ``cgn``-family run, also if ``normalization_stats.npz`` is missing
-        (an ``mgn``-family run needs no stats file).
+        (an ``mgn``- or ``transolver``-family run needs no stats file).
     ValueError
-        If ``case_ids`` is empty, or an ``mgn``-family run is evaluated
-        against a benchmark whose cases carry no mesh connectivity
-        (``cells``/``reference_coords`` are ``None``).
+        If ``case_ids`` is empty, or an ``mgn``- or ``transolver``-family run
+        is evaluated against a benchmark whose cases carry no mesh
+        connectivity (``cells``/``reference_coords`` are ``None``).
     """
     if not case_ids:
         raise ValueError("case_ids must be non-empty")
@@ -1455,10 +1458,15 @@ def evaluate(
     model_cfg = _model_config_from_record(record)
     n_types = int(record["n_particle_types"])
 
-    simulator: LearnedSimulator | MeshSimulator
+    simulator: LearnedSimulator | MeshSimulator | TransolverSimulator
     if family == "mgn":
         assert isinstance(model_cfg, MGNConfig)
         simulator = build_mgn_simulator(
+            model_cfg, kinematic_types=spec.kinematic_types, device=device
+        )
+    elif family == "transolver":
+        assert isinstance(model_cfg, TransolverConfig)
+        simulator = build_transolver_simulator(
             model_cfg, kinematic_types=spec.kinematic_types, device=device
         )
     else:
@@ -1491,9 +1499,9 @@ def evaluate(
     simulator.load(str(ckpt_path))
     simulator.to(device)
     simulator.eval()
-    # Non-None for any CaseBoundSimulator arm (mgn today; the Transolver
-    # family next, ADR-0041): gates the per-case bind_case/reset_rollout
-    # calls below without re-checking `family` at each site.
+    # Non-None for any CaseBoundSimulator arm (mgn and transolver, ADR-0041):
+    # gates the per-case bind_case/reset_rollout calls below without
+    # re-checking `family` at each site.
     mesh_sim = simulator if isinstance(simulator, CaseBoundSimulator) else None
 
     # Explicit-checkpoint sweeps must not clobber the selected checkpoint's
@@ -1513,8 +1521,8 @@ def evaluate(
             if trajectory.cells is None or trajectory.reference_coords is None:
                 raise ValueError(
                     f"benchmark {spec.card.name!r} has no mesh connectivity "
-                    "(cells/reference_coords); mgn evaluation requires a "
-                    "mesh benchmark"
+                    f"(cells/reference_coords); {family} evaluation requires "
+                    "a mesh benchmark"
                 )
             mesh_sim.bind_case(
                 torch.from_numpy(trajectory.cells).to(device),
