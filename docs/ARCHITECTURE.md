@@ -238,7 +238,7 @@ A case file contains the following kinds of data. The specimen / scenario / resp
 
 A case file with no `response` group is a valid "stub" — specimen + scenario specified, simulation not yet run.
 
-**Implementation status (schema 0.1.0; 0.2.0 per-node fields decided in ADR-0042, implementation pending).** The shipped reader/writer and validator model five groups: `metadata`, `nodes`, `elements`, `materials`, `response`. The 0.2.0 additive per-node fields (`nodes.node_type`, `nodes.reference_coords`, relaxed `response.node` trailing dim) are an accepted design (ADR-0042) not yet in `core/schema.py`/`core/io`; 0.1.0 archives remain readable when they land. The remaining groups above (`parts`, `sections`, `boundary_conditions`, `loading`, `initial_conditions`, `time_curves`, `sets`, `sensors`) are part of the settled design but are not yet implemented in `core/schema.py`/`core/io`. For solver-ingested cases their content is preserved verbatim in `metadata/source_deck` and can be backfilled later without a schema-version bump; the deferral is a known gap, not a design change.
+**Implementation status (schema 0.2.0).** The shipped reader/writer and validator model five groups: `metadata`, `nodes`, `elements`, `materials`, `response`. The 0.2.0 additive per-node fields (`nodes.node_type`, `nodes.reference_coords`, and the relaxed `response.node` trailing-dim rule admitting per-node scalar/tensor fields such as `von_mises_stress`) are implemented in `core/schema.py`/`core/io` (reader, writer, validator) per ADR-0042; 0.1.0 archives remain readable unchanged. The remaining groups above (`parts`, `sections`, `boundary_conditions`, `loading`, `initial_conditions`, `time_curves`, `sets`, `sensors`) are part of the settled design but are not yet implemented in `core/schema.py`/`core/io`. For solver-ingested cases their content is preserved verbatim in `metadata/source_deck` and can be backfilled later without a schema-version bump; the deferral is a known gap, not a design change.
 
 ### HDF5 layout
 
@@ -249,6 +249,6 @@ The field set above is persisted as a single HDF5 file per case (ADR-0013), read
 - **Dtypes**: float64 for geometry and the time axis, float32 for bulk response fields, int64 for ids and connectivity, variable-length UTF-8 for strings.
 - **Compression**: response arrays are gzip-compressed (level 4) and chunked along the frame axis, so transitions can be streamed without loading whole arrays. The `metadata/source_deck` blob is stored *uncompressed* — HDF5's gzip filter does not compress the variable-length UTF-8 string heap (a deviation from ADR-0013's wording, tracked in `core/io`).
 - **Heterogeneous solver-native data**: `materials`/`sections` `source_params` and `metadata/source_deck` are stored as JSON strings; solver sub-models (EOS, hourglass) nest inside the owning material's `source_params`.
-- **Version**: the initial `schema_version` is `"0.1.0"`; additive changes bump the minor version, structural changes the major version (with a superseding ADR).
+- **Version**: the initial `schema_version` was `"0.1.0"` (ADR-0013); additive changes bump the minor version, structural changes the major version (with a superseding ADR). The current schema version is `"0.2.0"` (ADR-0042 added the per-node fields described above).
 
 ADR-0013 carries the full layout, dtype, and convention rationale.

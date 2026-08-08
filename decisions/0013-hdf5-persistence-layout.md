@@ -97,3 +97,7 @@ This ADR pins the initial `schema_version` to **`"0.1.0"`**. Additive field chan
 - **Streaming reads are supported**: frame-axis chunking lets datasets/loaders pull transitions without materialising whole response arrays.
 - **JSON opacity is a known tradeoff**: `source_params`/`source_deck` are not browsable as native HDF5 structure; a `source_params` JSON schema may follow.
 - **Follow-ons remain**, each likely its own ADR or field-shape note: detailed `boundary_conditions`/`loading`/`sections` record shapes, the canonical-material enum contents (ADR-0012), sensor representation when SHM lands, and any future `source_params` JSON schema.
+
+---
+
+**Dated note (2026-08-07).** Schema 0.2.0 (ADR-0042) adds two optional datasets to this layout — `/nodes/node_type` (int64, `(n_nodes,)`) and `/nodes/reference_coords` (float64, `(n_nodes, dim)`) — plus per-node scalar/tensor `/response/node/<field>` datasets with trailing width `k >= 1` (was: exactly `dim`). Additive per this ADR's own versioning rule; 0.1.0 archives remain readable unchanged.

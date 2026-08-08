@@ -77,14 +77,6 @@ def parse_meta(meta: dict) -> dict[str, FieldSpec]:
     return specs
 
 
-_PLATE_MATERIAL = Material(
-    material_id=1,
-    source_model="COMSOL hyperelastic (deforming_plate)",
-    source_params={"note": "material constants not published with the dataset"},
-    canonical_model=None,
-)
-
-
 def build_deforming_plate_case(
     arrays: dict[str, np.ndarray],
     *,
@@ -159,11 +151,17 @@ def build_deforming_plate_case(
         dataset_id=dataset_id,
         provenance=Provenance("COMSOL", "unknown", "unknown"),
     )
+    material = Material(
+        material_id=1,
+        source_model="COMSOL hyperelastic (deforming_plate)",
+        source_params={"note": "material constants not published with the dataset"},
+        canonical_model=None,
+    )
     case = Case(
         metadata=metadata,
         nodes=nodes,
         elements=elements,
-        materials=[_PLATE_MATERIAL],
+        materials=[material],
         response=response,
     )
     validate(case)

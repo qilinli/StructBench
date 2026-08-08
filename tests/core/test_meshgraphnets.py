@@ -92,6 +92,26 @@ def test_build_case_identity_units_are_si():
     np.testing.assert_allclose(case.nodes.coords, a["world_pos"][0], rtol=1e-6)
 
 
+def test_build_case_applies_non_identity_units():
+    # g-mm-ms is a non-identity source convention: unit_factors("g-mm-ms")
+    # gives length=1e-3, stress=1e6. kg-m-s (the other tests) is SI identity
+    # and would silently pass even if the factor/key wiring were broken.
+    a = _synthetic_traj()
+    case = build_deforming_plate_case(a, source_units="g-mm-ms", case_id="dp-u")
+    np.testing.assert_allclose(case.nodes.coords, a["world_pos"][0] * 1e-3, rtol=1e-5)
+    np.testing.assert_allclose(
+        case.nodes.reference_coords, a["mesh_pos"] * 1e-3, rtol=1e-5
+    )
+    np.testing.assert_allclose(
+        case.response.node["displacement"][2],
+        (a["world_pos"][2] - a["world_pos"][0]) * 1e-3,
+        rtol=1e-4,
+    )
+    np.testing.assert_allclose(
+        case.response.node["von_mises_stress"], a["stress"] * 1e6, rtol=1e-4
+    )
+
+
 def test_import_structbench_does_not_import_tensorflow():
     # Run in a fresh subprocess: this test file's own top-level import of
     # structbench.core.io.meshgraphnets (see above) already populates
