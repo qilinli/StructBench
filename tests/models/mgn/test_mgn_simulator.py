@@ -173,3 +173,114 @@ def test_untrained_mgn_through_eval_rollout(tmp_path):
     sim.reset_rollout()
     one_aux = one_step_aux_rmse(sim, traj, input_frames=2, kinematic_types=(1, 3))
     assert one_aux.shape == (T - 2,)
+
+
+def test_scripted_types_must_be_subset_of_kinematic_types():
+    with pytest.raises(ValueError):
+        MeshSimulator(scripted_types=(5,), kinematic_types=(1, 3))
+
+
+def test_forward_train_shapes_and_target_semantics():
+    torch.manual_seed(0)
+    sim = MeshSimulator(latent=8, mp_steps=1, world_edge_radius=0.5)
+    P = 5
+    x = torch.rand(P, 3)
+    nxt = x + 0.1
+    aux = torch.rand(P)
+    types = torch.tensor([0, 0, 1, 3, 0], dtype=torch.int64)
+    mesh = torch.tensor([[0, 1, 2, 3], [1, 2, 3, 4]], dtype=torch.int64)
+    ref = torch.rand(P, 3)
+    pred, target = sim.forward_train(
+        x, nxt, aux, types, mesh, ref, torch.tensor([P]), accumulate=False
+    )
+    assert pred.shape == (P, 4) and target.shape == (P, 4)
+    # untrained target normalizer is identity: target == [v_target | stress]
+    torch.testing.assert_close(target[:, :3], nxt - x)
+    torch.testing.assert_close(target[:, 3], aux)
+
+
+def test_train_and_eval_paths_build_identical_features():
+    """The final-review seam: train and eval must share ONE feature builder."""
+    sim, gt, types = _bound_sim()
+    x_last = gt[1]  # last frame of the first window
+    # eval-path features: capture what predict_positions feeds the net
+    captured: list[torch.Tensor] = []
+    hook = sim._net.register_forward_pre_hook(
+        lambda mod, args: captured.append(tuple(a.detach().clone() for a in args))
+    )
+    sim.reset_rollout()
+    sim.predict_positions(
+        gt[0:2].permute(1, 0, 2).contiguous(), torch.tensor([5]), types
+    )
+    hook.remove()
+    eval_args = captured[0]  # ALL FIVE network inputs, not just node features
+    # train-path features on the SAME inputs (no noise; scripted velocity in
+    # training comes from next_positions == GT[2], identical to the bound GT)
+    captured.clear()
+    hook = sim._net.register_forward_pre_hook(
+        lambda mod, args: captured.append(tuple(a.detach().clone() for a in args))
+    )
+    sim.forward_train(
+        x_last,
+        gt[2],
+        torch.zeros(5),
+        types,
+        sim._mesh_edge_index,
+        sim._reference_coords,
+        torch.tensor([5]),
+        accumulate=False,
+    )
+    hook.remove()
+    for train_arg, eval_arg in zip(captured[0], eval_args, strict=True):
+        torch.testing.assert_close(train_arg, eval_arg)
+
+
+def test_forward_train_accumulates_normalizers_when_asked():
+    torch.manual_seed(0)
+    sim = MeshSimulator(latent=8, mp_steps=1, world_edge_radius=0.5)
+    P = 4
+    args = (
+        torch.rand(P, 3),
+        torch.rand(P, 3) + 1.0,
+        torch.rand(P),
+        torch.zeros(P, dtype=torch.int64),
+        torch.tensor([[0, 1], [1, 0]], dtype=torch.int64),
+        torch.rand(P, 3),
+    )
+    norms = [
+        sim._target_normalizer,
+        sim._node_normalizer,
+        sim._mesh_edge_normalizer,
+        sim._world_edge_normalizer,
+    ]  # bind to the REAL attribute names
+    before = [int(n._n_accumulations) for n in norms]
+    sim.forward_train(*args, torch.tensor([P]), accumulate=True)
+    sim.forward_train(*args, torch.tensor([P]), accumulate=False)
+    after = [int(n._n_accumulations) for n in norms]
+    assert after == [b + 1 for b in before]  # ALL FOUR accumulate exactly once
+
+
+def test_forward_train_never_builds_cross_example_world_edges():
+    """Two collated examples whose nodes coincide ACROSS examples: batched
+    world edges must stay within-example (the plan review's Critical — a
+    whole-batch radius query would invent cross-case edges)."""
+    torch.manual_seed(0)
+    sim = MeshSimulator(latent=8, mp_steps=1, world_edge_radius=100.0)
+    P = 2  # per example; positions overlap across examples deliberately
+    x = torch.zeros(2 * P, 3)  # ALL nodes coincide -> max cross-example risk
+    nxt = x + 0.1
+    aux = torch.zeros(2 * P)
+    types = torch.zeros(2 * P, dtype=torch.int64)
+    mesh = torch.tensor([[0, 1, 2, 3], [1, 0, 3, 2]], dtype=torch.int64)
+    ref = torch.zeros(2 * P, 3)
+    captured: list[tuple] = []
+    hook = sim._net.register_forward_pre_hook(
+        lambda mod, args: captured.append(tuple(a.detach().clone() for a in args))
+    )
+    sim.forward_train(
+        x, nxt, aux, types, mesh, ref, torch.tensor([P, P]), accumulate=False
+    )
+    hook.remove()
+    world_ei = captured[0][3]  # (2, Ew) — bind index to the real net arg order
+    example_of = torch.tensor([0, 0, 1, 1])
+    assert (example_of[world_ei[0]] == example_of[world_ei[1]]).all()
