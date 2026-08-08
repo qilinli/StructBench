@@ -138,3 +138,21 @@ schema's versioning was built for exactly this additive step (ADR-0013:
 - **Scope honesty:** this is the first schema-version bump since 0.1.0. It is
   additive and backward-compatible; no data is rewritten and no consumer of
   0.1.0 data breaks.
+
+---
+
+**§2b measurement note (2026-08-08, maintainer).** The units measurement this
+ADR required has been run over the complete downloaded dataset (all 1,400
+trajectories; full-sweep statistics in the session record). Verdict: **the
+source is SI** — `world_pos` extents ≈ 0.5 (metres; a ~0.5 m plate, consistent
+with `collision_radius` 0.03 = 3 cm) and `stress` spans 0…4.3×10⁸ with
+p99 ≈ 1.1×10⁵ (pascals). `SOURCE_UNITS = "kg-m-s"` is therefore the identity
+mapping and is confirmed, the card's `aux_unit = "MPa"` holds, and the mm
+working-frame world-edge radius is 30.0. Additional measured facts recorded
+for the card: node counts 672–2189 (mean ≈ 1270, matching the paper's 1,271
+average), node-type codes exactly {0, 1, 3} across every trajectory,
+trajectory length uniformly 400, and `mesh_pos == world_pos[0]` exactly
+everywhere. The measurement used a purpose-built TF-free tfrecord reader
+(byte-level container + protobuf wire parsing); the shipped TF-based converter
+still owes its smoke run in a working TF environment (Linux seat) before the
+canonical archive is produced.
