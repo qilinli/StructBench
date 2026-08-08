@@ -41,17 +41,20 @@ class WindowDataset(Dataset):
 
     def __init__(self, trajectories: list[CaseTrajectory], input_frames: int) -> None:
         self._input_frames = input_frames
-        # index: list of (traj, t) where t is the index of the predicted frame.
-        # Interleave across trajectories (t-major, traj-minor) so that a
-        # shuffle=False DataLoader places one sample per trajectory in each
-        # batch when all trajectories share the same length.
-        self._index: list[tuple[CaseTrajectory, int]] = []
+        # index: list of (traj, t, traj_idx) where t is the index of the
+        # predicted frame and traj_idx is trajectories' position in the input
+        # list (so a mesh collate can look up each sample's static mesh data
+        # by trajectory). Interleave across trajectories (t-major,
+        # traj-minor) so that a shuffle=False DataLoader places one sample
+        # per trajectory in each batch when all trajectories share the same
+        # length.
+        self._index: list[tuple[CaseTrajectory, int, int]] = []
         if trajectories:
             max_frames = max(tr.positions.shape[0] for tr in trajectories)
             for t in range(input_frames, max_frames):
-                for tr in trajectories:
+                for traj_idx, tr in enumerate(trajectories):
                     if t < tr.positions.shape[0]:
-                        self._index.append((tr, t))
+                        self._index.append((tr, t, traj_idx))
 
     def __len__(self) -> int:
         return len(self._index)
@@ -74,8 +77,14 @@ class WindowDataset(Dataset):
             benchmark-dependent (e.g. MPa for von Mises stress, dimensionless
             for max principal strain).
             ``n_particles``: int number of particles ``P``.
+            ``traj_idx``: int index of the source trajectory in the
+            ``trajectories`` list passed to the constructor. Additive to the
+            sample contract: unused by :func:`collate_samples` (the CGN
+            path), consumed by the mesh collate
+            (:func:`structbench.models.mgn.collate.collate_mesh_samples`) to
+            look up each sample's static mesh data.
         """
-        tr, t = self._index[i]
+        tr, t, traj_idx = self._index[i]
         w = self._input_frames
         seq = tr.positions[t - w : t]  # (input_frames, P, dim)
         seq = np.transpose(seq, (1, 0, 2))  # (P, input_frames, dim)
@@ -85,6 +94,7 @@ class WindowDataset(Dataset):
             "next_position": torch.from_numpy(tr.positions[t]),
             "next_aux": torch.from_numpy(tr.aux[t]),
             "n_particles": int(tr.positions.shape[1]),
+            "traj_idx": traj_idx,
         }
 
 
