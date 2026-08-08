@@ -179,3 +179,32 @@ def test_validate_rejects_zero_frame_response(tmp_path):
     )
     with pytest.raises(SchemaError, match="frame"):
         write_case(case, tmp_path / "bad.h5")
+
+
+def test_validate_accepts_optional_node_fields():
+    from structbench.core import validate
+
+    case = _shell_case()  # existing 2D 4-node helper
+    case.nodes.node_type = np.array([0, 0, 3, 3], dtype=np.int64)
+    case.nodes.reference_coords = case.nodes.coords.copy()
+    validate(case)  # must not raise
+
+
+def test_validate_rejects_bad_node_type_shape():
+    from structbench.core import validate
+    from structbench.core.exceptions import SchemaError
+
+    case = _shell_case()
+    case.nodes.node_type = np.array([0, 0, 3], dtype=np.int64)  # 3 != 4 nodes
+    with pytest.raises(SchemaError, match="node_type"):
+        validate(case)
+
+
+def test_validate_rejects_bad_reference_coords_shape():
+    from structbench.core import validate
+    from structbench.core.exceptions import SchemaError
+
+    case = _shell_case()
+    case.nodes.reference_coords = np.zeros((4, 3), dtype=np.float64)  # dim=2, not 3
+    with pytest.raises(SchemaError, match="reference_coords"):
+        validate(case)

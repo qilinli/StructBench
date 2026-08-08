@@ -54,10 +54,17 @@ class Metadata:
 
 @dataclass
 class Nodes:
-    """Nodal coordinates and original solver node IDs."""
+    """Nodal coordinates and original solver node IDs.
+
+    ``node_type`` and ``reference_coords`` are optional (schema 0.2.0): they
+    default to ``None`` and are omitted from a case that doesn't carry them,
+    keeping 0.1.0 cases valid unchanged.
+    """
 
     coords: NDArray[np.float64]  # (n_nodes, dim)
     node_id: NDArray[np.int64]  # (n_nodes,)
+    node_type: NDArray[np.int64] | None = None  # (n_nodes,) — schema 0.2.0
+    reference_coords: NDArray[np.float64] | None = None  # (n_nodes, dim) — schema 0.2.0
 
 
 @dataclass

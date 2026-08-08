@@ -65,6 +65,19 @@ def _validate_nodes(case: Case, dim: int) -> int:
             f"nodes.node_id must have shape ({n_nodes},), "
             f"got {case.nodes.node_id.shape}"
         )
+    nodes = case.nodes
+    if nodes.node_type is not None and nodes.node_type.shape != (n_nodes,):
+        raise SchemaError(
+            f"nodes.node_type shape {nodes.node_type.shape} != ({n_nodes},)"
+        )
+    if (
+        nodes.reference_coords is not None
+        and nodes.reference_coords.shape != nodes.coords.shape
+    ):
+        raise SchemaError(
+            "nodes.reference_coords shape "
+            f"{nodes.reference_coords.shape} != coords {nodes.coords.shape}"
+        )
     return n_nodes
 
 
