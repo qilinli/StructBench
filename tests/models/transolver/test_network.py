@@ -69,6 +69,143 @@ def test_reference_parameter_count() -> None:
     assert n == preprocess + c + 8 * block + last_extra  # +c = placeholder
 
 
+def test_physics_attention_slice1_pins_fx_mid_aggregation() -> None:
+    """Eq (2) token aggregation must pool ``fx_mid``, NOT ``x_mid``.
+
+    With ``slice_num=1`` the Eq (1) softmax is exactly 1.0 for every node
+    regardless of the slice logits (softmax of a single element always
+    normalizes to itself), so ``in_project_x`` cannot affect the result
+    through the slice weights at all. The only way ``in_project_x``'s
+    projection (``x_mid``) could still leak into the output is if Eq (2)
+    mistakenly aggregated ``x_mid`` instead of ``fx_mid`` -- exactly the
+    subtlety documented on ``PhysicsAttentionIrregularMesh``.
+
+    ``in_project_fx`` is set to the identity map and ``in_project_x`` to a
+    DIFFERENT, distinguishable affine map; ``to_q``/``to_k``/``to_v``/
+    ``to_out`` are set to (near-)identity with zero bias so the whole
+    forward collapses to the hand-derivable Eq (2) token itself:
+    ``token = sum_n(fx_mid[n]) / (N + 1e-5)``, broadcast to every node
+    (deslice with an all-ones weight, Eq (4), is a no-op broadcast here).
+    We assert the forward output equals this hand computation exactly
+    (atol 1e-6), and -- as evidence the fixture is sensitive to the
+    fx-vs-x mutation -- that the value that would result from aggregating
+    ``x_mid`` instead is a materially different number.
+    """
+    torch.manual_seed(0)
+    attn = PhysicsAttentionIrregularMesh(
+        dim=2, heads=1, dim_head=2, slice_num=1, dropout=0.0
+    )
+    attn.eval()
+    with torch.no_grad():
+        attn.in_project_fx.weight.copy_(torch.eye(2))
+        attn.in_project_fx.bias.zero_()
+        attn.in_project_x.weight.copy_(torch.tensor([[2.0, 0.0], [0.0, 2.0]]))
+        attn.in_project_x.bias.copy_(torch.tensor([10.0, 20.0]))
+        attn.to_q.weight.copy_(torch.eye(2))
+        attn.to_k.weight.copy_(torch.eye(2))
+        attn.to_v.weight.copy_(torch.eye(2))
+        attn.to_out[0].weight.copy_(torch.eye(2))
+        attn.to_out[0].bias.zero_()
+
+    x = torch.tensor([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+    n = x.shape[0]
+    fx_mid = x  # in_project_fx is identity
+    x_mid = 2 * x + torch.tensor([10.0, 20.0])  # in_project_x, for the mutation check
+    expected_token = fx_mid.sum(dim=0) / (n + 1e-5)
+    mutated_token = x_mid.sum(dim=0) / (n + 1e-5)
+    assert not torch.allclose(expected_token, mutated_token), (
+        "fixture not sensitive to fx-vs-x mutation"
+    )
+
+    out = attn(x, [(0, n)])
+    assert torch.allclose(out, expected_token.expand(n, -1), atol=1e-6)
+    assert not torch.allclose(out, mutated_token.expand(n, -1), atol=1e-6)
+
+
+def test_physics_attention_slice2_pins_raw_deslice_weights() -> None:
+    """Eq (4) deslice must reuse the RAW Eq (1) weights, not renormalize them.
+
+    Per-node, the Eq (1) softmax weights already sum to 1, so renormalizing
+    the deslice weights BY NODE is a no-op and can't be caught this way.
+    The real mutation risk is the plausible copy-paste of Eq (2)'s
+    normalizer -- dividing by ``norm``, the per-SLICE mass summed across
+    nodes -- into the Eq (4) deslice step.
+
+    Three nodes split 2-1 across two slice "modes" (``x=[1,0]`` twice,
+    ``x=[0,1]`` once) so the two slices accumulate unequal mass:
+    ``norm0 = 1+a``, ``norm1 = 2-a`` where ``a = softmax([1,0])[0] =
+    e/(1+e) != 0.5``, so ``norm0 != norm1``. ``to_q``/``to_k`` are zeroed
+    so the Eq (3) token-attention logits are exactly 0 for every pair,
+    making its softmax exactly ``[0.5, 0.5]`` by construction (no
+    hand-arithmetic needed for that step) -- so both attended tokens equal
+    the same value, ``mean_token = 0.5*(token0 + token1)``.
+
+    Because Eq (1) weights sum to 1 per node and both attended tokens are
+    identical, the CORRECT Eq (4) deslice (``sum_m token_out[m] * w[n,
+    m]``, raw weights) collapses to ``mean_token`` for EVERY node,
+    regardless of that node's own slice split -- so the correct forward
+    output is IDENTICAL across all 3 nodes despite unequal per-node slice
+    weights. A mutation dividing the deslice weights by the per-slice mass
+    (``norm``) would break this: since ``norm0 != norm1``, the
+    renormalized per-node factor ``w[n,:] . (1/norm)`` is not constant
+    across the two node modes, so the two modes would no longer produce
+    the same output. We assert the forward output matches the
+    hand-derived ``mean_token`` for every node, and -- as evidence of
+    mutation-sensitivity -- that the renormalized-by-slice-mass factor
+    genuinely differs between the two node modes.
+    """
+    torch.manual_seed(0)
+    attn = PhysicsAttentionIrregularMesh(
+        dim=2, heads=1, dim_head=2, slice_num=2, dropout=0.0
+    )
+    attn.eval()
+    eye2 = torch.eye(2)
+    with torch.no_grad():
+        attn.in_project_x.weight.copy_(eye2)
+        attn.in_project_x.bias.zero_()
+        attn.in_project_fx.weight.copy_(eye2)
+        attn.in_project_fx.bias.zero_()
+        attn.in_project_slice.weight.copy_(eye2)
+        attn.in_project_slice.bias.zero_()
+        attn.temperature.fill_(1.0)
+        attn.to_q.weight.zero_()
+        attn.to_k.weight.zero_()
+        attn.to_v.weight.copy_(eye2)
+        attn.to_out[0].weight.copy_(eye2)
+        attn.to_out[0].bias.zero_()
+
+    # 2 nodes in "mode A" (x=[1,0]), 1 node in "mode B" (x=[0,1]).
+    x = torch.tensor([[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+    n = x.shape[0]
+
+    # Hand-derive Eq (1)-(2): x_mid = x (identity in_project_x), so slice
+    # logits = x_mid exactly (identity in_project_slice, temperature=1).
+    a = torch.softmax(torch.tensor([1.0, 0.0]), dim=-1)[0]
+    w_mode_a = torch.stack([a, 1 - a])
+    w_mode_b = torch.stack([1 - a, a])
+    norm0 = 2 * a + (1 - a)  # slice 0 mass: two mode-A nodes + one mode-B node
+    norm1 = 2 * (1 - a) + a  # slice 1 mass
+    fx_mode_a, fx_mode_b = torch.tensor([1.0, 0.0]), torch.tensor([0.0, 1.0])
+    token0 = (2 * a * fx_mode_a + (1 - a) * fx_mode_b) / (norm0 + 1e-5)
+    token1 = (2 * (1 - a) * fx_mode_a + a * fx_mode_b) / (norm1 + 1e-5)
+    # Eq (3): to_q = to_k = 0 => logits are exactly 0 => softmax = [0.5, 0.5]
+    # regardless of token values, so both attended tokens equal the mean.
+    mean_token = 0.5 * (token0 + token1)
+
+    out = attn(x, [(0, n)])
+    assert torch.allclose(out, mean_token.expand(n, -1), atol=1e-6)
+
+    # Sensitivity check: a norm-renormalized deslice would multiply
+    # mean_token by a per-node factor w[n, :] . (1/norm) instead of by
+    # w[n, :].sum() == 1; that factor is not constant across node modes
+    # since norm0 != norm1, so the uniform-output result above would break.
+    norm = torch.stack([norm0, norm1])
+    factor_mode_a = (w_mode_a / norm).sum()
+    factor_mode_b = (w_mode_b / norm).sum()
+    assert abs(float(norm0 - norm1)) > 1e-3
+    assert abs(float(factor_mode_a - factor_mode_b)) > 1e-3
+
+
 def test_trunc_normal_init_applied() -> None:
     # Faithful to released code: the global trunc_normal_(std=0.02) + zero-bias
     # pass runs LAST, overwriting the orthogonal in_project_slice init (thuml

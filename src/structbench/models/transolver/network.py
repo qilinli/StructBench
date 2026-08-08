@@ -177,16 +177,20 @@ class PhysicsAttentionIrregularMesh(nn.Module):
         logits = self.in_project_slice(x_mid) / self.temperature
         return torch.softmax(logits, dim=-1)
 
-    def forward(self, x: Tensor, n_particles_per_example: Tensor | None) -> Tensor:
+    def forward(self, x: Tensor, segments: list[tuple[int, int]]) -> Tensor:
         """Run Physics-Attention over a (possibly multi-example) flat point set.
 
         Parameters
         ----------
         x:
             ``(P, dim)`` point features, examples concatenated along dim 0.
-        n_particles_per_example:
-            ``(B,)`` particle counts per example, in concatenation order, or
-            ``None`` to treat ``x`` as a single example.
+        segments:
+            Contiguous ``(start, end)`` index pairs, one per example, as
+            returned by :func:`_segments`. Computed ONCE in
+            ``TransolverNet.forward`` and threaded down through every block's
+            attention call, rather than recomputed (``torch.cumsum(...)
+            .tolist()``) on every call -- that would force a host<->device
+            sync per block per forward at reference depth (``n_layers=8``).
 
         Returns
         -------
@@ -195,8 +199,8 @@ class PhysicsAttentionIrregularMesh(nn.Module):
         """
         fx_mid = self.in_project_fx(x).reshape(-1, self.heads, self.dim_head)
         w = self._slice_weights(x)  # (P, H, M)
-        outs = []
-        for start, end in _segments(x.shape[0], n_particles_per_example):
+        outs: list[Tensor] = []
+        for start, end in segments:
             w_e, fx_e = w[start:end], fx_mid[start:end]
             norm = w_e.sum(dim=0)  # (H, M)
             token = torch.einsum("nhd,nhm->hmd", fx_e, w_e)
@@ -265,16 +269,17 @@ class TransolverBlock(nn.Module):
             self.ln_3 = nn.LayerNorm(hidden_dim)
             self.mlp2 = nn.Linear(hidden_dim, out_size)
 
-    def forward(self, fx: Tensor, n_particles_per_example: Tensor | None) -> Tensor:
+    def forward(self, fx: Tensor, segments: list[tuple[int, int]]) -> Tensor:
         """Apply the block.
 
         Parameters
         ----------
         fx:
             ``(P, hidden_dim)`` node latents.
-        n_particles_per_example:
-            ``(B,)`` particle counts per example, or ``None`` for a single
-            example; forwarded unchanged to ``attn``.
+        segments:
+            Contiguous per-example ``(start, end)`` index pairs, precomputed
+            once by ``TransolverNet.forward`` and forwarded unchanged to
+            ``attn`` (see :meth:`PhysicsAttentionIrregularMesh.forward`).
 
         Returns
         -------
@@ -282,7 +287,7 @@ class TransolverBlock(nn.Module):
             ``(P, hidden_dim)`` updated latents, or ``(P, out_size)`` if this
             is the last block (decoder head applied, no residual).
         """
-        fx = self.attn(self.ln_1(fx), n_particles_per_example) + fx
+        fx = self.attn(self.ln_1(fx), segments) + fx
         fx = self.mlp(self.ln_2(fx)) + fx
         if self.last_layer:
             return self.mlp2(self.ln_3(fx))
@@ -390,9 +395,13 @@ class TransolverNet(nn.Module):
         Tensor
             ``(P, out_size)`` decoded per-node output.
         """
+        # Hoisted out of the per-block attention call: torch.cumsum(...)
+        # .tolist() forces a host<->device sync, so compute segments ONCE
+        # here rather than once per block (n_layers=8 at reference depth).
+        segments = _segments(node_feats.shape[0], n_particles_per_example)
         fx = self.preprocess(node_feats) + self.placeholder
         for block in self.blocks:
-            fx = block(fx, n_particles_per_example)
+            fx = block(fx, segments)
         return fx
 
     def _initialize_weights(self) -> None:
