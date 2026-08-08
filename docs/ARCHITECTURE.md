@@ -18,7 +18,7 @@ For coding conventions (style, testing, documentation expectations), see PRINCIP
 src/structbench/
 ├── core/          # case schema, validation, HDF5 I/O + LS-DYNA adapter
 ├── benchmarks/    # benchmark problem definitions (split + protocol + card)
-├── models/        # reference ML models (cgn/)
+├── models/        # reference ML models (cgn/, mgn/, transolver/) + shared base (common/)
 ├── datasets/      # canonical loaders, windowing, normalization
 ├── eval/          # metrics and evaluation protocols
 ├── viz/           # FEM-style visualization of physics fields
@@ -55,7 +55,14 @@ A benchmark module describes *what* the problem is. It does not include the data
 
 ### `models/`
 
-Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, foundation models, anomaly detectors, and any other ML method shipped as part of the platform. Each model is a self-contained submodule of tensor→tensor building blocks; its hyperparameter defaults live in the top-level `config.py` (ADR-0032), its training loop in `cli/`, and — once a run is trained and blessed — a published checkpoint (none is published yet; the CGN baseline is the pending DUG run). The reference baseline is **CGN** (`models/cgn`, Concrete Graph Network — Li et al. 2023, *Computers & Structures* 289, 107188, ADR-0034), which builds on the encode-process-decode GNS of Sanchez-Gonzalez et al. 2020.
+Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, transformer operators, foundation models, anomaly detectors, and any other ML method shipped as part of the platform. Each model is a self-contained submodule of tensor→tensor building blocks; its hyperparameter defaults live in the top-level `config.py` (ADR-0032), its training loop in `cli/`, and — once a run is trained and blessed — a published checkpoint (none is published yet; the CGN baseline is the pending DUG run). From v0.3 the module hosts both a message-passing GNN family and a transformer-operator family, because DeformingPlate's headline is cross-method comparison rather than a single baseline (ADR-0041).
+
+The shipped submodules:
+
+- `models/cgn` — **CGN** (Concrete Graph Network, Li et al. 2023, *Computers & Structures* 289, 107188, ADR-0034), the incumbent / reference GNN baseline for the SPH benchmarks (Taylor, wave-1D, notch-beam), built on the encode-process-decode GNS of Sanchez-Gonzalez et al. 2020. Its native `radius_graph` lives here (`models/cgn/graph_ops.py`, ADR-0020). CGN sits out the DeformingPlate comparison (a particle/radius-graph GNN would run off-native on a mesh task, ADR-0041).
+- `models/mgn` — **MGN** (MeshGraphNet, Pfaff et al. 2021), the *blessed* DeformingPlate baseline, validated against published numbers by the ADR-0043 §8 gate; its mesh-edge construction lives in `models/mgn/mesh_ops.py`.
+- `models/transolver` — a **native Transolver** (Physics-Attention transformer, Wu et al. 2024), a *provisional* DeformingPlate baseline (ADR-0041 step ②, ADR-0044): fidelity-vs-published is deferred because no published rollout number exists, and the family is flagged provisional in the results registry. GeoFLARE (step ③) is the next transformer-operator addition.
+- `models/common` — method-agnostic shared machinery. `CaseBoundSimulator` (`simulator_base.py`, ADR-0044) holds the per-case state contract — bind-per-case, reset-before-each-eval-pass, the ground-truth tripwire, scripted-velocity helpers, and checkpoint save/load — and is subclassed by both `MeshSimulator` and `TransolverSimulator`.
 
 Models in this module are reference implementations. They are not the only models that can be evaluated on a benchmark — external contributions are evaluated through the same protocols without being added here.
 
