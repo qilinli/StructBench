@@ -1,10 +1,14 @@
 """Grouped run-config loading (ADR-0032): strict validation and dispatch."""
 
+from pathlib import Path
+
 import pytest
 import torch
 
 from structbench.cli.train import CGNConfig, TrainConfig, build_simulator
 from structbench.config import ConfigError, MGNConfig, load_run_config
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: A complete, valid grouped config; tests below perturb it.
 VALID = """\
@@ -196,6 +200,27 @@ def test_load_run_config_rejects_mgn_unknown_key(tmp_path):
     bad = VALID_MGN.replace("noise_std = 0.003", "noise_st = 0.003")
     with pytest.raises(ConfigError, match="unknown keys: noise_st"):
         load_run_config(_write(tmp_path, bad))
+
+
+def test_load_deforming_plate_mgn_config():
+    # The ADR-0043 §8 reference config: the strict loader accepts it and the
+    # deforming_plate card's input_frames=2 check passes.
+    rc = load_run_config(REPO_ROOT / "configs" / "deforming_plate" / "mgn.toml")
+    assert rc.family == "mgn"
+    assert isinstance(rc.model, MGNConfig)
+    assert rc.model.input_frames == 2
+    assert rc.model.hidden_dim == 128
+    assert rc.model.message_passing_steps == 15
+    assert rc.train.training_steps == 10_000_000
+
+
+def test_load_deforming_plate_mgn_smoke_config():
+    rc = load_run_config(REPO_ROOT / "configs" / "deforming_plate" / "mgn_smoke.toml")
+    assert rc.family == "mgn"
+    assert isinstance(rc.model, MGNConfig)
+    assert rc.model.input_frames == 2
+    assert rc.model.hidden_dim == 16
+    assert rc.train.training_steps == 50
 
 
 def _stats_dict():

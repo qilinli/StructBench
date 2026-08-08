@@ -1,0 +1,46 @@
+# DeformingPlate MGN reference config (ADR-0043 §8; ADR-0041 v0.3).
+# Recipe: the paper's native-MGN recipe (h=0 history; node features = one-hot
+# node type + next-step world-space velocity on OBSTACLE nodes; mesh-edge
+# features (u_ij, |u_ij|, x_ij, |x_ij|); world edges (x_ij, |x_ij|) within
+# r_W; outputs = velocity (integrated once) + von Mises stress (direct);
+# 15 message-passing steps, latent 128, two-hidden-layer MLPs; noise
+# N(0, 3e-3) on NORMAL-node positions; Adam, batch 2, lr 1e-4, 10M steps).
+# [model] values mirror the MGNConfig dataclass defaults, which already
+# encode this recipe. world_edge_radius=30.0 is the working-frame (mm)
+# placeholder — provisional pending the Task 8 real-data measurement of the
+# dataset's native r_W = 0.03 collision radius (ADR-0043 §8). [train]'s
+# non-recipe keys (lr_decay, val_every, aux_tail_weight, train_frames) mirror
+# configs/taylor_impact_2d/cgn.toml's structure at MGN-neutral values: equal
+# w_pos/w_aux weighting per ADR-0043 §9's declared single-L2, no per-component
+# weights, and full (untruncated) training trajectories since horizon="full".
+# Not yet run — this is the config the ADR-0043 §8 blessing gate trains
+# against; any recipe deviation (e.g. shorter compute-bound training) is
+# recorded in the training ledger with the gate unchanged.
+
+[run]
+benchmark = "deforming_plate"
+seed = 1                        # torch RNG: init, noise, shuffle; avoid seed 0 for training runs (CORRECTIONS 2026-07-10)
+
+[model]
+family = "mgn"
+input_frames = 2                # h=0 history (ADR-0043 §3); the StructBench floor and the deforming_plate card's protocol value
+dim = 3
+hidden_dim = 128
+message_passing_steps = 15
+nmlp_layers = 2
+node_type_size = 9
+world_edge_radius = 30.0        # working frame (mm); provisional — Task 8 measurement pins the dataset-native r_W = 0.03 conversion
+noise_std = 0.003
+normalizer_warmup_steps = 1000
+
+[train]
+batch_size = 2                  # ADR-0043 §8 reference recipe
+lr_init = 1e-4                  # ADR-0043 §8 reference recipe
+lr_decay = 0.1
+# lr_decay_steps is derived from training_steps by config.py: round(steps * 40000/100000).
+training_steps = 10_000_000     # ADR-0043 §8 reference recipe -> derived lr_decay_steps 4_000_000
+val_every = 2000
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0   # extra loss weight on above-mean aux targets; 0 = plain MSE (ADR-0043 §9: single L2, equal weight)
+train_frames = 0        # 0 = full trajectories; horizon="full" (ADR-0043 §6), no ADR-0039-style truncation recipe applies here
