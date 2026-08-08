@@ -186,7 +186,9 @@ The word **asset** is reserved for the physical-structure / deployment meaning (
 A case file contains the following kinds of data. The specimen / scenario / response triple is documentation only; the file does not separate them structurally. ADR-0012 carries the full rationale and validity rules.
 
 **Geometry and topology**
-- `nodes` — `coords` and `node_id`.
+- `nodes` — `coords` and `node_id`; plus optional per-node static fields
+  `node_type` (`(n_nodes,)` int) and `reference_coords` (`(n_nodes, dim)`,
+  material/reference configuration) added in schema 0.2.0 (ADR-0042).
 - `elements/<type>` — for each element type present (`sph`, `solid`, `beam`, `shell`, `discrete`, …): `connectivity` (0-indexed into `nodes`), `element_id`, `part_id`.
 - `parts` — links elements to a section and a material.
 - `sections` — cross-section, shell-thickness, or SPH parameters.
@@ -203,7 +205,7 @@ A case file contains the following kinds of data. The specimen / scenario / resp
 
 **Response**
 - `response/time/t` — single time array, one global time axis.
-- `response/node` — `displacement`, `velocity`, `acceleration` of shape `(n_frames, n_nodes, dim)`.
+- `response/node` — `displacement`, `velocity`, `acceleration` of shape `(n_frames, n_nodes, dim)`. Since schema 0.2.0 (ADR-0042) a per-node field may carry any trailing width `(n_frames, n_nodes, k)`, `k ≥ 1` (e.g. per-node scalar `von_mises_stress` `(…, 1)`); `displacement` stays required and `dim`-wide.
 - `response/element/<type>` — `stress`, `strain`, `damage`, …; tensor fields in Voigt-symmetric components.
 - `response/global` — per-frame scalars (energies, contact force, reactions).
 - `response/sensor` — slot reserved (SHM scope).
@@ -236,7 +238,7 @@ A case file contains the following kinds of data. The specimen / scenario / resp
 
 A case file with no `response` group is a valid "stub" — specimen + scenario specified, simulation not yet run.
 
-**Implementation status (schema 0.1.0).** The shipped reader/writer and validator model five groups: `metadata`, `nodes`, `elements`, `materials`, `response`. The remaining groups above (`parts`, `sections`, `boundary_conditions`, `loading`, `initial_conditions`, `time_curves`, `sets`, `sensors`) are part of the settled design but are not yet implemented in `core/schema.py`/`core/io`. For solver-ingested cases their content is preserved verbatim in `metadata/source_deck` and can be backfilled later without a schema-version bump; the deferral is a known gap, not a design change.
+**Implementation status (schema 0.1.0; 0.2.0 per-node fields decided in ADR-0042, implementation pending).** The shipped reader/writer and validator model five groups: `metadata`, `nodes`, `elements`, `materials`, `response`. The 0.2.0 additive per-node fields (`nodes.node_type`, `nodes.reference_coords`, relaxed `response.node` trailing dim) are an accepted design (ADR-0042) not yet in `core/schema.py`/`core/io`; 0.1.0 archives remain readable when they land. The remaining groups above (`parts`, `sections`, `boundary_conditions`, `loading`, `initial_conditions`, `time_curves`, `sets`, `sensors`) are part of the settled design but are not yet implemented in `core/schema.py`/`core/io`. For solver-ingested cases their content is preserved verbatim in `metadata/source_deck` and can be backfilled later without a schema-version bump; the deferral is a known gap, not a design change.
 
 ### HDF5 layout
 

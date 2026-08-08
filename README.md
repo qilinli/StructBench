@@ -141,7 +141,7 @@ decisions/         # architecture decision records
      crossed-out block may be compressed to one line. Reasoning lives in
      decisions/, not here. Substrate-layer work only (ADR-0014). -->
 
-*Last revised: 2026-08-06.*
+*Last revised: 2026-08-07.*
 
 ### v0.1 — Taylor 2D substrate proof
 
@@ -159,6 +159,35 @@ decisions/         # architecture decision records
       parked (ADR-0024 amendment, see Later); hosting settled as
       OneDrive-on-request (ADR-0040); `cracked_fraction` 0.01 declared a
       protocol definition (ADR-0029 amendment).~~
+
+### v0.3 — deforming-plate multi-method benchmark
+
+*Defined by ADR-0041 (supersedes ADR-0024's v0.3 = RC beam). The headline is
+cross-method comparison on public data, not a new physics problem. Build order
+is a set of checkpoints — partial value lands if the last slips.*
+
+- [ ] **① Ingestion + `DeformingPlate` + MGN blessed.** Offline
+      `tfrecord`→canonical HDF5 conversion (throwaway env, no TF runtime dep);
+      `benchmarks/deforming_plate` module (first 3D benchmark, canonical
+      1000/100/100 split, aux = von Mises stress); `models/mgn` implemented
+      native and **blessed** by reproducing published deforming-plate numbers
+      (this reproduction certifies the whole pipeline). Confirm the dataset's
+      redistribution terms before the ingestion ADR.
+- [ ] **② Transolver provisional.** `models/transolver` (transformer-operator
+      family — new to `models/`); `datasets/` generalized to serve point-set
+      inputs alongside graph windows. Ships **provisional** (best-effort port,
+      fidelity check deferred).
+- [ ] **③ GeoFLARE provisional.** `models/geoflare`, likewise provisional.
+- [ ] Cross-method infrastructure: results registry (ADR-0033) extended to
+      per-(benchmark × method) with a `provisional` flag; landing page
+      (ADR-0036) renders a method-comparison table distinguishing blessed from
+      provisional.
+- [ ] Follow-on ADRs as each lands: DeformingPlate benchmark protocol
+      (split/metrics/scored horizon/input window per ADR-0035); the `tfrecord`
+      ingestion adapter; the per-method registry schema; the transformer-operator
+      family's placement in `models/`/`datasets/` (may touch ARCHITECTURE.md).
+- [ ] Human, out of session: VISION's "1D/2D problems only" limitation copy
+      (forbidden-tier during coding sessions); flip once v0.3 ships 3D.
 
 ### Inbox — untriaged, add freely
 
@@ -208,8 +237,16 @@ decisions/         # architecture decision records
 
 ### Later (each becomes an ADR/spec when picked up)
 
-- **v0.3 — RC beam benchmark**: erosion, twice (numerically for the FEM
-  data; structurally for the surrogate — particles vanishing mid-rollout)
+- **Crash benchmark (v0.4 candidate)**: gated on public crash data existing —
+  CarCrashNet's release (6.65 TB, unreleased pending peer review), or
+  maintainer-generated LS-DYNA crash data released under an open licence — plus
+  the scale infrastructure it needs (cell-list `radius_graph` backend, TB-scale
+  hosting). Its methods (Transolver/GeoFLARE/MGN) land first in v0.3 on
+  deforming plate (ADR-0041)
+- **RC beam benchmark** (parked, no scheduled release; ADR-0041 moved it off
+  v0.3): erosion, twice (numerically for the FEM data; structurally for the
+  surrogate — particles vanishing mid-rollout). ADR-0024's erosion analysis is
+  the gate if revived
 - Notch-bend trained CGN baseline (parked 2026-08-06, ADR-0024 amendment;
   SNR caveat in the training ledger and the card's provisional
   `input_frames` remain the pre-training gates if revived)
