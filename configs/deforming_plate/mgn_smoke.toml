@@ -1,0 +1,32 @@
+# CPU smoke of the full DeformingPlate MGN train->checkpoint->eval path. NOT a baseline.
+# Mirrors mgn.toml with a shrunk capacity cell and a relaxed world_edge_radius
+# (50.0 vs the reference 30.0) so a tiny smoke slice still forms connected
+# world edges.
+
+[run]
+benchmark = "deforming_plate"
+seed = 0                        # torch RNG: init, noise, shuffle
+
+[model]
+family = "mgn"
+input_frames = 2
+dim = 3
+hidden_dim = 16
+message_passing_steps = 2
+nmlp_layers = 2
+node_type_size = 9
+world_edge_radius = 50.0
+noise_std = 0.003
+normalizer_warmup_steps = 5
+
+[train]
+batch_size = 2
+lr_init = 1e-4
+lr_decay = 0.1
+# lr_decay_steps is derived from training_steps by config.py (round(steps * 40000/100000)).
+training_steps = 50
+val_every = 25
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0   # extra loss weight on above-mean aux targets; 0 = plain MSE (reference)
+train_frames = 0        # 0 = full trajectories

@@ -1,10 +1,14 @@
 """Grouped run-config loading (ADR-0032): strict validation and dispatch."""
 
+from pathlib import Path
+
 import pytest
 import torch
 
 from structbench.cli.train import CGNConfig, TrainConfig, build_simulator
-from structbench.config import ConfigError, load_run_config
+from structbench.config import ConfigError, MGNConfig, load_run_config
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: A complete, valid grouped config; tests below perturb it.
 VALID = """\
@@ -143,6 +147,80 @@ def test_load_run_config_rejects_explicit_lr_decay_steps(tmp_path):
     )
     with pytest.raises(ConfigError, match="lr_decay_steps is derived"):
         load_run_config(_write(tmp_path, bad))
+
+
+#: A complete, valid MGN grouped config (deforming_plate card input_frames=2).
+VALID_MGN = """\
+[run]
+benchmark = "deforming_plate"
+seed = 7
+
+[model]
+family = "mgn"
+input_frames = 2
+dim = 3
+hidden_dim = 128
+message_passing_steps = 15
+nmlp_layers = 2
+node_type_size = 9
+world_edge_radius = 30.0
+noise_std = 0.003
+normalizer_warmup_steps = 1000
+
+[train]
+batch_size = 8
+lr_init = 1e-4
+lr_decay = 0.1
+training_steps = 100
+val_every = 50
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0
+"""
+
+
+def test_load_run_config_mgn_happy_path(tmp_path):
+    rc = load_run_config(_write(tmp_path, VALID_MGN))
+    assert rc.family == "mgn"
+    assert isinstance(rc.model, MGNConfig)
+    assert isinstance(rc.train, TrainConfig)
+    assert rc.train.benchmark == "deforming_plate"
+    assert rc.model.input_frames == 2
+
+
+def test_load_run_config_rejects_mgn_input_frames_off_card(tmp_path):
+    # ADR-0035: input_frames must equal the benchmark card's (deforming_plate = 2).
+    bad = VALID_MGN.replace("input_frames = 2", "input_frames = 6")
+    with pytest.raises(ConfigError, match="must equal benchmark"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_rejects_mgn_unknown_key(tmp_path):
+    bad = VALID_MGN.replace("noise_std = 0.003", "noise_st = 0.003")
+    with pytest.raises(ConfigError, match="unknown keys: noise_st"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_deforming_plate_mgn_config():
+    # The ADR-0043 §8 reference config: the strict loader accepts it and the
+    # deforming_plate card's input_frames=2 check passes.
+    rc = load_run_config(REPO_ROOT / "configs" / "deforming_plate" / "mgn.toml")
+    assert rc.family == "mgn"
+    assert isinstance(rc.model, MGNConfig)
+    assert rc.model.input_frames == 2
+    assert rc.model.hidden_dim == 128
+    assert rc.model.message_passing_steps == 15
+    assert rc.train.training_steps == 10_000_000
+
+
+def test_load_deforming_plate_mgn_smoke_config():
+    rc = load_run_config(REPO_ROOT / "configs" / "deforming_plate" / "mgn_smoke.toml")
+    assert rc.family == "mgn"
+    assert isinstance(rc.model, MGNConfig)
+    assert rc.model.input_frames == 2
+    assert rc.model.hidden_dim == 16
+    assert rc.train.training_steps == 50
 
 
 def _stats_dict():

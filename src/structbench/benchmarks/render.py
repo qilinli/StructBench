@@ -257,6 +257,26 @@ def _section(spec: BenchmarkSpec) -> list[str]:
     return lines
 
 
+def _stress_derivation_line(c: BenchmarkCard) -> str:
+    """How the archive's stress/aux field relates to what's stored on disk.
+
+    SPH benchmarks store 6-component Voigt stress/strain tensors and derive
+    scalar targets (e.g. von Mises) at load time. Mesh/FEM (and, absent a
+    precedent otherwise, any non-SPH) benchmarks store the scalar nodal
+    field directly — the mesh-aware loader reads it verbatim, no Voigt
+    reconstruction (ADR-0043 §5).
+    """
+    if c.discretisation == "SPH":
+        return (
+            "`sph/stress` and `sph/strain` are 6-component Voigt tensors; "
+            "scalar targets are loader-derived (see the card's aux field)."
+        )
+    return (
+        f"`node/{c.aux_field}` is stored directly as a nodal scalar field; "
+        "the mesh-aware loader reads it verbatim (no Voigt tensor reconstruction)."
+    )
+
+
 def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
     """A standalone README for the hosted dataset archive.
 
@@ -274,6 +294,9 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         Standalone README markdown for the dataset archive.
     """
     c = spec.card
+    # The quickstart trains the (first) blessed family; without a baseline it
+    # defaults to the cgn reference config (mirrors render_benchmark_page).
+    family = spec.results[0].family if spec.results else "cgn"
     splits_str = ", ".join(f"{k} {v}" for k, v in c.splits.items())
     lines = [
         f"# {c.name} — StructBench canonical dataset",
@@ -299,13 +322,12 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         "",
         "```bash",
         "pip install structbench  # or: pip install -e . from the repo",
-        f"structbench-train --mode train --config configs/{name}/cgn.toml \\",
-        f"    --data-root /path/to/this/folder --out runs/{name}-cgn",
+        f"structbench-train --mode train --config configs/{name}/{family}.toml \\",
+        f"    --data-root /path/to/this/folder --out runs/{name}-{family}",
         "```",
         "",
         "Machine-readable metadata: `card.json` alongside this file.",
-        "`sph/stress` and `sph/strain` are 6-component Voigt tensors; "
-        "scalar targets are loader-derived (see the card's aux field).",
+        _stress_derivation_line(c),
         "Consume with `structbench.datasets.load_case_trajectory` or any "
         "HDF5 reader (layout per ADR-0013).",
     ]

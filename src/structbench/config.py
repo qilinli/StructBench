@@ -95,6 +95,51 @@ class CGNConfig:
 
 
 @dataclass
+class MGNConfig:
+    """MGN family hyperparameters (ADR-0043 §8; ADR-0041 v0.3).
+
+    Attributes
+    ----------
+    input_frames : int
+        Number of consecutive position frames the model takes as input per
+        sample (history length). Under ADR-0035 this is also the rollout seed
+        count, so it must equal the benchmark card's ``input_frames``
+        (enforced at config load). The reference MGN source uses ``h=0``
+        history (ADR-0043 §3), giving the floor value 2 (a velocity needs two
+        frames).
+    dim : int
+        Spatial dimensionality (3 for the deforming_plate benchmark).
+    hidden_dim : int
+        Latent/MLP hidden width.
+    message_passing_steps : int
+        Number of interaction-network message-passing steps.
+    nmlp_layers : int
+        Number of hidden layers in each MLP.
+    node_type_size : int
+        Embedding width for the node-type one-hot lookup.
+    world_edge_radius : float
+        World-space (radius-graph) connectivity radius in the mm working
+        frame; provisional pending the Task 8 measurement.
+    noise_std : float
+        Standard deviation of the random-walk training noise at the last
+        step.
+    normalizer_warmup_steps : int
+        Number of training steps over which the online feature/target
+        normalizers accumulate statistics before their outputs are used.
+    """
+
+    input_frames: int = 2
+    dim: int = 3
+    hidden_dim: int = 128
+    message_passing_steps: int = 15
+    nmlp_layers: int = 2
+    node_type_size: int = 9
+    world_edge_radius: float = 30.0  # working frame (mm); provisional — Task 8
+    noise_std: float = 0.003
+    normalizer_warmup_steps: int = 1000
+
+
+@dataclass
 class TrainConfig:
     """Optimization schedule and loss weights for training.
 
@@ -176,7 +221,9 @@ _REFERENCE_DECAY_STEPS_RATIO = 40000 / 100000
 #: ``"gns"`` is a deprecated legacy alias for the renamed CGN family
 #: (ADR-0034): pre-rename run directories record ``family = "gns"`` in
 #: their ``config.json`` and must stay re-evaluable. New configs say "cgn".
-MODEL_FAMILIES: dict[str, type] = {"cgn": CGNConfig, "gns": CGNConfig}
+#: ``"mgn"`` is the native MeshGraphNets family added for deforming_plate
+#: (ADR-0041).
+MODEL_FAMILIES: dict[str, type] = {"cgn": CGNConfig, "gns": CGNConfig, "mgn": MGNConfig}
 
 #: ``[run]`` keys — exactly these, no more, no fewer.
 _RUN_KEYS = {"benchmark", "seed"}

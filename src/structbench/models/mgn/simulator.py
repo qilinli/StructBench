@@ -129,6 +129,14 @@ class MeshSimulator(nn.Module):
         self._scripted_types = scripted_types
         self._world_edge_radius = world_edge_radius
 
+        if not set(scripted_types) <= set(kinematic_types):
+            raise ValueError(
+                "scripted_types must be a subset of kinematic_types (the "
+                "NORMAL-only noise mask relies on it): "
+                f"scripted_types={scripted_types!r}, "
+                f"kinematic_types={kinematic_types!r}"
+            )
+
         self._net = MGNet(
             node_in=node_type_size + dim,
             mesh_edge_in=2 * dim + 2,
@@ -293,26 +301,20 @@ class MeshSimulator(nn.Module):
             gt_t = gt_positions[t]
             scripted_velocity[scripted_mask] = gt_t[scripted_mask] - x_t[scripted_mask]
 
-        node_feats_raw = torch.cat([node_type_onehot, scripted_velocity], dim=-1)
-        node_feats = self._node_normalizer(node_feats_raw, accumulate=False)
-
-        sender, receiver = mesh_edge_index[0], mesh_edge_index[1]
-        u_ij = reference_coords[sender] - reference_coords[receiver]
-        u_norm = torch.linalg.norm(u_ij, dim=-1, keepdim=True)
-        x_ij = x_t[sender] - x_t[receiver]
-        x_norm = torch.linalg.norm(x_ij, dim=-1, keepdim=True)
-        mesh_edge_feats_raw = torch.cat([u_ij, u_norm, x_ij, x_norm], dim=-1)
-        mesh_edge_feats = self._mesh_edge_normalizer(
-            mesh_edge_feats_raw, accumulate=False
-        )
-
-        world_edge_index = world_edges(x_t, self._world_edge_radius, mesh_edge_index)
-        w_sender, w_receiver = world_edge_index[0], world_edge_index[1]
-        wx_ij = x_t[w_sender] - x_t[w_receiver]
-        wx_norm = torch.linalg.norm(wx_ij, dim=-1, keepdim=True)
-        world_edge_feats_raw = torch.cat([wx_ij, wx_norm], dim=-1)
-        world_edge_feats = self._world_edge_normalizer(
-            world_edge_feats_raw, accumulate=False
+        (
+            node_feats,
+            mesh_edge_index,
+            mesh_edge_feats,
+            world_edge_index,
+            world_edge_feats,
+        ) = self._graph_features(
+            x_t,
+            node_type_onehot,
+            scripted_velocity,
+            mesh_edge_index,
+            reference_coords,
+            None,
+            accumulate=False,
         )
 
         out = self._net(
@@ -331,6 +333,249 @@ class MeshSimulator(nn.Module):
 
         next_positions = x_t + velocity
         return next_positions, stress
+
+    def _graph_features(
+        self,
+        x_last: Tensor,
+        one_hot: Tensor,
+        scripted_velocity: Tensor,
+        mesh_edge_index: Tensor,
+        reference_coords: Tensor,
+        n_particles_per_example: Tensor | None,
+        *,
+        accumulate: bool,
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+        """Build the five normalized network inputs shared by train and eval.
+
+        Parameters
+        ----------
+        x_last:
+            ``(P, dim)`` current world positions (working-frame units, e.g.
+            mm).
+        one_hot:
+            ``(P, node_type_size)`` float32 one-hot node-type encoding.
+        scripted_velocity:
+            ``(P, dim)`` scripted-actuator velocity node feature; zero on
+            non-scripted rows.
+        mesh_edge_index:
+            ``(2, Em)`` int64 mesh-edge index. For a batched call (multiple
+            collated examples) this is batched with per-example node offsets
+            already applied.
+        reference_coords:
+            ``(P, dim)`` mesh-space (rest/reference) coordinates.
+        n_particles_per_example:
+            ``(B,)`` int64 per-example node counts, or ``None`` for a single
+            example (the inference fast path).
+        accumulate:
+            Forwarded to all four ``OnlineNormalizer`` calls made here (node,
+            mesh-edge, world-edge); the caller's target normalizer is a
+            separate call outside this method.
+
+        Returns
+        -------
+        tuple[Tensor, Tensor, Tensor, Tensor, Tensor]
+            ``(node_f_norm, mesh_edge_index, mesh_ef_norm, world_edge_index,
+            world_ef_norm)`` -- exactly the five positional arguments
+            :class:`~.network.MGNet` expects, in order. ``mesh_edge_index``
+            is passed through unchanged (returned for the caller's
+            convenience, since it flows straight into the network call).
+
+        Raises
+        ------
+        ValueError
+            If ``n_particles_per_example`` is given and ``mesh_edge_index``
+            contains an edge whose sender and receiver fall in different
+            example blocks (a malformed batch). This is checked explicitly
+            rather than trusted: :func:`~.mesh_ops.world_edges` never
+            *indexes* with ``mesh_edge_index`` -- it only builds an
+            arithmetic hash key from it (``sender * n + receiver``) to
+            exclude mesh-connected pairs from the radius query -- so a
+            cross-example edge would NOT raise on its own. It would instead
+            run to completion on finite-but-wrong output, and an
+            out-of-range local key can even spuriously collide with a valid
+            candidate pair (phantom exclusion of a real world edge). Silent
+            corruption, not a crash, hence the explicit check.
+
+        Notes
+        -----
+        **Batched world-edge partition (load-bearing):** when
+        ``n_particles_per_example`` is given, world edges are computed PER
+        EXAMPLE -- positions are sliced per sample, :func:`~.mesh_ops.
+        world_edges` is run on each slice (with mesh edges restricted to and
+        re-indexed into that slice's local node range), and the resulting
+        local world-edge index has the example's node offset added back
+        before concatenation. This is never one whole-tensor radius query
+        over the collated batch, which would invent cross-example edges
+        between unrelated cases whose node coordinates happen to be close
+        (or, worst case, coincide) after collation. ``None`` selects the
+        single-example fast path used by inference (single example, so the
+        cross-boundary check above does not apply).
+        """
+        node_feats_raw = torch.cat([one_hot, scripted_velocity], dim=-1)
+        node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
+
+        sender, receiver = mesh_edge_index[0], mesh_edge_index[1]
+        u_ij = reference_coords[sender] - reference_coords[receiver]
+        u_norm = torch.linalg.norm(u_ij, dim=-1, keepdim=True)
+        x_ij = x_last[sender] - x_last[receiver]
+        x_norm = torch.linalg.norm(x_ij, dim=-1, keepdim=True)
+        mesh_edge_feats_raw = torch.cat([u_ij, u_norm, x_ij, x_norm], dim=-1)
+        mesh_edge_feats = self._mesh_edge_normalizer(
+            mesh_edge_feats_raw, accumulate=accumulate
+        )
+
+        if n_particles_per_example is None:
+            world_edge_index = world_edges(
+                x_last, self._world_edge_radius, mesh_edge_index
+            )
+        else:
+            example_of = torch.repeat_interleave(
+                torch.arange(
+                    n_particles_per_example.numel(), device=mesh_edge_index.device
+                ),
+                n_particles_per_example,
+            )
+            if (example_of[sender] != example_of[receiver]).any():
+                raise ValueError(
+                    "mesh_edge_index crosses example boundaries — collate "
+                    "must offset per-trajectory edges"
+                )
+
+            world_parts: list[Tensor] = []
+            offset = 0
+            for count in n_particles_per_example.tolist():
+                end = offset + count
+                pos_slice = x_last[offset:end]
+                in_range = (sender >= offset) & (sender < end)
+                local_mesh_edges = mesh_edge_index[:, in_range] - offset
+                local_world_edges = world_edges(
+                    pos_slice, self._world_edge_radius, local_mesh_edges
+                )
+                world_parts.append(local_world_edges + offset)
+                offset = end
+            world_edge_index = (
+                torch.cat(world_parts, dim=1)
+                if world_parts
+                else mesh_edge_index.new_zeros((2, 0))
+            )
+
+        w_sender, w_receiver = world_edge_index[0], world_edge_index[1]
+        wx_ij = x_last[w_sender] - x_last[w_receiver]
+        wx_norm = torch.linalg.norm(wx_ij, dim=-1, keepdim=True)
+        world_edge_feats_raw = torch.cat([wx_ij, wx_norm], dim=-1)
+        world_edge_feats = self._world_edge_normalizer(
+            world_edge_feats_raw, accumulate=accumulate
+        )
+
+        return (
+            node_feats,
+            mesh_edge_index,
+            mesh_edge_feats,
+            world_edge_index,
+            world_edge_feats,
+        )
+
+    def forward_train(
+        self,
+        x_last: Tensor,
+        next_positions: Tensor,
+        next_aux: Tensor,
+        particle_types: Tensor,
+        mesh_edge_index: Tensor,
+        reference_coords: Tensor,
+        n_particles_per_example: Tensor,
+        *,
+        accumulate: bool,
+    ) -> tuple[Tensor, Tensor]:
+        """One training forward pass: normalized network output and target.
+
+        Parameters
+        ----------
+        x_last:
+            ``(P, dim)`` current world positions; noise (if any) has ALREADY
+            been applied by the caller before this method is called.
+        next_positions:
+            ``(P, dim)`` ground-truth next-frame world positions.
+        next_aux:
+            ``(P,)`` ground-truth stress (working-frame units, e.g. MPa) at
+            the next frame.
+        particle_types:
+            ``(P,)`` int64 node-type codes.
+        mesh_edge_index:
+            ``(2, Em)`` int64 mesh-edge index (batched with per-example node
+            offsets is fine).
+        reference_coords:
+            ``(P, dim)`` mesh-space (rest/reference) coordinates.
+        n_particles_per_example:
+            ``(B,)`` int64 per-example node counts from the collate step;
+            drives the batched world-edge partition in :meth:`_graph_features`.
+        accumulate:
+            If ``True``, this call's features are folded into all four
+            ``OnlineNormalizer`` running statistics (node, mesh-edge,
+            world-edge -- via :meth:`_graph_features` -- and target, here).
+
+        Returns
+        -------
+        tuple[Tensor, Tensor]
+            ``(pred_norm, target_norm)``, each ``(P, dim + 1)``: the raw
+            network output (already in normalized/target space, matching
+            what :meth:`predict_positions` inverse-normalizes) and the
+            normalized ground-truth target ``cat([next_positions - x_last,
+            next_aux[:, None]], dim=1)``.
+
+        Notes
+        -----
+        The one-hot node-type encoding and the scripted-velocity node input
+        are built here (``next_positions - x_last`` on scripted rows, zero
+        elsewhere) since their sources differ from the eval path's bound
+        ground truth; the rest of the feature assembly is shared with
+        :meth:`predict_positions` via :meth:`_graph_features`.
+
+        gamma = 1.0 falls out of the construction here: the caller is
+        expected to have already added noise to ``x_last``, so the velocity
+        target ``next_positions - x_last`` is measured from the noisy
+        position, matching the source MeshGraphNets training recipe without
+        a separate noise-correction term.
+        """
+        one_hot = F.one_hot(particle_types, num_classes=self._node_type_size).to(
+            torch.float32
+        )
+
+        dtype, device = particle_types.dtype, particle_types.device
+        scripted = torch.tensor(self._scripted_types, dtype=dtype, device=device)
+        scripted_mask = torch.isin(particle_types, scripted)
+
+        scripted_velocity = torch.zeros_like(x_last)
+        scripted_velocity[scripted_mask] = (next_positions - x_last)[scripted_mask]
+
+        (
+            node_feats,
+            mesh_edge_index,
+            mesh_edge_feats,
+            world_edge_index,
+            world_edge_feats,
+        ) = self._graph_features(
+            x_last,
+            one_hot,
+            scripted_velocity,
+            mesh_edge_index,
+            reference_coords,
+            n_particles_per_example,
+            accumulate=accumulate,
+        )
+
+        pred_norm = self._net(
+            node_feats,
+            mesh_edge_index,
+            mesh_edge_feats,
+            world_edge_index,
+            world_edge_feats,
+        )
+
+        target_raw = torch.cat([next_positions - x_last, next_aux[:, None]], dim=1)
+        target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
+
+        return pred_norm, target_norm
 
     def save(self, path: str | Path) -> None:
         """Save the model's ``state_dict`` (network + normalizer buffers).

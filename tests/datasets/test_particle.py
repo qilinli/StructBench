@@ -33,3 +33,31 @@ def test_collate_concatenates_particles():
     # two examples with 5 and 4 particles -> 9 rows
     assert batch["position_seq"].shape == (9, 3, 2)
     torch.testing.assert_close(batch["n_particles_per_example"], torch.tensor([5, 4]))
+
+
+def test_window_dataset_sample_carries_traj_idx():
+    ds = WindowDataset([_traj("a", 5), _traj("b", 4)], input_frames=3)
+    # t-major, traj-minor interleaving (see WindowDataset docstring): index 0
+    # is trajectory "a"'s first sample, index 1 is trajectory "b"'s first
+    # sample.
+    assert ds[0]["traj_idx"] == 0
+    assert ds[1]["traj_idx"] == 1
+    # every sample from "a" carries traj_idx 0, every sample from "b" carries 1
+    traj_idxs = [ds[i]["traj_idx"] for i in range(len(ds))]
+    assert traj_idxs == [0, 1] * (len(ds) // 2)
+
+
+def test_collate_samples_output_unaffected_by_traj_idx_key():
+    # The CGN training/eval path calls collate_samples directly; traj_idx
+    # (added for the MGN mesh collate) must not change its output.
+    ds = WindowDataset([_traj("a", 5), _traj("b", 4)], input_frames=3)
+    batch = [ds[0], ds[1]]
+    out = collate_samples(batch)
+    assert set(out.keys()) == {
+        "position_seq",
+        "particle_type",
+        "next_position",
+        "next_aux",
+        "n_particles_per_example",
+    }
+    assert "traj_idx" not in out

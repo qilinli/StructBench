@@ -367,7 +367,7 @@ def _load_mesh_trajectory(
         positions=positions,
         particle_type=nodes.node_type.astype(np.int64),
         aux=aux,
-        time=response.time[:n].copy(),
+        time=np.asarray(response.time[:n], dtype=np.float64),
         cells=block.connectivity.astype(np.int64),
         reference_coords=reference,
     )
