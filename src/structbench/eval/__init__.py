@@ -10,9 +10,11 @@ from .metrics import (
     midspan_deflection_peak,
     mushroom_width,
     peak_mean_aux,
+    peak_nodal_aux,
     peak_stress,
     position_rmse,
     t_peak_mean_aux,
+    terminal_peak_displacement,
 )
 from .rollout import (
     RolloutResult,
@@ -32,6 +34,8 @@ __all__ = [
     "t_peak_mean_aux",
     "midspan_deflection_peak",
     "cracked_fraction",
+    "peak_nodal_aux",
+    "terminal_peak_displacement",
     "QoiFn",
     "QoiInputs",
     "RolloutResult",

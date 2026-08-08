@@ -9,8 +9,10 @@ from structbench.eval.metrics import (
     final_length,
     midspan_deflection_peak,
     mushroom_width,
+    peak_nodal_aux,
     peak_stress,
     position_rmse,
+    terminal_peak_displacement,
 )
 
 
@@ -185,3 +187,47 @@ def test_peak_mean_aux_respects_scored_span():
     # Frame 0's value 9.0 is seeded ground truth; the scored peak is 4.0 @ frame 2.
     assert peak_mean_aux(inputs) == 4.0
     assert t_peak_mean_aux(inputs) == 2e-5 * 1e3
+
+
+def test_peak_nodal_aux_masks_excluded_types():
+    aux = np.zeros((4, 3), dtype=np.float32)
+    aux[2, 0] = 5.0  # NORMAL node peak
+    aux[3, 2] = 99.0  # kinematic node — must be ignored
+    inp = QoiInputs(
+        time=np.arange(4, dtype=np.float64),
+        positions=np.zeros((4, 3, 3), dtype=np.float32),
+        aux=aux,
+        particle_type=np.array([0, 0, 1], dtype=np.int64),
+        init=2,
+    )
+    qoi = peak_nodal_aux(exclude_types=(1, 3))
+    assert qoi(inp) == pytest.approx(5.0)
+
+
+def test_peak_nodal_aux_respects_init():
+    aux = np.zeros((4, 2), dtype=np.float32)
+    aux[0, 0] = 50.0  # before init — must be ignored
+    aux[3, 1] = 2.0
+    inp = QoiInputs(
+        time=np.arange(4, dtype=np.float64),
+        positions=np.zeros((4, 2, 3), dtype=np.float32),
+        aux=aux,
+        particle_type=None,
+        init=2,
+    )
+    assert peak_nodal_aux()(inp) == pytest.approx(2.0)
+
+
+def test_terminal_peak_displacement_masks_and_measures():
+    pos = np.zeros((3, 3, 3), dtype=np.float32)
+    pos[-1, 0] = [3.0, 4.0, 0.0]  # NORMAL: |disp| = 5
+    pos[-1, 2] = [100.0, 0.0, 0.0]  # kinematic: ignored
+    inp = QoiInputs(
+        time=np.arange(3, dtype=np.float64),
+        positions=pos,
+        aux=np.zeros((3, 3), dtype=np.float32),
+        particle_type=np.array([0, 0, 3], dtype=np.int64),
+        init=2,
+    )
+    qoi = terminal_peak_displacement(exclude_types=(1, 3))
+    assert qoi(inp) == pytest.approx(5.0)
