@@ -1182,10 +1182,10 @@ def evaluate(
                     "mesh benchmark"
                 )
             mesh_sim.bind_case(
-                torch.from_numpy(trajectory.cells),
-                torch.from_numpy(trajectory.reference_coords),
-                torch.from_numpy(trajectory.particle_type),
-                torch.from_numpy(trajectory.positions),
+                torch.from_numpy(trajectory.cells).to(device),
+                torch.from_numpy(trajectory.reference_coords).to(device),
+                torch.from_numpy(trajectory.particle_type).to(device),
+                torch.from_numpy(trajectory.positions).to(device),
             )
             mesh_sim.reset_rollout()
         result = rollout(
