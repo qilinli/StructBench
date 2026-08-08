@@ -7,7 +7,7 @@ Note: `sph/stress` and `sph/strain` are full 6-component Voigt tensors; each ben
 
 | Benchmark | Solver | Discretisation | Erosion | Loading | Cases | Particles | Frames | Aux target |
 |---|---|---|---|---|---|---|---|---|
-| DeformingPlate | COMSOL | FEM | no | Scripted rigid actuator (OBSTACLE nodes, kinematic); HANDLE nodes fixed | 1200 | ~1,271 nodes avg (lo-hi range measured at Task 8) | 400 | von_mises_stress (MPa) |
+| DeformingPlate | COMSOL | FEM | no | Scripted rigid actuator (OBSTACLE nodes, kinematic); HANDLE nodes fixed | 1200 | 672-2189 | 400 | von_mises_stress (MPa) |
 | NotchBeam2D-Bend | LS-DYNA | SPH | no | constant-velocity pin, 3-point bend, 8-20 mm/s | 111 | 2394-8280 | 502 | max_principal_strain (-) |
 | NotchBeam2D-Impact | LS-DYNA | SPH | no | drop-weight impact, initial velocity 40-160 m/s, impactor shapes Bullet/Rectangular/Sphere | 110 | 4264-12966 | 502 | max_principal_strain (-) |
 | Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4800-8000 | 152 | von_mises_stress (MPa) |
@@ -19,9 +19,9 @@ Quasi-static deformation of a hyperelastic 3D plate pressed by a scripted rigid 
 
 - **Task**: quasi-static load-stepping autoregressive rollout (ADR-0043)
 - **Materials**: Hyperelastic (constants not published with the dataset)
-- **Geometry**: 3D tetrahedral mesh: deformable plate + actuator, ~1,271 nodes avg (ragged); source units kg-m-s (ingestion placeholder — measured at conversion, ADR-0042 §2b)
+- **Geometry**: 3D tetrahedral mesh, ~0.5 m plate + rigid actuator; 672-2189 nodes per case (mean ~1270, ragged); source units kg-m-s (SI; measured 2026-08-08, ADR-0042 §2b)
 - **Splits**: train 1000, val 100, test 100
-- **Protocol** (ADR-0032, ADR-0035): 2 input frames, horizon full, scored at native output times. *Rationale*: input_frames=2 is the floor (a velocity needs two frames) and the faithful value: the source model uses h=0 history — node inputs are the one-hot node type only — so no window tuning question exists and no ground-truth timeline analysis can move it (ADR-0043 §3). Pseudo-time: dt=0 in the source (quasi-static); time is the frame index and output_dt_ms=1.0 is nominal, not milliseconds. aux_unit MPa assumes the source stress is Pa (SI); confirmed or corrected when the units measurement lands (ADR-0042 §2b). Scored span is [2, 400), exclusive end (ADR-0043 §6).
+- **Protocol** (ADR-0032, ADR-0035): 2 input frames, horizon full, scored at native output times. *Rationale*: input_frames=2 is the floor (a velocity needs two frames) and the faithful value: the source model uses h=0 history — node inputs are the one-hot node type only — so no window tuning question exists and no ground-truth timeline analysis can move it (ADR-0043 §3). Pseudo-time: dt=0 in the source (quasi-static); time is the frame index and output_dt_ms=1.0 is nominal, not milliseconds. Units MEASURED on the full dataset (2026-08-08, ADR-0042 §2b): positions are metres, stress is Pa — so aux_unit MPa holds and kg-m-s is the identity source convention. Two measured caveats (ADR-0043 dated note): the hosted train.tfrecord carries 1,200 trajectories — the protocol's 1,000 are the first 1,000 in file order; and HANDLE (type-3) nodes are not strictly stationary in the data (max drift ~0.02 m train / ~0.06 m valid+test) — both kinematic types are GT-prescribed and excluded from scoring either way. Scored span is [2, 400), exclusive end (ADR-0043 §6).
 - **QoIs**: peak_vm_stress, terminal_peak_deflection
 - **Baseline**: *no official baseline yet*
 - **Fields**: node/displacement, node/von_mises_stress

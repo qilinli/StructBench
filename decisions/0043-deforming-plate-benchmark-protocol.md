@@ -188,3 +188,30 @@ everything:
 - The registries/leaderboard render this benchmark with the standard
   statistics; the pooled blessing aggregate appears in the blessing record
   (ADR-0033 registry `notes`/metrics), not as a leaderboard column.
+
+---
+
+**Dated note (2026-08-08, maintainer) — three measurement/primary-source
+findings.**
+
+1. **The hosted `train.tfrecord` carries 1,200 trajectories**, not the
+   paper's stated 1,000 (paper A.1: "1000 training, 100 validation and 100
+   test"; byte-size arithmetic independently corroborates 1,200). The §2
+   protocol split is unchanged: **the protocol's 1,000 train trajectories are
+   the first 1,000 in file order**, the converter caps train at 1,000 by
+   default, and the extra 200 exist upstream but sit outside the protocol
+   (they may serve as explicitly-extra-protocol data in future work).
+2. **HANDLE (type-3) nodes are not strictly stationary in the data** (max
+   drift ≈ 0.02 m in train, ≈ 0.06 m in valid/test), contrary to the paper's
+   idealised description. §4 is unaffected — both kinematic types are
+   GT-prescribed and excluded from scoring — and the §8/§9 scripted-velocity
+   input stays OBSTACLE-only per the paper's own A.2 wording.
+3. **§8 gate pooling correction** (from the primary PDF, A.5.2): the paper's
+   rollout RMSE pools over "all spatial coordinates, **all mesh nodes**, all
+   steps in each trajectory, and all 100 trajectories", with the ± being the
+   standard error across trajectories. The §8 gate's aggregate is therefore
+   computed over **all nodes** (kinematic rows are GT-prescribed and
+   contribute zero error), NOT over NORMAL nodes only as §8's original
+   wording said — NORMAL-only pooling would hold a reimplementation to a
+   materially stricter bar than the published 15.1±4.0. The §5 leaderboard
+   metrics keep StructBench's own NORMAL-only masking, which is unaffected.

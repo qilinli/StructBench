@@ -15,7 +15,8 @@ All extraction is delegated to
 and ``build_deforming_plate_case``; this script never touches response data
 itself and is not part of the importable package (ADR-0010).
 
-``SOURCE_UNITS`` below is a **placeholder** -- see the constant's comment.
+``SOURCE_UNITS`` below is **measured-confirmed SI** -- see the constant's
+comment; the train split is capped at the protocol's 1,000 (``_SPLIT_CAPS``).
 
 Run with the throwaway TF env from the repo root. ``SCRIPT`` below stands for
 ``data_generation/meshgraphnets/deforming_plate/convert.py``::
@@ -44,11 +45,18 @@ from structbench.core.io.meshgraphnets import (
 
 DATASET_ID = "deforming_plate"
 
-# PLACEHOLDER: world_pos/stress units are undocumented upstream (meta.json and
-# the paper are silent). "kg-m-s" is provisional -- a later human task (Task 8
-# of the ingestion plan) measures the true convention against the downloaded
-# data and patches this constant before the archive is trusted (ADR-0042 §2b).
+# MEASURED (2026-08-08, ADR-0042 §2b): the source data is SI. Full-dataset
+# sweep of all 1,400 trajectories -- world_pos extents ~0.5 (metres; a 0.5 m
+# plate, consistent with collision_radius 0.03 = 3 cm) and stress 0..4.3e8
+# with p99 ~1.1e5 (pascals). "kg-m-s" is therefore the identity mapping.
 SOURCE_UNITS = "kg-m-s"
+
+#: Per-source-split caps (ADR-0043 dated note, 2026-08-08): the hosted
+#: train.tfrecord carries 1,200 trajectories, but the paper's protocol split
+#: -- and therefore the benchmark's frozen id list -- is 1,000 train. The
+#: protocol's 1,000 are the FIRST 1,000 in file order; the extra 200 exist
+#: upstream but sit outside the protocol and are not converted by default.
+_SPLIT_CAPS = {"train": 1000}
 
 #: Source split (the on-disk <split>.tfrecord file) -> canonical split name
 #: used in output filenames. StructBench's platform-wide convention is
@@ -100,8 +108,14 @@ def convert_split(
     """
     n_ok = 0
     failures: list[tuple[str, str]] = []
+    cap = _SPLIT_CAPS.get(source_split)
+    effective_limit = (
+        min(x for x in (limit, cap) if x is not None)
+        if (limit is not None or cap is not None)
+        else None
+    )
     for i, arrays in enumerate(read_deforming_plate(data_dir, source_split)):
-        if limit is not None and i >= limit:
+        if effective_limit is not None and i >= effective_limit:
             break
         case_id = f"{canon_split}_{i:04d}"
         out_path = out_dir / f"{case_id}.h5"
