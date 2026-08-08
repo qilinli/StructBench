@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from structbench.cli.train import CGNConfig, TrainConfig, build_simulator
-from structbench.config import ConfigError, MGNConfig, load_run_config
+from structbench.config import ConfigError, MGNConfig, TransolverConfig, load_run_config
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -221,6 +221,71 @@ def test_load_deforming_plate_mgn_smoke_config():
     assert rc.model.input_frames == 2
     assert rc.model.hidden_dim == 16
     assert rc.train.training_steps == 50
+
+
+#: A complete, valid Transolver grouped config (deforming_plate card input_frames=2).
+VALID_TRANSOLVER = """\
+[run]
+benchmark = "deforming_plate"
+seed = 7
+
+[model]
+family = "transolver"
+input_frames = 2
+dim = 3
+hidden_dim = 128
+n_layers = 8
+n_heads = 8
+slice_num = 64
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 9
+noise_std = 0.003
+normalizer_warmup_steps = 1000
+weight_decay = 1e-5
+max_grad_norm = 0.1
+
+[train]
+batch_size = 8
+lr_init = 1e-4
+lr_decay = 0.1
+training_steps = 100
+val_every = 50
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0
+"""
+
+
+def test_load_run_config_transolver_happy_path(tmp_path):
+    rc = load_run_config(_write(tmp_path, VALID_TRANSOLVER))
+    assert rc.family == "transolver"
+    assert isinstance(rc.model, TransolverConfig)
+    assert isinstance(rc.train, TrainConfig)
+    assert rc.train.benchmark == "deforming_plate"
+    # Every TOML value equals the dataclass default, so equality is a full
+    # per-field round-trip check.
+    assert rc.model == TransolverConfig()
+
+
+def test_load_run_config_rejects_transolver_unknown_key(tmp_path):
+    bad = VALID_TRANSOLVER.replace("noise_std = 0.003", "noise_st = 0.003")
+    with pytest.raises(ConfigError, match="unknown keys: noise_st"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_rejects_transolver_missing_key(tmp_path):
+    bad = VALID_TRANSOLVER.replace("dropout = 0.0\n", "")
+    with pytest.raises(ConfigError, match="missing keys: dropout"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_rejects_transolver_input_frames_off_card(tmp_path):
+    # ADR-0035: input_frames must equal the benchmark card's (deforming_plate = 2).
+    bad = VALID_TRANSOLVER.replace("input_frames = 2", "input_frames = 6")
+    with pytest.raises(ConfigError, match="must equal benchmark"):
+        load_run_config(_write(tmp_path, bad))
 
 
 def _stats_dict():

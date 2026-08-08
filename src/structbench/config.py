@@ -140,6 +140,30 @@ class MGNConfig:
 
 
 @dataclass
+class TransolverConfig:
+    """Native Transolver family (ADR-0041 step ②; recipe pins in ADR-0044).
+
+    ``weight_decay``/``max_grad_norm`` are family-recipe knobs and live here
+    rather than on TrainConfig (precedent: ``MGNConfig.noise_std``), keeping
+    the strict ``[train]`` schema family-uniform.
+    """
+
+    input_frames: int = 2
+    dim: int = 3
+    hidden_dim: int = 128
+    n_layers: int = 8
+    n_heads: int = 8
+    slice_num: int = 64
+    mlp_ratio: int = 1
+    dropout: float = 0.0
+    node_type_size: int = 9
+    noise_std: float = 0.003
+    normalizer_warmup_steps: int = 1000
+    weight_decay: float = 1e-5
+    max_grad_norm: float = 0.1
+
+
+@dataclass
 class TrainConfig:
     """Optimization schedule and loss weights for training.
 
@@ -222,8 +246,14 @@ _REFERENCE_DECAY_STEPS_RATIO = 40000 / 100000
 #: (ADR-0034): pre-rename run directories record ``family = "gns"`` in
 #: their ``config.json`` and must stay re-evaluable. New configs say "cgn".
 #: ``"mgn"`` is the native MeshGraphNets family added for deforming_plate
-#: (ADR-0041).
-MODEL_FAMILIES: dict[str, type] = {"cgn": CGNConfig, "gns": CGNConfig, "mgn": MGNConfig}
+#: (ADR-0041). ``"transolver"`` is the native Transolver family, provisional
+#: on deforming_plate alongside MGN (ADR-0041 step ②).
+MODEL_FAMILIES: dict[str, type] = {
+    "cgn": CGNConfig,
+    "gns": CGNConfig,
+    "mgn": MGNConfig,
+    "transolver": TransolverConfig,
+}
 
 #: ``[run]`` keys — exactly these, no more, no fewer.
 _RUN_KEYS = {"benchmark", "seed"}
