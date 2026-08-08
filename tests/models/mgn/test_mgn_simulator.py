@@ -112,3 +112,64 @@ def test_save_load_roundtrip(tmp_path):
     ):
         assert k1 == k2
         torch.testing.assert_close(v1, v2)
+
+
+def test_untrained_mgn_through_eval_rollout(tmp_path):
+    """The ①-c1 deliverable gate: an UNTRAINED MeshSimulator satisfies the
+    eval protocol end to end on a synthetic mesh case (ADR-0043)."""
+    import numpy as np
+
+    from structbench.core import write_case
+    from structbench.core.io.meshgraphnets import build_deforming_plate_case
+    from structbench.datasets import load_case_trajectory
+    from structbench.eval import one_step_aux_rmse, one_step_position_rmse, rollout
+
+    rng = np.random.default_rng(7)
+    P, T = 6, 8
+    world0 = rng.random((P, 3)).astype(np.float32)
+    drift = rng.random((T, P, 3)).astype(np.float32) * 0.01
+    arrays = {
+        "cells": np.array([[0, 1, 2, 3], [2, 3, 4, 5]], dtype=np.int32),
+        "node_type": np.array([0, 0, 0, 0, 1, 3], dtype=np.int32),
+        "mesh_pos": world0.copy(),
+        "world_pos": (world0[None] + np.cumsum(drift, axis=0)).astype(np.float32),
+        "stress": rng.random((T, P, 1)).astype(np.float32),
+    }
+    case = build_deforming_plate_case(arrays, source_units="kg-m-s", case_id="mgn-it")
+    path = tmp_path / "mgn-it.h5"
+    write_case(case, path)
+    traj = load_case_trajectory(path, aux_field="von_mises_stress")
+
+    torch.manual_seed(0)
+    sim = MeshSimulator(latent=8, mp_steps=1, world_edge_radius=50.0)
+    sim.bind_case(
+        torch.from_numpy(traj.cells),
+        torch.from_numpy(traj.reference_coords),
+        torch.from_numpy(traj.particle_type),
+        torch.from_numpy(traj.positions),
+    )
+
+    from structbench.benchmarks import get_benchmark
+
+    spec = get_benchmark("deforming_plate")
+    sim.reset_rollout()
+    result = rollout(sim, traj, input_frames=2, kinematic_types=(1, 3), qois=spec.qois)
+    assert result.predicted_positions.shape == (T, P, 3)
+    assert result.predicted_aux.shape == (T, P)
+    assert result.position_rmse.shape == (T - 2,)
+    # the ADR-0043 QoIs evaluate on MGN output: populated, finite
+    assert set(result.qoi_pred) == {"peak_vm_stress", "terminal_peak_deflection"}
+    assert all(np.isfinite(v) for v in result.qoi_pred.values())
+    assert all(np.isfinite(v) for v in result.qoi_error.values())
+    # kinematic rows are GT-prescribed in the output
+    np.testing.assert_allclose(
+        result.predicted_positions[:, 4], traj.positions[:, 4], rtol=1e-5
+    )
+
+    sim.reset_rollout()
+    one_pos = one_step_position_rmse(sim, traj, input_frames=2, kinematic_types=(1, 3))
+    assert one_pos.shape == (T - 2,)
+
+    sim.reset_rollout()
+    one_aux = one_step_aux_rmse(sim, traj, input_frames=2, kinematic_types=(1, 3))
+    assert one_aux.shape == (T - 2,)
