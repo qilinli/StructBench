@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -91,14 +93,22 @@ def test_build_case_identity_units_are_si():
 
 
 def test_import_structbench_does_not_import_tensorflow():
-    import importlib
-    import sys
-
-    for m in list(sys.modules):
-        if m == "tensorflow" or m.startswith("tensorflow."):
-            del sys.modules[m]
-    importlib.import_module("structbench.core.io.meshgraphnets")
-    assert "tensorflow" not in sys.modules  # not imported at module load
+    # Run in a fresh subprocess: this test file's own top-level import of
+    # structbench.core.io.meshgraphnets (see above) already populates
+    # sys.modules by the time any test runs, so importlib.import_module()
+    # in-process would just return the cached module without re-executing
+    # its body. A subprocess has no such cache, so it genuinely re-runs the
+    # module's top-level code and can actually fail if a top-level
+    # `import tensorflow` were ever (re-)introduced.
+    code = (
+        "import sys, structbench.core.io.meshgraphnets\n"
+        "assert 'tensorflow' not in sys.modules, "
+        "sorted(m for m in sys.modules if 'tensor' in m)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.mark.skipif(
