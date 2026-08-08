@@ -288,6 +288,29 @@ def test_load_run_config_rejects_transolver_input_frames_off_card(tmp_path):
         load_run_config(_write(tmp_path, bad))
 
 
+def test_load_deforming_plate_transolver_config():
+    # The ADR-0044 reference config: the strict loader accepts it and the
+    # deforming_plate card's input_frames=2 check passes.
+    rc = load_run_config(REPO_ROOT / "configs" / "deforming_plate" / "transolver.toml")
+    assert rc.family == "transolver"
+    assert isinstance(rc.model, TransolverConfig)
+    assert rc.model.input_frames == 2
+    assert rc.model.hidden_dim == 128
+    assert rc.model.n_layers == 8
+    assert rc.train.training_steps == 10_000_000
+
+
+def test_load_deforming_plate_transolver_smoke_config():
+    rc = load_run_config(
+        REPO_ROOT / "configs" / "deforming_plate" / "transolver_smoke.toml"
+    )
+    assert rc.family == "transolver"
+    assert isinstance(rc.model, TransolverConfig)
+    assert rc.model.input_frames == 2
+    assert rc.model.hidden_dim == 16
+    assert rc.train.training_steps == 50
+
+
 def _stats_dict():
     return {
         "velocity": {"mean": torch.zeros(2), "std": torch.ones(2)},

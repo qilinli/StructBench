@@ -1,0 +1,34 @@
+# NOT a baseline — CPU smoke of the full DeformingPlate Transolver
+# train->checkpoint->eval path. Mirrors transolver.toml with a shrunk capacity
+# cell (hidden_dim/n_layers/n_heads/slice_num) and a short step budget.
+
+[run]
+benchmark = "deforming_plate"
+seed = 0
+
+[model]
+family = "transolver"
+input_frames = 2
+dim = 3
+hidden_dim = 16
+n_layers = 2
+n_heads = 2
+slice_num = 8
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 9
+noise_std = 0.003
+normalizer_warmup_steps = 5
+weight_decay = 1e-5
+max_grad_norm = 0.1
+
+[train]
+batch_size = 2
+lr_init = 1e-3
+lr_decay = 0.1           # UNUSED by the transolver family (cosine anneal, ADR-0044)
+training_steps = 50
+val_every = 25
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0
