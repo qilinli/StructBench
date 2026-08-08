@@ -65,6 +65,7 @@ from ..datasets import (
 from ..eval import one_step_aux_rmse, one_step_position_rmse, rollout
 from ..models.cgn import LearnedSimulator
 from ..models.cgn.simulator import time_diff
+from ..models.common import CaseBoundSimulator
 from ..models.mgn import (
     MeshSimulator,
     collate_mesh_samples,
@@ -1168,9 +1169,10 @@ def evaluate(
     simulator.load(str(ckpt_path))
     simulator.to(device)
     simulator.eval()
-    # Non-None only for the mgn arm: gates the per-case bind_case/
-    # reset_rollout calls below without re-checking `family` at each site.
-    mesh_sim = simulator if isinstance(simulator, MeshSimulator) else None
+    # Non-None for any CaseBoundSimulator arm (mgn today; the Transolver
+    # family next, ADR-0041): gates the per-case bind_case/reset_rollout
+    # calls below without re-checking `family` at each site.
+    mesh_sim = simulator if isinstance(simulator, CaseBoundSimulator) else None
 
     # Explicit-checkpoint sweeps must not clobber the selected checkpoint's
     # canonical artifacts: suffix the metrics file and skip the rollout .npz.
