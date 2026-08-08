@@ -21,6 +21,7 @@ from .results import BaselineResult
 
 #: Registered benchmark modules; each must define a module-level ``SPEC``.
 _MODULES: dict[str, str] = {
+    "deforming_plate": "structbench.benchmarks.deforming_plate",
     "notch_beam_2d_bend": "structbench.benchmarks.notch_beam_2d_bend",
     "notch_beam_2d_impact": "structbench.benchmarks.notch_beam_2d_impact",
     "taylor_impact_2d": "structbench.benchmarks.taylor_impact_2d",
