@@ -55,7 +55,7 @@ warn_redundant_casts = true
 ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
-module = ["h5py.*", "lasso.*", "torch_geometric.*", "matplotlib.*"]
+module = ["h5py.*", "lasso.*", "torch_geometric.*", "matplotlib.*", "tensorflow.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

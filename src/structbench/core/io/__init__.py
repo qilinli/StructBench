@@ -42,6 +42,7 @@ from .lsdyna import (
     read_d3plot,
     unit_factors,
 )
+from .meshgraphnets import build_deforming_plate_case, parse_meta
 
 __all__ = [
     "read_case",
@@ -53,6 +54,8 @@ __all__ = [
     "extract_response",
     "parse_deck_materials",
     "unit_factors",
+    "build_deforming_plate_case",
+    "parse_meta",
 ]
 
 _STR_DT = h5py.string_dtype(encoding="utf-8")
@@ -161,13 +164,30 @@ def _write_nodes(f: h5py.File, nodes: Nodes) -> None:
     g = f.create_group("nodes")
     g.create_dataset("coords", data=np.asarray(nodes.coords, dtype=np.float64))
     g.create_dataset("node_id", data=np.asarray(nodes.node_id, dtype=np.int64))
+    if nodes.node_type is not None:
+        g.create_dataset("node_type", data=np.asarray(nodes.node_type, dtype=np.int64))
+    if nodes.reference_coords is not None:
+        g.create_dataset(
+            "reference_coords",
+            data=np.asarray(nodes.reference_coords, dtype=np.float64),
+        )
 
 
 def _read_nodes(f: h5py.File) -> Nodes:
     g = f["nodes"]
+    node_type = (
+        np.asarray(g["node_type"][()], dtype=np.int64) if "node_type" in g else None
+    )
+    reference_coords = (
+        np.asarray(g["reference_coords"][()], dtype=np.float64)
+        if "reference_coords" in g
+        else None
+    )
     return Nodes(
         coords=np.asarray(g["coords"][()], dtype=np.float64),
         node_id=np.asarray(g["node_id"][()], dtype=np.int64),
+        node_type=node_type,
+        reference_coords=reference_coords,
     )
 
 

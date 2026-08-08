@@ -32,3 +32,12 @@ per-paper post-processing the substrate layer exists to end (ADR-0014, ADR-0016)
   in-place fix that rescales the mass-derived fields of the already-ingested
   Concrete-Beam family (wave + notch) by ×1000 to correct the g-vs-kg mass-unit
   error (ADR-0030). Not part of normal ingestion.
+
+## MeshGraphNets
+
+- `meshgraphnets/deforming_plate/convert.py` — download-and-convert driver
+  for the MeshGraphNets `deforming_plate` dataset (ADR-0042). Unlike the
+  LS-DYNA sweeps, this dataset is not held on OneDrive: it carries no
+  redistribution licence, so StructBench does not rehost it. See the
+  per-dataset `README.md` alongside the script for the throwaway TensorFlow
+  environment, the source download, and a `--limit 2` smoke invocation.

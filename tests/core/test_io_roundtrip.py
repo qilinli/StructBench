@@ -179,3 +179,96 @@ def test_validate_rejects_zero_frame_response(tmp_path):
     )
     with pytest.raises(SchemaError, match="frame"):
         write_case(case, tmp_path / "bad.h5")
+
+
+def test_validate_accepts_optional_node_fields():
+    from structbench.core import validate
+
+    case = _shell_case()  # existing 2D 4-node helper
+    case.nodes.node_type = np.array([0, 0, 3, 3], dtype=np.int64)
+    case.nodes.reference_coords = case.nodes.coords.copy()
+    validate(case)  # must not raise
+
+
+def test_validate_rejects_bad_node_type_shape():
+    from structbench.core import validate
+    from structbench.core.exceptions import SchemaError
+
+    case = _shell_case()
+    case.nodes.node_type = np.array([0, 0, 3], dtype=np.int64)  # 3 != 4 nodes
+    with pytest.raises(SchemaError, match="node_type"):
+        validate(case)
+
+
+def test_validate_rejects_bad_reference_coords_shape():
+    from structbench.core import validate
+    from structbench.core.exceptions import SchemaError
+
+    case = _shell_case()
+    case.nodes.reference_coords = np.zeros((4, 3), dtype=np.float64)  # dim=2, not 3
+    with pytest.raises(SchemaError, match="reference_coords"):
+        validate(case)
+
+
+def test_validate_accepts_per_node_scalar_field():
+    from structbench.core import validate
+
+    case = _shell_case()  # 2D, 4 nodes, 3 frames
+    case.response.node["von_mises_stress"] = np.zeros((3, 4, 1), dtype=np.float32)
+    validate(case)  # (T, N, 1) must be allowed now
+
+
+def test_validate_still_requires_displacement_dim_wide():
+    from structbench.core import validate
+    from structbench.core.exceptions import SchemaError
+
+    case = _shell_case()
+    # not dim=2
+    case.response.node["displacement"] = np.zeros((3, 4, 1), dtype=np.float32)
+    with pytest.raises(SchemaError, match="displacement"):
+        validate(case)
+
+
+def test_validate_rejects_per_node_field_wrong_node_count():
+    from structbench.core import validate
+    from structbench.core.exceptions import SchemaError
+
+    case = _shell_case()
+    # 5 != 4
+    case.response.node["von_mises_stress"] = np.zeros((3, 5, 1), dtype=np.float32)
+    with pytest.raises(SchemaError, match="von_mises_stress"):
+        validate(case)
+
+
+def test_roundtrip_per_node_fields(tmp_path):
+    from structbench.core import read_case, write_case
+
+    case = _shell_case()
+    case.nodes.node_type = np.array([0, 1, 3, 3], dtype=np.int64)
+    case.nodes.reference_coords = case.nodes.coords.copy()
+    case.response.node["von_mises_stress"] = np.arange(12, dtype=np.float32).reshape(
+        3, 4, 1
+    )
+    path = tmp_path / "c.h5"
+    write_case(case, path)
+    back = read_case(path)
+    np.testing.assert_array_equal(back.nodes.node_type, case.nodes.node_type)
+    assert back.nodes.node_type.dtype == np.int64
+    np.testing.assert_array_equal(
+        back.nodes.reference_coords, case.nodes.reference_coords
+    )
+    np.testing.assert_array_equal(
+        back.response.node["von_mises_stress"], case.response.node["von_mises_stress"]
+    )
+    assert back.metadata.schema_version == "0.2.0"
+
+
+def test_roundtrip_without_optional_node_fields_is_backward_compatible(tmp_path):
+    from structbench.core import read_case, write_case
+
+    case = _shell_case()  # no node_type / reference_coords set
+    path = tmp_path / "c.h5"
+    write_case(case, path)
+    back = read_case(path)
+    assert back.nodes.node_type is None
+    assert back.nodes.reference_coords is None
