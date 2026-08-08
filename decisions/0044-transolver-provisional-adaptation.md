@@ -43,8 +43,11 @@ The situation that shapes every decision below:
    fixes.
 
 Everything below is grounded in a verified research pass
-(`scratch/2026-08-08-transolver-grounding.md`, 147 claims, 136 confirmed;
-§-references point there). Numeric values are the defaults now shipped in
+(`scratch/2026-08-08-transolver-grounding.md` — maintainer-local scratch
+record, gitignored and absent from clones; produced by verification workflow
+wf_47ff0633-b84: 147 extracted claims, 136 adversarially confirmed, 10
+refuted-with-corrections; §-references point there). Numeric values are the
+defaults now shipped in
 `config.py` `TransolverConfig` and `configs/deforming_plate/transolver.toml`.
 
 ## Decision
@@ -81,8 +84,10 @@ Everything below is grounded in a verified research pass
    AR-RT. The noise is applied to `x_last` by the caller, and the velocity
    target is measured from that noisy position, so the first-order target
    adjustment (grounding C22) *falls out* as γ = 1 with no separate correction
-   term (matching the MGN recipe, grounding c34). The `_train_mgn` noise block
-   is reused unchanged.
+   term (matching the MGN recipe, grounding c34). `_train_transolver` mirrors
+   `_train_mgn`'s noise block line-for-line (an independent copy, config
+   substitution `mgn.noise_std` → `cfg.noise_std` only); the semantics are
+   identical — NORMAL-masked, γ = 1 by construction.
 
 4. **Ragged-N batching: per-example segment computation, mathematically
    identical to thuml batch = 1.** This is the single largest correctness risk
@@ -144,7 +149,8 @@ Everything below is grounded in a verified research pass
    quirks (grounding §2.3/§3.3):
    - `in_project_slice` receives an `orthogonal_` init that is then
      **overwritten** by the global `trunc_normal_(std = 0.02)` + zero-bias pass
-     in `initialize_weights()` (called at the end of `__init__`). The
+     in `TransolverNet._initialize_weights` (called at the end of `__init__`).
+     The
      `orthogonal_` call is *kept and documented*, not silently dropped — the
      released behaviour is the trunc-normal weight, and reproducing the
      ordering quirk is the point.
@@ -223,7 +229,7 @@ Everything below is grounded in a verified research pass
     open question for the maintainer.** The port credits Wu et al., ICML 2024
     (arXiv:2402.02366) and the reference implementation
     (github.com/thuml/Transolver, MIT License, Copyright (c) 2024 THUML @
-    Tsinghua University) in the `models/transolver/` module docstrings.
+    Tsinghua University) in the `models/transolver/network.py` module docstring.
     Whether a repo-root `NOTICE` file is *also* required — the StructBench repo
     is Apache-2.0 and has no NOTICE / attribution precedent yet, and MIT
     requires its notice travel with substantial ported portions — is routed to
