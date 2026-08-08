@@ -6,7 +6,10 @@ TensorFlow is imported lazily inside :func:`read_deforming_plate` only, so
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
@@ -165,3 +168,49 @@ def build_deforming_plate_case(
     )
     validate(case)
     return case
+
+
+def read_deforming_plate(
+    data_dir: str | Path, split: str
+) -> Iterator[dict[str, np.ndarray]]:
+    """Decode ``<data_dir>/<split>.tfrecord`` into per-trajectory ``arrays`` dicts.
+
+    TensorFlow is imported lazily inside this function so that
+    ``import structbench`` never requires it (mirrors ``lsdyna.read_d3plot``).
+
+    Parameters
+    ----------
+    data_dir:
+        Directory containing ``meta.json`` and ``<split>.tfrecord``, in the
+        raw MeshGraphNets ``deforming_plate`` layout.
+    split:
+        Dataset split to read, e.g. ``"train"``, ``"valid"``, or ``"test"``.
+
+    Yields
+    ------
+    dict[str, numpy.ndarray]
+        One trajectory's arrays, keyed by field name as declared in
+        ``meta.json``. Static fields have their leading length-1 axis
+        dropped; ``node_type`` is reshaped to ``(n_nodes,)``. Suitable as
+        input to :func:`build_deforming_plate_case`.
+    """
+    import tensorflow as tf  # lazy: keep TF out of the runtime (ADR-0042 §2a)
+
+    data_dir = Path(data_dir)
+    meta = json.loads((data_dir / "meta.json").read_text())
+    specs = parse_meta(meta)
+    ds = tf.data.TFRecordDataset(str(data_dir / f"{split}.tfrecord"))
+    for raw in ds:
+        parsed = tf.io.parse_single_example(
+            raw, {name: tf.io.VarLenFeature(tf.string) for name in specs}
+        )
+        out: dict[str, np.ndarray] = {}
+        for name, spec in specs.items():
+            data = tf.io.decode_raw(parsed[name].values, getattr(tf, spec.dtype))
+            data = tf.reshape(data, spec.shape)
+            arr = data.numpy()
+            if spec.ftype == "static":
+                arr = arr[0]  # drop leading length-1 axis -> (N|cells, ...)
+            out[name] = arr
+        out["node_type"] = out["node_type"].reshape(-1)
+        yield out

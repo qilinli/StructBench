@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import pytest
 
@@ -86,3 +88,32 @@ def test_build_case_identity_units_are_si():
     case = build_deforming_plate_case(a, source_units="kg-m-s", case_id="dp-000")
     # kg-m-s is SI identity: coords equal raw world_pos[0]
     np.testing.assert_allclose(case.nodes.coords, a["world_pos"][0], rtol=1e-6)
+
+
+def test_import_structbench_does_not_import_tensorflow():
+    import importlib
+    import sys
+
+    for m in list(sys.modules):
+        if m == "tensorflow" or m.startswith("tensorflow."):
+            del sys.modules[m]
+    importlib.import_module("structbench.core.io.meshgraphnets")
+    assert "tensorflow" not in sys.modules  # not imported at module load
+
+
+@pytest.mark.skipif(
+    not os.environ.get("STRUCTBENCH_DEFORMING_PLATE_DIR"),
+    reason="requires STRUCTBENCH_DEFORMING_PLATE_DIR (meta.json + valid.tfrecord)",
+)
+def test_read_first_trajectory_builds_valid_case():
+    pytest.importorskip("tensorflow")
+    from structbench.core.io.meshgraphnets import (
+        build_deforming_plate_case,
+        read_deforming_plate,
+    )
+
+    d = os.environ["STRUCTBENCH_DEFORMING_PLATE_DIR"]
+    a = next(read_deforming_plate(d, "valid"))
+    assert a["world_pos"].ndim == 3 and a["world_pos"].shape[2] == 3
+    case = build_deforming_plate_case(a, source_units="kg-m-s", case_id="dp-valid-000")
+    validate(case)
