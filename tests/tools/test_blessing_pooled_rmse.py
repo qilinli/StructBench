@@ -301,3 +301,163 @@ def test_main_missing_case_npz_hard_errors(tmp_path, monkeypatch):
                 "deforming_plate",
             ]
         )
+
+
+def test_main_gate_fail_out_of_band_error(tmp_path, monkeypatch):
+    """A uniform 25 mm error is out of the [11.1, 19.1] mm band: gate FAILs.
+
+    Mirrors ``test_main_end_to_end_pooled_and_gate`` but injects a uniform
+    (25, 25, 25) mm error, giving a hand value of
+    sqrt((25^2 + 25^2 + 25^2) / 3) = 25.0 mm exactly -- above the gate's
+    upper bound. Exercises the FAIL branch of both the JSON ``gate.pass``
+    field and ``main()``'s return code (0 pass / 1 fail).
+    """
+    rng = np.random.default_rng(11)
+    case_ids = ["test_0000", "test_0001"]
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for cid in case_ids:
+        _write_synthetic_case(data_root, cid, rng)
+
+    spec = _mini_spec(case_ids)
+    monkeypatch.setattr(tool, "get_benchmark", lambda name: spec)
+
+    run_dir = tmp_path / "run"
+    rollout_dir = run_dir / "rollouts"
+    rollout_dir.mkdir(parents=True)
+
+    delta = np.array([25.0, 25.0, 25.0], dtype=np.float64)
+    cases_record: dict[str, dict] = {}
+    for cid in case_ids:
+        trajectory = load_case_trajectory(
+            data_root / f"{cid}.h5", aux_field="von_mises_stress"
+        )
+        predicted_positions = (
+            trajectory.positions.astype(np.float64) + delta[None, None, :]
+        ).astype(np.float32)
+        np.savez(
+            rollout_dir / f"test-{cid}.npz",
+            predicted_positions=predicted_positions,
+            predicted_aux=trajectory.aux,
+        )
+        cases_record[cid] = {"rollout_position_rmse": 0.0}
+
+    (run_dir / "metrics-test.json").write_text(
+        json.dumps({"split": "test", "cases": cases_record}), encoding="utf-8"
+    )
+
+    out_path = run_dir / "blessing-pooled-test.json"
+    rc = tool.main(
+        [
+            "--run-dir",
+            str(run_dir),
+            "--data-root",
+            str(data_root),
+            "--split",
+            "test",
+            "--benchmark",
+            "deforming_plate",
+            "--out",
+            str(out_path),
+        ]
+    )
+
+    expected_rmse_mm = math.sqrt((25.0**2 + 25.0**2 + 25.0**2) / 3.0)
+    assert expected_rmse_mm == pytest.approx(25.0)
+    assert rc == 1  # outside the gate band -> FAIL
+
+    report = json.loads(out_path.read_text(encoding="utf-8"))
+    assert report["pooled_rmse_mm"] == pytest.approx(expected_rmse_mm, rel=1e-3)
+    assert report["gate"]["band_mm"] == [11.1, 19.1]
+    assert report["gate"]["pass"] is False
+
+
+def test_main_missing_cases_key_hard_errors(tmp_path, monkeypatch):
+    """metrics-<split>.json with no "cases" key: a named KeyError, not a crash."""
+    spec = _mini_spec(["test_0000"])
+    monkeypatch.setattr(tool, "get_benchmark", lambda name: spec)
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    (run_dir / "metrics-test.json").write_text(
+        json.dumps({"split": "test"}), encoding="utf-8"
+    )
+
+    with pytest.raises(KeyError, match="no 'cases' key"):
+        tool.main(
+            [
+                "--run-dir",
+                str(run_dir),
+                "--data-root",
+                str(data_root),
+                "--split",
+                "test",
+                "--benchmark",
+                "deforming_plate",
+            ]
+        )
+
+
+def test_main_empty_case_list_hard_errors(tmp_path, monkeypatch):
+    """metrics-<split>.json with an empty "cases" dict: a named ValueError."""
+    spec = _mini_spec(["test_0000"])
+    monkeypatch.setattr(tool, "get_benchmark", lambda name: spec)
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    (run_dir / "metrics-test.json").write_text(
+        json.dumps({"split": "test", "cases": {}}), encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="lists no cases"):
+        tool.main(
+            [
+                "--run-dir",
+                str(run_dir),
+                "--data-root",
+                str(data_root),
+                "--split",
+                "test",
+                "--benchmark",
+                "deforming_plate",
+            ]
+        )
+
+
+def test_main_missing_predicted_positions_key_hard_errors(tmp_path, monkeypatch):
+    """A case .npz missing "predicted_positions": a named KeyError."""
+    rng = np.random.default_rng(3)
+    case_ids = ["test_0000"]
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    _write_synthetic_case(data_root, case_ids[0], rng)
+
+    spec = _mini_spec(case_ids)
+    monkeypatch.setattr(tool, "get_benchmark", lambda name: spec)
+
+    run_dir = tmp_path / "run"
+    rollout_dir = run_dir / "rollouts"
+    rollout_dir.mkdir(parents=True)
+    # Deliberately omit "predicted_positions" -- only an unrelated key present.
+    np.savez(rollout_dir / "test-test_0000.npz", predicted_aux=np.zeros((8, 6)))
+    (run_dir / "metrics-test.json").write_text(
+        json.dumps({"split": "test", "cases": {"test_0000": {}}}), encoding="utf-8"
+    )
+
+    with pytest.raises(KeyError, match="predicted_positions"):
+        tool.main(
+            [
+                "--run-dir",
+                str(run_dir),
+                "--data-root",
+                str(data_root),
+                "--split",
+                "test",
+                "--benchmark",
+                "deforming_plate",
+            ]
+        )
