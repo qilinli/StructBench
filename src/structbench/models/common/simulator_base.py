@@ -248,7 +248,7 @@ class CaseBoundSimulator(nn.Module):
         gt_prev = gt_positions[t - 1]
         if not torch.allclose(x_t[kin_mask], gt_prev[kin_mask], atol=1e-4):
             raise RuntimeError(
-                "MeshSimulator's kinematic input rows are out of sync "
+                "the bound case's kinematic input rows are out of sync "
                 f"with the bound ground-truth trajectory at frame {t - 1}. "
                 "This means either: call reset_rollout() before each "
                 "eval pass (rollout / one_step_position_rmse / "
