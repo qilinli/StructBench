@@ -44,7 +44,9 @@ from torch.utils.data import DataLoader
 from ..benchmarks import BenchmarkSpec, available_benchmarks, get_benchmark
 from ..config import (
     LR_SCHEDULE_FLOOR,
+    MODEL_FAMILIES,
     CGNConfig,
+    MGNConfig,
     TrainConfig,
     load_run_config,
     read_run_record,
@@ -62,12 +64,15 @@ from ..datasets import (
 from ..eval import one_step_aux_rmse, one_step_position_rmse, rollout
 from ..models.cgn import LearnedSimulator
 from ..models.cgn.simulator import time_diff
+from ..models.mgn import MeshSimulator
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "CGNConfig",
+    "MGNConfig",
     "TrainConfig",
+    "build_mgn_simulator",
     "build_simulator",
     "evaluate",
     "main",
@@ -200,6 +205,47 @@ def build_simulator(
         aux_transform_scale=cgn.aux_transform_scale,
         max_neighbors=cgn.max_neighbors,
         boundary_feature_fn=boundary_feature_fn,
+        device=device,
+    )
+
+
+def build_mgn_simulator(
+    mgn: MGNConfig, *, kinematic_types: tuple[int, ...], device: str
+) -> MeshSimulator:
+    """Construct a :class:`MeshSimulator` from an :class:`MGNConfig`.
+
+    Unlike :func:`build_simulator`, no normalization stats are needed at
+    construction time: ``MeshSimulator``'s four
+    :class:`~structbench.models.mgn.normalizers.OnlineNormalizer` buffers are
+    part of its own ``state_dict`` (ADR-0043 §8), so a checkpoint carries its
+    normalizer state and a fresh instance starts with the online normalizers'
+    own (untrained) defaults until ``.load()`` restores them.
+
+    Parameters
+    ----------
+    mgn : MGNConfig
+        Architecture hyperparameters.
+    kinematic_types : tuple of int
+        Node-type codes whose motion is prescribed by ground truth (the
+        benchmark spec's ``kinematic_types``); forwarded verbatim.
+    device : str
+        Torch device string.
+
+    Returns
+    -------
+    MeshSimulator
+        ``scripted_types`` is left at the class default ``(1,)`` (the
+        ADR-0043 recipe scripts only the OBSTACLE node type); no run-config
+        field controls it yet.
+    """
+    return MeshSimulator(
+        dim=mgn.dim,
+        latent=mgn.hidden_dim,
+        mp_steps=mgn.message_passing_steps,
+        n_hidden=mgn.nmlp_layers,
+        node_type_size=mgn.node_type_size,
+        world_edge_radius=mgn.world_edge_radius,
+        kinematic_types=kinematic_types,
         device=device,
     )
 
@@ -688,6 +734,29 @@ def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
     return get_benchmark(record["run"]["benchmark"]), record
 
 
+def _model_config_from_record(record: dict[str, Any]) -> CGNConfig | MGNConfig:
+    """Reconstruct the family-appropriate model config from a run record.
+
+    Parameters
+    ----------
+    record : dict
+        A run record as returned by
+        :func:`~structbench.config.read_run_record`, whose ``"model"``
+        section carries ``"family"`` plus every field of that family's
+        config dataclass (:data:`~structbench.config.MODEL_FAMILIES`).
+
+    Returns
+    -------
+    CGNConfig or MGNConfig
+        Constructed from ``record["model"]`` with ``"family"`` dropped
+        before the fields are splatted in. The legacy ``"gns"`` alias
+        (pre-ADR-0034 records) resolves to :class:`CGNConfig` like ``"cgn"``.
+    """
+    model_table = {k: v for k, v in record["model"].items() if k != "family"}
+    model_cls = MODEL_FAMILIES[record["model"]["family"]]
+    return model_cls(**model_table)
+
+
 def evaluate(
     case_ids: list[str],
     data_root: Path,
@@ -701,10 +770,15 @@ def evaluate(
     """Roll out the run's checkpoint over ``case_ids`` and report ADR-0019 §5.
 
     The simulator is rebuilt entirely from the run directory's own record —
-    architecture and ``n_particle_types`` from ``config.json``, stats from
-    ``normalization_stats.npz`` — so evaluation always matches the trained
-    checkpoint; no caller-supplied architecture is accepted. Both files are
-    written by :func:`train`.
+    architecture and ``n_particle_types`` from ``config.json``, model family
+    from ``config.json["model"]["family"]`` via
+    :func:`_model_config_from_record` — so evaluation always matches the
+    trained checkpoint; no caller-supplied architecture is accepted. A
+    ``cgn``-family run additionally rebuilds its normalizer from
+    ``normalization_stats.npz`` (both files are written by :func:`train`); an
+    ``mgn``-family run needs no stats file at all, since its normalizer
+    buffers live in the checkpoint's own ``state_dict`` (ADR-0043 §8,
+    verified in ①-c1).
 
     Per case, reports the one-step (teacher-forced) position RMSE, the
     full-rollout position RMSE (mm), the rollout auxiliary-field RMSE (in the
@@ -721,7 +795,8 @@ def evaluate(
     data_root : pathlib.Path
         Directory containing ``<case_id>.h5`` canonical cases.
     out_dir : pathlib.Path
-        Run directory holding the checkpoint, stats, and resolved config.
+        Run directory holding the checkpoint, resolved config, and (for a
+        ``cgn``-family run) normalization stats.
     device : str
         Torch device string.
     split_name : str
@@ -742,7 +817,12 @@ def evaluate(
     Rollouts seed with the checkpoint's ``input_frames`` (recorded in
     ``config.json``; pre-0035 runs recorded it as ``window``, normalized by
     :func:`~structbench.config.read_run_record`), so checkpoints are always
-    evaluated as trained (ADR-0035).
+    evaluated as trained (ADR-0035). For an ``mgn``-family run, each case's
+    mesh (cells, reference coordinates, and full ground-truth trajectory) is
+    bound to the simulator before its three eval passes (rollout, one-step
+    position, one-step aux), and the rollout pointer is reset before each
+    pass, per :class:`~structbench.models.mgn.MeshSimulator`'s statefulness
+    contract.
 
     Returns
     -------
@@ -753,27 +833,40 @@ def evaluate(
     Raises
     ------
     FileNotFoundError
-        If ``config.json``, ``normalization_stats.npz``, or a checkpoint is
-        missing from ``out_dir``.
+        If ``config.json`` or a checkpoint is missing from ``out_dir``; for a
+        ``cgn``-family run, also if ``normalization_stats.npz`` is missing
+        (an ``mgn``-family run needs no stats file).
+    ValueError
+        If ``case_ids`` is empty, or an ``mgn``-family run is evaluated
+        against a benchmark whose cases carry no mesh connectivity
+        (``cells``/``reference_coords`` are ``None``).
     """
     if not case_ids:
         raise ValueError("case_ids must be non-empty")
     spec, record = _resolve_run_spec(out_dir)
-    stats_path = out_dir / "normalization_stats.npz"
-    if not stats_path.exists():
-        raise FileNotFoundError(f"missing normalization stats: {stats_path}")
-
-    cgn = CGNConfig(**{k: v for k, v in record["model"].items() if k != "family"})
+    family = record["model"]["family"]
+    model_cfg = _model_config_from_record(record)
     n_types = int(record["n_particle_types"])
-    stats = NormalizationStats.load(stats_path)
 
-    simulator = build_simulator(
-        _stats_to_dict(stats),
-        cgn,
-        n_particle_types=n_types,
-        boundary_feature_fn=_bind_boundary_feature(spec, cgn),
-        device=device,
-    )
+    simulator: LearnedSimulator | MeshSimulator
+    if family == "mgn":
+        assert isinstance(model_cfg, MGNConfig)
+        simulator = build_mgn_simulator(
+            model_cfg, kinematic_types=spec.kinematic_types, device=device
+        )
+    else:
+        stats_path = out_dir / "normalization_stats.npz"
+        if not stats_path.exists():
+            raise FileNotFoundError(f"missing normalization stats: {stats_path}")
+        stats = NormalizationStats.load(stats_path)
+        assert isinstance(model_cfg, CGNConfig)
+        simulator = build_simulator(
+            _stats_to_dict(stats),
+            model_cfg,
+            n_particle_types=n_types,
+            boundary_feature_fn=_bind_boundary_feature(spec, model_cfg),
+            device=device,
+        )
     if checkpoint is not None:
         ckpt_path = Path(checkpoint)
         # Relative paths resolve against out_dir ONLY (never the CWD): fleet
@@ -791,6 +884,9 @@ def evaluate(
     simulator.load(str(ckpt_path))
     simulator.to(device)
     simulator.eval()
+    # Non-None only for the mgn arm: gates the per-case bind_case/
+    # reset_rollout calls below without re-checking `family` at each site.
+    mesh_sim = simulator if isinstance(simulator, MeshSimulator) else None
 
     # Explicit-checkpoint sweeps must not clobber the selected checkpoint's
     # canonical artifacts: suffix the metrics file and skip the rollout .npz.
@@ -805,26 +901,44 @@ def evaluate(
         trajectory = load_case_trajectory(
             data_root / f"{case_id}.h5", aux_field=spec.aux_field
         )
+        if mesh_sim is not None:
+            if trajectory.cells is None or trajectory.reference_coords is None:
+                raise ValueError(
+                    f"benchmark {spec.card.name!r} has no mesh connectivity "
+                    "(cells/reference_coords); mgn evaluation requires a "
+                    "mesh benchmark"
+                )
+            mesh_sim.bind_case(
+                torch.from_numpy(trajectory.cells),
+                torch.from_numpy(trajectory.reference_coords),
+                torch.from_numpy(trajectory.particle_type),
+                torch.from_numpy(trajectory.positions),
+            )
+            mesh_sim.reset_rollout()
         result = rollout(
             simulator,
             trajectory,
-            cgn.input_frames,
+            model_cfg.input_frames,
             device,
             qois=spec.qois,
             kinematic_types=spec.kinematic_types,
             scored_frames=spec.scored_frames,
         )
+        if mesh_sim is not None:
+            mesh_sim.reset_rollout()
         one_step = one_step_position_rmse(
             simulator,
             trajectory,
-            cgn.input_frames,
+            model_cfg.input_frames,
             device,
             kinematic_types=spec.kinematic_types,
         )
+        if mesh_sim is not None:
+            mesh_sim.reset_rollout()
         one_step_aux = one_step_aux_rmse(
             simulator,
             trajectory,
-            cgn.input_frames,
+            model_cfg.input_frames,
             device,
             kinematic_types=spec.kinematic_types,
         )
@@ -833,7 +947,7 @@ def evaluate(
         n_scored = (
             None
             if spec.scored_frames is None
-            else min(spec.scored_frames, len(trajectory.time)) - cgn.input_frames
+            else min(spec.scored_frames, len(trajectory.time)) - model_cfg.input_frames
         )
         cases[case_id] = {
             "one_step_position_rmse": float(one_step[:n_scored].mean()),
@@ -879,7 +993,7 @@ def evaluate(
         # Full resolved path so an explicitly scored checkpoint (possibly from
         # outside out_dir, via an absolute --checkpoint) stays traceable.
         "checkpoint_path": str(ckpt_path),
-        "input_frames": cgn.input_frames,
+        "input_frames": model_cfg.input_frames,
         # Metric definition (ADR-0039): rollout/one-step means and QoIs cover
         # frames [input_frames, scored_frames); null means scored to the end.
         # Records with different scored_frames are not comparable.
@@ -889,7 +1003,7 @@ def evaluate(
         # so a standard run stays standard on re-eval. Legacy off-card records
         # (e.g. a pre-0035 window=11 run re-evaluated here) read as non-standard.
         "protocol_standard": bool(record["protocol"].get("standard", True))
-        and cgn.input_frames == spec.card.input_frames,
+        and model_cfg.input_frames == spec.card.input_frames,
         "aux_field": spec.aux_field,
         "aux_unit": spec.card.aux_unit,
         "cases": cases,

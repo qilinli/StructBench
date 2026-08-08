@@ -25,11 +25,14 @@ from structbench.cli.train import (
     TrainConfig,
     _find_checkpoint,
     _json_safe,
+    _model_config_from_record,
+    build_mgn_simulator,
     build_simulator,
     evaluate,
     main,
     train,
 )
+from structbench.config import MGNConfig, read_run_record, resolved_config_dict
 from structbench.core import (
     Case,
     ElementBlock,
@@ -39,6 +42,7 @@ from structbench.core import (
     Response,
     write_case,
 )
+from structbench.core.io.meshgraphnets import build_deforming_plate_case
 from structbench.datasets import compute_stats, load_case_trajectory
 
 #: Tiny architecture so checkpoints build fast; deliberately different from the
@@ -915,3 +919,188 @@ def test_train_frames_too_small_raises(tmp_path):
             tmp_path / "bad",
             "cpu",
         )
+
+
+# --- mgn family dispatch (Task 4a, ①-c2) ---
+
+#: Tiny architecture so a checkpoint builds fast.
+SMALL_MGN = {
+    "input_frames": 2,
+    "dim": 3,
+    "hidden_dim": 8,
+    "message_passing_steps": 1,
+    "nmlp_layers": 1,
+    "node_type_size": 4,
+    "world_edge_radius": 1000.0,  # generous: guarantees full connectivity
+    "noise_std": 0.003,
+    "normalizer_warmup_steps": 10,
+}
+
+
+def test_model_config_from_record_returns_mgn_config(tmp_path):
+    """A round-tripped mgn run record reconstructs MGNConfig with matching fields."""
+    mgn = MGNConfig(**SMALL_MGN)
+    record_dict = resolved_config_dict(
+        "mgn",
+        mgn,
+        TrainConfig(benchmark="deforming_plate"),
+        horizon="full",
+        eval_times="native",
+        n_particle_types=mgn.node_type_size,
+        data_root=tmp_path,
+    )
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(record_dict), encoding="utf-8")
+    record = read_run_record(config_path)
+    model_cfg = _model_config_from_record(record)
+    assert isinstance(model_cfg, MGNConfig)
+    assert model_cfg == mgn
+
+
+def test_model_config_from_record_returns_cgn_config(tmp_path):
+    """Regression: a cgn-family run record still reconstructs CGNConfig."""
+    cgn = CGNConfig(**SMALL_CGN)
+    record_dict = resolved_config_dict(
+        "cgn",
+        cgn,
+        TrainConfig(),
+        horizon="full",
+        eval_times="native",
+        n_particle_types=2,
+        data_root=tmp_path,
+    )
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(record_dict), encoding="utf-8")
+    record = read_run_record(config_path)
+    model_cfg = _model_config_from_record(record)
+    assert isinstance(model_cfg, CGNConfig)
+    assert model_cfg == cgn
+
+
+def _mesh_case_file(tmp_path, case_id="dp-0", n_nodes=6, n_cells=2, n_frames=5):
+    """Tiny deforming-plate-shaped mesh case, all-NORMAL nodes (SI units)."""
+    rng = np.random.default_rng(7)
+    world0 = rng.random((n_nodes, 3)).astype(np.float32) * 0.01  # metres, tiny box
+    world = np.stack([world0 + i * 1e-4 for i in range(n_frames)]).astype(np.float32)
+    arrays = {
+        "cells": rng.integers(0, n_nodes, (n_cells, 4)).astype(np.int32),
+        "node_type": np.zeros(n_nodes, dtype=np.int32),  # all NORMAL
+        "mesh_pos": world0.copy(),
+        "world_pos": world,
+        "stress": rng.random((n_frames, n_nodes, 1)).astype(np.float32),
+    }
+    case = build_deforming_plate_case(arrays, source_units="kg-m-s", case_id=case_id)
+    path = tmp_path / f"{case_id}.h5"
+    write_case(case, path)
+    return path
+
+
+def _mesh_local_spec(case_id, n_frames):
+    """Registry-free mesh BenchmarkSpec; kinematic_types=(1,) only to satisfy
+    MeshSimulator's scripted_types-subset-of-kinematic_types constructor
+    check (no node in the fixture actually carries type 1)."""
+    card = BenchmarkCard(
+        name="MeshTest",
+        version="0",
+        description="test-only mesh spec not in the registry",
+        provenance="test",
+        data_license="CC0",
+        solver="test",
+        discretisation="FEM",
+        materials=("MAT_TEST",),
+        erosion=False,
+        loading="none",
+        source_units="SI",
+        geometry="unit box",
+        n_cases=2,
+        splits={"train": 1, "val": 1},
+        task="test",
+        aux_field="von_mises_stress",
+        aux_unit="MPa",
+        qois=(),
+        fields=("positions",),
+        particles_per_case="6",
+        n_frames=n_frames,
+        output_dt_ms=1.0,
+        input_frames=2,
+        protocol_rationale="test-only card",
+    )
+    return BenchmarkSpec(
+        card=card,
+        splits={"train": (case_id,), "val": (case_id,)},
+        eval_splits=("val",),
+        aux_field="von_mises_stress",
+        kinematic_types=(1,),
+    )
+
+
+def _prepared_mgn_run(tmp_path, case_path_fn, spec):
+    """Run dir holding an mgn checkpoint + nested config.json, NO stats file."""
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    case_path = case_path_fn(data_root)
+    out_dir = tmp_path / "run"
+    out_dir.mkdir()
+
+    mgn = MGNConfig(**SMALL_MGN)
+    simulator = build_mgn_simulator(
+        mgn, kinematic_types=spec.kinematic_types, device="cpu"
+    )
+    simulator.save(str(out_dir / "model-best-000002.pt"))
+
+    record_dict = resolved_config_dict(
+        "mgn",
+        mgn,
+        TrainConfig(benchmark="mesh-test-local"),
+        horizon="full",
+        eval_times="native",
+        n_particle_types=mgn.node_type_size,
+        data_root=data_root,
+    )
+    (out_dir / "config.json").write_text(json.dumps(record_dict), encoding="utf-8")
+    return data_root, out_dir, case_path.stem
+
+
+def test_evaluate_mgn_family_needs_no_stats_file(tmp_path, monkeypatch):
+    """mgn evaluation runs with no normalization_stats.npz in out_dir at all.
+
+    MGN checkpoints are self-contained: the OnlineNormalizer buffers live in
+    the state_dict, loaded by simulator.load() -- unlike cgn, no separate
+    stats file is ever read.
+    """
+    import structbench.cli.train as train_mod
+
+    spec = _mesh_local_spec("dp-0", n_frames=5)
+    data_root, out_dir, case_id = _prepared_mgn_run(
+        tmp_path, lambda root: _mesh_case_file(root, "dp-0", n_frames=5), spec
+    )
+    assert not (out_dir / "normalization_stats.npz").exists()
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+
+    metrics = evaluate([case_id], data_root, out_dir, "cpu", save_artifacts=False)
+
+    assert not (out_dir / "normalization_stats.npz").exists()  # still never created
+    assert metrics["input_frames"] == 2
+    per_case = metrics["cases"][case_id]
+    assert np.isfinite(per_case["one_step_position_rmse"])
+    assert np.isfinite(per_case["rollout_position_rmse"])
+    assert np.isfinite(per_case["rollout_aux_rmse"])
+
+
+def _sph_case_file(data_root, case_id="C-1"):
+    """An SPH (non-mesh) case: cells/reference_coords stay None on load."""
+    _write_tiny_case(data_root, case_id)
+    return data_root / f"{case_id}.h5"
+
+
+def test_evaluate_mgn_family_rejects_non_mesh_benchmark(tmp_path, monkeypatch):
+    """An mgn-family run over an SPH (non-mesh) case raises ValueError,
+    naming the benchmark, rather than crashing deep inside bind_case."""
+    import structbench.cli.train as train_mod
+
+    spec = _mesh_local_spec("C-1", n_frames=6)  # card allows it; data won't
+    data_root, out_dir, case_id = _prepared_mgn_run(tmp_path, _sph_case_file, spec)
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+
+    with pytest.raises(ValueError, match="mesh connectivity"):
+        evaluate([case_id], data_root, out_dir, "cpu", save_artifacts=False)
