@@ -161,13 +161,30 @@ def _write_nodes(f: h5py.File, nodes: Nodes) -> None:
     g = f.create_group("nodes")
     g.create_dataset("coords", data=np.asarray(nodes.coords, dtype=np.float64))
     g.create_dataset("node_id", data=np.asarray(nodes.node_id, dtype=np.int64))
+    if nodes.node_type is not None:
+        g.create_dataset("node_type", data=np.asarray(nodes.node_type, dtype=np.int64))
+    if nodes.reference_coords is not None:
+        g.create_dataset(
+            "reference_coords",
+            data=np.asarray(nodes.reference_coords, dtype=np.float64),
+        )
 
 
 def _read_nodes(f: h5py.File) -> Nodes:
     g = f["nodes"]
+    node_type = (
+        np.asarray(g["node_type"][()], dtype=np.int64) if "node_type" in g else None
+    )
+    reference_coords = (
+        np.asarray(g["reference_coords"][()], dtype=np.float64)
+        if "reference_coords" in g
+        else None
+    )
     return Nodes(
         coords=np.asarray(g["coords"][()], dtype=np.float64),
         node_id=np.asarray(g["node_id"][()], dtype=np.int64),
+        node_type=node_type,
+        reference_coords=reference_coords,
     )
 
 

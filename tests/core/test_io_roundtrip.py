@@ -238,3 +238,37 @@ def test_validate_rejects_per_node_field_wrong_node_count():
     case.response.node["von_mises_stress"] = np.zeros((3, 5, 1), dtype=np.float32)
     with pytest.raises(SchemaError, match="von_mises_stress"):
         validate(case)
+
+
+def test_roundtrip_per_node_fields(tmp_path):
+    from structbench.core import read_case, write_case
+
+    case = _shell_case()
+    case.nodes.node_type = np.array([0, 1, 3, 3], dtype=np.int64)
+    case.nodes.reference_coords = case.nodes.coords.copy()
+    case.response.node["von_mises_stress"] = np.arange(12, dtype=np.float32).reshape(
+        3, 4, 1
+    )
+    path = tmp_path / "c.h5"
+    write_case(case, path)
+    back = read_case(path)
+    np.testing.assert_array_equal(back.nodes.node_type, case.nodes.node_type)
+    assert back.nodes.node_type.dtype == np.int64
+    np.testing.assert_array_equal(
+        back.nodes.reference_coords, case.nodes.reference_coords
+    )
+    np.testing.assert_array_equal(
+        back.response.node["von_mises_stress"], case.response.node["von_mises_stress"]
+    )
+    assert back.metadata.schema_version == "0.2.0"
+
+
+def test_roundtrip_without_optional_node_fields_is_backward_compatible(tmp_path):
+    from structbench.core import read_case, write_case
+
+    case = _shell_case()  # no node_type / reference_coords set
+    path = tmp_path / "c.h5"
+    write_case(case, path)
+    back = read_case(path)
+    assert back.nodes.node_type is None
+    assert back.nodes.reference_coords is None

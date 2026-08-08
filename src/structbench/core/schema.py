@@ -22,7 +22,7 @@ from numpy.typing import NDArray
 
 #: Schema version pinned by ADR-0013. Additive field changes bump the minor
 #: version; structural changes bump the major version (with a superseding ADR).
-SCHEMA_VERSION = "0.1.0"
+SCHEMA_VERSION = "0.2.0"
 
 #: Canonical units convention for every case (ADR-0012).
 UNITS_CONVENTION = "SI"
