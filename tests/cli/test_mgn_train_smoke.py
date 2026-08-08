@@ -7,6 +7,8 @@ run directory (Task 4a's no-stats-file / per-case bind-reset branch, the only
 end-to-end coverage it has).
 """
 
+import math
+
 import numpy as np
 import torch
 
@@ -159,3 +161,19 @@ def test_mgn_evaluate_smoke(tmp_path, monkeypatch):
     assert np.isfinite(per_case["one_step_position_rmse"])
     assert np.isfinite(per_case["rollout_position_rmse"])
     assert np.isfinite(per_case["rollout_aux_rmse"])
+    # per-case QoI triad: catches a NaN silently laundered to None in
+    # cli.train's _json_safe before it ever reaches the mean aggregation.
+    for key in ("qoi_pred", "qoi_true", "qoi_error"):
+        assert set(per_case[key]) == {"peak_vm_stress", "terminal_peak_deflection"}
+        assert all(math.isfinite(v) for v in per_case[key].values())
+
+    # _mean_over_cases aggregation: the split mean these core metrics feed
+    # into is exercised nowhere else end-to-end.
+    mean = metrics["mean"]
+    for key in ("one_step_position_rmse", "rollout_position_rmse", "rollout_aux_rmse"):
+        assert isinstance(mean[key], float) and math.isfinite(mean[key])
+    qoi_abs_error = mean["qoi_abs_error"]
+    assert set(qoi_abs_error) == {"peak_vm_stress", "terminal_peak_deflection"}
+    assert all(
+        isinstance(v, float) and math.isfinite(v) for v in qoi_abs_error.values()
+    )
