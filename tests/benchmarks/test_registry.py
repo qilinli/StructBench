@@ -1,5 +1,7 @@
 """Benchmark registry resolution and spec invariants."""
 
+from dataclasses import replace
+
 import pytest
 
 from structbench.benchmarks import (
@@ -7,6 +9,19 @@ from structbench.benchmarks import (
     available_benchmarks,
     get_benchmark,
 )
+from structbench.benchmarks.results import BaselineResult
+
+
+def _result(**overrides):
+    kwargs = dict(
+        family="cgn",
+        label="baseline",
+        run_commit="abc1234",
+        run_date="2026-07-05",
+        metrics={"test_interp": {"rollout_pos_rmse_mm": 1.5}},
+    )
+    kwargs.update(overrides)
+    return BaselineResult(**kwargs)
 
 
 def test_taylor_is_registered():
@@ -62,11 +77,54 @@ def test_notch_impact_pins_scored_frames():
 
 
 def test_spec_validates_scored_frames_bounds():
-    from dataclasses import replace
-
     spec = get_benchmark("notch_beam_2d_impact")
     with pytest.raises(ValueError, match="scored_frames"):
         replace(spec, scored_frames=spec.card.input_frames)  # not > input_frames
     with pytest.raises(ValueError, match="scored_frames"):
         replace(spec, scored_frames=spec.card.n_frames + 1)  # beyond trajectory
     assert replace(spec, scored_frames=None).scored_frames is None
+
+
+def test_blessed_results_filters_provisional_and_preserves_order():
+    spec = get_benchmark("taylor_impact_2d")
+    provisional_a = _result(family="transolver", provisional=True)
+    blessed = _result(family="cgn", provisional=False)
+    provisional_b = _result(family="geoflare", provisional=True)
+    wired = replace(spec, results=(provisional_a, blessed, provisional_b))
+    assert wired.blessed_results == (blessed,)
+
+
+def test_blessed_results_empty_when_all_provisional():
+    spec = get_benchmark("taylor_impact_2d")
+    wired = replace(spec, results=(_result(provisional=True),))
+    assert wired.blessed_results == ()
+
+
+def test_spec_rejects_duplicate_family_in_results():
+    spec = get_benchmark("taylor_impact_2d")
+    dup_a = _result(family="cgn", metrics={"test_interp": {"m": 1.0}})
+    dup_b = _result(family="cgn", metrics={"test_extrap": {"m": 2.0}})
+    with pytest.raises(ValueError) as exc_info:
+        replace(spec, results=(dup_a, dup_b))
+    message = str(exc_info.value)
+    assert "cgn" in message
+    assert spec.card.name in message
+
+
+def test_spec_accepts_distinct_families_in_results():
+    spec = get_benchmark("taylor_impact_2d")
+    a = _result(family="cgn", metrics={"test_interp": {"m": 1.0}})
+    b = _result(family="mgn", metrics={"test_extrap": {"m": 2.0}})
+    wired = replace(spec, results=(a, b))
+    assert {r.family for r in wired.results} == {"cgn", "mgn"}
+
+
+def test_quickstart_family_defaults_to_cgn():
+    spec = get_benchmark("taylor_impact_2d")
+    assert spec.quickstart_family == "cgn"
+
+
+def test_quickstart_family_blank_raises():
+    spec = get_benchmark("taylor_impact_2d")
+    with pytest.raises(ValueError, match="quickstart_family"):
+        replace(spec, quickstart_family="  ")

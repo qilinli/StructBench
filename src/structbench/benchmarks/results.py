@@ -45,6 +45,13 @@ class BaselineResult:
         making the pointer verifiable. Requires ``checkpoint``.
     notes : str
         Free-text caveats (hardware, walltime, deviations).
+    provisional : bool
+        ``False`` (default) = blessed — validated against its published
+        anchor or protocol gate. ``True`` = best-effort implementation
+        recorded for comparison, fidelity unvalidated (ADR-0044/0045/0046).
+        Never read a provisional entry as a blessed baseline; use
+        :attr:`BenchmarkSpec.blessed_results`, not ``BenchmarkSpec.results``,
+        wherever "the blessed baseline" is meant.
 
     Raises
     ------
@@ -62,6 +69,7 @@ class BaselineResult:
     checkpoint: str | None = None
     checkpoint_sha256: str | None = None
     notes: str = ""
+    provisional: bool = False
 
     def __post_init__(self) -> None:
         for name in ("family", "label", "run_commit", "run_date"):

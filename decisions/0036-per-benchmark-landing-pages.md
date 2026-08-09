@@ -106,3 +106,11 @@ centralises training into one `structbench-train` + grouped TOML configs
 - `assets/` grows by a few committed figures per benchmark; the promotion
   from `runs/**/plots` is manual and deliberate, keeping gitignored run
   artifacts out of history except where a page needs them.
+
+---
+
+**Extended by ADR-0046 (2026-08-09):** the landing page (and the archive README)
+gain a `## Method comparison` section — a per-(benchmark × method) table
+rendering blessed and provisional results side by side, immediately before
+`## Numbers to beat`. The provisional-aware Quickstart selection and the
+`quickstart_family` spec field land in the same ADR.

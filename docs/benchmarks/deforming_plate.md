@@ -31,6 +31,10 @@ input_frames=2 is the floor (a velocity needs two frames) and the faithful value
 
 </details>
 
+## Method comparison
+
+*No results yet — method entries land here as runs are recorded (blessed or provisional).*
+
 ## Numbers to beat
 
 *No official baseline yet — the reference run's metrics land here.*
@@ -39,8 +43,8 @@ input_frames=2 is the floor (a velocity needs two frames) and the faithful value
 
 ```bash
 pip install structbench  # or: pip install -e . from the repo
-structbench-train --mode train --config configs/deforming_plate/cgn.toml \
-    --data-root /path/to/deforming_plate --out runs/deforming_plate-cgn
+structbench-train --mode train --config configs/deforming_plate/mgn.toml \
+    --data-root /path/to/deforming_plate --out runs/deforming_plate-mgn
 ```
 
 Dataset access: the canonical archive is maintainer-held on institutional storage and shared on request (ADR-0040) — contact the maintainer, or ingest your own LS-DYNA output via the adapter; see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.

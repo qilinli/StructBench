@@ -178,14 +178,18 @@ is a set of checkpoints — partial value lands if the last slips.*
       inputs alongside graph windows. Ships **provisional** (best-effort port,
       fidelity check deferred).
 - [ ] **③ GeoFLARE provisional.** `models/geoflare`, likewise provisional.
-- [ ] Cross-method infrastructure: results registry (ADR-0033) extended to
+- [x] ~~Cross-method infrastructure: results registry (ADR-0033) extended to
       per-(benchmark × method) with a `provisional` flag; landing page
       (ADR-0036) renders a method-comparison table distinguishing blessed from
-      provisional.
+      provisional.~~ (2026-08-09, ADR-0046): `BaselineResult.provisional` +
+      `BenchmarkSpec.blessed_results`; the `## Method comparison` section on
+      every page; provisional-aware Quickstart selection (fixes the
+      `deforming_plate` `cgn.toml` bug). The tables await the maintainer's runs.
 - [ ] Follow-on ADRs as each lands: DeformingPlate benchmark protocol
       (split/metrics/scored horizon/input window per ADR-0035); the `tfrecord`
-      ingestion adapter; the per-method registry schema; the transformer-operator
-      family's placement in `models/`/`datasets/` (may touch ARCHITECTURE.md).
+      ingestion adapter; the per-method registry schema (ADR-0046); the
+      transformer-operator family's placement in `models/`/`datasets/`
+      (may touch ARCHITECTURE.md).
 - [ ] Human, out of session: VISION's "1D/2D problems only" limitation copy
       (forbidden-tier during coding sessions); flip once v0.3 ships 3D.
 

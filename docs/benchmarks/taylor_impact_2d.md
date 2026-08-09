@@ -74,6 +74,27 @@ input_frames = 6 gives the model C = 5 input velocities (input_frames - 1), the 
 
 </details>
 
+## Method comparison
+
+| Metric | **cgn** |
+|---|---|
+| test_interp · rollout_pos_rmse_mm | 1.274 |
+| test_interp · rollout_vm_rmse_mpa | 52.57 |
+| test_interp · one_step_pos_rmse_mm | 0.003244 |
+| test_interp · one_step_vm_rmse_mpa | 36.09 |
+| test_interp · qoi_final_length_mae_mm | 3.083 |
+| test_interp · qoi_mushroom_width_mae_mm | 4.754 |
+| test_interp · qoi_peak_vm_mae_mpa | 2.865 |
+| test_interp · qoi_t_peak_vm_mae_ms | 0.003993 |
+| test_extrap · rollout_pos_rmse_mm | 7.645 |
+| test_extrap · rollout_vm_rmse_mpa | 79.46 |
+| test_extrap · one_step_pos_rmse_mm | 0.004649 |
+| test_extrap · one_step_vm_rmse_mpa | 40.43 |
+| test_extrap · qoi_final_length_mae_mm | 3.198 |
+| test_extrap · qoi_mushroom_width_mae_mm | 11.59 |
+| test_extrap · qoi_peak_vm_mae_mpa | 19.21 |
+| test_extrap · qoi_t_peak_vm_mae_ms | 0.2293 |
+
 ## Numbers to beat
 
 **CGN baseline** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)

@@ -26,3 +26,4 @@ def test_protocol_pins():
     assert set(spec.qois) == {"peak_vm_stress", "terminal_peak_deflection"}
     assert spec.eval_splits == ("val", "test")
     assert spec.results == ()
+    assert spec.quickstart_family == "mgn"

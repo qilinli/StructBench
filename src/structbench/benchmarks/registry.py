@@ -70,7 +70,10 @@ class BenchmarkSpec:
     results: tuple[BaselineResult, ...] = ()
     """Official baseline results (ADR-0033), rendered by the generated views;
     empty until a run is blessed. Metric split names must exist in ``splits``
-    — validated at construction."""
+    and at most one result per model ``family`` is allowed — both validated
+    at construction. May mix blessed and provisional entries (ADR-0046); use
+    :attr:`blessed_results`, not this field directly, wherever "the blessed
+    baseline" is meant."""
     scored_frames: int | None = None
     """Exclusive upper frame bound of the scored span (ADR-0039), mirroring
     the trajectory-end bound ``T``: rollout/one-step aggregates and QoIs are
@@ -78,6 +81,11 @@ class BenchmarkSpec:
     still cover the full trajectory as the long-horizon diagnostic. ``None``
     scores to the trajectory end. Must exceed ``card.input_frames`` and not
     exceed ``card.n_frames`` — validated at construction."""
+    quickstart_family: str = "cgn"
+    """Model family (ADR-0032) whose blessed run anchors the Quickstart
+    recipe on the generated benchmark page; must be non-blank — validated
+    at construction. Defaults to ``"cgn"``, the family every currently
+    blessed benchmark uses."""
 
     def __post_init__(self) -> None:
         for required in ("train", "val"):
@@ -99,6 +107,16 @@ class BenchmarkSpec:
                 raise ValueError(
                     f"result {result.label!r} references unknown splits {unknown}"
                 )
+        seen_families: set[str] = set()
+        for result in self.results:
+            if result.family in seen_families:
+                raise ValueError(
+                    f"duplicate family {result.family!r} in results for "
+                    f"benchmark {self.card.name!r}"
+                )
+            seen_families.add(result.family)
+        if not self.quickstart_family.strip():
+            raise ValueError("quickstart_family must be non-empty")
         if self.scored_frames is not None and not (
             self.card.input_frames < self.scored_frames <= self.card.n_frames
         ):
@@ -112,6 +130,17 @@ class BenchmarkSpec:
         object.__setattr__(self, "qois", MappingProxyType(dict(self.qois)))
         # NB: dataclasses.asdict(spec) would raise on these proxies;
         # use spec.card.to_json_dict() for serialization.
+
+    @property
+    def blessed_results(self) -> tuple[BaselineResult, ...]:
+        """The non-provisional entries of :attr:`results`, in declaration
+        order (ADR-0046).
+
+        Use this, not ``results``, wherever "the blessed baseline(s)" is
+        meant — ``results`` may also carry provisional entries recorded
+        for comparison only.
+        """
+        return tuple(r for r in self.results if not r.provisional)
 
 
 def available_benchmarks() -> tuple[str, ...]:

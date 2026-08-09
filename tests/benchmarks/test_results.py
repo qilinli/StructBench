@@ -27,6 +27,31 @@ def test_valid_result_constructs_with_defaults():
     assert result.metrics["test_interp"]["rollout_pos_rmse_mm"] == 1.5
 
 
+def test_provisional_defaults_to_false():
+    assert _result().provisional is False
+
+
+def test_provisional_flag_round_trips():
+    assert _result(provisional=True).provisional is True
+
+
+@pytest.mark.parametrize("name", ["family", "label", "run_commit", "run_date"])
+def test_blank_required_field_raises_when_provisional(name):
+    # provisional=True must not bypass any existing validation.
+    with pytest.raises(ValueError, match=name):
+        _result(provisional=True, **{name: "  "})
+
+
+def test_provisional_result_still_validates_empty_metrics():
+    with pytest.raises(ValueError, match="metrics"):
+        _result(provisional=True, metrics={})
+
+
+def test_provisional_result_still_validates_checkpoint_sha256():
+    with pytest.raises(ValueError, match="requires checkpoint"):
+        _result(provisional=True, checkpoint_sha256="0" * 64)
+
+
 @pytest.mark.parametrize("name", ["family", "label", "run_commit", "run_date"])
 def test_blank_required_field_raises(name):
     with pytest.raises(ValueError, match=name):
@@ -66,7 +91,9 @@ def test_checkpoint_pointer_with_digest_constructs():
 
 
 def test_taylor_wave_and_notch_impact_are_the_blessed_benchmarks():
-    blessed = {n for n in available_benchmarks() if get_benchmark(n).results}
+    # blessed_results excludes provisional entries; today every RESULTS
+    # tuple is entirely blessed, so this must name the same set as before.
+    blessed = {n for n in available_benchmarks() if get_benchmark(n).blessed_results}
     assert blessed == {
         "taylor_impact_2d",
         "wave_propagation_1d",

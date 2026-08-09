@@ -81,19 +81,20 @@ What becomes easier, harder, or constrained as a result.
 | 0030 | Concrete-Beam decks are kg-mm-ms; canonical data patched in place | Durable | Accepted |
 | 0031 | Data archive layout: canonical/raw mirrors named by benchmark | Durable | Accepted (amended by 0037) |
 | 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted (amended by 0035) |
-| 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted (amended by 0037) |
+| 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted (amended by 0037; extended by 0046) |
 | 0034 | The reference baseline is CGN (Concrete Graph Network, Li et al. 2023) | Durable | Accepted |
 | 0035 | The model input window is the rollout init; no history backfill (amends 0019, 0032) | Durable | Accepted |
-| 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted |
+| 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted (extended by 0046) |
 | 0037 | Blessed runs archive: `models/` mirror and registry checkpoint pointers (amends 0031, 0033) | Durable | Accepted |
 | 0038 | Auxiliary-channel training knobs: target-space transform and tail weight | Durable | Draft |
 | 0039 | Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe | Durable | Accepted |
 | 0040 | Dataset hosting: maintainer's OneDrive stays the master; archives shared on request | Ephemeral | Accepted |
 | 0041 | v0.3 pivots to a public multi-method benchmark: DeformingPlate with native MGN/Transolver/GeoFLARE (supersedes ADR-0024's v0.3 scope) | Durable | Accepted (amends 0034; corrected in place 2026-08-07 re schema, see 0042) |
 | 0042 | Schema 0.2.0 adds per-node fields; nodal-FE ingestion via download-and-convert (deforming_plate) | Durable | Accepted (corrects 0041) |
-| 0043 | DeformingPlate benchmark protocol: task, split, eval, and the MGN blessing gate | Durable | Accepted |
+| 0043 | DeformingPlate benchmark protocol: task, split, eval, and the MGN blessing gate | Durable | Accepted (narrowed by 0046) |
 | 0044 | Transolver provisional adaptation: native Physics-Attention on the DeformingPlate rollout | Durable | Accepted |
 | 0045 | GeoFLARE provisional adaptation: native GALE_FA (GeoTransolver + FLARE) on the DeformingPlate rollout | Durable | Accepted |
+| 0046 | Provisional results and the method-comparison table (closes ADR-0041 clause 4) | Durable | Accepted |
 
 ---
 

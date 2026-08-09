@@ -45,6 +45,23 @@ Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 input velocitie
 
 </details>
 
+## Method comparison
+
+| Metric | **cgn** |
+|---|---|
+| test_interp · rollout_pos_rmse_mm | 0.2497 |
+| test_interp · rollout_strain_rmse | 0.01697 |
+| test_interp · one_step_pos_rmse_mm | 0.0006992 |
+| test_interp · one_step_strain_rmse | 0.0006181 |
+| test_interp · qoi_midspan_deflection_peak_mae_mm | 0.5843 |
+| test_interp · qoi_cracked_fraction_mae | 0.1892 |
+| probe · rollout_pos_rmse_mm | 0.3951 |
+| probe · rollout_strain_rmse | 0.01931 |
+| probe · one_step_pos_rmse_mm | 0.0006437 |
+| probe · one_step_strain_rmse | 0.0009397 |
+| probe · qoi_midspan_deflection_peak_mae_mm | 1.337 |
+| probe · qoi_cracked_fraction_mae | 0.186 |
+
 ## Numbers to beat
 
 **CGN baseline** (cgn, 2026-07-24, commit `5956d81`, checkpoint: `models/notch_beam_2d_impact/cgn-5956d81/model-best-186000.pt` — private archive; publication parked)

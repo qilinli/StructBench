@@ -29,4 +29,10 @@ SPEC = BenchmarkSpec(
     boundary_feature_fn=None,
     dataset_id="deforming_plate",
     kinematic_types=KINEMATIC_TYPES,
+    # No blessed or provisional result yet, so _quickstart_family (ADR-0046)
+    # falls back to this default. MGN is the blessed target family for this
+    # benchmark (ADR-0043) and configs/deforming_plate/mgn.toml is committed;
+    # the base-class default "cgn" has no grouped config here (ADR-0046
+    # comparison-table plan, config-path-exists regression guard).
+    quickstart_family="mgn",
 )
