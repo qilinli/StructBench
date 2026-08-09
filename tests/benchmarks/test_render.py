@@ -379,6 +379,15 @@ def test_benchmark_page_method_comparison_appears_before_numbers_to_beat():
     assert text.index("## Method comparison") < text.index("## Numbers to beat")
     assert "| Metric | **cgn** | **mgn** (provisional) |" in text
     assert "Provisional entries are best-effort implementations" in text
+    # Numbers-to-beat detail blocks: both entries still render (per-split
+    # tables + checkpoint pointer matter for provisional runs too), but only
+    # the provisional heading carries the tag (final whole-branch review,
+    # 2026-08-09). Exact-line match, not substring: an untagged heading is a
+    # prefix of a tagged one, so `in text` alone wouldn't catch a regression
+    # where the blessed heading got wrongly tagged too.
+    lines = text.splitlines()
+    assert "**CGN baseline** (cgn, 2026-07-05, commit `abc1234`)" in lines
+    assert "**CGN baseline** (mgn, 2026-07-05, commit `abc1234`) (provisional)" in lines
 
     # Empty fixture: the empty-state line, same ordering.
     empty_spec = get_benchmark("notch_beam_2d_bend")
@@ -401,6 +410,12 @@ def test_archive_readme_method_comparison_appears_before_numbers_to_beat():
     assert text.index("## Method comparison") < text.index("## Numbers to beat")
     assert "| Metric | **cgn** | **mgn** (provisional) |" in text
     assert "Provisional entries are best-effort implementations" in text
+    # Same tagging rule as the landing page: both detail blocks render, only
+    # the provisional heading is tagged (final whole-branch review, 2026-08-09).
+    # Exact-line match, not substring — see the landing-page test for why.
+    lines = text.splitlines()
+    assert "**CGN baseline** (cgn, 2026-07-05, commit `abc1234`)" in lines
+    assert "**CGN baseline** (mgn, 2026-07-05, commit `abc1234`) (provisional)" in lines
 
     empty_spec = get_benchmark("notch_beam_2d_bend")
     text = render_archive_readme(empty_spec, "notch_beam_2d_bend")

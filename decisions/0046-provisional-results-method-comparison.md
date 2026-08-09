@@ -166,6 +166,14 @@ code could disagree, **the code governs**.
 
      Partial state shows only the recorded methods (the registry is the source
      of truth; no skeleton columns for pending methods).
+   - **`_numbers_to_beat` headings are tagged too, not hidden.** A provisional
+     entry keeps its full per-result detail block below `## Numbers to beat` —
+     the per-split tables and checkpoint pointer matter for a provisional run
+     just as much as a blessed one — but its heading gains the same
+     ` (provisional)` suffix as the comparison-table header and `_baseline_line`,
+     so a provisional entry's detail block can never be read as a blessed
+     "number to beat" (closing a finding from the final whole-branch review,
+     2026-08-09).
 
 6. **Comparison-statistic containment: the ADR-0043 §8 pooled number is
    notes-only.** The comparison renderer surfaces **every** `metrics` key as a
