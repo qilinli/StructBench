@@ -215,3 +215,14 @@ findings.**
    wording said — NORMAL-only pooling would hold a reimplementation to a
    materially stricter bar than the published 15.1±4.0. The §5 leaderboard
    metrics keep StructBench's own NORMAL-only masking, which is unaffected.
+
+---
+
+**Narrowed by ADR-0046 (2026-08-09).** This ADR's Consequences said the pooled
+blessing aggregate "appears in the blessing record (ADR-0033 registry
+`notes`/metrics), not as a leaderboard column." ADR-0046's comparison renderer
+surfaces **every** `metrics` key as a table row, so the pooled number's
+containment is narrowed to **`notes` free-text only** — it must never be a
+`metrics` key, or it would leak into the method-comparison columns and destroy
+the comparability this ADR (§8/context) warns against. A deliberate tightening
+of the letter above, not a reversal.

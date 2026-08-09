@@ -62,3 +62,11 @@ the benchmark version; only protocol changes do (ADR-0032 §4). Runs with
   rationale per ADR-0032, metrics, QoIs), results, and usage — the
   "per-benchmark README" the roadmap called for; dataset info was already
   there.
+
+---
+
+**Extended by ADR-0046 (2026-08-09):** the per-benchmark registry extends to
+per-(benchmark × method) — `BaselineResult` gains a `provisional` flag,
+`BenchmarkSpec.blessed_results` becomes the canonical blessed predicate, and the
+generated views render a method-comparison table distinguishing blessed from
+provisional. "Blessed" is no longer synonymous with mere presence in `results`.
