@@ -47,6 +47,7 @@ from ..config import (
     LR_SCHEDULE_FLOOR,
     MODEL_FAMILIES,
     CGNConfig,
+    GeoFlareConfig,
     MGNConfig,
     TrainConfig,
     TransolverConfig,
@@ -67,6 +68,7 @@ from ..eval import one_step_aux_rmse, one_step_position_rmse, rollout
 from ..models.cgn import LearnedSimulator
 from ..models.cgn.simulator import time_diff
 from ..models.common import CaseBoundSimulator
+from ..models.geoflare import GeoFlareSimulator
 from ..models.mgn import (
     MeshSimulator,
     collate_mesh_samples,
@@ -78,9 +80,11 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "CGNConfig",
+    "GeoFlareConfig",
     "MGNConfig",
     "TrainConfig",
     "TransolverConfig",
+    "build_geoflare_simulator",
     "build_mgn_simulator",
     "build_simulator",
     "build_transolver_simulator",
@@ -304,6 +308,59 @@ def build_transolver_simulator(
     )
 
 
+def build_geoflare_simulator(
+    cfg: GeoFlareConfig, *, kinematic_types: tuple[int, ...], device: str
+) -> GeoFlareSimulator:
+    """Construct a :class:`GeoFlareSimulator` from a :class:`GeoFlareConfig`.
+
+    Mirrors :func:`build_transolver_simulator`: no normalization stats are
+    needed at construction time, since ``GeoFlareSimulator``'s two
+    :class:`~structbench.models.mgn.normalizers.OnlineNormalizer` buffers
+    (node and target) are part of its own ``state_dict``, matching the
+    MGN/Transolver self-contained-checkpoint pattern (ADR-0043 §8) — a
+    checkpoint carries its normalizer state and a fresh instance starts
+    with the online normalizers' own (untrained) defaults until ``.load()``
+    restores them.
+
+    The config's four ball-query scalars are assembled into the
+    simulator's ``(near, far)`` tuples here — this scalar-to-tuple mapping
+    lives ONLY in this function: ``radii=(cfg.radius_near, cfg.radius_far)``,
+    ``neighbors=(cfg.neighbors_near, cfg.neighbors_far)``.
+
+    Parameters
+    ----------
+    cfg : GeoFlareConfig
+        Architecture hyperparameters.
+    kinematic_types : tuple of int
+        Node-type codes whose motion is prescribed by ground truth (the
+        benchmark spec's ``kinematic_types``); forwarded verbatim.
+    device : str
+        Torch device string.
+
+    Returns
+    -------
+    GeoFlareSimulator
+        ``scripted_types`` is left at the class default ``(1,)`` (the
+        ADR-0043 recipe scripts only the OBSTACLE node type); no run-config
+        field controls it yet.
+    """
+    return GeoFlareSimulator(
+        dim=cfg.dim,
+        n_hidden=cfg.n_hidden,
+        n_layers=cfg.n_layers,
+        n_heads=cfg.n_heads,
+        slice_num=cfg.slice_num,
+        mlp_ratio=cfg.mlp_ratio,
+        dropout=cfg.dropout,
+        n_hidden_local=cfg.n_hidden_local,
+        radii=(cfg.radius_near, cfg.radius_far),
+        neighbors=(cfg.neighbors_near, cfg.neighbors_far),
+        node_type_size=cfg.node_type_size,
+        kinematic_types=kinematic_types,
+        device=device,
+    )
+
+
 def _load_trajectories(
     case_ids: list[str], data_root: Path, aux_field: str
 ) -> list[CaseTrajectory]:
@@ -448,7 +505,7 @@ def _lr_at_cosine(step: int, train_cfg: TrainConfig) -> float:
 
 def train(
     spec: BenchmarkSpec,
-    model_cfg: CGNConfig | MGNConfig | TransolverConfig,
+    model_cfg: CGNConfig | MGNConfig | TransolverConfig | GeoFlareConfig,
     train_cfg: TrainConfig,
     data_root: Path,
     out_dir: Path,
@@ -465,12 +522,13 @@ def train(
     state trajectory retrospectively (ADR-0028 smoothed selection).
 
     For ``family="mgn"`` this immediately delegates to :func:`_train_mgn`,
-    and for ``family="transolver"`` to :func:`_train_transolver`, after the
-    shared trajectory loading and ADR-0039 truncation (both have their own
-    training loop and inline validation; neither needs a normalization-stats
-    file, since their normalizer buffers are self-contained in the
-    checkpoint, ADR-0043 §8/ADR-0041). The rest of this docstring describes
-    the ``"cgn"``/``"gns"`` path.
+    for ``family="transolver"`` to :func:`_train_transolver`, and for
+    ``family="geoflare"`` to :func:`_train_geoflare`, after the shared
+    trajectory loading and ADR-0039 truncation (each has its own training
+    loop and inline validation; none needs a normalization-stats file,
+    since their normalizer buffers are self-contained in the checkpoint,
+    ADR-0043 §8/ADR-0041). The rest of this docstring describes the
+    ``"cgn"``/``"gns"`` path.
 
     Builds the benchmark spec's train trajectories, normalization stats, and the
     simulator (using the spec's boundary feature if any), then optimizes with
@@ -486,7 +544,7 @@ def train(
     spec : BenchmarkSpec
         Benchmark spec supplying splits, auxiliary field, QoIs, and boundary
         feature.
-    model_cfg : CGNConfig, MGNConfig, or TransolverConfig
+    model_cfg : CGNConfig, MGNConfig, TransolverConfig, or GeoFlareConfig
         Architecture and noise configuration for the resolved ``family``.
     train_cfg : TrainConfig
         Optimization schedule and loss weights.
@@ -499,7 +557,7 @@ def train(
     family : str
         Model-family registry key recorded in ``config.json`` (ADR-0032);
         ``"mgn"`` dispatches to :func:`_train_mgn`, ``"transolver"`` to
-        :func:`_train_transolver`.
+        :func:`_train_transolver`, ``"geoflare"`` to :func:`_train_geoflare`.
 
     Returns
     -------
@@ -603,6 +661,18 @@ def train(
     if family == "transolver":
         assert isinstance(model_cfg, TransolverConfig)
         return _train_transolver(
+            spec,
+            model_cfg,
+            train_cfg,
+            train_trajs,
+            val_trajs,
+            out_dir,
+            device,
+            data_root,
+        )
+    if family == "geoflare":
+        assert isinstance(model_cfg, GeoFlareConfig)
+        return _train_geoflare(
             spec,
             model_cfg,
             train_cfg,
@@ -1282,6 +1352,258 @@ def _train_transolver(
     return best_ckpt
 
 
+def _train_geoflare(
+    spec: BenchmarkSpec,
+    cfg: GeoFlareConfig,
+    train_cfg: TrainConfig,
+    train_trajs: list[CaseTrajectory],
+    val_trajs: list[CaseTrajectory],
+    out_dir: Path,
+    device: str,
+    data_root: Path,
+) -> Path | None:
+    """Run GeoFLARE training with inline validation (ADR-0041/0044/0045 recipe).
+
+    Called by :func:`train` for ``family="geoflare"``, after the shared
+    trajectory loading and ADR-0039 truncation. A clone of
+    :func:`_train_transolver` (itself an MGN-parity clone, ADR-0043 §8/§9a):
+    ``GeoFlareSimulator``'s two
+    :class:`~structbench.models.mgn.normalizers.OnlineNormalizer` buffers
+    (node and target) live inside the checkpoint's own ``state_dict``, so
+    ``config.json`` plus the checkpoint(s) are the run's only artifacts and
+    no separate normalization-stats file is written.
+
+    The optimizer recipe matches Transolver's (ADR-0044, extended to
+    GeoFLARE by ADR-0045): the optimizer is AdamW with ``cfg.weight_decay``,
+    the learning rate follows the cosine schedule :func:`_lr_at_cosine`, and
+    the gradient is clipped to global norm ``cfg.max_grad_norm`` (when
+    positive) right after ``loss.backward()`` — the GeoFLARE default
+    ``max_grad_norm=0.0`` keeps the clip off, matching the upstream
+    reference's own optimizer recipe (no clipping applied).
+
+    Each step adds random-walk noise (std ``cfg.noise_std``) to the last
+    input frame's world positions of non-kinematic (NORMAL) nodes only —
+    kinematic rows are never noised, since their motion is prescribed —
+    then calls
+    :meth:`~structbench.models.geoflare.simulator.GeoFlareSimulator.forward_train`
+    (its call signature matches Transolver's exactly; coordinate threading
+    to the network is internal to the simulator, see that module's
+    docstring, so the caller-side noise/loss/warmup plumbing is unchanged
+    from :func:`_train_transolver`). The loss is the mean, over
+    non-kinematic rows, of ``w_pos * ||Δv||^2 + w_aux * (Δaux)^2`` on the
+    normalized (velocity, auxiliary) output. The first
+    ``cfg.normalizer_warmup_steps`` steps run with ``accumulate=True`` so
+    the online normalizers (node and target) warm up on real batches
+    before their outputs are used for anything but accumulation. Every
+    ``val_every`` steps the simulator is switched to eval mode and rolled
+    out (via :func:`~structbench.eval.rollout`, after
+    :meth:`bind_case`/:meth:`reset_rollout` per trajectory) over
+    ``val_trajs``; the model is saved as ``model-best-<step>.pt`` when the
+    mean position RMSE improves. Every :data:`PERIODIC_CKPT_EVERY` steps it
+    additionally snapshots ``ckpt-<step>.pt`` for post-hoc analysis (never
+    read by default evaluation), mirroring the CGN/MGN/Transolver loops.
+
+    Parameters
+    ----------
+    spec : BenchmarkSpec
+        Benchmark spec supplying ``kinematic_types`` (the NORMAL-only noise
+        and loss mask) and ``scored_frames`` (the validation rollout's
+        scored span).
+    cfg : GeoFlareConfig
+        Architecture, noise, normalizer-warmup, and optimizer-recipe
+        configuration.
+    train_cfg : TrainConfig
+        Optimization schedule and loss weights, shared with the CGN/MGN/
+        Transolver loops (``lr_decay``/``lr_decay_steps`` go unused here:
+        the schedule is :func:`_lr_at_cosine`, ADR-0044).
+    train_trajs, val_trajs : list of CaseTrajectory
+        Already-loaded trajectories from :func:`train` (already
+        ``train_frames``/``scored_frames`` truncated per ADR-0039); both
+        must be mesh (nodal-FE) trajectories.
+    out_dir : pathlib.Path
+        Output directory for checkpoints and the resolved config.
+    device : str
+        Torch device string.
+    data_root : pathlib.Path
+        Directory of canonical cases; recorded verbatim in ``config.json``
+        (:func:`~structbench.config.resolved_config_dict` requires it).
+
+    Returns
+    -------
+    pathlib.Path or None
+        Path to the best (or fallback final) checkpoint, or ``None`` if no
+        checkpoint was written.
+
+    Raises
+    ------
+    ValueError
+        If any trajectory in ``train_trajs`` or ``val_trajs`` lacks mesh
+        connectivity (``cells``/``reference_coords`` are ``None``) — the
+        benchmark is not a mesh benchmark.
+    """
+    for tr in (*train_trajs, *val_trajs):
+        if tr.cells is None or tr.reference_coords is None:
+            raise ValueError(
+                f"benchmark {spec.card.name!r} has no mesh connectivity "
+                "(cells/reference_coords); geoflare training requires a "
+                "mesh benchmark"
+            )
+
+    statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
+    sim = build_geoflare_simulator(
+        cfg, kinematic_types=spec.kinematic_types, device=device
+    )
+    sim.to(device)
+
+    kinematic = torch.as_tensor(
+        list(spec.kinematic_types), dtype=torch.long, device=device
+    )
+
+    (out_dir / "config.json").write_text(
+        json.dumps(
+            resolved_config_dict(
+                "geoflare",
+                cfg,
+                train_cfg,
+                horizon=spec.card.horizon,
+                eval_times=spec.card.eval_times,
+                n_particle_types=cfg.node_type_size,
+                data_root=data_root,
+            ),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    dataset = WindowDataset(train_trajs, cfg.input_frames)
+    if len(dataset) == 0:
+        raise ValueError(
+            f"empty training set: no TRAIN trajectory has more than "
+            f"input_frames={cfg.input_frames} frames, so there are no "
+            f"autoregressive samples. Check the data root or reduce input_frames."
+        )
+    loader = DataLoader(
+        dataset,
+        batch_size=train_cfg.batch_size,
+        shuffle=True,
+        collate_fn=functools.partial(collate_mesh_samples, statics=statics),
+    )
+    optimizer = torch.optim.AdamW(
+        sim.parameters(), lr=train_cfg.lr_init, weight_decay=cfg.weight_decay
+    )
+
+    logger.info(
+        "starting geoflare training: %d steps, batch %d",
+        train_cfg.training_steps,
+        train_cfg.batch_size,
+    )
+
+    step = 0
+    best_pos = float("inf")
+    best_ckpt: Path | None = None
+    sim.train()
+    while step < train_cfg.training_steps:
+        for batch in loader:
+            position_seq = batch["position_seq"].to(device)
+            particle_type = batch["particle_type"].to(device)
+            next_position = batch["next_position"].to(device)
+            next_aux = batch["next_aux"].to(device)
+            reference_coords = batch["reference_coords"].to(device)
+            n_particles_per_example = batch["n_particles_per_example"].to(device)
+
+            x_last = position_seq[:, -1]
+            is_kinematic = torch.isin(particle_type, kinematic)
+            noise = torch.randn_like(x_last) * cfg.noise_std
+            noise = noise.masked_fill(is_kinematic.unsqueeze(-1), 0.0)
+            x_noisy = x_last + noise
+
+            optimizer.zero_grad()
+            pred, target = sim.forward_train(
+                x_noisy,
+                next_position,
+                next_aux,
+                particle_type,
+                reference_coords,
+                n_particles_per_example,
+                accumulate=(step < cfg.normalizer_warmup_steps),
+            )
+            delta_v = pred[:, :-1] - target[:, :-1]
+            delta_aux = pred[:, -1] - target[:, -1]
+            per_particle = (
+                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
+                + train_cfg.w_aux * delta_aux**2
+            )
+            free = ~is_kinematic
+            if free.any():
+                loss = per_particle[free].mean()
+            else:
+                # all-kinematic batch: nothing to learn from; zero loss, no NaN
+                loss = per_particle.new_tensor(0.0, requires_grad=True)
+
+            loss.backward()
+            if cfg.max_grad_norm > 0:
+                torch.nn.utils.clip_grad_norm_(sim.parameters(), cfg.max_grad_norm)
+            optimizer.step()
+
+            lr_new = _lr_at_cosine(step, train_cfg)
+            for group in optimizer.param_groups:
+                group["lr"] = lr_new
+
+            step += 1
+
+            if step % train_cfg.val_every == 0:
+                sim.eval()
+                pos_losses: list[float] = []
+                with torch.no_grad():
+                    for tr in val_trajs:
+                        sim.bind_case(
+                            torch.from_numpy(tr.cells).to(device),
+                            torch.from_numpy(tr.reference_coords).to(device),
+                            torch.from_numpy(tr.particle_type).to(device),
+                            torch.from_numpy(tr.positions).to(device),
+                        )
+                        sim.reset_rollout()
+                        result = rollout(
+                            sim,
+                            tr,
+                            cfg.input_frames,
+                            device,
+                            kinematic_types=spec.kinematic_types,
+                            scored_frames=spec.scored_frames,
+                        )
+                        pos_losses.append(float(result.position_rmse.mean()))
+                val_pos = (
+                    sum(pos_losses) / len(pos_losses) if pos_losses else float("inf")
+                )
+                logger.info(
+                    "step %d: train_loss %.6f val_pos %.4f mm (best_pos %.4f)",
+                    step,
+                    loss.item(),
+                    val_pos,
+                    best_pos,
+                )
+                if val_pos < best_pos:
+                    best_pos = val_pos
+                    best_ckpt = out_dir / f"model-best-{step:06d}.pt"
+                    sim.save(str(best_ckpt))
+                    logger.info("saved improved checkpoint: %s", best_ckpt)
+                sim.train()
+
+            if step % PERIODIC_CKPT_EVERY == 0:
+                periodic_ckpt = out_dir / f"ckpt-{step:06d}.pt"
+                sim.save(str(periodic_ckpt))
+                logger.info("saved periodic checkpoint: %s", periodic_ckpt)
+
+            if step >= train_cfg.training_steps:
+                break
+
+    if best_ckpt is None:
+        best_ckpt = out_dir / f"model-final-{step:06d}.pt"
+        sim.save(str(best_ckpt))
+        logger.info("no validation improvement; saved final checkpoint: %s", best_ckpt)
+    return best_ckpt
+
+
 def _find_checkpoint(out_dir: Path) -> Path | None:
     """Return the highest-step ``model-*.pt`` in ``out_dir``.
 
@@ -1343,7 +1665,7 @@ def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
 
 def _model_config_from_record(
     record: dict[str, Any],
-) -> CGNConfig | MGNConfig | TransolverConfig:
+) -> CGNConfig | MGNConfig | TransolverConfig | GeoFlareConfig:
     """Reconstruct the family-appropriate model config from a run record.
 
     Parameters
@@ -1356,7 +1678,7 @@ def _model_config_from_record(
 
     Returns
     -------
-    CGNConfig, MGNConfig, or TransolverConfig
+    CGNConfig, MGNConfig, TransolverConfig, or GeoFlareConfig
         Constructed from ``record["model"]`` with ``"family"`` dropped
         before the fields are splatted in. The legacy ``"gns"`` alias
         (pre-ADR-0034 records) resolves to :class:`CGNConfig` like ``"cgn"``.
@@ -1385,9 +1707,10 @@ def evaluate(
     trained checkpoint; no caller-supplied architecture is accepted. A
     ``cgn``-family run additionally rebuilds its normalizer from
     ``normalization_stats.npz`` (both files are written by :func:`train`); an
-    ``mgn``- or ``transolver``-family run needs no stats file at all, since
-    its normalizer buffers live in the checkpoint's own ``state_dict``
-    (ADR-0043 §8, verified in ①-c1; extended to ``transolver`` in ADR-0041).
+    ``mgn``-, ``transolver``-, or ``geoflare``-family run needs no stats file
+    at all, since its normalizer buffers live in the checkpoint's own
+    ``state_dict`` (ADR-0043 §8, verified in ①-c1; extended to
+    ``transolver``/``geoflare`` in ADR-0041).
 
     Per case, reports the one-step (teacher-forced) position RMSE, the
     full-rollout position RMSE (mm), the rollout auxiliary-field RMSE (in the
@@ -1426,11 +1749,11 @@ def evaluate(
     Rollouts seed with the checkpoint's ``input_frames`` (recorded in
     ``config.json``; pre-0035 runs recorded it as ``window``, normalized by
     :func:`~structbench.config.read_run_record`), so checkpoints are always
-    evaluated as trained (ADR-0035). For an ``mgn``- or ``transolver``-family
-    run, each case's mesh (cells, reference coordinates, and full
-    ground-truth trajectory) is bound to the simulator before its three eval
-    passes (rollout, one-step position, one-step aux), and the rollout
-    pointer is reset before each pass, per
+    evaluated as trained (ADR-0035). For an ``mgn``-, ``transolver``-, or
+    ``geoflare``-family run, each case's mesh (cells, reference coordinates,
+    and full ground-truth trajectory) is bound to the simulator before its
+    three eval passes (rollout, one-step position, one-step aux), and the
+    rollout pointer is reset before each pass, per
     :class:`~structbench.models.common.CaseBoundSimulator`'s statefulness
     contract.
 
@@ -1445,11 +1768,13 @@ def evaluate(
     FileNotFoundError
         If ``config.json`` or a checkpoint is missing from ``out_dir``; for a
         ``cgn``-family run, also if ``normalization_stats.npz`` is missing
-        (an ``mgn``- or ``transolver``-family run needs no stats file).
+        (an ``mgn``-, ``transolver``-, or ``geoflare``-family run needs no
+        stats file).
     ValueError
-        If ``case_ids`` is empty, or an ``mgn``- or ``transolver``-family run
-        is evaluated against a benchmark whose cases carry no mesh
-        connectivity (``cells``/``reference_coords`` are ``None``).
+        If ``case_ids`` is empty, or an ``mgn``-, ``transolver``-, or
+        ``geoflare``-family run is evaluated against a benchmark whose cases
+        carry no mesh connectivity (``cells``/``reference_coords`` are
+        ``None``).
     """
     if not case_ids:
         raise ValueError("case_ids must be non-empty")
@@ -1458,7 +1783,9 @@ def evaluate(
     model_cfg = _model_config_from_record(record)
     n_types = int(record["n_particle_types"])
 
-    simulator: LearnedSimulator | MeshSimulator | TransolverSimulator
+    simulator: (
+        LearnedSimulator | MeshSimulator | TransolverSimulator | GeoFlareSimulator
+    )
     if family == "mgn":
         assert isinstance(model_cfg, MGNConfig)
         simulator = build_mgn_simulator(
@@ -1467,6 +1794,11 @@ def evaluate(
     elif family == "transolver":
         assert isinstance(model_cfg, TransolverConfig)
         simulator = build_transolver_simulator(
+            model_cfg, kinematic_types=spec.kinematic_types, device=device
+        )
+    elif family == "geoflare":
+        assert isinstance(model_cfg, GeoFlareConfig)
+        simulator = build_geoflare_simulator(
             model_cfg, kinematic_types=spec.kinematic_types, device=device
         )
     else:
