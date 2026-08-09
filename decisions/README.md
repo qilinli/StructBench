@@ -94,7 +94,7 @@ What becomes easier, harder, or constrained as a result.
 | 0043 | DeformingPlate benchmark protocol: task, split, eval, and the MGN blessing gate | Durable | Accepted (narrowed by 0046) |
 | 0044 | Transolver provisional adaptation: native Physics-Attention on the DeformingPlate rollout | Durable | Accepted |
 | 0045 | GeoFLARE provisional adaptation: native GALE_FA (GeoTransolver + FLARE) on the DeformingPlate rollout | Durable | Accepted |
-| 0046 | Provisional results and the method-comparison table (closes ADR-0041 clause 4) | Durable | Proposed |
+| 0046 | Provisional results and the method-comparison table (closes ADR-0041 clause 4) | Durable | Accepted |
 
 ---
 

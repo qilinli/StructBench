@@ -1,6 +1,6 @@
 # 0046 — Provisional results and the method-comparison table (closes ADR-0041 clause 4)
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-08-09
 
