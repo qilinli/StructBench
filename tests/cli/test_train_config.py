@@ -392,6 +392,29 @@ def test_load_run_config_rejects_geoflare_input_frames_off_card(tmp_path):
         load_run_config(_write(tmp_path, bad))
 
 
+def test_load_deforming_plate_geoflare_config():
+    # The ADR-0045 reference config: the strict loader accepts it and the
+    # deforming_plate card's input_frames=2 check passes.
+    rc = load_run_config(REPO_ROOT / "configs" / "deforming_plate" / "geoflare.toml")
+    assert rc.family == "geoflare"
+    assert isinstance(rc.model, GeoFlareConfig)
+    assert rc.model.input_frames == 2
+    assert rc.model.n_hidden == 256
+    assert rc.model.n_layers == 6
+    assert rc.train.training_steps == 10_000_000
+
+
+def test_load_deforming_plate_geoflare_smoke_config():
+    rc = load_run_config(
+        REPO_ROOT / "configs" / "deforming_plate" / "geoflare_smoke.toml"
+    )
+    assert rc.family == "geoflare"
+    assert isinstance(rc.model, GeoFlareConfig)
+    assert rc.model.input_frames == 2
+    assert rc.model.n_hidden == 16
+    assert rc.train.training_steps == 50
+
+
 def _stats_dict():
     return {
         "velocity": {"mean": torch.zeros(2), "std": torch.ones(2)},
