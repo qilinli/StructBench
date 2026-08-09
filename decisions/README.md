@@ -93,7 +93,7 @@ What becomes easier, harder, or constrained as a result.
 | 0042 | Schema 0.2.0 adds per-node fields; nodal-FE ingestion via download-and-convert (deforming_plate) | Durable | Accepted (corrects 0041) |
 | 0043 | DeformingPlate benchmark protocol: task, split, eval, and the MGN blessing gate | Durable | Accepted |
 | 0044 | Transolver provisional adaptation: native Physics-Attention on the DeformingPlate rollout | Durable | Accepted |
-| 0045 | GeoFLARE provisional adaptation: native GALE_FA (GeoTransolver + FLARE) on the DeformingPlate rollout | Durable | Proposed |
+| 0045 | GeoFLARE provisional adaptation: native GALE_FA (GeoTransolver + FLARE) on the DeformingPlate rollout | Durable | Accepted |
 
 ---
 
