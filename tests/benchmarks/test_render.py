@@ -1,5 +1,6 @@
 """Card renderers and the committed-index drift check."""
 
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -271,8 +272,9 @@ def test_landing_page_folds_protocol_rationale_but_index_does_not():
 
 
 # --- method comparison + provisional-aware Quickstart selection (ADR-0046) ---
-# _method_comparison is defined and unit-tested here but not yet called by
-# any renderer (Task 2 is output-neutral); insertion lands in Task 3.
+# _method_comparison is unit-tested directly below, then its wiring into both
+# renderers (immediately before "## Numbers to beat") is covered further down
+# by the section-ordering and config-path-exists regression tests (Task 3).
 
 
 def test_method_comparison_empty_state_is_verbatim():
@@ -365,6 +367,66 @@ def test_method_comparison_provisional_only_tags_every_column():
     assert any("Provisional entries" in line for line in lines)
 
 
+def test_benchmark_page_method_comparison_appears_before_numbers_to_beat():
+    # Multi-result fixture: table + footnote render, section precedes
+    # "## Numbers to beat" (ADR-0046 wiring).
+    prov_mgn = replace(_fake_result(), family="mgn", provisional=True)
+    spec = replace(
+        get_benchmark("taylor_impact_2d"), results=(_fake_result(), prov_mgn)
+    )
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    assert "## Method comparison" in text
+    assert text.index("## Method comparison") < text.index("## Numbers to beat")
+    assert "| Metric | **cgn** | **mgn** (provisional) |" in text
+    assert "Provisional entries are best-effort implementations" in text
+
+    # Empty fixture: the empty-state line, same ordering.
+    empty_spec = get_benchmark("notch_beam_2d_bend")
+    text = render_benchmark_page(empty_spec, "notch_beam_2d_bend")
+    assert "## Method comparison" in text
+    assert text.index("## Method comparison") < text.index("## Numbers to beat")
+    assert (
+        "*No results yet — method entries land here as runs are "
+        "recorded (blessed or provisional).*"
+    ) in text
+
+
+def test_archive_readme_method_comparison_appears_before_numbers_to_beat():
+    prov_mgn = replace(_fake_result(), family="mgn", provisional=True)
+    spec = replace(
+        get_benchmark("taylor_impact_2d"), results=(_fake_result(), prov_mgn)
+    )
+    text = render_archive_readme(spec, "taylor_impact_2d")
+    assert "## Method comparison" in text
+    assert text.index("## Method comparison") < text.index("## Numbers to beat")
+    assert "| Metric | **cgn** | **mgn** (provisional) |" in text
+    assert "Provisional entries are best-effort implementations" in text
+
+    empty_spec = get_benchmark("notch_beam_2d_bend")
+    text = render_archive_readme(empty_spec, "notch_beam_2d_bend")
+    assert "## Method comparison" in text
+    assert text.index("## Method comparison") < text.index("## Numbers to beat")
+    assert (
+        "*No results yet — method entries land here as runs are "
+        "recorded (blessed or provisional).*"
+    ) in text
+
+
+def test_quickstart_config_path_exists_for_every_benchmark():
+    # Regression guard (ADR-0046): would have caught the original bug where
+    # deforming_plate's Quickstart pointed at configs/deforming_plate/cgn.toml
+    # -- a family with no committed grouped config on disk. For every
+    # registered benchmark, the family the renderer actually selects must
+    # have a real configs/<name>/<family>.toml on disk.
+    for name in available_benchmarks():
+        spec = get_benchmark(name)
+        text = render_benchmark_page(spec, name)
+        match = re.search(r"--config (configs/\S+\.toml)", text)
+        assert match, f"{name}: no --config line in rendered Quickstart"
+        config_path = match.group(1)
+        assert (REPO_ROOT / config_path).is_file(), f"{name}: missing {config_path}"
+
+
 def test_quickstart_family_prefers_blessed_over_declaration_order():
     # A provisional entry listed FIRST still loses to a later blessed one.
     provisional_first = _result(family="transolver", provisional=True)
@@ -424,12 +486,18 @@ def test_baseline_line_tags_provisional_entries():
 def test_archive_readme_quickstart_family_selection_is_output_neutral():
     # _quickstart_family replaces the old hardcoded
     # `spec.results[0].family if spec.results else "cgn"`; every existing
-    # benchmark (no provisional entries committed yet) must resolve to the
-    # identical family, so the archive README stays byte-for-byte the same
-    # as before this task (the visible change lands in Task 3).
+    # benchmark must resolve to the identical family EXCEPT deforming_plate,
+    # whose quickstart_family default flips cgn -> mgn in this same task
+    # (Task 3): configs/deforming_plate/cgn.toml never existed on disk, so
+    # the old hardcoded fallback was the exact bug the config-path-exists
+    # regression guard now catches. Every other benchmark (no provisional
+    # entries committed yet) stays byte-for-byte the same as before this task.
     for name in available_benchmarks():
         spec = get_benchmark(name)
-        old_family = spec.results[0].family if spec.results else "cgn"
+        if name == "deforming_plate":
+            old_family = "mgn"
+        else:
+            old_family = spec.results[0].family if spec.results else "cgn"
         text = render_archive_readme(spec, name)
         assert f"configs/{name}/{old_family}.toml" in text
         assert f"runs/{name}-{old_family}" in text

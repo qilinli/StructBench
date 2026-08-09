@@ -79,6 +79,19 @@ input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS 
 
 </details>
 
+## Method comparison
+
+| Metric | **cgn** |
+|---|---|
+| test_interp · rollout_pos_rmse_mm | 0.875 |
+| test_interp · rollout_axial_rmse_mpa | 0.1676 |
+| test_interp · one_step_pos_rmse_mm | 0.004882 |
+| test_interp · one_step_axial_rmse_mpa | 0.01547 |
+| test_interp · qoi_arrival_time_25_mae_ms | 0.1007 |
+| test_interp · qoi_arrival_time_50_mae_ms | 0.05045 |
+| test_interp · qoi_arrival_time_75_mae_ms | 0.1006 |
+| test_interp · qoi_peak_stress_mae_mpa | 0.9665 |
+
 ## Numbers to beat
 
 **CGN baseline** (cgn, 2026-07-10, commit `48046ea`, checkpoint: `models/wave_propagation_1d/cgn-48046ea/model-best-050000.pt` — private archive; publication parked)

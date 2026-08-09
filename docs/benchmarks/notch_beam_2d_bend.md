@@ -31,6 +31,10 @@ Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities (input_fra
 
 </details>
 
+## Method comparison
+
+*No results yet — method entries land here as runs are recorded (blessed or provisional).*
+
 ## Numbers to beat
 
 *No official baseline yet — the reference run's metrics land here.*

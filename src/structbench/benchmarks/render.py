@@ -224,7 +224,8 @@ def _method_comparison(spec: BenchmarkSpec) -> list[str]:
     keys present in any entry for that split, then stable-partitioned RMSE
     keys before ``qoi_`` keys. Missing cells render ``—``. A footnote is
     appended whenever any column is provisional (honest-not-silent,
-    ADR-0033) — not called by any renderer yet (wired in a later task).
+    ADR-0033). Called by both :func:`render_benchmark_page` and
+    :func:`render_archive_readme`, immediately before ``## Numbers to beat``.
 
     Distinct from :func:`_numbers_to_beat`: this section is method-oriented
     and provisional entries land here too, so its empty-state placeholder
@@ -406,6 +407,8 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         "",
         *_eval_lines(c),
         "",
+        *_method_comparison(spec),
+        "",
         *_numbers_to_beat(spec),
         "",
         "## Using this archive",
@@ -478,6 +481,8 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
         *_task_lines(c),
         "",
         *_eval_lines(c, fold_rationale=True),
+        "",
+        *_method_comparison(spec),
         "",
         *_numbers_to_beat(spec),
         "",
