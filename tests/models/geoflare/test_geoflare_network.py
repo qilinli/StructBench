@@ -1,23 +1,24 @@
-"""``GaleFlareAttention`` (ADR-0041 step 3; ADR-0045).
+"""``GaleFlareAttention`` / ``GeoFlareBlock`` / ``GeoFlareNet`` (ADR-0041; ADR-0045).
 
 FLARE encode/decode + GALE cross-attention math pinned against the
 upstream ``GALE_FA`` reference (see
 ``scratch/2026-08-09-geoflare-grounding.md`` SS3-SS4, SS10).
 
-No segment-leak pin lives in this module: unlike
-``PhysicsAttentionIrregularMesh``, ``GaleFlareAttention`` takes no
+No segment-leak pin lives in the ``GaleFlareAttention``-only tests below:
+unlike ``PhysicsAttentionIrregularMesh``, ``GaleFlareAttention`` takes no
 ``segments`` argument and does no internal batching at all -- it is a pure
 single-example function of ``(x, context)``. There is nothing inside it
 that could "leak" across a ragged batch to pin against; that risk lives
-entirely in ``GeoFlareNet``'s per-segment loop (a later addition to this
-module), where the segment-leak/batched-equals-per-example pin is written.
+entirely in ``GeoFlareNet``'s per-segment loop, where the geometry context
+must be rebuilt per example -- the segment-leak/batched-equals-per-example
+pin is written against ``GeoFlareNet`` below instead.
 """
 
 import math
 
 import torch
 
-from structbench.models.geoflare.network import GaleFlareAttention
+from structbench.models.geoflare.network import GaleFlareAttention, GeoFlareNet
 
 
 def test_q_global_shape_grad_and_std() -> None:
@@ -223,7 +224,7 @@ def test_scale_1_0_pin_encode_softmax_d4() -> None:
     assert not torch.allclose(z[0, 0], mutant_z, atol=1e-3)
 
 
-def test_forward_shape_single_example() -> None:
+def test_attention_forward_shape_single_example() -> None:
     attn = GaleFlareAttention(
         dim=8, heads=2, dim_head=4, context_dim=6, slice_num=3, dropout=0.0
     )
@@ -239,3 +240,174 @@ def test_scale_constant_value() -> None:
 
     assert _SCALE == 1.0
     assert not math.isclose(_SCALE, 4**-0.5)
+
+
+# ---------------------------------------------------------------------------
+# GeoFlareBlock / GeoFlareNet -- integration pins (a), (b), (f).
+# ---------------------------------------------------------------------------
+
+_TINY = dict(n_hidden=16, n_layers=2, n_heads=2, slice_num=4, n_hidden_local=4)
+
+
+def test_geoflare_net_forward_shape_tiny_config() -> None:
+    # (a) Tiny config from the brief: effective = 16 + 4*2 = 24,
+    # dim_head_block = 24 // 2 = 12, ctx dim_head = 16 // 2 = 8,
+    # context_dim = 3*8 = 24.
+    net = GeoFlareNet(node_in=7, out_size=4, **_TINY)
+    assert net.context_builder.dim_head_ctx == 8
+    assert net.context_builder.context_dim == 24
+    coords = torch.randn(11, 3)
+    feats = torch.randn(11, 7)
+    out = net(feats, coords, None)
+    assert out.shape == (11, 4)
+
+
+def test_geoflare_net_batched_matches_per_example_segment_leak_pin() -> None:
+    """THE segment-leak killer pin: batched forward == per-example forwards.
+
+    Two ragged examples, concatenated through ``n_particles_per_example``,
+    must produce EXACTLY the same output as running each example alone --
+    this is only true if BOTH the geometry context AND the FLARE
+    encode/decode softmaxes are computed per-example (segmented), not once
+    over the concatenated ``sum_P`` tensor. A global (non-segmented) FLARE
+    encode softmax over the concatenated ``N`` would silently mix examples
+    together and fail this at both examples simultaneously; a
+    non-segmented context build would additionally corrupt the ball query
+    (neighbours found across unrelated meshes). No far-apart-coordinate
+    construction is needed to expose this -- the FLARE encode operates on
+    PROJECTED FEATURES, not raw coordinates, so ordinary random coordinates
+    for both examples are already sufficient; segmenting correctly is
+    exactly what is under test, not geometric separation.
+    """
+    torch.manual_seed(0)
+    net = GeoFlareNet(node_in=7, out_size=4, **_TINY)
+    net.eval()
+    feats_a, feats_b = torch.randn(9, 7), torch.randn(6, 7)
+    coords_a, coords_b = torch.randn(9, 3), torch.randn(6, 3)
+    with torch.no_grad():
+        batched = net(
+            torch.cat([feats_a, feats_b]),
+            torch.cat([coords_a, coords_b]),
+            torch.tensor([9, 6]),
+        )
+        single_a = net(feats_a, coords_a, None)
+        single_b = net(feats_b, coords_b, None)
+    assert torch.allclose(batched[:9], single_a, atol=1e-5)
+    assert torch.allclose(batched[9:], single_b, atol=1e-5)
+
+
+def _tokenizer_params(dim_in: int, heads: int, dim_head: int, slice_num: int) -> int:
+    return (
+        2 * (dim_in + 1) * heads * dim_head  # in_project_x + in_project_fx
+        + (dim_head + 1) * slice_num  # in_project_slice
+        + heads  # temperature
+    )
+
+
+def _processor_params(k: int, n_hidden_local: int) -> int:
+    h1 = n_hidden_local
+    h2 = n_hidden_local // 2
+    return (3 * k + 1) * h1 + (h1 + 1) * h2 + (h2 + 1) * h1  # 3-linear MLP
+
+
+def _context_params(
+    n_hidden: int,
+    n_heads: int,
+    n_hidden_local: int,
+    slice_num: int,
+    neighbors: tuple[int, int],
+) -> int:
+    dim_head_ctx = n_hidden // n_heads
+    total = _tokenizer_params(3, n_heads, dim_head_ctx, slice_num)  # geometry
+    for k in neighbors:
+        total += _processor_params(k, n_hidden_local)
+        total += _tokenizer_params(n_hidden_local, n_heads, dim_head_ctx, slice_num)
+    return total
+
+
+def _attn_params(
+    effective: int, n_heads: int, dim_head: int, context_dim: int, slice_num: int
+) -> int:
+    return (
+        n_heads * slice_num * dim_head  # q_global
+        + (effective + 1) * n_heads * dim_head  # in_project_x
+        + 3 * (dim_head + 1) * dim_head  # self_k, self_v, cross_q
+        + 2 * (context_dim + 1) * dim_head  # cross_k, cross_v
+        + 1  # state_mixing
+        + (n_heads * dim_head + 1) * effective  # out_linear
+    )
+
+
+def _ffn_params(effective: int, mlp_ratio: int) -> int:
+    hidden = effective * mlp_ratio
+    return 2 * effective + (effective + 1) * hidden + (hidden + 1) * effective
+
+
+def _block_params(
+    effective: int,
+    n_heads: int,
+    dim_head: int,
+    context_dim: int,
+    slice_num: int,
+    mlp_ratio: int,
+) -> int:
+    return (
+        2 * effective  # ln_1
+        + _attn_params(effective, n_heads, dim_head, context_dim, slice_num)
+        + _ffn_params(effective, mlp_ratio)
+    )
+
+
+def _decoder_params(effective: int, out_size: int) -> int:
+    return 2 * effective + (effective + 1) * out_size
+
+
+def _formula(
+    node_in: int,
+    out_size: int,
+    n_hidden: int,
+    n_layers: int,
+    n_heads: int,
+    slice_num: int,
+    mlp_ratio: int,
+    n_hidden_local: int,
+    neighbors: tuple[int, int],
+) -> int:
+    effective = n_hidden + n_hidden_local * 2
+    dim_head_block = effective // n_heads
+    dim_head_ctx = n_hidden // n_heads
+    context_dim = 3 * dim_head_ctx
+    preprocess = (node_in + 1) * (2 * n_hidden) + (2 * n_hidden + 1) * n_hidden
+    context = _context_params(n_hidden, n_heads, n_hidden_local, slice_num, neighbors)
+    block = _block_params(
+        effective, n_heads, dim_head_block, context_dim, slice_num, mlp_ratio
+    )
+    decoder = _decoder_params(effective, out_size)
+    return preprocess + context + n_layers * block + decoder
+
+
+def test_geoflare_net_parameter_count_formula_tiny_and_defaults() -> None:
+    # (f) Structural formula derived term-by-term (preprocess + context
+    # pathway + per-block attention/FFN/LNs + decoder) from the module's
+    # OWN structure above, checked at the tiny config (brief's exact
+    # values) AND at defaults with node_in=18, out=4 (Transolver-suite
+    # precedent, test_reference_parameter_count).
+    cases = [
+        (dict(node_in=7, out_size=4, **_TINY), (8, 32)),
+        (dict(node_in=18, out_size=4), (8, 32)),  # every other kwarg default
+    ]
+    for kwargs, neighbors in cases:
+        net = GeoFlareNet(**kwargs)
+        n = sum(p.numel() for p in net.parameters())
+        expected = _formula(
+            node_in=kwargs["node_in"],
+            out_size=kwargs["out_size"],
+            n_hidden=kwargs.get("n_hidden", 256),
+            n_layers=kwargs.get("n_layers", 6),
+            n_heads=kwargs.get("n_heads", 8),
+            slice_num=kwargs.get("slice_num", 128),
+            mlp_ratio=kwargs.get("mlp_ratio", 4),
+            n_hidden_local=kwargs.get("n_hidden_local", 32),
+            neighbors=neighbors,
+        )
+        assert n == expected

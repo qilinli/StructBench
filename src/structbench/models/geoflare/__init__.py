@@ -10,10 +10,11 @@ ruff's F822 (undefined name in ``__all__``).
 
 from .context import MultiScaleContext
 from .geo_ops import ball_query, standardize_coords
-from .network import GaleFlareAttention
+from .network import GaleFlareAttention, GeoFlareNet
 
 __all__ = [
     "GaleFlareAttention",
+    "GeoFlareNet",
     "MultiScaleContext",
     "ball_query",
     "standardize_coords",
