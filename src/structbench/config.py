@@ -208,6 +208,106 @@ class TransolverConfig:
 
 
 @dataclass
+class GeoFlareConfig:
+    """Native GeoFLARE family (ADR-0041 step ③; recipe pins in ADR-0045).
+
+    "GeoFLARE" = GeoTransolver with GALE_FA attention (GALE geometry
+    cross-attention + FLARE low-rank self-attention); identity and every
+    upstream-faithful pin are recorded in ADR-0045. ``weight_decay``/
+    ``max_grad_norm`` are family-recipe knobs on the model config
+    (``MGNConfig.noise_std`` precedent; the strict ``[train]`` schema stays
+    family-uniform).
+
+    Attributes
+    ----------
+    input_frames : int
+        Number of consecutive position frames the model takes as input per
+        sample (history length). Under ADR-0035 this is also the rollout
+        seed count, so it must equal the benchmark card's ``input_frames``
+        (enforced at config load); the deforming_plate protocol pins 2
+        (ADR-0035/ADR-0043).
+    dim : int
+        Spatial dimensionality (3 for the deforming_plate benchmark).
+    n_hidden : int
+        Latent channel width of the GALE/GeoTransolver blocks, per the
+        NVIDIA reference crash config (ADR-0045).
+    n_layers : int
+        Number of stacked GALE blocks, per the NVIDIA reference crash
+        config (ADR-0045).
+    n_heads : int
+        Number of attention heads per block, shared by the GALE
+        cross-attention and FLARE self-attention paths, per the NVIDIA
+        reference crash config (ADR-0045).
+    slice_num : int
+        Dual-purpose token count, per the NVIDIA reference crash config
+        (ADR-0045): the context tokenizers' slice count (the classic
+        Transolver-style slice tokenization feeding the GALE
+        cross-attention context) *and* the FLARE self-attention's number
+        of learnable global queries — upstream wires both to the same
+        constructor value, so a single field covers both roles.
+    mlp_ratio : int
+        Feed-forward expansion ratio inside each block (hidden width =
+        ``mlp_ratio * n_hidden``), per the NVIDIA reference crash config
+        (ADR-0045).
+    dropout : float
+        Dropout probability applied within each block.
+    n_hidden_local : int
+        Per-scale local-feature width produced by the ball-query
+        geometric feature processor; shared by both fixed scales and
+        concatenated across scales onto the input token before the first
+        block.
+    radius_near : float
+        Ball-query radius of the near (fine) scale, in per-example
+        STANDARDIZED coordinate units (ADR-0045).
+    radius_far : float
+        Ball-query radius of the far (coarse) scale, in per-example
+        STANDARDIZED coordinate units (ADR-0045).
+    neighbors_near : int
+        Neighbor cap of the near-scale ball query.
+    neighbors_far : int
+        Neighbor cap of the far-scale ball query.
+    node_type_size : int
+        Embedding width for the node-type one-hot lookup (MGN/Transolver
+        parity).
+    noise_std : float
+        Standard deviation of the random-walk training noise at the last
+        step, applied to NORMAL-typed nodes only (MGN/Transolver parity).
+    normalizer_warmup_steps : int
+        Number of training steps over which the online feature/target
+        normalizers accumulate statistics before their outputs are used
+        (MGN/Transolver parity).
+    weight_decay : float
+        AdamW weight decay of the method-native optimizer recipe — the
+        reference's AdamW-arm value from its combined Muon+AdamW
+        optimizer (ADR-0045).
+    max_grad_norm : float
+        Global-norm gradient clip of the method-native optimizer recipe;
+        ``0.0`` disables the clip, matching the reference recipe, which
+        applies no clipping. The knob is kept for family-uniformity with
+        ``TransolverConfig``.
+    """
+
+    input_frames: int = 2
+    dim: int = 3
+    n_hidden: int = 256
+    n_layers: int = 6
+    n_heads: int = 8
+    slice_num: int = 128
+    mlp_ratio: int = 4
+    dropout: float = 0.0
+    n_hidden_local: int = 32
+    radius_near: float = 0.05
+    radius_far: float = 0.25
+    neighbors_near: int = 8
+    neighbors_far: int = 32
+    node_type_size: int = 9
+    noise_std: float = 0.003
+    normalizer_warmup_steps: int = 1000
+    weight_decay: float = 1e-4
+    max_grad_norm: float = 0.0
+
+
+@dataclass
 class TrainConfig:
     """Optimization schedule and loss weights for training.
 
@@ -291,12 +391,15 @@ _REFERENCE_DECAY_STEPS_RATIO = 40000 / 100000
 #: their ``config.json`` and must stay re-evaluable. New configs say "cgn".
 #: ``"mgn"`` is the native MeshGraphNets family added for deforming_plate
 #: (ADR-0041). ``"transolver"`` is the native Transolver family, provisional
-#: on deforming_plate alongside MGN (ADR-0041 step ②).
+#: on deforming_plate alongside MGN (ADR-0041 step ②). ``"geoflare"`` is the
+#: native GeoFLARE family, provisional on deforming_plate alongside MGN and
+#: Transolver (ADR-0041 step ③).
 MODEL_FAMILIES: dict[str, type] = {
     "cgn": CGNConfig,
     "gns": CGNConfig,
     "mgn": MGNConfig,
     "transolver": TransolverConfig,
+    "geoflare": GeoFlareConfig,
 }
 
 #: ``[run]`` keys — exactly these, no more, no fewer.
