@@ -1,12 +1,19 @@
 """Grouped run-config loading (ADR-0032): strict validation and dispatch."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 import torch
 
 from structbench.cli.train import CGNConfig, TrainConfig, build_simulator
-from structbench.config import ConfigError, MGNConfig, TransolverConfig, load_run_config
+from structbench.config import (
+    ConfigError,
+    GeoFlareConfig,
+    MGNConfig,
+    TransolverConfig,
+    load_run_config,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -308,6 +315,103 @@ def test_load_deforming_plate_transolver_smoke_config():
     assert isinstance(rc.model, TransolverConfig)
     assert rc.model.input_frames == 2
     assert rc.model.hidden_dim == 16
+    assert rc.train.training_steps == 50
+
+
+#: A complete, valid GeoFLARE grouped config (deforming_plate card input_frames=2).
+#: n_layers and slice_num are diverged from GeoFlareConfig's defaults (6, 128) so
+#: the round-trip assertion below distinguishes plumbed-through values from
+#: silently-defaulted ones (the Transolver-branch deferred-minor lesson).
+VALID_GEOFLARE = """\
+[run]
+benchmark = "deforming_plate"
+seed = 7
+
+[model]
+family = "geoflare"
+input_frames = 2
+dim = 3
+n_hidden = 256
+n_layers = 5
+n_heads = 8
+slice_num = 64
+mlp_ratio = 4
+dropout = 0.0
+n_hidden_local = 32
+radius_near = 0.05
+radius_far = 0.25
+neighbors_near = 8
+neighbors_far = 32
+node_type_size = 9
+noise_std = 0.003
+normalizer_warmup_steps = 1000
+weight_decay = 1e-4
+max_grad_norm = 0.0
+
+[train]
+batch_size = 8
+lr_init = 1e-4
+lr_decay = 0.1
+training_steps = 100
+val_every = 50
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0
+"""
+
+
+def test_load_run_config_geoflare_happy_path(tmp_path):
+    rc = load_run_config(_write(tmp_path, VALID_GEOFLARE))
+    assert rc.family == "geoflare"
+    assert isinstance(rc.model, GeoFlareConfig)
+    assert isinstance(rc.train, TrainConfig)
+    assert rc.train.benchmark == "deforming_plate"
+    # Full per-field round-trip: every value equals the dataclass default
+    # except the two deliberately diverged fields, so a typo anywhere in
+    # load_run_config's [model] plumbing would be caught by the mismatch.
+    assert rc.model == replace(GeoFlareConfig(), n_layers=5, slice_num=64)
+
+
+def test_load_run_config_rejects_geoflare_unknown_key(tmp_path):
+    bad = VALID_GEOFLARE.replace("noise_std = 0.003", "noise_st = 0.003")
+    with pytest.raises(ConfigError, match="unknown keys: noise_st"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_rejects_geoflare_missing_key(tmp_path):
+    bad = VALID_GEOFLARE.replace("dropout = 0.0\n", "")
+    with pytest.raises(ConfigError, match="missing keys: dropout"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_rejects_geoflare_input_frames_off_card(tmp_path):
+    # ADR-0035: input_frames must equal the benchmark card's (deforming_plate = 2).
+    bad = VALID_GEOFLARE.replace("input_frames = 2", "input_frames = 6")
+    with pytest.raises(ConfigError, match="must equal benchmark"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_deforming_plate_geoflare_config():
+    # The ADR-0045 reference config: the strict loader accepts it and the
+    # deforming_plate card's input_frames=2 check passes.
+    rc = load_run_config(REPO_ROOT / "configs" / "deforming_plate" / "geoflare.toml")
+    assert rc.family == "geoflare"
+    assert isinstance(rc.model, GeoFlareConfig)
+    assert rc.model.input_frames == 2
+    assert rc.model.n_hidden == 256
+    assert rc.model.n_layers == 6
+    assert rc.train.training_steps == 10_000_000
+
+
+def test_load_deforming_plate_geoflare_smoke_config():
+    rc = load_run_config(
+        REPO_ROOT / "configs" / "deforming_plate" / "geoflare_smoke.toml"
+    )
+    assert rc.family == "geoflare"
+    assert isinstance(rc.model, GeoFlareConfig)
+    assert rc.model.input_frames == 2
+    assert rc.model.n_hidden == 16
     assert rc.train.training_steps == 50
 
 

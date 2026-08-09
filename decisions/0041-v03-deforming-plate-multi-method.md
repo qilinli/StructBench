@@ -217,3 +217,14 @@ ADR-0042, drafted while implementing ingestion:
 
 Recorded as a dated correction note (not a reversal of the v0.3 scope decision,
 which stands) per the index-README convention.
+
+---
+
+**Naming note (2026-08-09).** Decision clause 7's step ③ "GeoFLARE" is
+**`GeoTransolver` instantiated with `attention_type="GALE_FA"`** — GALE
+geometry-aware context cross-attention with a FLARE low-rank encode/decode
+self-attention backend. The native family is keyed `"geoflare"`
+(`GeoFlareConfig`, `models/geoflare/`); upstream's inconsistent naming
+("GeoTransolver with FLARE" / "GeoTS-FLARE" / "GeoFlare", and a spurious
+`GALE_FE` comment/config bug) and every fidelity pin are recorded in **ADR-0045**.
+A dated note (not a scope reversal), per the index-README convention.

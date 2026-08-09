@@ -18,7 +18,7 @@ For coding conventions (style, testing, documentation expectations), see PRINCIP
 src/structbench/
 ├── core/          # case schema, validation, HDF5 I/O + LS-DYNA adapter
 ├── benchmarks/    # benchmark problem definitions (split + protocol + card)
-├── models/        # reference ML models (cgn/, mgn/, transolver/) + shared base (common/)
+├── models/        # reference ML models (cgn/, mgn/, transolver/, geoflare/) + shared base (common/)
 ├── datasets/      # canonical loaders, windowing, normalization
 ├── eval/          # metrics and evaluation protocols
 ├── viz/           # FEM-style visualization of physics fields
@@ -61,8 +61,9 @@ The shipped submodules:
 
 - `models/cgn` — **CGN** (Concrete Graph Network, Li et al. 2023, *Computers & Structures* 289, 107188, ADR-0034), the incumbent / reference GNN baseline for the SPH benchmarks (Taylor, wave-1D, notch-beam), built on the encode-process-decode GNS of Sanchez-Gonzalez et al. 2020. Its native `radius_graph` lives here (`models/cgn/graph_ops.py`, ADR-0020). CGN sits out the DeformingPlate comparison (a particle/radius-graph GNN would run off-native on a mesh task, ADR-0041).
 - `models/mgn` — **MGN** (MeshGraphNet, Pfaff et al. 2021), the *blessed* DeformingPlate baseline, validated against published numbers by the ADR-0043 §8 gate; its mesh-edge construction lives in `models/mgn/mesh_ops.py`.
-- `models/transolver` — a **native Transolver** (Physics-Attention transformer, Wu et al. 2024), a *provisional* DeformingPlate baseline (ADR-0041 step ②, ADR-0044): fidelity-vs-published is deferred because no published rollout number exists, and the family is flagged provisional in the results registry. GeoFLARE (step ③) is the next transformer-operator addition.
-- `models/common` — method-agnostic shared machinery. `CaseBoundSimulator` (`simulator_base.py`, ADR-0044) holds the per-case state contract — bind-per-case, reset-before-each-eval-pass, the ground-truth tripwire, scripted-velocity helpers, and checkpoint save/load — and is subclassed by both `MeshSimulator` and `TransolverSimulator`.
+- `models/transolver` — a **native Transolver** (Physics-Attention transformer, Wu et al. 2024), a *provisional* DeformingPlate baseline (ADR-0041 step ②, ADR-0044): fidelity-vs-published is deferred because no published rollout number exists, and the family is flagged provisional in the results registry.
+- `models/geoflare` — a **native GeoFLARE** (GeoTransolver with GALE_FA attention: GALE geometry-aware context cross-attention + FLARE low-rank self-attention, Adams et al. 2025 / Puri et al. 2025), the second *provisional* DeformingPlate baseline (ADR-0041 step ③, ADR-0045): a pure-torch port of NVIDIA PhysicsNeMo's shipped GeoFlare configuration, likewise provisional (no published rollout number to reproduce). Its deterministic ball query and per-example coordinate standardization live here (`models/geoflare/geo_ops.py`, ADR-0020 precedent).
+- `models/common` — method-agnostic shared machinery. `CaseBoundSimulator` (`simulator_base.py`, ADR-0044) holds the per-case state contract — bind-per-case, reset-before-each-eval-pass, the ground-truth tripwire, scripted-velocity helpers, and checkpoint save/load — and is subclassed by `MeshSimulator`, `TransolverSimulator`, and `GeoFlareSimulator`.
 
 Models in this module are reference implementations. They are not the only models that can be evaluated on a benchmark — external contributions are evaluated through the same protocols without being added here.
 

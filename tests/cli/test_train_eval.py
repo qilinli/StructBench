@@ -27,6 +27,7 @@ from structbench.cli.train import (
     _json_safe,
     _lr_at_cosine,
     _model_config_from_record,
+    build_geoflare_simulator,
     build_mgn_simulator,
     build_simulator,
     build_transolver_simulator,
@@ -36,6 +37,7 @@ from structbench.cli.train import (
 )
 from structbench.config import (
     LR_SCHEDULE_FLOOR,
+    GeoFlareConfig,
     MGNConfig,
     TransolverConfig,
     read_run_record,
@@ -52,6 +54,7 @@ from structbench.core import (
 )
 from structbench.core.io.meshgraphnets import build_deforming_plate_case
 from structbench.datasets import compute_stats, load_case_trajectory
+from structbench.models.geoflare import GeoFlareSimulator
 from structbench.models.transolver import TransolverSimulator
 
 #: Tiny architecture so checkpoints build fast; deliberately different from the
@@ -1402,3 +1405,306 @@ def test_evaluate_transolver_family_needs_no_stats_file(tmp_path, monkeypatch):
     assert np.isfinite(per_case["one_step_position_rmse"])
     assert np.isfinite(per_case["rollout_position_rmse"])
     assert np.isfinite(per_case["rollout_aux_rmse"])
+
+
+# --- geoflare family training + evaluation (Task 6, ADR-0041/0044/0045) ---
+
+#: Tiny architecture so a checkpoint builds fast; matches `_mesh_local_spec`'s
+#: input_frames=2 and node_type_size high enough for the (1,)-kinematic
+#: fixture. Relaxed radii/neighbors (standardized-coordinate units, exactly
+#: the Task 5 simulator tests' `_TINY_GEOMETRY`) so tiny synthetic meshes
+#: reliably find ball-query neighbours at this scale.
+SMALL_GEOFLARE = {
+    "input_frames": 2,
+    "dim": 3,
+    "n_hidden": 16,
+    "n_layers": 2,
+    "n_heads": 2,
+    "slice_num": 4,
+    "n_hidden_local": 4,
+    "radius_near": 0.5,
+    "radius_far": 2.0,
+    "neighbors_near": 2,
+    "neighbors_far": 3,
+    "node_type_size": 4,
+}
+
+
+def test_model_config_from_record_returns_geoflare_config(tmp_path):
+    """A round-tripped geoflare run record reconstructs GeoFlareConfig with
+    matching fields (mirrors the transolver-family regression above)."""
+    cfg = GeoFlareConfig(**SMALL_GEOFLARE)
+    record_dict = resolved_config_dict(
+        "geoflare",
+        cfg,
+        TrainConfig(benchmark="deforming_plate"),
+        horizon="full",
+        eval_times="native",
+        n_particle_types=cfg.node_type_size,
+        data_root=tmp_path,
+    )
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(record_dict), encoding="utf-8")
+    record = read_run_record(config_path)
+    model_cfg = _model_config_from_record(record)
+    assert isinstance(model_cfg, GeoFlareConfig)
+    assert model_cfg == cfg
+
+
+def test_build_geoflare_simulator_sizes_net_and_binds_kinematic_types():
+    """build_geoflare_simulator mirrors build_transolver_simulator:
+    architecture sized from the config, kinematic_types forwarded,
+    scripted_types left at the class default (ADR-0043 recipe)."""
+    cfg = GeoFlareConfig(**SMALL_GEOFLARE)
+    sim = build_geoflare_simulator(cfg, kinematic_types=(1, 3), device="cpu")
+    assert isinstance(sim, GeoFlareSimulator)
+    assert sim._kinematic_types == (1, 3)
+    assert sim._scripted_types == (1,)  # class default -- no run-config field yet
+    assert len(sim._net.blocks) == cfg.n_layers
+    assert sim._node_normalizer._sum.shape[0] == cfg.node_type_size + 3 * cfg.dim
+    assert sim._target_normalizer._sum.shape[0] == cfg.dim + 1
+
+
+def test_build_geoflare_simulator_plumbs_radii_and_neighbors():
+    """The scalar-to-tuple mapping (radius_near/far, neighbors_near/far ->
+    radii=(near,far), neighbors=(near,far)) lives ONLY in
+    build_geoflare_simulator: assert the constructed net's per-scale
+    GeometricFeatureProcessors carry exactly the configured, non-default
+    values. A builder that silently fell back to the simulator's own class
+    defaults (radii=(0.05, 0.25), neighbors=(8, 32)) would still pass every
+    other test here -- the tiny synthetic meshes find ball-query neighbours
+    under any reasonable radii -- so only checking these attributes
+    directly catches that bug.
+    """
+    cfg = GeoFlareConfig(
+        **{
+            **SMALL_GEOFLARE,
+            "radius_near": 0.7,
+            "radius_far": 3.3,
+            "neighbors_near": 5,
+            "neighbors_far": 11,
+        }
+    )
+    sim = build_geoflare_simulator(cfg, kinematic_types=(1, 3), device="cpu")
+    processors = sim._net.context_builder.processors
+    assert len(processors) == 2
+    assert processors[0].radius == pytest.approx(0.7)
+    assert processors[0].k == 5
+    assert processors[1].radius == pytest.approx(3.3)
+    assert processors[1].k == 11
+
+
+def _prepared_geoflare_run(tmp_path, case_path_fn, spec):
+    """Run dir holding a geoflare checkpoint + nested config.json, NO stats
+    file (mirrors ``_prepared_transolver_run``)."""
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    case_path = case_path_fn(data_root)
+    out_dir = tmp_path / "run"
+    out_dir.mkdir()
+
+    cfg = GeoFlareConfig(**SMALL_GEOFLARE)
+    simulator = build_geoflare_simulator(
+        cfg, kinematic_types=spec.kinematic_types, device="cpu"
+    )
+    simulator.save(str(out_dir / "model-best-000002.pt"))
+
+    record_dict = resolved_config_dict(
+        "geoflare",
+        cfg,
+        TrainConfig(benchmark="mesh-test-local"),
+        horizon="full",
+        eval_times="native",
+        n_particle_types=cfg.node_type_size,
+        data_root=data_root,
+    )
+    (out_dir / "config.json").write_text(json.dumps(record_dict), encoding="utf-8")
+    return data_root, out_dir, case_path.stem
+
+
+def test_evaluate_geoflare_family_needs_no_stats_file(tmp_path, monkeypatch):
+    """geoflare evaluation runs with no normalization_stats.npz in out_dir
+    at all.
+
+    GeoFLARE checkpoints are self-contained: the OnlineNormalizer buffers
+    live in the state_dict, loaded by simulator.load() -- like mgn/
+    transolver, no separate stats file is ever read.
+    """
+    import structbench.cli.train as train_mod
+
+    spec = _mesh_local_spec("dp-0", n_frames=5)
+    data_root, out_dir, case_id = _prepared_geoflare_run(
+        tmp_path, lambda root: _mesh_case_file(root, "dp-0", n_frames=5), spec
+    )
+    assert not (out_dir / "normalization_stats.npz").exists()
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+
+    metrics = evaluate([case_id], data_root, out_dir, "cpu", save_artifacts=False)
+
+    assert not (out_dir / "normalization_stats.npz").exists()  # still never created
+    assert metrics["input_frames"] == 2
+    per_case = metrics["cases"][case_id]
+    assert np.isfinite(per_case["one_step_position_rmse"])
+    assert np.isfinite(per_case["rollout_position_rmse"])
+    assert np.isfinite(per_case["rollout_aux_rmse"])
+
+
+def _geoflare_smoke_spec(train_ids, val_id, n_frames):
+    """Registry-free mesh BenchmarkSpec for the Task 6 wiring smoke test.
+
+    Mirrors ``_transolver_smoke_spec``: ``_train_geoflare`` is exercised
+    directly here (bypassing ``train()``'s own trajectory loading), so the
+    caller supplies already-loaded, already-split trajectories built from
+    these ids.
+    """
+    card = BenchmarkCard(
+        name="GeoFlareSmoke",
+        version="0",
+        description="test-only mesh spec not in the registry",
+        provenance="test",
+        data_license="CC0",
+        solver="test",
+        discretisation="FEM",
+        materials=("MAT_TEST",),
+        erosion=False,
+        loading="none",
+        source_units="SI",
+        geometry="unit box",
+        n_cases=len(train_ids) + 1,
+        splits={"train": len(train_ids), "val": 1},
+        task="test",
+        aux_field="von_mises_stress",
+        aux_unit="MPa",
+        qois=(),
+        fields=("positions",),
+        particles_per_case="6",
+        n_frames=n_frames,
+        output_dt_ms=1.0,
+        input_frames=2,
+        protocol_rationale="test-only card",
+    )
+    return BenchmarkSpec(
+        card=card,
+        splits={"train": tuple(train_ids), "val": (val_id,)},
+        eval_splits=("val",),
+        aux_field="von_mises_stress",
+        kinematic_types=(1,),
+    )
+
+
+@pytest.mark.parametrize("max_grad_norm,expect_clip", [(0.0, False), (0.5, True)])
+def test_train_geoflare_wiring_adamw_cosine_clip(
+    tmp_path, monkeypatch, max_grad_norm, expect_clip
+):
+    """Guards the hand-cloned loop against a paste that forgot the swaps.
+
+    Mirrors ``test_train_transolver_wiring_adamw_cosine_clip``, plus the
+    geoflare-specific clip GATE (default ``max_grad_norm=0.0`` disables
+    clipping, matching the upstream reference's own recipe): this test runs
+    a REAL few-step ``_train_geoflare`` and spies on the constructors/calls
+    it makes internally -- ``torch.optim.AdamW`` (kwargs),
+    ``torch.nn.utils.clip_grad_norm_`` (called or not, and with what value),
+    the resulting optimizer's final learning rate against
+    :func:`_lr_at_cosine`, and that at least one model parameter actually
+    moved (gradient flow). Parametrized over the default (clip off) and a
+    nonzero configured value (clip on, called with that exact value).
+    """
+    import structbench.cli.train as train_mod
+
+    train_id, val_id = "tr-0", "val-0"
+    n_frames = 6
+    spec = _geoflare_smoke_spec([train_id], val_id, n_frames)
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    _mesh_case_file(data_root, train_id, n_frames=n_frames)
+    _mesh_case_file(data_root, val_id, n_frames=n_frames)
+
+    train_trajs = [
+        load_case_trajectory(data_root / f"{train_id}.h5", aux_field=spec.aux_field)
+    ]
+    val_trajs = [
+        load_case_trajectory(data_root / f"{val_id}.h5", aux_field=spec.aux_field)
+    ]
+
+    cfg = GeoFlareConfig(
+        **{
+            **SMALL_GEOFLARE,
+            "noise_std": 0.001,
+            "normalizer_warmup_steps": 1,
+            "weight_decay": 1e-3,
+            "max_grad_norm": max_grad_norm,
+        }
+    )
+    train_cfg = TrainConfig(
+        benchmark="GeoFlareSmoke", batch_size=2, training_steps=4, lr_init=1e-3
+    )
+    out_dir = tmp_path / "run"
+    out_dir.mkdir()
+
+    captured_sim: dict = {}
+    initial_params: dict = {}
+    real_build = train_mod.build_geoflare_simulator
+
+    def _spy_build(*args, **kwargs):
+        sim = real_build(*args, **kwargs)
+        for name, p in sim.named_parameters():
+            initial_params[name] = p.detach().clone()
+        captured_sim["sim"] = sim
+        return sim
+
+    monkeypatch.setattr(train_mod, "build_geoflare_simulator", _spy_build)
+
+    captured_optimizers: list = []
+    real_adamw = torch.optim.AdamW
+
+    def _spy_adamw(*args, **kwargs):
+        opt = real_adamw(*args, **kwargs)
+        captured_optimizers.append((kwargs, opt))
+        return opt
+
+    monkeypatch.setattr(torch.optim, "AdamW", _spy_adamw)
+
+    clip_calls: list = []
+    real_clip = torch.nn.utils.clip_grad_norm_
+
+    def _spy_clip(*args, **kwargs):
+        clip_calls.append((args, kwargs))
+        return real_clip(*args, **kwargs)
+
+    monkeypatch.setattr(torch.nn.utils, "clip_grad_norm_", _spy_clip)
+
+    torch.manual_seed(0)
+    ckpt = train_mod._train_geoflare(
+        spec, cfg, train_cfg, train_trajs, val_trajs, out_dir, "cpu", data_root
+    )
+
+    assert ckpt is not None
+    assert len(captured_optimizers) == 1, "AdamW must be constructed exactly once"
+    adamw_kwargs, optimizer = captured_optimizers[0]
+    # This also proves AdamW (not Adam): plain Adam takes no weight_decay
+    # that would show up here with the configured (non-default) value.
+    assert adamw_kwargs["weight_decay"] == cfg.weight_decay
+
+    if expect_clip:
+        assert clip_calls, "clip_grad_norm_ was never called"
+        for args, kwargs in clip_calls:
+            max_norm = kwargs.get("max_norm", args[1] if len(args) > 1 else None)
+            assert max_norm == cfg.max_grad_norm
+    else:
+        assert not clip_calls, (
+            "clip_grad_norm_ must not be called at max_grad_norm=0.0 (the "
+            "gate is normally OFF)"
+        )
+
+    # Proves the cosine schedule is wired (and [train].lr_decay unused here):
+    # _lr_at_cosine is called with the pre-increment step, so the last call
+    # in a training_steps-step loop uses step = training_steps - 1.
+    last_step = train_cfg.training_steps - 1
+    assert optimizer.param_groups[0]["lr"] == _lr_at_cosine(last_step, train_cfg)
+
+    sim = captured_sim["sim"]
+    changed = any(
+        not torch.equal(p.detach(), initial_params[name])
+        for name, p in sim.named_parameters()
+    )
+    assert changed, "no model parameter changed -- gradient flow is broken"
