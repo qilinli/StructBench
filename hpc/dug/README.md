@@ -296,3 +296,13 @@ metrics-val/test.json + rollouts/*.npz + logs), then follow §5 — with two
 v0.3-specific additions when transcribing the `BaselineResult` (ADR-0046):
 `provisional=False`, display keys per ADR-0046 clause 7, and the pooled gate
 number goes in `notes` ONLY (never a `metrics` key).
+
+**Provisional runs (Transolver + GeoFLARE, v0.3):** same data, env, and flow —
+`train_deforming_transolver.slurm` / `train_deforming_geoflare.slurm` mirror
+the MGN script. Differences: NO gate (provisional families, ADR-0044/0045 —
+the pooled tool runs informationally with `|| true`), and results transcribe
+with `provisional=True` (ADR-0046 clause 7). Each job takes one A100; nodes
+carry two, so jobs pack two-per-node automatically — submit all three
+concurrently and SLURM spreads them (July CORRECTIONS: keep >=2 jobs running).
+GeoFLARE is the heavier model (~5-7M params, ball-query context per step);
+expect a lower steps/s than MGN — same first-hour projection discipline.
