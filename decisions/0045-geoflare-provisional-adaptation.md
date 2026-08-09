@@ -110,9 +110,10 @@ defaults now shipped in `config.py` `GeoFlareConfig` and
    co-predicts nodal velocity and von Mises stress in MGN's exact output
    layout; velocity is integrated once by forward Euler (`next = x_t +
    velocity`, quasi-static), stress is taken directly. The target normalizer is
-   inverted on the full `(P, dim+1)` vector *before* slicing. The ADR-0043 §4
-   NORMAL-masked loss (`w_pos·‖Δv‖² + w_aux·Δaux²`), the integration step, and
-   the target normalizer are reused verbatim from the shared harness.
+   inverted on the full `(P, dim+1)` vector *before* slicing. The NORMAL-masked
+   loss (ADR-0043 §4) with formula `w_pos·‖Δv‖² + w_aux·Δaux²` (ADR-0043 §9),
+   the integration step, and the target normalizer are reused verbatim from the
+   shared harness.
 
 5. **GALE_FA attention, pinned to the shipped code.** Implemented as
    `GaleFlareAttention` (single-example; ragged batches handled by the caller,

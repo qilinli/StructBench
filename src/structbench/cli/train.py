@@ -1831,7 +1831,7 @@ def evaluate(
     simulator.load(str(ckpt_path))
     simulator.to(device)
     simulator.eval()
-    # Non-None for any CaseBoundSimulator arm (mgn and transolver, ADR-0041):
+    # Non-None for any CaseBoundSimulator arm (mgn, transolver and geoflare, ADR-0041):
     # gates the per-case bind_case/reset_rollout calls below without
     # re-checking `family` at each site.
     mesh_sim = simulator if isinstance(simulator, CaseBoundSimulator) else None

@@ -22,6 +22,7 @@ from structbench.models.geoflare.network import GaleFlareAttention, GeoFlareNet
 
 
 def test_q_global_shape_grad_and_std() -> None:
+    torch.manual_seed(0)
     # (e) Pins the no-trunc_normal/no-orthogonal init decision: q_global is
     # plain torch.randn (std ~1.0). A 0.02-std trunc_normal_ init (the
     # convention TransolverNet's global init pass would apply) would fail
