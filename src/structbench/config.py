@@ -232,8 +232,11 @@ class GeoFlareConfig:
         Latent channel width of the GALE/GeoTransolver blocks, per the
         NVIDIA reference crash config (ADR-0045).
     n_layers : int
-        Number of stacked GALE blocks, per the NVIDIA reference crash
-        config (ADR-0045).
+        Number of stacked GALE blocks. Defaults to the NVIDIA base/bumper
+        reference config's value of 6 (ADR-0045); the crash config's
+        override to 5 was a memory-bottleneck workaround for its ~400k-node
+        meshes and is deliberately not carried over — irrelevant at
+        deforming_plate's ~1.3k-node scale.
     n_heads : int
         Number of attention heads per block, shared by the GALE
         cross-attention and FLARE self-attention paths, per the NVIDIA
