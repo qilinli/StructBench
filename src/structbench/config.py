@@ -140,6 +140,74 @@ class MGNConfig:
 
 
 @dataclass
+class TransolverConfig:
+    """Native Transolver family (ADR-0041 step ②; recipe pins in ADR-0044).
+
+    ``weight_decay``/``max_grad_norm`` are family-recipe knobs and live here
+    rather than on TrainConfig (precedent: ``MGNConfig.noise_std``), keeping
+    the strict ``[train]`` schema family-uniform.
+
+    Attributes
+    ----------
+    input_frames : int
+        Number of consecutive position frames the model takes as input per
+        sample (history length). Under ADR-0035 this is also the rollout
+        seed count, so it must equal the benchmark card's ``input_frames``
+        (enforced at config load); the deforming_plate protocol pins 2
+        (ADR-0035/ADR-0043).
+    dim : int
+        Spatial dimensionality (3 for the deforming_plate benchmark).
+    hidden_dim : int
+        Latent channel width ``C`` of the Transolver blocks. Reference value
+        is the Transolver paper's irregular-mesh Elasticity configuration
+        (Wu et al., ICML 2024; ADR-0044 records the recipe) — same source
+        for ``n_layers``/``n_heads``/``slice_num``/``mlp_ratio``/``dropout``
+        below.
+    n_layers : int
+        Number of stacked Transolver blocks ``L``.
+    n_heads : int
+        Number of physics-attention heads ``H`` per block.
+    slice_num : int
+        Number of physics-attention slice tokens ``M`` the mesh is projected
+        onto before attention.
+    mlp_ratio : int
+        Feed-forward expansion ratio inside each block (hidden width =
+        ``mlp_ratio * hidden_dim``).
+    dropout : float
+        Dropout probability applied within each Transolver block.
+    node_type_size : int
+        Embedding width for the node-type one-hot lookup (MGN parity).
+    noise_std : float
+        Standard deviation of the random-walk training noise at the last
+        step, applied to NORMAL-typed nodes only (ADR-0043 §4, MGN parity).
+    normalizer_warmup_steps : int
+        Number of training steps over which the online feature/target
+        normalizers accumulate statistics before their outputs are used
+        (MGN parity).
+    weight_decay : float
+        AdamW weight decay of the method-native optimizer recipe (thuml
+        reference value 1e-5).
+    max_grad_norm : float
+        Global-norm gradient clip of the method-native optimizer recipe
+        (thuml reference value 0.1; ``0`` disables the clip).
+    """
+
+    input_frames: int = 2
+    dim: int = 3
+    hidden_dim: int = 128
+    n_layers: int = 8
+    n_heads: int = 8
+    slice_num: int = 64
+    mlp_ratio: int = 1
+    dropout: float = 0.0
+    node_type_size: int = 9
+    noise_std: float = 0.003
+    normalizer_warmup_steps: int = 1000
+    weight_decay: float = 1e-5
+    max_grad_norm: float = 0.1
+
+
+@dataclass
 class TrainConfig:
     """Optimization schedule and loss weights for training.
 
@@ -222,8 +290,14 @@ _REFERENCE_DECAY_STEPS_RATIO = 40000 / 100000
 #: (ADR-0034): pre-rename run directories record ``family = "gns"`` in
 #: their ``config.json`` and must stay re-evaluable. New configs say "cgn".
 #: ``"mgn"`` is the native MeshGraphNets family added for deforming_plate
-#: (ADR-0041).
-MODEL_FAMILIES: dict[str, type] = {"cgn": CGNConfig, "gns": CGNConfig, "mgn": MGNConfig}
+#: (ADR-0041). ``"transolver"`` is the native Transolver family, provisional
+#: on deforming_plate alongside MGN (ADR-0041 step ②).
+MODEL_FAMILIES: dict[str, type] = {
+    "cgn": CGNConfig,
+    "gns": CGNConfig,
+    "mgn": MGNConfig,
+    "transolver": TransolverConfig,
+}
 
 #: ``[run]`` keys — exactly these, no more, no fewer.
 _RUN_KEYS = {"benchmark", "seed"}

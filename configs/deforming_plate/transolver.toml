@@ -1,0 +1,37 @@
+# DeformingPlate — Transolver PROVISIONAL reference config (ADR-0041 ②, ADR-0044).
+# No published vanilla-Transolver rollout number exists for this task; the
+# recipe is declared, not reproduced. Budget matched to the MGN reference
+# (batch 2, 10M steps) for a same-task/same-data/same-budget comparison.
+# Not yet run.
+
+[run]
+benchmark = "deforming_plate"
+seed = 1
+
+[model]
+family = "transolver"
+input_frames = 2
+dim = 3
+hidden_dim = 128
+n_layers = 8
+n_heads = 8
+slice_num = 64
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 9
+noise_std = 0.003
+normalizer_warmup_steps = 1000
+weight_decay = 1e-5      # AdamW, thuml reference (grounding §4.1)
+max_grad_norm = 0.1      # global-norm clip, thuml reference
+
+[train]
+batch_size = 2
+lr_init = 1e-3
+lr_decay = 0.1           # UNUSED by the transolver family (cosine anneal,
+                         # ADR-0044); present because [train] is family-uniform.
+training_steps = 10_000_000
+val_every = 50_000
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0

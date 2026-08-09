@@ -1,55 +1,10 @@
 """``MeshSimulator``: MGN's stateful predict-only wrapper (ADR-0043 §8).
 
-**STATEFULNESS CONTRACT — READ BEFORE USE.**
-
-``MeshSimulator`` carries two kinds of state that must not be confused:
-
-1. Model parameters and the four
-   :class:`~structbench.models.mgn.normalizers.OnlineNormalizer` buffers.
-   These live in ``state_dict()`` and travel with a checkpoint via
-   :meth:`save`/:meth:`load`. They are **case-independent**.
-2. Per-case binding, set by :meth:`bind_case` and held as PLAIN (non-buffer,
-   non-parameter) attributes, so a checkpoint never carries case data.
-   Binding a case caches: the mesh edge index, the mesh-space reference
-   coordinates, the one-hot node types, the kinematic-particle mask, and the
-   bound case's FULL ground-truth position trajectory ``(T, P, dim)`` — of
-   which only the KINEMATIC rows are ever read (the scripted-actuator
-   velocity input, and the tripwire below). Binding also resets the
-   autoregressive step pointer.
-
-``predict_positions`` is the ONLY method ``structbench.eval`` calls
-(:func:`~structbench.eval.rollout.rollout`,
-:func:`~structbench.eval.rollout.one_step_position_rmse`,
-:func:`~structbench.eval.rollout.one_step_aux_rmse`) — none of them pass any
-per-case context. Consequently:
-
-* Call :meth:`bind_case` before the first ``predict_positions`` call of an
-  eval pass on a given trajectory.
-* Call :meth:`reset_rollout` before **EACH** separate eval pass over the
-  SAME bound case. A fresh rollout and a fresh one-step sweep are two
-  separate eval passes, and each needs its own ``reset_rollout()`` — the
-  step pointer has no way to know an eval pass has ended on its own.
-
-**Step pointer — deterministic, never search-based.** The first
-``predict_positions`` call after ``bind_case``/``reset_rollout`` anchors the
-pointer at ``t = F`` (``F`` = the input window's frame count), because every
-eval entry point — rollout's autoregressive loop and both one-step
-teacher-forced sweeps — makes its first call with a window whose last frame
-is ground-truth frame ``F - 1``. Every subsequent call advances the pointer
-by 1.
-
-**Tripwire — verification only, never anchoring.** At every call (when
-kinematic particles are bound), the input window's kinematic rows are
-compared against the bound ground truth at frame ``t - 1`` (``atol=1e-4``).
-A mismatch raises ``RuntimeError`` naming both likely causes: a stale
-rollout pointer (call ``reset_rollout()`` before each eval pass) or a
-case/trajectory mismatch (``bind_case`` was not (re)bound to the trajectory
-under evaluation). This check stays exact even when a kinematic particle is
-stationary across consecutive frames (e.g. a HANDLE node paused
-mid-actuation) — the exact failure mode a search-based "find this window in
-the GT" anchor would silently mishandle. With no kinematic particles bound,
-the pointer/tripwire logic is skipped entirely and the scripted-velocity
-input is always zero.
+The full per-case-binding statefulness contract (bind per case, reset before
+each eval pass, step pointer, tripwire semantics) is inherited from
+:class:`~structbench.models.common.simulator_base.CaseBoundSimulator` and
+documented in that module's docstring — it is not repeated here. This module
+covers what is MGN-specific: network sizing and the graph feature builder.
 
 **``world_edge_radius``.** Given in the WORKING FRAME — the same units as
 the positions passed to ``bind_case``/``predict_positions`` (mm, for a
@@ -61,23 +16,23 @@ config remains the source of truth for a blessed run.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import torch
 import torch.nn.functional as F
-from torch import Tensor, nn
+from torch import Tensor
 
+from ..common import CaseBoundSimulator
 from .mesh_ops import cells_to_edges, world_edges
 from .network import MGNet
 from .normalizers import OnlineNormalizer
 
 
-class MeshSimulator(nn.Module):
+class MeshSimulator(CaseBoundSimulator):
     """MGN encode-process-decode simulator with per-case GT binding.
 
-    See the module docstring for the full statefulness contract (bind per
-    case, reset before each eval pass, tripwire semantics) — it is not
-    repeated here.
+    See :class:`~structbench.models.common.simulator_base.CaseBoundSimulator`'s
+    module docstring for the full statefulness contract (bind per case,
+    reset before each eval pass, tripwire semantics) — it is not repeated
+    here.
 
     Parameters
     ----------
@@ -122,20 +77,14 @@ class MeshSimulator(nn.Module):
         world_edge_radius: float = 30.0,
         device: str = "cpu",
     ) -> None:
-        super().__init__()
-        self._dim = dim
-        self._node_type_size = node_type_size
-        self._kinematic_types = kinematic_types
-        self._scripted_types = scripted_types
+        super().__init__(
+            dim=dim,
+            node_type_size=node_type_size,
+            kinematic_types=kinematic_types,
+            scripted_types=scripted_types,
+            device=device,
+        )
         self._world_edge_radius = world_edge_radius
-
-        if not set(scripted_types) <= set(kinematic_types):
-            raise ValueError(
-                "scripted_types must be a subset of kinematic_types (the "
-                "NORMAL-only noise mask relies on it): "
-                f"scripted_types={scripted_types!r}, "
-                f"kinematic_types={kinematic_types!r}"
-            )
 
         self._net = MGNet(
             node_in=node_type_size + dim,
@@ -151,66 +100,24 @@ class MeshSimulator(nn.Module):
         self._world_edge_normalizer = OnlineNormalizer(dim + 1)
         self._target_normalizer = OnlineNormalizer(dim + 1)
 
-        # Per-case binding (populated by bind_case). These are PLAIN
-        # attributes -- never passed through register_buffer/register_
-        # parameter -- so they never enter state_dict(): a saved checkpoint
-        # is case-independent, and predict_positions before bind_case fails
-        # loudly instead of running on stale/absent data.
+        # MGN-specific per-case binding, populated by _on_bind_case() (called
+        # at the end of the inherited bind_case()). The rest of the per-case
+        # bind state lives on CaseBoundSimulator -- see its module docstring.
+        # A PLAIN attribute, like the base's: never registered as a buffer/
+        # parameter, so it never enters state_dict().
         self._mesh_edge_index: Tensor | None = None
-        self._reference_coords: Tensor | None = None
-        self._node_type_onehot: Tensor | None = None
-        self._kin_mask: Tensor | None = None
-        self._scripted_mask: Tensor | None = None
-        self._gt_positions: Tensor | None = None
-        self._has_kinematic: bool = False
-        self._n_gt_frames: int = 0
-        self._t: int | None = None
 
         self.to(device)
 
-    def bind_case(
-        self,
-        cells: Tensor,
-        reference_coords: Tensor,
-        particle_types: Tensor,
-        kinematic_positions: Tensor,
-    ) -> None:
-        """Bind one case's static mesh and GT trajectory; reset the pointer.
+    def _on_bind_case(self, cells: Tensor) -> None:
+        """Build the mesh edge index for the newly bound case.
 
         Parameters
         ----------
         cells:
             ``(n_cells, nodes_per_cell)`` int64 element connectivity.
-        reference_coords:
-            ``(P, dim)`` mesh-space (rest/reference) coordinates.
-        particle_types:
-            ``(P,)`` int64 node-type codes.
-        kinematic_positions:
-            ``(T, P, dim)`` full ground-truth world-space trajectory of this
-            case. Only rows whose type is in ``kinematic_types`` are ever
-            read (the scripted-velocity node feature, restricted further to
-            ``scripted_types``, and the pointer tripwire).
         """
         self._mesh_edge_index = cells_to_edges(cells)
-        self._reference_coords = reference_coords
-        self._node_type_onehot = F.one_hot(
-            particle_types, num_classes=self._node_type_size
-        ).to(torch.float32)
-
-        dtype, device = particle_types.dtype, particle_types.device
-        kinematic = torch.tensor(self._kinematic_types, dtype=dtype, device=device)
-        scripted = torch.tensor(self._scripted_types, dtype=dtype, device=device)
-        self._kin_mask = torch.isin(particle_types, kinematic)
-        self._scripted_mask = torch.isin(particle_types, scripted)
-        self._has_kinematic = bool(self._kin_mask.any())
-
-        self._gt_positions = kinematic_positions
-        self._n_gt_frames = kinematic_positions.shape[0]
-        self._t = None
-
-    def reset_rollout(self) -> None:
-        """Reset the step pointer; the next call re-anchors at ``t = F``."""
-        self._t = None
 
     def predict_positions(
         self,
@@ -246,8 +153,9 @@ class MeshSimulator(nn.Module):
         RuntimeError
             If called before :meth:`bind_case`, or if the input window's
             kinematic rows do not match the bound ground truth at the
-            current pointer position (the tripwire; see the module
-            docstring).
+            current pointer position (the tripwire; see
+            :class:`~structbench.models.common.simulator_base.CaseBoundSimulator`'s
+            module docstring).
         """
         del nparticles_per_example, particle_types  # see docstring: unused
 
@@ -274,32 +182,8 @@ class MeshSimulator(nn.Module):
         x_t = current_positions[:, -1].contiguous()
         n_frames = current_positions.shape[1]
 
-        t: int | None
-        if self._has_kinematic:
-            t = n_frames if self._t is None else self._t + 1
-            gt_prev = gt_positions[t - 1]
-            if not torch.allclose(x_t[kin_mask], gt_prev[kin_mask], atol=1e-4):
-                raise RuntimeError(
-                    "MeshSimulator's kinematic input rows are out of sync "
-                    f"with the bound ground-truth trajectory at frame {t - 1}. "
-                    "This means either: call reset_rollout() before each "
-                    "eval pass (rollout / one_step_position_rmse / "
-                    "one_step_aux_rmse), or bind_case() was not (re)bound to "
-                    "the trajectory currently being evaluated."
-                )
-            self._t = t
-        else:
-            t = None
-
-        # Scripted-actuator velocity input: GT[t][scripted] - x_t[scripted],
-        # zero elsewhere and zero past the bound trajectory's final frame
-        # (final-frame guard) and whenever no kinematic rows are bound.
-        scripted_velocity = torch.zeros(
-            x_t.shape[0], self._dim, dtype=x_t.dtype, device=x_t.device
-        )
-        if t is not None and t < self._n_gt_frames:
-            gt_t = gt_positions[t]
-            scripted_velocity[scripted_mask] = gt_t[scripted_mask] - x_t[scripted_mask]
+        self._advance_pointer(x_t, n_frames)
+        scripted_velocity = self._eval_scripted_velocity(x_t)
 
         (
             node_feats,
@@ -525,11 +409,13 @@ class MeshSimulator(nn.Module):
 
         Notes
         -----
-        The one-hot node-type encoding and the scripted-velocity node input
-        are built here (``next_positions - x_last`` on scripted rows, zero
-        elsewhere) since their sources differ from the eval path's bound
-        ground truth; the rest of the feature assembly is shared with
-        :meth:`predict_positions` via :meth:`_graph_features`.
+        The one-hot node-type encoding is built here; the scripted-velocity
+        node input is delegated to the inherited
+        :meth:`~structbench.models.common.simulator_base.CaseBoundSimulator._train_scripted_velocity`
+        (``next_positions - x_last`` on scripted rows, zero elsewhere) since
+        its source differs from the eval path's bound ground truth; the rest
+        of the feature assembly is shared with :meth:`predict_positions` via
+        :meth:`_graph_features`.
 
         gamma = 1.0 falls out of the construction here: the caller is
         expected to have already added noise to ``x_last``, so the velocity
@@ -540,13 +426,9 @@ class MeshSimulator(nn.Module):
         one_hot = F.one_hot(particle_types, num_classes=self._node_type_size).to(
             torch.float32
         )
-
-        dtype, device = particle_types.dtype, particle_types.device
-        scripted = torch.tensor(self._scripted_types, dtype=dtype, device=device)
-        scripted_mask = torch.isin(particle_types, scripted)
-
-        scripted_velocity = torch.zeros_like(x_last)
-        scripted_velocity[scripted_mask] = (next_positions - x_last)[scripted_mask]
+        scripted_velocity = self._train_scripted_velocity(
+            x_last, next_positions, particle_types
+        )
 
         (
             node_feats,
@@ -576,23 +458,3 @@ class MeshSimulator(nn.Module):
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
 
         return pred_norm, target_norm
-
-    def save(self, path: str | Path) -> None:
-        """Save the model's ``state_dict`` (network + normalizer buffers).
-
-        Parameters
-        ----------
-        path:
-            Destination path.
-        """
-        torch.save(self.state_dict(), path)
-
-    def load(self, path: str | Path) -> None:
-        """Load a ``state_dict`` saved by :meth:`save` (mapped to CPU).
-
-        Parameters
-        ----------
-        path:
-            Source path of the saved state dict.
-        """
-        self.load_state_dict(torch.load(path, map_location=torch.device("cpu")))
