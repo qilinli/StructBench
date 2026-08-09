@@ -240,3 +240,59 @@ Rank arms on val rollout metrics at the reduced step budget; the winner gets
 the full budget (plus a seed fleet if the maintainer wants spread evidence)
 and rewrites `cgn.toml` at bless time — the wave round-2 precedent. Keep ≥2
 jobs running concurrently (CORRECTIONS 2026-07-10) and avoid seed 0.
+
+---
+
+## DeformingPlate MGN blessing run (v0.3)
+
+Same machine, env build (§2), result bring-back (§4), and bless flow (§5) as
+the others — plus the ADR-0043 §8 pooled gate as a final step, which
+`train_deforming_mgn.slurm` runs automatically. MGN needs no
+`normalization_stats.npz` (self-contained checkpoints) and no `derived/`
+cache pass.
+
+**1. Copy the data up** — rclone on the DUG login node from the OneDrive
+remote (6.1 GB, exactly 1,200 `.h5` cases: `train_0000..0999`,
+`val_0000..0099`, `test_0000..0099`):
+
+```bash
+rclone copy \
+  onedrive:"research/civil_engineering/data/StructBench/canonical/deforming_plate" \
+  /data/curtin_eecms/curtin_qilin/data/deforming_plate \
+  --progress --transfers=8
+rclone ls /data/curtin_eecms/curtin_qilin/data/deforming_plate | wc -l   # expect 1200
+```
+
+**2. Smoke-check on a GPU node (~5 min), then submit:**
+
+```bash
+srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:15:00 --pty bash -lc '
+  source .venv/bin/activate && export PYTHONPATH=src
+  python -m structbench.cli.train --mode train --config configs/deforming_plate/mgn_smoke.toml \
+    --data-root /data/curtin_eecms/curtin_qilin/data/deforming_plate --out runs/dp-smoke'
+
+mkdir -p logs
+sbatch hpc/dug/train_deforming_mgn.slurm    # OUT defaults to runs/deforming-mgn-v03
+squeue --me
+tail -f logs/slurm-dp-mgn-*.out             # val_pos (mm) / val_aux (MPa) every 50k steps
+```
+
+**Budget reality check (do this in the first hour):** the recipe is 10M steps
+at batch 2 — multi-day. Measure steps/s from the training log's early lines
+and project; at ~20 steps/s the run is ~5.8 days (the slurm ceiling is 14 d;
+the partition allows more). **Training has no resume** — if the projection is
+unacceptable, `scancel` early and decide a shorter compute-bound budget
+(record it in the training ledger; the §8 gate itself is unchanged). Blessing-
+time ledger entries to record either way (ADR-0043 §8 declared
+interpretations): normalizer warmup = first 1,000 optimizer steps; derived
+`lr_decay_steps = 4M` (schedule reaches ~1e-6 by 10M; the paper's 5M knee is
+the declared deviation).
+
+**3. Gate + bring-back:** the batch script ends by running
+`tools/blessing_pooled_rmse.py` (band 11.1–19.1 mm; exit 1 on FAIL →
+`$OUT/blessing-pooled-test.json` + `blessing.log`). Bring back
+`runs/deforming-mgn-v03/` as in §4 (model-best + config.json +
+metrics-val/test.json + rollouts/*.npz + logs), then follow §5 — with two
+v0.3-specific additions when transcribing the `BaselineResult` (ADR-0046):
+`provisional=False`, display keys per ADR-0046 clause 7, and the pooled gate
+number goes in `notes` ONLY (never a `metrics` key).
