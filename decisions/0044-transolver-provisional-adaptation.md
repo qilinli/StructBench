@@ -1,6 +1,6 @@
 # 0044 — Transolver provisional adaptation: native Physics-Attention on the DeformingPlate rollout
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-08-09
 
