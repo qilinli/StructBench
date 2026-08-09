@@ -5,6 +5,9 @@ from pathlib import Path
 
 from structbench.benchmarks import available_benchmarks, get_benchmark
 from structbench.benchmarks.render import (
+    _baseline_line,
+    _method_comparison,
+    _quickstart_family,
     card_json,
     render_archive_readme,
     render_benchmark_page,
@@ -17,6 +20,21 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def _all_specs():
     return [get_benchmark(name) for name in available_benchmarks()]
+
+
+def _result(**overrides):
+    """A minimal valid BaselineResult, for fixtures that just need a family
+    slot filled (mirrors test_results.py / test_registry.py's local helper).
+    """
+    kwargs = dict(
+        family="cgn",
+        label="baseline",
+        run_commit="abc1234",
+        run_date="2026-07-05",
+        metrics={"test_interp": {"rollout_pos_rmse_mm": 1.5}},
+    )
+    kwargs.update(overrides)
+    return BaselineResult(**kwargs)
 
 
 def _fake_result():
@@ -250,3 +268,168 @@ def test_landing_page_folds_protocol_rationale_but_index_does_not():
     archive = render_archive_readme(spec, "taylor_impact_2d")
     assert "- Protocol rationale:" in archive
     assert "<details>" not in archive
+
+
+# --- method comparison + provisional-aware Quickstart selection (ADR-0046) ---
+# _method_comparison is defined and unit-tested here but not yet called by
+# any renderer (Task 2 is output-neutral); insertion lands in Task 3.
+
+
+def test_method_comparison_empty_state_is_verbatim():
+    spec = get_benchmark("notch_beam_2d_bend")
+    assert spec.results == ()
+    lines = _method_comparison(spec)
+    assert lines == [
+        "## Method comparison",
+        "",
+        "*No results yet — method entries land here as runs are "
+        "recorded (blessed or provisional).*",
+    ]
+
+
+def test_method_comparison_multi_family_table_and_footnote():
+    # (iii): one blessed + two provisional, three families, ragged metrics.
+    # test_interp is shared by all three but mgn/transolver miss keys cgn
+    # carries there; transolver also misses test_extrap entirely.
+    blessed = _result(
+        family="cgn",
+        label="CGN baseline",
+        metrics={
+            "test_interp": {
+                "rollout_pos_rmse_mm": 1.5,
+                "one_step_pos_rmse_mm": 0.004,
+                "qoi_final_length_mae_mm": 0.2,
+            },
+            "test_extrap": {"rollout_pos_rmse_mm": 2.1},
+        },
+    )
+    prov_mgn = _result(
+        family="mgn",
+        label="MGN candidate",
+        provisional=True,
+        metrics={
+            "test_interp": {"rollout_pos_rmse_mm": 1.8},
+            "test_extrap": {"rollout_pos_rmse_mm": 2.3},
+        },
+    )
+    prov_transolver = _result(
+        family="transolver",
+        label="Transolver candidate",
+        provisional=True,
+        metrics={"test_interp": {"rollout_pos_rmse_mm": 1.9}},
+    )
+    spec = replace(
+        get_benchmark("taylor_impact_2d"),
+        results=(blessed, prov_mgn, prov_transolver),
+    )
+    lines = _method_comparison(spec)
+
+    assert lines[0] == "## Method comparison"
+    assert (
+        "| Metric | **cgn** | **mgn** (provisional) | **transolver** (provisional) |"
+        in lines
+    )
+    # first-seen order within the shared split (rmse before qoi); missing
+    # cells (a key one method lacks that another carries) render "—"
+    assert "| test_interp · rollout_pos_rmse_mm | 1.5 | 1.8 | 1.9 |" in lines
+    assert "| test_interp · one_step_pos_rmse_mm | 0.004 | — | — |" in lines
+    assert "| test_interp · qoi_final_length_mae_mm | 0.2 | — | — |" in lines
+    # transolver has no test_extrap entry at all -> a whole-split "—"
+    assert "| test_extrap · rollout_pos_rmse_mm | 2.1 | 2.3 | — |" in lines
+    # footnote is the ONLY guard on this string — pinned verbatim
+    assert (
+        "*Provisional entries are best-effort implementations whose "
+        "fidelity is not validated against published numbers "
+        "(ADR-0044/0045) — never read them as blessed baselines.*"
+    ) in lines
+
+
+def test_method_comparison_no_footnote_or_tag_when_all_blessed():
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
+    lines = _method_comparison(spec)
+    text = "\n".join(lines)
+    assert "| Metric | **cgn** |" in lines
+    assert "(provisional)" not in text
+    assert "Provisional entries" not in text
+
+
+def test_method_comparison_provisional_only_tags_every_column():
+    a = _result(family="transolver", provisional=True)
+    b = _result(family="geoflare", provisional=True)
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(a, b))
+    lines = _method_comparison(spec)
+    assert (
+        "| Metric | **transolver** (provisional) | **geoflare** (provisional) |"
+        in lines
+    )
+    assert any("Provisional entries" in line for line in lines)
+
+
+def test_quickstart_family_prefers_blessed_over_declaration_order():
+    # A provisional entry listed FIRST still loses to a later blessed one.
+    provisional_first = _result(family="transolver", provisional=True)
+    blessed_second = _result(family="mgn", provisional=False)
+    spec = replace(
+        get_benchmark("taylor_impact_2d"),
+        results=(provisional_first, blessed_second),
+    )
+    assert _quickstart_family(spec) == ("mgn", "blessed")
+
+
+def test_quickstart_family_falls_back_to_first_when_all_provisional():
+    only_provisional = _result(family="geoflare", provisional=True)
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(only_provisional,))
+    assert _quickstart_family(spec) == ("geoflare", "provisional")
+
+
+def test_quickstart_family_falls_back_to_spec_default_when_empty():
+    spec = replace(get_benchmark("notch_beam_2d_bend"), quickstart_family="mgn")
+    assert spec.results == ()
+    assert _quickstart_family(spec) == ("mgn", "default")
+
+
+def test_quickstart_prose_blessed_variant():
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    assert "blessed baseline recipe verbatim" in text
+
+
+def test_quickstart_prose_provisional_variant():
+    provisional = replace(_fake_result(), family="mgn", provisional=True)
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(provisional,))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    assert "the provisional mgn recipe" in text
+    assert "blessed baseline recipe verbatim" not in text
+    assert "configs/taylor_impact_2d/mgn.toml" in text
+
+
+def test_quickstart_prose_absent_when_no_results():
+    spec = get_benchmark("notch_beam_2d_bend")
+    text = render_benchmark_page(spec, "notch_beam_2d_bend")
+    assert "recipe" not in text
+
+
+def test_baseline_line_tags_provisional_entries():
+    blessed = _fake_result()
+    provisional = replace(
+        _fake_result(), family="mgn", label="MGN candidate", provisional=True
+    )
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(blessed, provisional))
+    parts = _baseline_line(spec).split("; ")
+    assert "(provisional)" not in parts[0]
+    assert "(provisional)" in parts[1]
+    assert "MGN candidate" in parts[1]
+
+
+def test_archive_readme_quickstart_family_selection_is_output_neutral():
+    # _quickstart_family replaces the old hardcoded
+    # `spec.results[0].family if spec.results else "cgn"`; every existing
+    # benchmark (no provisional entries committed yet) must resolve to the
+    # identical family, so the archive README stays byte-for-byte the same
+    # as before this task (the visible change lands in Task 3).
+    for name in available_benchmarks():
+        spec = get_benchmark(name)
+        old_family = spec.results[0].family if spec.results else "cgn"
+        text = render_archive_readme(spec, name)
+        assert f"configs/{name}/{old_family}.toml" in text
+        assert f"runs/{name}-{old_family}" in text
