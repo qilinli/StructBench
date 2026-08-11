@@ -288,6 +288,27 @@ interpretations): normalizer warmup = first 1,000 optimizer steps; derived
 `lr_decay_steps = 4M` (schedule reaches ~1e-6 by 10M; the paper's 5M knee is
 the declared deviation).
 
+**Incident (2026-08-10) — world-edge OOM and the checkpointing fix.** The first
+`deforming-mgn-v03` attempt (job 62801979) ran clean to ~760 k steps, then died
+with `torch.OutOfMemoryError` in the world-edge processor MLP (`network.py`
+`world_mlp(...)`): the whole 80 GB A100 was in use. Cause: world edges are
+dynamic contact edges (all node pairs within `world_edge_radius`, no node-type
+filter — faithful to PhysicsNeMo `helpers.add_world_edges`, verified), so a
+contact-heavy frame blows up the `(Ew, latent)` activations across 15
+message-passing steps × batch 2. The native processor retained every block's
+activations. **Fix: activation checkpointing is now default-on in `MGNet`**
+(`recompute_activation=True`; PhysicsNeMo `recompute_activation` parity) — it
+recomputes each block in the backward pass, cutting peak activation memory to
+~one block. It is output- and gradient-identical, so the ADR-0043 §8 recipe is
+unchanged; the only cost is one extra forward per block (~+30–50% wall-clock —
+re-project steps/s in the first hour). Optionally stack
+`export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` in the slurm script to
+also fight fragmentation. **The re-run is from scratch to a FRESH `--out`** (the
+old `runs/deforming-mgn-v03/` holds checkpoints; `--mode train` refuses it) —
+there is no resume, so a partial run is a training-ledger deviation, not the §8
+recipe. Record the checkpointing (memory-only, output-identical) in the
+blessing-time ledger alongside the warmup/decay interpretations above.
+
 **3. Gate + bring-back:** the batch script ends by running
 `tools/blessing_pooled_rmse.py` (band 11.1–19.1 mm; exit 1 on FAIL →
 `$OUT/blessing-pooled-test.json` + `blessing.log`). Bring back

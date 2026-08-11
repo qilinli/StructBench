@@ -34,6 +34,13 @@ mkdir -p "$OUT"
 source .venv/bin/activate
 export PYTHONPATH=src
 
+# World edges are dynamic contact edges (data-dependent count); a contact-heavy
+# frame's processor activations OOM'd the first v03 attempt at ~760k steps (see
+# hpc/dug/README.md incident note). Primary fix is MGNet activation
+# checkpointing (default-on, output-identical). This complements it by letting
+# the allocator reclaim the reserved-but-fragmented pool instead of failing.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 DATA=${DATA:-/data/curtin_eecms/curtin_qilin/data/deforming_plate}
 
 nvidia-smi
