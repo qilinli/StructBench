@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import torch
 from torch import Tensor, nn
+from torch.utils.checkpoint import checkpoint
 
 
 def build_mlp(
@@ -95,6 +96,22 @@ class MGNet(nn.Module):
     n_hidden:
         Number of hidden layers in every sub-MLP (encoders, processor edge
         and node MLPs, decoder).
+    recompute_activation:
+        If ``True`` (default), wrap each processor block in
+        :func:`torch.utils.checkpoint.checkpoint` (non-reentrant) during
+        training, recomputing the block's activations in the backward pass
+        instead of retaining them. Peak activation memory drops from all
+        ``mp_steps`` blocks to roughly one, at the cost of one extra forward
+        per block. This is output- and gradient-identical (no dropout;
+        deterministic ops), so the ADR-0043 §8 recipe's *results* are
+        unchanged -- only the memory/compute profile differs. It is the
+        PhysicsNeMo ``recompute_activation`` parity knob and exists because
+        the world-edge (contact) count is data-dependent: a contact-heavy
+        frame can blow up the ``(Ew, latent)`` processor activations and OOM
+        an 80 GB GPU without it (observed at ~760 k steps on the
+        ``deforming-mgn-v03`` blessing attempt). Checkpointing is skipped
+        automatically when gradients are disabled (inference/eval), where
+        there is nothing to retain.
     """
 
     def __init__(
@@ -106,9 +123,11 @@ class MGNet(nn.Module):
         latent: int = 128,
         mp_steps: int = 15,
         n_hidden: int = 2,
+        recompute_activation: bool = True,
     ) -> None:
         super().__init__()
         self._latent = latent
+        self._recompute_activation = recompute_activation
 
         self._node_encoder = build_mlp(
             node_in, latent, n_hidden, latent, layer_norm=True
@@ -183,12 +202,23 @@ class MGNet(nn.Module):
         mesh_latent = self._mesh_edge_encoder(mesh_edge_feats)
         world_latent = self._world_edge_encoder(world_edge_feats)
 
-        for mesh_mlp, world_mlp, node_mlp in zip(
-            self._mesh_edge_mlps,
-            self._world_edge_mlps,
-            self._node_mlps,
-            strict=True,
-        ):
+        def processor_block(
+            node_latent: Tensor,
+            mesh_latent: Tensor,
+            world_latent: Tensor,
+            mesh_mlp: nn.Module,
+            world_mlp: nn.Module,
+            node_mlp: nn.Module,
+        ) -> tuple[Tensor, Tensor, Tensor]:
+            """One residual message-passing block (edges -> aggregate -> node).
+
+            Factored out so the loop can run it either directly or under
+            :func:`torch.utils.checkpoint.checkpoint`. The per-step MLPs are
+            explicit arguments (passed through checkpoint), not closed-over
+            loop variables, so backward-pass recomputation binds the correct
+            step's parameters. Closes only over the loop-invariant edge
+            indices and ``n_nodes``.
+            """
             mesh_in = torch.cat(
                 [
                     mesh_latent,
@@ -216,9 +246,38 @@ class MGNet(nn.Module):
             agg_world.index_add_(0, world_receiver, new_world_latent)
 
             node_in = torch.cat([node_latent, agg_mesh, agg_world], dim=-1)
-            node_latent = node_latent + node_mlp(node_in)
+            new_node_latent = node_latent + node_mlp(node_in)
+            return new_node_latent, new_mesh_latent, new_world_latent
 
-            mesh_latent = new_mesh_latent
-            world_latent = new_world_latent
+        # Recompute activations in backward only when there is a graph to build
+        # (training); under torch.no_grad() (eval/rollout) run the block plainly.
+        checkpointing = self._recompute_activation and torch.is_grad_enabled()
+
+        for mesh_mlp, world_mlp, node_mlp in zip(
+            self._mesh_edge_mlps,
+            self._world_edge_mlps,
+            self._node_mlps,
+            strict=True,
+        ):
+            if checkpointing:
+                node_latent, mesh_latent, world_latent = checkpoint(
+                    processor_block,
+                    node_latent,
+                    mesh_latent,
+                    world_latent,
+                    mesh_mlp,
+                    world_mlp,
+                    node_mlp,
+                    use_reentrant=False,
+                )
+            else:
+                node_latent, mesh_latent, world_latent = processor_block(
+                    node_latent,
+                    mesh_latent,
+                    world_latent,
+                    mesh_mlp,
+                    world_mlp,
+                    node_mlp,
+                )
 
         return self._decoder(node_latent)
