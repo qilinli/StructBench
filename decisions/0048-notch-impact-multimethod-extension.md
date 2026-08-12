@@ -76,7 +76,15 @@ initial pin–beam gap 2.5–2.7 mm; case sizes 4 264–8 360 particles across t
    the cgn input schema (current-state history) does not have —
    family-faithful to ADR-0043, noted in the registry entries. The cgn
    path is untouched (it never applies the transform, and its kinematic
-   handling is unchanged).
+   handling is unchanged). The pin/support rows carry no learnable aux:
+   the ADR-0026 kinematic protocol masks them from the training loss
+   (velocity AND strain terms), rollout zeroes their predicted aux, the
+   strain metrics score beam rows only, and both QoIs are constructed
+   ``concrete_type``-restricted. The single reference-faithful exception
+   is the online target normalizer, which — as in the official MGN
+   framework — accumulates over all rows (~4% kinematic, near-zero
+   strain), mildly diluting the strain target scale; declared, not
+   redesigned.
 
 4. **`input_frames = 6`, h = 0 preserved** — identical to ADR-0047 clause 4.
 
