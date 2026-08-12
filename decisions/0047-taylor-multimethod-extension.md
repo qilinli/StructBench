@@ -1,6 +1,6 @@
 # 0047 — Taylor 2D multi-method extension: native MGN/Transolver/GeoFLARE on the SPH benchmark
 
-**Status**: Proposed
+**Status**: Accepted
 **Type**: Durable
 **Date**: 2026-08-12
 
@@ -57,7 +57,14 @@ x = −2 mm plane.
    recorded in the Taylor results registry with the method-comparison
    rendering. CGN remains the blessed baseline. The ADR-0019/0035 benchmark
    protocol — splits, 151-frame horizon, scored span, QoIs, aux
-   `von_mises_stress` — is unchanged.
+   `von_mises_stress` — is unchanged. All three families run the
+   ADR-0044/0045 autoregressive one-step scheme: one-step training with
+   noise injection (the GNS/MGN stabilizer), full autoregressive rollout at
+   evaluation, seeded with the card's 6 frames. No one-shot variant is
+   defined for this benchmark — the AR wrapping is the same declared
+   adaptation those ADRs made on DeformingPlate, and Taylor's 146 predicted
+   steps sit inside the ~398-step rollouts both families already sustain
+   there.
 
 2. **Synthesized mesh, loader-level, opt-in per benchmark.** For SPH cases of
    a benchmark that opts in (a new `BenchmarkSpec` field), the loader
