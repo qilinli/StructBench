@@ -31,14 +31,22 @@ __all__ = ["append_wall_nodes", "synthesize_lattice_mesh"]
 _SPACING_RATIO_MAX = 1.5
 
 
-def synthesize_lattice_mesh(traj: CaseTrajectory) -> CaseTrajectory:
+def synthesize_lattice_mesh(
+    traj: CaseTrajectory,
+    *,
+    part: int | None = None,
+    allow_missing: bool = False,
+) -> CaseTrajectory:
     """Recover a triangle mesh from a 2D SPH trajectory's initial lattice.
 
-    The initial frame's particle positions must form a complete regular
-    ``nx × ny`` lattice (every site occupied exactly once, uniform spacing
-    per axis) — true of the Taylor bar's generation lattice (ADR-0047).
-    Each of the ``(nx-1)(ny-1)`` lattice quads is split into two triangles,
-    so :func:`~structbench.models.mgn.mesh_ops.cells_to_edges`'s
+    The meshed particles' initial positions must sit on a regular lattice
+    (unique site per particle, uniform line spacing per axis). By default
+    the lattice must be complete (every ``nx × ny`` site occupied — the
+    Taylor bar, ADR-0047); with ``allow_missing=True`` sites may be vacant
+    (the notched beam, ADR-0048) and a quad contributes triangles only when
+    all four corners exist, stair-stepping the boundary. Each emitted quad
+    is split into two triangles, so
+    :func:`~structbench.models.mgn.mesh_ops.cells_to_edges`'s
     every-vertex-pair expansion yields the lattice edges plus one diagonal
     per quad (a standard simplicial mesh), not the double-diagonal a quad
     cell would emit.
@@ -47,18 +55,30 @@ def synthesize_lattice_mesh(traj: CaseTrajectory) -> CaseTrajectory:
     ----------
     traj:
         SPH trajectory (``cells``/``reference_coords`` unset), 2D.
+    part:
+        When given, only particles of this ``particle_type`` are meshed
+        (e.g. the notch beam; the kinematic pin/support bodies stay
+        unmeshed and interact through world edges, ADR-0048). ``cells``
+        indices always refer to the FULL particle array, and
+        ``reference_coords`` always covers every particle.
+    allow_missing:
+        Permit vacant lattice sites (see above). ``False`` preserves the
+        strict ADR-0047 complete-lattice contract.
 
     Returns
     -------
     CaseTrajectory
-        Copy with ``cells`` set to ``(2·(nx-1)·(ny-1), 3)`` int64 triangles
-        and ``reference_coords`` set to the initial positions.
+        Copy with triangle ``cells`` (int64, indices into the full particle
+        array) and ``reference_coords`` = the initial positions of ALL
+        particles.
 
     Raises
     ------
     ValueError
-        If the trajectory already carries a mesh, is not 2D, or its initial
-        frame is not a complete uniform lattice.
+        If the trajectory already carries a mesh, is not 2D, the meshed
+        particles do not sit on a regular lattice (or, without
+        ``allow_missing``, a complete one), or no quad has all four
+        corners.
     """
     if traj.cells is not None or traj.reference_coords is not None:
         raise ValueError(
@@ -71,11 +91,20 @@ def synthesize_lattice_mesh(traj: CaseTrajectory) -> CaseTrajectory:
             f"case {traj.case_id!r} is {p0.shape[1]}D; lattice synthesis "
             "supports 2D only (ADR-0047)"
         )
-    xs, ix = np.unique(p0[:, 0], return_inverse=True)
-    ys, iy = np.unique(p0[:, 1], return_inverse=True)
+    if part is None:
+        index = np.arange(p0.shape[0])
+    else:
+        index = np.nonzero(traj.particle_type == part)[0]
+        if index.size == 0:
+            raise ValueError(
+                f"case {traj.case_id!r}: no particles of type {part} to mesh"
+            )
+    pm = p0[index]
+    xs, ix = np.unique(pm[:, 0], return_inverse=True)
+    ys, iy = np.unique(pm[:, 1], return_inverse=True)
     nx, ny = len(xs), len(ys)
-    n = p0.shape[0]
-    if nx < 2 or ny < 2 or nx * ny != n:
+    n = pm.shape[0]
+    if nx < 2 or ny < 2 or (not allow_missing and nx * ny != n):
         raise ValueError(
             f"case {traj.case_id!r}: initial positions do not form a complete "
             f"regular lattice ({n} particles vs {nx} x {ny} distinct "
@@ -90,8 +119,15 @@ def synthesize_lattice_mesh(traj: CaseTrajectory) -> CaseTrajectory:
                 "form a regular lattice"
             )
     grid = np.full((ny, nx), -1, dtype=np.int64)
-    grid[iy, ix] = np.arange(n)
-    if (grid < 0).any():
+    grid[iy, ix] = index
+    occupied = np.zeros((ny, nx), dtype=bool)
+    occupied[iy, ix] = True
+    if occupied.sum() != n:
+        raise ValueError(
+            f"case {traj.case_id!r}: lattice sites multiply occupied; "
+            "initial positions do not form a regular lattice"
+        )
+    if not allow_missing and (grid < 0).any():
         raise ValueError(
             f"case {traj.case_id!r}: lattice sites multiply occupied or "
             "empty; initial positions do not form a complete lattice"
@@ -101,6 +137,13 @@ def synthesize_lattice_mesh(traj: CaseTrajectory) -> CaseTrajectory:
     b = grid[:-1, 1:].ravel()
     c = grid[1:, 1:].ravel()
     d_ = grid[1:, :-1].ravel()
+    full = (a >= 0) & (b >= 0) & (c >= 0) & (d_ >= 0)
+    a, b, c, d_ = a[full], b[full], c[full], d_[full]
+    if a.size == 0:
+        raise ValueError(
+            f"case {traj.case_id!r}: no lattice quad has all four corners; "
+            "nothing to mesh"
+        )
     cells = np.concatenate(
         [np.stack([a, b, c], axis=1), np.stack([a, c, d_], axis=1)], axis=0
     )

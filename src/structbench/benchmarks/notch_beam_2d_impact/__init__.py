@@ -12,11 +12,13 @@ from .benchmark import (
     TEST_INTERP,
     TRAIN,
     VAL,
+    native_mesh_transform,
 )
 from .card import CARD
 
 __all__ = [
     "AUX_FIELD",
+    "native_mesh_transform",
     "CARD",
     "CONCRETE_TYPE",
     "PIN_TYPE",
@@ -59,9 +61,7 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_cracked_fraction_mae": 0.1860,
             },
         },
-        checkpoint=(
-            "models/notch_beam_2d_impact/cgn-5956d81/model-best-186000.pt"
-        ),
+        checkpoint=("models/notch_beam_2d_impact/cgn-5956d81/model-best-186000.pt"),
         checkpoint_sha256=(
             "a1d75cfaa643ee5d3a09aa2de8eb8338c675a59118057a5fcb0ff5337cb310c8"
         ),
@@ -104,4 +104,6 @@ SPEC = BenchmarkSpec(
     dataset_id="2D-Notched-Beam",
     kinematic_types=(PIN_TYPE, SUPPORT_TYPE),
     scored_frames=250,
+    mesh_transform=native_mesh_transform,
+    scripted_types=(PIN_TYPE, SUPPORT_TYPE),
 )
