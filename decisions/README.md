@@ -96,7 +96,7 @@ What becomes easier, harder, or constrained as a result.
 | 0045 | GeoFLARE provisional adaptation: native GALE_FA (GeoTransolver + FLARE) on the DeformingPlate rollout | Durable | Accepted |
 | 0046 | Provisional results and the method-comparison table (closes ADR-0041 clause 4) | Durable | Accepted |
 | 0047 | Taylor 2D multi-method extension: native MGN/Transolver/GeoFLARE on the SPH benchmark | Durable | Accepted |
-| 0048 | Notch-impact multi-method extension: native MGN/Transolver/GeoFLARE on the notched-beam SPH benchmark | Durable | Proposed |
+| 0048 | Notch-impact multi-method extension: native MGN/Transolver/GeoFLARE on the notched-beam SPH benchmark | Durable | Accepted |
 
 ---
 

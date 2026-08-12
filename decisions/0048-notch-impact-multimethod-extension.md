@@ -1,6 +1,6 @@
 # 0048 — Notch-impact multi-method extension: native MGN/Transolver/GeoFLARE on the notched-beam SPH benchmark
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-08-12)
 **Type**: Durable
 **Date**: 2026-08-12
 
