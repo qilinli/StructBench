@@ -1,0 +1,42 @@
+# Taylor 2D — Transolver PROVISIONAL config (ADR-0047; family recipe ADR-0044).
+# Runs on the ADR-0047 synthesized lattice mesh + wall nodes (kinematic type
+# 2); no published Transolver number exists for this task — provisional, no
+# numeric gate. Budget matched to the blessed CGN taylor recipe (100k steps,
+# ADR-0047 §6). input_frames = 6 satisfies the taylor card (ADR-0035); the
+# family reads only the window's last frame, so the extra frames affect
+# windowing and rollout seeding only. Functional input width derives from
+# dim: node_type_size + 3*dim = 9 channels.
+# Not yet run.
+
+[run]
+benchmark = "taylor_impact_2d"
+seed = 1
+
+[model]
+family = "transolver"
+input_frames = 6                # taylor card protocol (ADR-0035); see header
+dim = 2
+hidden_dim = 128                # ADR-0044 family reference
+n_layers = 8
+n_heads = 8
+slice_num = 64
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
+noise_std = 0.003               # DP family-reference value; CGN taylor uses 0.02 —
+                                # a taylor-scale noise sweep stays open (ledger).
+normalizer_warmup_steps = 1000
+weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
+max_grad_norm = 0.1             # global-norm clip, thuml reference
+
+[train]
+batch_size = 2                  # family reference (ADR-0044, matched to MGN)
+lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
+lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
+                                # ADR-0044); present because [train] is family-uniform.
+training_steps = 100_000        # CGN-matched budget (ADR-0047 §6), not DP's 10M
+val_every = 2000                # CGN taylor cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0

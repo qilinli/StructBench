@@ -68,8 +68,15 @@ def test_spec_split_mappings_are_read_only():
 
 
 def test_spec_kinematic_types_default_empty():
-    spec = get_benchmark("taylor_impact_2d")
+    spec = get_benchmark("wave_propagation_1d")
     assert spec.kinematic_types == ()
+
+
+def test_taylor_pins_wall_kinematic_type():
+    # ADR-0047: synthesized wall nodes are type 2, kinematic.
+    spec = get_benchmark("taylor_impact_2d")
+    assert spec.kinematic_types == (2,)
+    assert spec.mesh_transform is not None
 
 
 def test_notch_impact_pins_scored_frames():

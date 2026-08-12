@@ -15,6 +15,7 @@ from types import MappingProxyType
 from torch import Tensor
 
 from ..datasets import available_aux_fields
+from ..datasets.canonical import CaseTrajectory
 from ..eval import QoiFn
 from .card import BenchmarkCard
 from .results import BaselineResult
@@ -86,6 +87,21 @@ class BenchmarkSpec:
     recipe on the generated benchmark page; must be non-blank — validated
     at construction. Defaults to ``"cgn"``, the family every currently
     blessed benchmark uses."""
+    mesh_transform: Callable[[CaseTrajectory], CaseTrajectory] | None = None
+    """Applied to each loaded trajectory by the mesh-native families only
+    (mgn/transolver/geoflare; ADR-0047): synthesizes mesh connectivity
+    and/or boundary nodes for benchmarks whose canonical data is not
+    nodal-FE (e.g. Taylor's lattice mesh + wall nodes). The cgn family
+    never applies it — its data path stays byte-identical. ``None`` for
+    benchmarks whose cases already carry a mesh (or that no mesh-native
+    family runs on)."""
+    scripted_types: tuple[int, ...] | None = None
+    """Node-type codes the mesh-native simulators feed the ground-truth
+    next-step velocity as an input feature (ADR-0043: OBSTACLE is scripted,
+    HANDLE is not); must be a subset of ``kinematic_types`` — validated at
+    construction. ``None`` leaves the family default (the ADR-0043
+    ``(1,)``); Taylor pins its wall type here (ADR-0047), whose scripted
+    velocity is identically zero."""
 
     def __post_init__(self) -> None:
         for required in ("train", "val"):
@@ -117,6 +133,13 @@ class BenchmarkSpec:
             seen_families.add(result.family)
         if not self.quickstart_family.strip():
             raise ValueError("quickstart_family must be non-empty")
+        if self.scripted_types is not None and not set(self.scripted_types) <= set(
+            self.kinematic_types
+        ):
+            raise ValueError(
+                f"scripted_types={self.scripted_types} must be a subset of "
+                f"kinematic_types={self.kinematic_types}"
+            )
         if self.scored_frames is not None and not (
             self.card.input_frames < self.scored_frames <= self.card.n_frames
         ):

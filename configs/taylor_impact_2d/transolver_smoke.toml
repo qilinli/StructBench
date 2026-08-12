@@ -1,0 +1,34 @@
+# CPU smoke of the Taylor Transolver train->checkpoint->eval path. NOT a
+# baseline. Mirrors transolver.toml with a shrunk capacity cell.
+# input_frames stays 6 — the taylor card check (ADR-0035) applies to smokes too.
+
+[run]
+benchmark = "taylor_impact_2d"
+seed = 0
+
+[model]
+family = "transolver"
+input_frames = 6
+dim = 2
+hidden_dim = 16
+n_layers = 2
+n_heads = 2
+slice_num = 8
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 3
+noise_std = 0.003
+normalizer_warmup_steps = 5
+weight_decay = 1e-5
+max_grad_norm = 0.1
+
+[train]
+batch_size = 2
+lr_init = 1e-3
+lr_decay = 0.1
+training_steps = 50
+val_every = 25
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0

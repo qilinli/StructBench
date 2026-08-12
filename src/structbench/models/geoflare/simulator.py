@@ -148,6 +148,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
             n_hidden_local=n_hidden_local,
             radii=radii,
             neighbors=neighbors,
+            dim=dim,
         )
         self._node_normalizer = OnlineNormalizer(node_in)
         self._target_normalizer = OnlineNormalizer(dim + 1)

@@ -160,3 +160,29 @@ x = −2 mm plane.
   `benchmarks/taylor_impact_2d` (spec fields), three configs + smokes, tests
   (synthetic lattice synthesis, wall-node injection, config load); expected
   zero changes inside `models/`.
+
+---
+
+**Implementation note (2026-08-12, same session).** Implemented on
+`feat/adr-0047-taylor-multimethod`: synthesis lives in a new
+`datasets/sph_mesh.py` (sibling of `canonical.py`, which stays untouched);
+the spec field is `BenchmarkSpec.mesh_transform`, applied by the training
+pipeline for the mesh-native families only; Taylor's geometry QoIs are
+wrapped bar-only (wall rows dropped; a numeric no-op for the cgn path) so
+QoI values stay comparable across families. Both open numerics were measured
+over all 34 cases: worst-case lateral spread |y| = 47.2 mm (T-20-100-200)
+→ wall half-span **60 mm** (>25% margin); SPH smoothing radius 0.3–0.6 mm
+and max wall penetration 0.389 mm → `world_edge_radius` **1.5 mm** (= the
+CGN taylor connectivity radius, 3× particle spacing), which sees the wall
+≥2 particle rows before contact. Values and provenance recorded in the
+config comments per clause 5. Two integration findings from the end-to-end
+smokes (all three families train + rollout + evaluate on real Taylor data,
+frame-truncated for CPU): (1) the simulators' `scripted_types` class default
+`(1,)` conflicts with Taylor's kinematic set — resolved by a new
+`BenchmarkSpec.scripted_types` field (`None` → family default; Taylor pins
+its wall type, the DP OBSTACLE analog, whose scripted velocity is
+identically zero); (2) one genuine 3D hardcode inside `models/geoflare`
+(the local-geometry MLP width `3*k` and the geometry tokenizer's in-width
+3) — parameterized by `dim` with a 3-preserving default, so the
+DeformingPlate path is unchanged. "Expected zero changes inside `models/`"
+therefore held for mgn/transolver but not geoflare.

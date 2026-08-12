@@ -101,6 +101,12 @@ __all__ = [
 #: them up.
 PERIODIC_CKPT_EVERY = 10_000
 
+#: Families that consume mesh connectivity (``cells``/``reference_coords``)
+#: and therefore apply a benchmark's ``spec.mesh_transform`` at load time
+#: (ADR-0047). The cgn family never applies it — its data path stays
+#: byte-identical.
+_MESH_FAMILIES = frozenset({"mgn", "transolver", "geoflare"})
+
 
 def random_walk_position_noise(
     position_sequence: Tensor, noise_std_last_step: float
@@ -224,7 +230,11 @@ def build_simulator(
 
 
 def build_mgn_simulator(
-    mgn: MGNConfig, *, kinematic_types: tuple[int, ...], device: str
+    mgn: MGNConfig,
+    *,
+    kinematic_types: tuple[int, ...],
+    scripted_types: tuple[int, ...] | None = None,
+    device: str,
 ) -> MeshSimulator:
     """Construct a :class:`MeshSimulator` from an :class:`MGNConfig`.
 
@@ -248,9 +258,9 @@ def build_mgn_simulator(
     Returns
     -------
     MeshSimulator
-        ``scripted_types`` is left at the class default ``(1,)`` (the
-        ADR-0043 recipe scripts only the OBSTACLE node type); no run-config
-        field controls it yet.
+        ``scripted_types=None`` leaves the class default ``(1,)`` (the
+        ADR-0043 recipe scripts only the OBSTACLE node type); a benchmark
+        overrides it via ``spec.scripted_types`` (ADR-0047).
     """
     return MeshSimulator(
         dim=mgn.dim,
@@ -260,12 +270,17 @@ def build_mgn_simulator(
         node_type_size=mgn.node_type_size,
         world_edge_radius=mgn.world_edge_radius,
         kinematic_types=kinematic_types,
+        **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
     )
 
 
 def build_transolver_simulator(
-    cfg: TransolverConfig, *, kinematic_types: tuple[int, ...], device: str
+    cfg: TransolverConfig,
+    *,
+    kinematic_types: tuple[int, ...],
+    scripted_types: tuple[int, ...] | None = None,
+    device: str,
 ) -> TransolverSimulator:
     """Construct a :class:`TransolverSimulator` from a :class:`TransolverConfig`.
 
@@ -290,9 +305,9 @@ def build_transolver_simulator(
     Returns
     -------
     TransolverSimulator
-        ``scripted_types`` is left at the class default ``(1,)`` (the
-        ADR-0043 recipe scripts only the OBSTACLE node type); no run-config
-        field controls it yet.
+        ``scripted_types=None`` leaves the class default ``(1,)`` (the
+        ADR-0043 recipe scripts only the OBSTACLE node type); a benchmark
+        overrides it via ``spec.scripted_types`` (ADR-0047).
     """
     return TransolverSimulator(
         dim=cfg.dim,
@@ -304,12 +319,17 @@ def build_transolver_simulator(
         dropout=cfg.dropout,
         node_type_size=cfg.node_type_size,
         kinematic_types=kinematic_types,
+        **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
     )
 
 
 def build_geoflare_simulator(
-    cfg: GeoFlareConfig, *, kinematic_types: tuple[int, ...], device: str
+    cfg: GeoFlareConfig,
+    *,
+    kinematic_types: tuple[int, ...],
+    scripted_types: tuple[int, ...] | None = None,
+    device: str,
 ) -> GeoFlareSimulator:
     """Construct a :class:`GeoFlareSimulator` from a :class:`GeoFlareConfig`.
 
@@ -340,9 +360,9 @@ def build_geoflare_simulator(
     Returns
     -------
     GeoFlareSimulator
-        ``scripted_types`` is left at the class default ``(1,)`` (the
-        ADR-0043 recipe scripts only the OBSTACLE node type); no run-config
-        field controls it yet.
+        ``scripted_types=None`` leaves the class default ``(1,)`` (the
+        ADR-0043 recipe scripts only the OBSTACLE node type); a benchmark
+        overrides it via ``spec.scripted_types`` (ADR-0047).
     """
     return GeoFlareSimulator(
         dim=cfg.dim,
@@ -357,6 +377,7 @@ def build_geoflare_simulator(
         neighbors=(cfg.neighbors_near, cfg.neighbors_far),
         node_type_size=cfg.node_type_size,
         kinematic_types=kinematic_types,
+        **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
     )
 
@@ -645,6 +666,18 @@ def train(
             )
             for tr in val_trajs
         ]
+
+    if family in _MESH_FAMILIES and spec.mesh_transform is not None:
+        # ADR-0047: benchmark-declared synthesis (e.g. Taylor's lattice mesh
+        # + wall nodes). Wall rows are static, so this commutes with the
+        # frame truncations above.
+        train_trajs = [spec.mesh_transform(tr) for tr in train_trajs]
+        val_trajs = [spec.mesh_transform(tr) for tr in val_trajs]
+        logger.info(
+            "mesh_transform applied (ADR-0047): %d train + %d val trajectories",
+            len(train_trajs),
+            len(val_trajs),
+        )
 
     if family == "mgn":
         assert isinstance(model_cfg, MGNConfig)
@@ -953,7 +986,12 @@ def _train_mgn(
             )
 
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
-    sim = build_mgn_simulator(mgn, kinematic_types=spec.kinematic_types, device=device)
+    sim = build_mgn_simulator(
+        mgn,
+        kinematic_types=spec.kinematic_types,
+        scripted_types=spec.scripted_types,
+        device=device,
+    )
     sim.to(device)
 
     kinematic = torch.as_tensor(
@@ -1199,7 +1237,10 @@ def _train_transolver(
 
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
     sim = build_transolver_simulator(
-        cfg, kinematic_types=spec.kinematic_types, device=device
+        cfg,
+        kinematic_types=spec.kinematic_types,
+        scripted_types=spec.scripted_types,
+        device=device,
     )
     sim.to(device)
 
@@ -1451,7 +1492,10 @@ def _train_geoflare(
 
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
     sim = build_geoflare_simulator(
-        cfg, kinematic_types=spec.kinematic_types, device=device
+        cfg,
+        kinematic_types=spec.kinematic_types,
+        scripted_types=spec.scripted_types,
+        device=device,
     )
     sim.to(device)
 
@@ -1789,17 +1833,26 @@ def evaluate(
     if family == "mgn":
         assert isinstance(model_cfg, MGNConfig)
         simulator = build_mgn_simulator(
-            model_cfg, kinematic_types=spec.kinematic_types, device=device
+            model_cfg,
+            kinematic_types=spec.kinematic_types,
+            scripted_types=spec.scripted_types,
+            device=device,
         )
     elif family == "transolver":
         assert isinstance(model_cfg, TransolverConfig)
         simulator = build_transolver_simulator(
-            model_cfg, kinematic_types=spec.kinematic_types, device=device
+            model_cfg,
+            kinematic_types=spec.kinematic_types,
+            scripted_types=spec.scripted_types,
+            device=device,
         )
     elif family == "geoflare":
         assert isinstance(model_cfg, GeoFlareConfig)
         simulator = build_geoflare_simulator(
-            model_cfg, kinematic_types=spec.kinematic_types, device=device
+            model_cfg,
+            kinematic_types=spec.kinematic_types,
+            scripted_types=spec.scripted_types,
+            device=device,
         )
     else:
         stats_path = out_dir / "normalization_stats.npz"
@@ -1849,6 +1902,9 @@ def evaluate(
         trajectory = load_case_trajectory(
             data_root / f"{case_id}.h5", aux_field=spec.aux_field
         )
+        if mesh_sim is not None and spec.mesh_transform is not None:
+            # ADR-0047: same synthesis the training load applied.
+            trajectory = spec.mesh_transform(trajectory)
         if mesh_sim is not None:
             if trajectory.cells is None or trajectory.reference_coords is None:
                 raise ValueError(
