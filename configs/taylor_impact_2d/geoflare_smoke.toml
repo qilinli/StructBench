@@ -1,0 +1,43 @@
+# NOT a baseline — CPU smoke of the Taylor GeoFLARE train->checkpoint->eval
+# path. Mirrors geoflare.toml with a shrunk capacity cell and the same
+# relaxed ball-query radii / neighbor caps as the deforming_plate smoke: the
+# tiny synthetic smoke mesh has only a handful of nodes, so the reference's
+# tight standardized-space radii would leave ball queries with too few (or
+# zero) neighbors (ADR-0045 gap 8). input_frames stays 6 — the taylor card
+# check (ADR-0035) applies to smokes too.
+
+[run]
+benchmark = "taylor_impact_2d"
+seed = 0
+
+[model]
+family = "geoflare"
+input_frames = 6
+dim = 2
+n_hidden = 16
+n_layers = 2
+n_heads = 2
+slice_num = 4
+mlp_ratio = 4
+dropout = 0.0
+n_hidden_local = 4
+radius_near = 0.5        # relaxed for tiny synthetic meshes (see header)
+radius_far = 2.0
+neighbors_near = 2
+neighbors_far = 3
+node_type_size = 3
+noise_std = 0.003
+normalizer_warmup_steps = 5
+weight_decay = 1e-4
+max_grad_norm = 0.0
+
+[train]
+batch_size = 2
+lr_init = 1e-4
+lr_decay = 0.1           # UNUSED by the geoflare family (cosine anneal, ADR-0045)
+training_steps = 50
+val_every = 25
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0

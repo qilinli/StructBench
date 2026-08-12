@@ -468,3 +468,38 @@ def test_load_run_config_requires_the_aux_knobs_explicitly(tmp_path):
     bad = VALID.replace("aux_tail_weight = 0.0\n", "")
     with pytest.raises(ConfigError, match="missing keys: aux_tail_weight"):
         load_run_config(_write(tmp_path, bad))
+
+
+def test_load_taylor_native_configs():
+    # ADR-0047: the three mesh-native provisional configs load through the
+    # strict loader and satisfy the taylor card's input_frames=6 check
+    # (ADR-0035) with the CGN-matched 100k budget.
+    for name, cls in (
+        ("mgn", MGNConfig),
+        ("transolver", TransolverConfig),
+        ("geoflare", GeoFlareConfig),
+    ):
+        rc = load_run_config(
+            REPO_ROOT / "configs" / "taylor_impact_2d" / f"{name}.toml"
+        )
+        assert rc.family == name
+        assert isinstance(rc.model, cls)
+        assert rc.model.input_frames == 6
+        assert rc.model.dim == 2
+        assert rc.model.node_type_size == 3
+        assert rc.train.training_steps == 100_000
+
+
+def test_load_taylor_native_smoke_configs():
+    for name, cls in (
+        ("mgn", MGNConfig),
+        ("transolver", TransolverConfig),
+        ("geoflare", GeoFlareConfig),
+    ):
+        rc = load_run_config(
+            REPO_ROOT / "configs" / "taylor_impact_2d" / f"{name}_smoke.toml"
+        )
+        assert rc.family == name
+        assert isinstance(rc.model, cls)
+        assert rc.model.input_frames == 6
+        assert rc.train.training_steps == 50

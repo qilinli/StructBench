@@ -350,6 +350,9 @@ class GeoFlareNet(nn.Module):
         .standardize_coords`).
     neighbors:
         ``(near, far)`` neighbour caps, paired with ``radii`` by position.
+    dim:
+        Spatial dimensionality of the geometry coordinates (3 for
+        deforming_plate, 2 for taylor; ADR-0047).
     """
 
     def __init__(
@@ -365,11 +368,19 @@ class GeoFlareNet(nn.Module):
         n_hidden_local: int = 32,
         radii: tuple[float, float] = (0.05, 0.25),
         neighbors: tuple[int, int] = (8, 32),
+        dim: int = 3,
     ) -> None:
         super().__init__()
         self.preprocess = build_mlp_2layer(node_in, n_hidden * 2, n_hidden)
         self.context_builder = MultiScaleContext(
-            n_hidden, n_heads, n_hidden_local, slice_num, radii, neighbors, dropout
+            n_hidden,
+            n_heads,
+            n_hidden_local,
+            slice_num,
+            radii,
+            neighbors,
+            dropout,
+            dim=dim,
         )
         # Effective block-stack width: n_hidden (preprocess output) plus
         # one n_hidden_local-wide local feature per scale (2 fixed scales).

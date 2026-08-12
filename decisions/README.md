@@ -95,6 +95,7 @@ What becomes easier, harder, or constrained as a result.
 | 0044 | Transolver provisional adaptation: native Physics-Attention on the DeformingPlate rollout | Durable | Accepted |
 | 0045 | GeoFLARE provisional adaptation: native GALE_FA (GeoTransolver + FLARE) on the DeformingPlate rollout | Durable | Accepted |
 | 0046 | Provisional results and the method-comparison table (closes ADR-0041 clause 4) | Durable | Accepted |
+| 0047 | Taylor 2D multi-method extension: native MGN/Transolver/GeoFLARE on the SPH benchmark | Durable | Accepted |
 
 ---
 

@@ -246,3 +246,15 @@ def test_multi_scale_context_standardizes_coords_internally() -> None:
         c1, l1 = ctx(scaled)
     assert torch.allclose(c0, c1, atol=1e-4)
     assert torch.allclose(l0, l1, atol=1e-4)
+
+
+def test_geometric_feature_processor_supports_2d():
+    # ADR-0047: the local-geometry MLP width is dim*k, not a hardcoded 3*k.
+    import torch
+
+    from structbench.models.geoflare.context import GeometricFeatureProcessor
+
+    proc = GeometricFeatureProcessor(radius=1.0, k=3, n_hidden_local=8, dim=2)
+    out = proc(torch.randn(11, 2))
+    assert out.shape == (11, 8)
+    assert out.abs().max() <= 1.0

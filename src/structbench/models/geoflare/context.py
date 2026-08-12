@@ -128,7 +128,7 @@ class GeometricFeatureProcessor(nn.Module):
     """PhysicsNeMo's single-scale ``MultiScaleFeatureExtractor`` branch.
 
     Ball-queries up to ``k`` neighbours within ``radius`` around every
-    point, flattens the ``(N, k, 3)`` result to ``(N, 3*k)``, and passes it
+    point, flattens the ``(N, k, dim)`` result to ``(N, dim*k)``, and passes it
     through a 3-linear MLP with ``tanh`` applied to the FINAL output --
     OUTSIDE the linear/GELU stack, not as the stack's own last layer --
     bounding every output channel to ``(-1, 1)``.
@@ -141,17 +141,22 @@ class GeometricFeatureProcessor(nn.Module):
         Neighbour cap of the ball query.
     n_hidden_local:
         Output width, and the MLP's first hidden width; the second hidden
-        width is ``n_hidden_local // 2`` (dims ``[3*k, n_hidden_local,
+        width is ``n_hidden_local // 2`` (dims ``[dim*k, n_hidden_local,
         n_hidden_local // 2, n_hidden_local]``, GELU between layers, none
         after the last).
+    dim:
+        Spatial dimensionality of the coordinates (3 for deforming_plate,
+        2 for taylor; ADR-0047).
     """
 
-    def __init__(self, radius: float, k: int, n_hidden_local: int = 32) -> None:
+    def __init__(
+        self, radius: float, k: int, n_hidden_local: int = 32, dim: int = 3
+    ) -> None:
         super().__init__()
         self.radius = radius
         self.k = k
         self.mlp = nn.Sequential(
-            nn.Linear(3 * k, n_hidden_local),
+            nn.Linear(dim * k, n_hidden_local),
             nn.GELU(),
             nn.Linear(n_hidden_local, n_hidden_local // 2),
             nn.GELU(),
@@ -164,7 +169,7 @@ class GeometricFeatureProcessor(nn.Module):
         Parameters
         ----------
         g_std:
-            ``(N, 3)`` per-example STANDARDIZED coordinates (see
+            ``(N, dim)`` per-example STANDARDIZED coordinates (see
             :func:`structbench.models.geoflare.geo_ops.standardize_coords`).
 
         Returns
@@ -173,8 +178,8 @@ class GeometricFeatureProcessor(nn.Module):
             ``(N, n_hidden_local)`` features, every element in ``(-1, 1)``.
         """
         n = g_std.shape[0]
-        neighbors = ball_query(g_std, self.radius, self.k)  # (N, k, 3)
-        flat = neighbors.reshape(n, -1)  # (N, 3k)
+        neighbors = ball_query(g_std, self.radius, self.k)  # (N, k, dim)
+        flat = neighbors.reshape(n, -1)  # (N, dim*k)
         return torch.tanh(self.mlp(flat))
 
 
@@ -207,6 +212,10 @@ class MultiScaleContext(nn.Module):
     dropout:
         Accepted for constructor-signature parity; unused (see
         :class:`ContextTokenizer`).
+    dim:
+        Spatial dimensionality of the standardized coordinates the
+        geometry tokenizer and the per-scale processors consume (3 for
+        deforming_plate, 2 for taylor; ADR-0047).
     """
 
     def __init__(
@@ -218,15 +227,16 @@ class MultiScaleContext(nn.Module):
         radii: tuple[float, float],
         neighbors: tuple[int, int],
         dropout: float = 0.0,
+        dim: int = 3,
     ) -> None:
         super().__init__()
         self.dim_head_ctx = n_hidden // n_heads
         self.geometry_tokenizer = ContextTokenizer(
-            3, n_heads, self.dim_head_ctx, slice_num
+            dim, n_heads, self.dim_head_ctx, slice_num
         )
         self.processors = nn.ModuleList(
             [
-                GeometricFeatureProcessor(r, k, n_hidden_local)
+                GeometricFeatureProcessor(r, k, n_hidden_local, dim=dim)
                 for r, k in zip(radii, neighbors, strict=True)
             ]
         )

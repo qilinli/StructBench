@@ -11,7 +11,11 @@ from .benchmark import (
     TEST_INTERP,
     TRAIN,
     VAL,
+    WALL_NODE_SPACING_MM,
+    WALL_NODE_TYPE,
+    WALL_SPAN_MM,
     WALL_X_MM,
+    native_mesh_transform,
     wall_distance_feature,
 )
 from .card import CARD
@@ -81,6 +85,9 @@ SPEC = BenchmarkSpec(
     qois=dict(QOIS),
     boundary_feature_fn=wall_distance_feature,
     dataset_id="2D-Copper-Bar-Taylor-Impact",
+    kinematic_types=(WALL_NODE_TYPE,),
+    mesh_transform=native_mesh_transform,
+    scripted_types=(WALL_NODE_TYPE,),
 )
 
 __all__ = [
@@ -92,7 +99,11 @@ __all__ = [
     "ALL_BENCHMARK_CASES",
     "AUX_FIELD",
     "QOIS",
+    "WALL_NODE_SPACING_MM",
+    "WALL_NODE_TYPE",
+    "WALL_SPAN_MM",
     "WALL_X_MM",
+    "native_mesh_transform",
     "wall_distance_feature",
     "CARD",
     "SPEC",
