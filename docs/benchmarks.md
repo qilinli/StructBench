@@ -47,7 +47,7 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under const
 
 ## NotchBeam2D-Impact (v0.1)
 
-Autoregressive next-step surrogate of a 2D SPH notched concrete beam under drop-weight impact (ADR-0026). Covers 3 spans, 3 impactor shapes, 3 notch positions, and 4 velocities.
+Autoregressive next-step surrogate of a 2D SPH notched concrete beam under drop-weight impact (ADR-0026). Covers 3 spans, 3 impactor shapes, 3 notch positions, and 4 velocities. Three bodies: the K&C concrete beam (part 1) is the predicted deformable; the steel impactor (part 2) and the two support blocks (part 3) are protocol-kinematic (ADR-0026) — driven by ground truth during rollout (both move: the impactor decelerates from its case velocity to ~10-20% on contact, the supports displace a few mm), excluded from the training loss and from position/strain metrics, with both QoIs restricted to concrete particles.
 
 - **Task**: autoregressive transition (ADR-0026)
 - **Materials**: *MAT_CONCRETE_DAMAGE_REL3 (K&C; density 2.4e-6 kg/mm3), *MAT_PLASTIC_KINEMATIC
