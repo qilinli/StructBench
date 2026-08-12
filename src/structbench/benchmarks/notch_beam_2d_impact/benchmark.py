@@ -7,6 +7,8 @@ by hand — changes require a new seed and a new ADR version.
 
 from __future__ import annotations
 
+from ...datasets.canonical import CaseTrajectory
+from ...datasets.sph_mesh import synthesize_lattice_mesh
 from ...eval import QoiFn, cracked_fraction, midspan_deflection_peak
 
 # Part-id roles from Task 7 ingestion (authoritative).
@@ -23,6 +25,23 @@ PROBE: list[str] = [
 #: Auxiliary per-particle target: max principal strain — the crack-pattern field
 #: (ADR-0029; supersedes ADR-0026's damage choice).
 AUX_FIELD = "max_principal_strain"
+
+
+def native_mesh_transform(trajectory: CaseTrajectory) -> CaseTrajectory:
+    """Beam-only lattice mesh for the mesh-native families (ADR-0048).
+
+    Recovers the beam's 2.5 mm generation lattice as a triangle mesh,
+    tolerating the notch's vacant sites (quads stair-step around them;
+    verified recoverable on all 110 cases, 2026-08-12). The pin and the
+    supports stay unmeshed: both are kinematic
+    (:data:`PIN_TYPE`/:data:`SUPPORT_TYPE`) and scripted, so they interact
+    with the beam through world edges exactly as DeformingPlate's OBSTACLE
+    nodes — the pin with its real ground-truth motion, the supports at rest.
+    No nodes are appended, so the particle set (and therefore every QoI)
+    is identical to the cgn path's.
+    """
+    return synthesize_lattice_mesh(trajectory, part=CONCRETE_TYPE, allow_missing=True)
+
 
 # ---------------------------------------------------------------------------
 # Frozen ADR-0026 split — seed 26

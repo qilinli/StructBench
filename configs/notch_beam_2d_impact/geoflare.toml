@@ -1,0 +1,47 @@
+# Notch-impact — GeoFLARE PROVISIONAL config (ADR-0048; family recipe ADR-0045).
+# Runs on the ADR-0048 beam-only synthesized lattice mesh (pin + supports
+# unmeshed, kinematic AND scripted); no published number for this task —
+# provisional, no numeric gate. Budget matched to the blessed CGN h250c recipe
+# (250k steps, train_frames=250, ADR-0039); input_frames = 6 per the card.
+# Ball radii stay in per-example standardized space (scale-free, ADR-0045).
+# DECLARED DEVIATIONS from h250c: no aux_transform/aux_tail_weight (raw-space
+# aux, plain MSE), family-native batch 2 / noise 0.003 — ledger.
+# Not yet run.
+
+[run]
+benchmark = "notch_beam_2d_impact"
+seed = 1
+
+[model]
+family = "geoflare"
+input_frames = 6                # notch card protocol (ADR-0035); see header
+dim = 2
+n_hidden = 256                  # ADR-0045 family reference
+n_layers = 6
+n_heads = 8
+slice_num = 128
+mlp_ratio = 4
+dropout = 0.0
+n_hidden_local = 32
+radius_near = 0.05              # standardized-coordinate units (ADR-0045 gap 8)
+radius_far = 0.25
+neighbors_near = 8
+neighbors_far = 32
+node_type_size = 4              # raw ids: 1 = beam, 2 = pin, 3 = supports (max id + 1)
+noise_std = 0.003               # DP family-reference value; CGN notch (h250c) uses
+                                # 0.01 — declared deviation, ledger.
+normalizer_warmup_steps = 1000
+weight_decay = 1e-4             # reference AdamW-arm value (ADR-0045)
+max_grad_norm = 0.0             # OFF — reference example has no gradient clipping
+
+[train]
+batch_size = 2                  # family reference (ADR-0045, matched to MGN)
+lr_init = 1e-4                  # reference crash-example start_lr (ADR-0045)
+lr_decay = 0.1                  # UNUSED by the geoflare family (cosine anneal,
+                                # ADR-0045); present because [train] is family-uniform.
+training_steps = 250_000        # h250c-matched budget (ADR-0048), not DP's 10M
+val_every = 2000                # h250c cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 250      # ADR-0039 §4 recipe: train only the scored window

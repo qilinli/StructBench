@@ -137,3 +137,55 @@ def test_append_wall_nodes_requires_mesh():
             spacing=0.5,
             node_type=2,
         )
+
+
+def _two_part_traj(nx=6, ny=4, T=4, spacing=0.5, notch=((2, 0), (3, 0))):
+    """Beam lattice (type 1) with vacant notch sites + an off-lattice pin (2)."""
+    xs, ys = np.meshgrid(
+        np.arange(nx) * spacing, np.arange(ny) * spacing, indexing="xy"
+    )
+    p0 = np.stack([xs.ravel(), ys.ravel()], axis=1).astype(np.float32)
+    keep = np.ones(len(p0), bool)
+    for cx, cy in notch:
+        keep[cy * nx + cx] = False
+    beam = p0[keep]
+    pin = np.array([[1.13, 3.7], [1.63, 3.9]], dtype=np.float32)
+    p0 = np.concatenate([beam, pin])
+    ptype = np.concatenate(
+        [np.ones(len(beam), np.int64), np.full(len(pin), 2, np.int64)]
+    )
+    pos = np.repeat(p0[None], T, axis=0).copy()
+    pos[1:] += 0.05
+    aux = np.zeros((T, len(p0)), dtype=np.float32)
+    return CaseTrajectory("notchy", pos, ptype, aux, np.arange(T, dtype=np.float64))
+
+
+def test_partial_lattice_skips_vacant_quads():
+    # ADR-0048: quads touching a vacant (notch) site contribute no triangles.
+    traj = _two_part_traj()
+    out = synthesize_lattice_mesh(traj, part=1, allow_missing=True)
+    n_beam = int((traj.particle_type == 1).sum())
+    # Cells reference beam rows only; reference_coords covers ALL particles.
+    assert out.cells.max() < n_beam
+    assert out.reference_coords.shape == (traj.positions.shape[1], 2)
+    # 6x4 lattice has 5x3=15 quads; the two vacant sites at (2,0),(3,0) kill
+    # quads with x-index {1,2,3} in the bottom row -> 12 remain -> 24 tris.
+    assert out.cells.shape == (24, 3)
+    # Vacant sites are truly unreferenced.
+    for cx, cy in ((2, 0), (3, 0)):
+        vac = np.array([cx * 0.5, cy * 0.5], dtype=np.float32)
+        assert not np.any(
+            np.all(np.isclose(out.reference_coords[out.cells.ravel()], vac), axis=1)
+        )
+
+
+def test_partial_lattice_strict_mode_still_rejects():
+    traj = _two_part_traj()
+    with pytest.raises(ValueError, match="lattice"):
+        synthesize_lattice_mesh(traj, part=1)  # allow_missing=False
+
+
+def test_part_restriction_requires_particles():
+    traj = _lattice_traj()
+    with pytest.raises(ValueError, match="no particles of type"):
+        synthesize_lattice_mesh(traj, part=7, allow_missing=True)
