@@ -1,6 +1,6 @@
 # 0038 — Auxiliary-channel training knobs: target-space transform and tail weight
 
-**Status**: Draft (agent-proposed; human finalises)
+**Status**: Accepted (maintainer, in-session 2026-08-12)
 **Type**: Durable
 **Date**: 2026-07-15
 

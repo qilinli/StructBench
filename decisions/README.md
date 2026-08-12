@@ -86,7 +86,7 @@ What becomes easier, harder, or constrained as a result.
 | 0035 | The model input window is the rollout init; no history backfill (amends 0019, 0032) | Durable | Accepted |
 | 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted (extended by 0046) |
 | 0037 | Blessed runs archive: `models/` mirror and registry checkpoint pointers (amends 0031, 0033) | Durable | Accepted |
-| 0038 | Auxiliary-channel training knobs: target-space transform and tail weight | Durable | Draft |
+| 0038 | Auxiliary-channel training knobs: target-space transform and tail weight | Durable | Accepted |
 | 0039 | Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe | Durable | Accepted |
 | 0040 | Dataset hosting: maintainer's OneDrive stays the master; archives shared on request | Ephemeral | Accepted |
 | 0041 | v0.3 pivots to a public multi-method benchmark: DeformingPlate with native MGN/Transolver/GeoFLARE (supersedes ADR-0024's v0.3 scope) | Durable | Accepted (amends 0034; corrected in place 2026-08-07 re schema, see 0042) |
