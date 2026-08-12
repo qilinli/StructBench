@@ -36,9 +36,11 @@ def native_mesh_transform(trajectory: CaseTrajectory) -> CaseTrajectory:
     supports stay unmeshed: both are kinematic
     (:data:`PIN_TYPE`/:data:`SUPPORT_TYPE`) and scripted, so they interact
     with the beam through world edges exactly as DeformingPlate's OBSTACLE
-    nodes — the pin with its real ground-truth motion, the supports at rest.
-    No nodes are appended, so the particle set (and therefore every QoI)
-    is identical to the cgn path's.
+    nodes. Both move in the data — the rigid-material pin decelerates on
+    contact and the constrained supports displace a few mm — and both are
+    played back from ground truth per the ADR-0026 kinematic protocol
+    (shared with the cgn rollout). No nodes are appended, so the particle
+    set (and therefore every QoI) is identical to the cgn path's.
     """
     return synthesize_lattice_mesh(trajectory, part=CONCRETE_TYPE, allow_missing=True)
 

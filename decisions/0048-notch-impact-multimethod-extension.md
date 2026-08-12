@@ -18,11 +18,15 @@ differs from Taylor in three ways that the ADR-0047 machinery must absorb:
    generation lattice at ~99.8% occupancy — the notch removes sites.
    ADR-0047's synthesizer requires a complete lattice and rejects it.
 2. **The boundary bodies are particles, not an analytic plane.** The pin
-   (part 2, bullet or sphere shaped) and the two support blocks (part 3)
-   are SPH particles already present in every case, already declared
-   kinematic (ADR-0026). Nothing needs to be injected — but the pin *moves*,
-   so its scripted ground-truth velocity input is, for the first time, a
-   real motion signal rather than the zero of Taylor's wall.
+   (part 2, bullet or sphere shaped, rigid-material) and the two support
+   blocks (part 3, constrained) are SPH particles already present in every
+   case, already declared kinematic (ADR-0026); the beam (part 1) is the
+   concrete. Nothing needs to be injected — but unlike Taylor's static
+   wall, BOTH bodies move in the data (maintainer clarification + measured
+   2026-08-12): the pin's trajectory is *dynamic* — rigid in deformation but
+   decelerating on contact (−120 → ≈−15 m/s over the window), so its motion
+   is response-coupled, not exogenous — and the supports, though
+   constrained, displace up to ≈3–6.6 mm.
 3. **The blessed recipe carries aux-channel knobs the native families lack**:
    h250c trains max principal strain in asinh space with tail weight 3
    (ADR-0038); the native families have no such knobs.
@@ -60,10 +64,19 @@ initial pin–beam gap 2.5–2.7 mm; case sizes 4 264–8 360 particles across t
 3. **Pin and supports stay unmeshed, kinematic and scripted.** The spec
    gains `mesh_transform` and `scripted_types = (PIN_TYPE, SUPPORT_TYPE)`
    (= its existing `kinematic_types`). Both bodies interact with the beam
-   through world edges exactly as DeformingPlate's OBSTACLE nodes: the pin
-   feeds its real ground-truth next-step velocity as an input feature, the
-   supports feed zeros. The cgn path is untouched (it never applies the
-   transform, and its kinematic handling is unchanged).
+   through world edges exactly as DeformingPlate's OBSTACLE nodes, and both
+   feed their real ground-truth next-step velocity as the scripted input —
+   real motion for each (clause 2 of the Context). Two properties are
+   declared rather than redesigned: (a) playing back GT motion for a
+   *dynamic* pin injects response-coupled information into the rollout —
+   this is the established ADR-0026 kinematic protocol, identical for the
+   cgn baseline, so the cross-family comparison is like-for-like; (b) the
+   DP scripted-velocity recipe feeds the *next-step* GT velocity, giving
+   the native families a one-frame look-ahead of pin/support motion that
+   the cgn input schema (current-state history) does not have —
+   family-faithful to ADR-0043, noted in the registry entries. The cgn
+   path is untouched (it never applies the transform, and its kinematic
+   handling is unchanged).
 
 4. **`input_frames = 6`, h = 0 preserved** — identical to ADR-0047 clause 4.
 
@@ -90,7 +103,13 @@ initial pin–beam gap 2.5–2.7 mm; case sizes 4 264–8 360 particles across t
   ~78%-occupancy disc (not lattice-complete in a meaningful sense), the
   supports are two disconnected blocks, and DP's obstacle mechanism —
   unmeshed kinematic nodes through world edges — is the reference-faithful
-  treatment of rigid bodies anyway.
+  treatment of ground-truth-driven bodies anyway.
+- **Treating the pin as a free dynamic body (predicted, not scripted)** —
+  rejected for this ADR: physically truer (its deceleration is
+  response-coupled) but a *protocol* change to ADR-0026's kinematic
+  declaration, which would break comparability with the blessed cgn
+  baseline; open to a future benchmark-version ADR if the look-ahead
+  concern proves material.
 - **Porting asinh/tail-weight into the native families** — deferred, not
   taken: it adds ADR-0038's knobs to three architectures for a provisional
   comparison; if the natives' raw-space `cracked_fraction` numbers are

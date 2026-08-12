@@ -16,8 +16,9 @@ def test_spec_declares_native_wiring():
     spec = get_benchmark("notch_beam_2d_impact")
     assert spec.mesh_transform is native_mesh_transform
     assert spec.kinematic_types == (PIN_TYPE, SUPPORT_TYPE)
-    # Pin AND supports are scripted: the pin's GT velocity input is its real
-    # motion (the DP OBSTACLE analog), the supports' is identically zero.
+    # Pin AND supports are scripted (the DP OBSTACLE analog): both move in
+    # the data (dynamic rigid pin; constrained-but-displacing supports), and
+    # both feed their real GT next-step velocity as the scripted input.
     assert spec.scripted_types == (PIN_TYPE, SUPPORT_TYPE)
 
 
