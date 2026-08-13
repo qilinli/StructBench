@@ -98,6 +98,7 @@ What becomes easier, harder, or constrained as a result.
 | 0047 | Taylor 2D multi-method extension: native MGN/Transolver/GeoFLARE on the SPH benchmark | Durable | Accepted |
 | 0048 | Notch-impact multi-method extension: native MGN/Transolver/GeoFLARE on the notched-beam SPH benchmark | Durable | Accepted |
 | 0049 | Taylor native recipe repair: noise rescale, velocity history, MGN stretch gate | Durable | Accepted |
+| 0050 | Prediction-scheme axis: unified k-frames-per-call (autoregressive ↔ bundled ↔ one-shot) | Durable | Proposed (backlog) |
 
 ---
 
