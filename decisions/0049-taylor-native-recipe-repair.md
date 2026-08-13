@@ -101,6 +101,29 @@ A same-day diagnosis session established three mechanisms, two measured:
    `hpc/dug/train_taylor_adr0049.slurm` parameterizes submission by arm
    config; scheduling is maintainer compute (flag-first).
 
+   **Attention-family tuning round (maintainer-requested, 2026-08-13):**
+   four further arms extend the ladder above the `n02-vh` base, each a
+   single evidence-motivated knob (or matched pair):
+
+   - `transolver-n02-vh-big` — hidden 128→256, slice_num 64→128 (~0.72M →
+     ~2.9M params). Transolver's interp deficit concentrates on the
+     8000-particle 100 mm bars (2.88/2.98 mm, its two worst cases) while
+     128-slice GeoFLARE is best-in-class there (0.67–0.89 mm): a
+     slice/width bottleneck test.
+   - `transolver-n02-vh-250k`, `geoflare-n02-vh-250k` — 2.5× budget; both
+     ADR-0047 runs selected checkpoints at 70k/78k of 100k (unsaturated),
+     and the notch 200k→250k extension cut test rollout RMSE 21%
+     (ADR-0039). The cosine anneal stretches with `training_steps`.
+   - `geoflare-n02-vh-rad2x` — ball radii ×2 (standardized coords).
+     GeoFLARE's one interp blowup is the SHORTEST bar (T-20-60-130,
+     2.81 mm), where per-example standardization maps the DP-inherited
+     radii to the smallest physical neighbourhood in the dataset.
+
+   Tuning arms stack on `n02-vh` before that base is validated — a
+   deliberate wall-clock trade the ladder still resolves: every tuning
+   arm differs from `n02-vh` by exactly one knob, and `n02-vh` differs
+   from `n02` by exactly one.
+
 3. **Scope.** The knobs land benchmark-agnostic (any mesh-family config may
    set them; the 18 existing family TOMLs state the reference values
    explicitly per the strict-schema rule) but only the Taylor arms above

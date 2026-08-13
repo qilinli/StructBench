@@ -1,0 +1,48 @@
+# Taylor 2D — GeoFLARE ADR-0049 tuning arm 250k: n02-vh recipe at 2.5x
+# budget. Evidence: the ADR-0047 run selected its checkpoint at 78k of
+# 100k under the cosine anneal — training not saturated. Precedent:
+# extending notch CGN 200k->250k cut test rollout position RMSE 21%
+# (ADR-0039). The cosine schedule stretches with training_steps
+# automatically.
+# Not yet run.
+
+[run]
+benchmark = "taylor_impact_2d"
+seed = 1
+
+[model]
+family = "geoflare"
+input_frames = 6                # taylor card protocol (ADR-0035); see header
+dim = 2
+n_hidden = 256                  # ADR-0045 family reference
+n_layers = 6
+n_heads = 8
+slice_num = 128
+mlp_ratio = 4
+dropout = 0.0
+n_hidden_local = 32
+radius_near = 0.05              # standardized-coordinate units (ADR-0045 gap 8)
+radius_far = 0.25
+neighbors_near = 8
+neighbors_far = 32
+node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
+noise_std = 0.02                # blessed CGN taylor value (ADR-0049 noise rescale)
+normalizer_warmup_steps = 1000
+weight_decay = 1e-4             # reference AdamW-arm value (ADR-0045)
+max_grad_norm = 0.0             # OFF — reference example has no gradient clipping
+
+velocity_history = true       # +5 window velocities; CGN random-walk window noise +
+                              # GNS adjusted-next target (de-noise velocity, not the
+                              # accumulated position offset; ADR-0049)
+
+[train]
+batch_size = 2                  # family reference (ADR-0045, matched to MGN)
+lr_init = 1e-4                  # reference crash-example start_lr (ADR-0045)
+lr_decay = 0.1                  # UNUSED by the geoflare family (cosine anneal,
+                                # ADR-0045); present because [train] is family-uniform.
+training_steps = 250_000        # 2.5x CGN-matched budget (tuning arm; see header)
+val_every = 2000                # CGN taylor cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0

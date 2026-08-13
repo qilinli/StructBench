@@ -997,12 +997,14 @@ def _train_mgn(
     live inside the checkpoint's own ``state_dict`` (ADR-0043 §8), so
     ``config.json`` plus the checkpoint(s) are the run's only artifacts.
 
-    Each step adds random-walk noise (std ``mgn.noise_std``) to the last
-    input frame's world positions of non-kinematic (NORMAL) nodes only —
-    kinematic rows are never noised, since their motion is prescribed — then
-    calls :meth:`~structbench.models.mgn.MeshSimulator.forward_train` (which
-    measures the velocity target from the *noisy* position, so γ = 1.0
-    falls out of the construction). The loss is the mean, over non-kinematic
+    Each step builds the noisy inputs and the matched target via
+    :func:`_mesh_family_noise` (reference path: single-frame Gaussian noise
+    on the current frame, MGN gamma = 1 target; ``velocity_history`` path:
+    CGN random-walk over the window with the GNS adjusted-next target —
+    ADR-0049) on non-kinematic (NORMAL) rows only — kinematic rows are
+    never noised, since their motion is prescribed — then calls
+    :meth:`~structbench.models.mgn.MeshSimulator.forward_train`.
+    The loss is the mean, over non-kinematic
     rows, of ``w_pos * ||Δv||^2 + w_aux * (Δaux)^2`` on the normalized
     (velocity, auxiliary) output. The first ``mgn.normalizer_warmup_steps``
     steps run with ``accumulate=True`` so the online normalizers (node,
@@ -1246,13 +1248,13 @@ def _train_transolver(
     gradient is clipped to global norm ``cfg.max_grad_norm`` (when positive)
     right after ``loss.backward()``.
 
-    Each step adds random-walk noise (std ``cfg.noise_std``) to the last
-    input frame's world positions of non-kinematic (NORMAL) nodes only —
-    kinematic rows are never noised, since their motion is prescribed — then
-    calls
-    :meth:`~structbench.models.transolver.TransolverSimulator.forward_train`
-    (which measures the velocity target from the *noisy* position, so
-    gamma = 1.0 falls out of the construction, matching the MGN recipe). The
+    Each step builds the noisy inputs and the matched target via
+    :func:`_mesh_family_noise` (reference path: single-frame Gaussian noise
+    on the current frame, MGN gamma = 1 target; ``velocity_history`` path:
+    CGN random-walk over the window with the GNS adjusted-next target —
+    ADR-0049) on non-kinematic (NORMAL) rows only — kinematic rows are
+    never noised, since their motion is prescribed — then calls
+    :meth:`~structbench.models.transolver.TransolverSimulator.forward_train`. The
     loss is the mean, over non-kinematic rows, of
     ``w_pos * ||Δv||^2 + w_aux * (Δaux)^2`` on the normalized (velocity,
     auxiliary) output. The first ``cfg.normalizer_warmup_steps`` steps run
@@ -1503,10 +1505,12 @@ def _train_geoflare(
     ``max_grad_norm=0.0`` keeps the clip off, matching the upstream
     reference's own optimizer recipe (no clipping applied).
 
-    Each step adds random-walk noise (std ``cfg.noise_std``) to the last
-    input frame's world positions of non-kinematic (NORMAL) nodes only —
-    kinematic rows are never noised, since their motion is prescribed —
-    then calls
+    Each step builds the noisy inputs and the matched target via
+    :func:`_mesh_family_noise` (reference path: single-frame Gaussian noise
+    on the current frame, MGN gamma = 1 target; ``velocity_history`` path:
+    CGN random-walk over the window with the GNS adjusted-next target —
+    ADR-0049) on non-kinematic (NORMAL) rows only — kinematic rows are
+    never noised, since their motion is prescribed — then calls
     :meth:`~structbench.models.geoflare.simulator.GeoFlareSimulator.forward_train`
     (its call signature matches Transolver's exactly; coordinate threading
     to the network is internal to the simulator, see that module's
