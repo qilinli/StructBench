@@ -1,10 +1,8 @@
-# Taylor 2D — MGN PROVISIONAL config (ADR-0047; family recipe ADR-0043 §8).
-# Runs on the ADR-0047 synthesized lattice mesh + wall nodes (kinematic type
-# 2); no published MGN number exists for this task — provisional, no numeric
-# gate. Budget matched to the blessed CGN taylor recipe (100k steps, ADR-0047
-# §6), NOT DP's 10M. input_frames = 6 satisfies the taylor card (ADR-0035);
-# the family reads only the window's last frame (h = 0), so the extra frames
-# affect windowing and rollout seeding only.
+# Taylor 2D — MGN ADR-0049 arm N02: noise rescaled to 0.02 (CGN taylor value),
+# nothing else changed. Control arm for the ADR-0049 MGN failure diagnosis:
+# tests whether noise under-scaling ALONE explains the ADR-0047 training
+# failure (best checkpoint at 4k/100k, rollouts disintegrate), before
+# crediting the mesh-destruction mechanism.
 # Not yet run.
 
 [run]
@@ -24,11 +22,8 @@ world_edge_radius = 1.5         # working frame (mm) = CGN taylor connectivity_r
                                 # Measured 2026-08-12: SPH smoothing radius 0.3-0.6 mm,
                                 # max wall penetration 0.389 mm — 1.5 mm sees the wall
                                 # >= 2 particle rows before contact.
-noise_std = 0.003               # DP family-reference value (ADR-0043 §8); CGN taylor
-                                # uses 0.02 — a taylor-scale noise sweep stays open
-                                # (training ledger).
+noise_std = 0.02                # blessed CGN taylor value (ADR-0049 noise rescale)
 normalizer_warmup_steps = 1000
-
 velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
 mesh_edge_max_stretch = 0.0   # stretch gate disabled — reference behaviour (ADR-0049)
 

@@ -24,6 +24,8 @@ normalizer_warmup_steps = 1000
 weight_decay = 1e-5      # AdamW, thuml reference (grounding §4.1)
 max_grad_norm = 0.1      # global-norm clip, thuml reference
 
+velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
+
 [train]
 batch_size = 2
 lr_init = 1e-3

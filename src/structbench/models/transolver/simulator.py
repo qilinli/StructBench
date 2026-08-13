@@ -14,7 +14,9 @@ graphs and no edges here: node features are
 ``node_type_size + 3 * dim`` channels (18 for the ADR-0043 recipe's
 ``node_type_size=9``, ``dim=3``), and :class:`~.network.TransolverNet` is
 called with ``n_particles_per_example`` (batched training) or ``None``
-(single bound-case eval, the inference fast path).
+(single bound-case eval, the inference fast path). A velocity-history run
+(ADR-0049, ``history_velocities > 0``) appends the window's flattened
+finite-difference velocities, adding ``history_velocities * dim`` channels.
 """
 
 from __future__ import annotations
@@ -66,6 +68,10 @@ class TransolverSimulator(CaseBoundSimulator):
         Node-type codes whose next-step ground-truth velocity is fed as a
         node input feature (a subset of ``kinematic_types`` in the ADR-0043
         recipe: OBSTACLE is scripted, HANDLE is not).
+    history_velocities:
+        Number of finite-difference window velocities appended to the node
+        features (ADR-0049); ``0`` keeps the reference Markovian-in-position
+        feature builder.
     device:
         Device the network and normalizer buffers are moved to at
         construction time.
@@ -83,6 +89,7 @@ class TransolverSimulator(CaseBoundSimulator):
         node_type_size: int = 9,
         kinematic_types: tuple[int, ...] = (1, 3),
         scripted_types: tuple[int, ...] = (1,),
+        history_velocities: int = 0,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -90,6 +97,7 @@ class TransolverSimulator(CaseBoundSimulator):
             node_type_size=node_type_size,
             kinematic_types=kinematic_types,
             scripted_types=scripted_types,
+            history_velocities=history_velocities,
             # The base only uses this to call self.to(device) before any
             # parameters of THIS subclass exist yet (see the final
             # self.to(device) below, which does the real work); str(device)
@@ -97,7 +105,7 @@ class TransolverSimulator(CaseBoundSimulator):
             # this subclass's wider str | torch.device parameter.
             device=str(device),
         )
-        node_in = node_type_size + 3 * dim
+        node_in = node_type_size + 3 * dim + history_velocities * dim
 
         self._net = TransolverNet(
             node_in=node_in,
@@ -120,6 +128,7 @@ class TransolverSimulator(CaseBoundSimulator):
         scripted_velocity: Tensor,
         x_t: Tensor,
         reference_coords: Tensor,
+        velocity_history: Tensor | None = None,
     ) -> Tensor:
         """Build the raw (pre-normalization) node feature tensor.
 
@@ -142,14 +151,28 @@ class TransolverSimulator(CaseBoundSimulator):
             ``(P, dim)`` current world positions (working-frame units).
         reference_coords:
             ``(P, dim)`` mesh-space (rest/reference) coordinates.
+        velocity_history:
+            ``(P, history_velocities * dim)`` flattened window velocities
+            (ADR-0049); required exactly when the simulator was built with
+            ``history_velocities > 0``, ``None`` otherwise.
 
         Returns
         -------
         Tensor
-            ``(P, node_type_size + 3 * dim)`` raw node features:
-            ``cat([one_hot, scripted_velocity, x_t, reference_coords], -1)``.
+            ``(P, node_type_size + (3 + history_velocities) * dim)`` raw
+            node features: ``cat([one_hot, scripted_velocity, x_t,
+            reference_coords, velocity_history?], -1)``.
         """
-        return torch.cat([one_hot, scripted_velocity, x_t, reference_coords], dim=-1)
+        parts = [one_hot, scripted_velocity, x_t, reference_coords]
+        if self._history_velocities > 0:
+            if velocity_history is None:
+                raise ValueError(
+                    "simulator was built with history_velocities="
+                    f"{self._history_velocities} but no velocity_history "
+                    "feature was supplied"
+                )
+            parts.append(velocity_history)
+        return torch.cat(parts, dim=-1)
 
     def predict_positions(
         self,
@@ -215,9 +238,18 @@ class TransolverSimulator(CaseBoundSimulator):
 
         self._advance_pointer(x_t, n_frames)
         scripted_velocity = self._eval_scripted_velocity(x_t)
+        velocity_history = (
+            self._window_velocity_history(current_positions)
+            if self._history_velocities > 0
+            else None
+        )
 
         node_feats_raw = self._features(
-            node_type_onehot, scripted_velocity, x_t, reference_coords
+            node_type_onehot,
+            scripted_velocity,
+            x_t,
+            reference_coords,
+            velocity_history,
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=False)
 
@@ -242,6 +274,7 @@ class TransolverSimulator(CaseBoundSimulator):
         n_particles_per_example: Tensor,
         *,
         accumulate: bool,
+        velocity_history: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
         """One training forward pass: normalized network output and target.
 
@@ -268,6 +301,11 @@ class TransolverSimulator(CaseBoundSimulator):
         accumulate:
             If ``True``, this call's features are folded into both
             ``OnlineNormalizer`` running statistics (node and target).
+        velocity_history:
+            ``(P, history_velocities * dim)`` flattened window velocities
+            computed by the caller from the NOISY position window
+            (ADR-0049); required exactly when the simulator was built with
+            ``history_velocities > 0``.
 
         Returns
         -------
@@ -302,7 +340,7 @@ class TransolverSimulator(CaseBoundSimulator):
         )
 
         node_feats_raw = self._features(
-            one_hot, scripted_velocity, x_last, reference_coords
+            one_hot, scripted_velocity, x_last, reference_coords, velocity_history
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
 

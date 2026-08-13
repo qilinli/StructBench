@@ -60,6 +60,15 @@ class MeshSimulator(CaseBoundSimulator):
         Radius (working-frame units) for :func:`~.mesh_ops.world_edges`,
         recomputed from the current positions on every call. See the module
         docstring's units note (measured-SI confirmed).
+    history_velocities:
+        Number of finite-difference window velocities appended to the node
+        features (ADR-0049); ``0`` keeps the reference feature builder.
+    mesh_edge_max_stretch:
+        Drop mesh-edge messages whose current length exceeds this multiple
+        of their rest length (ADR-0049); dropped (torn) pairs regain
+        world-edge eligibility. ``0.0`` disables the gate (the reference
+        behaviour). Applied identically in training and rollout, inside
+        :meth:`_graph_features`.
     device:
         Device the network and normalizer buffers are moved to at
         construction time.
@@ -75,6 +84,8 @@ class MeshSimulator(CaseBoundSimulator):
         kinematic_types: tuple[int, ...] = (1, 3),
         scripted_types: tuple[int, ...] = (1,),
         world_edge_radius: float = 30.0,
+        history_velocities: int = 0,
+        mesh_edge_max_stretch: float = 0.0,
         device: str = "cpu",
     ) -> None:
         super().__init__(
@@ -82,12 +93,15 @@ class MeshSimulator(CaseBoundSimulator):
             node_type_size=node_type_size,
             kinematic_types=kinematic_types,
             scripted_types=scripted_types,
+            history_velocities=history_velocities,
             device=device,
         )
         self._world_edge_radius = world_edge_radius
+        self._mesh_edge_max_stretch = mesh_edge_max_stretch
 
+        node_in = node_type_size + dim + history_velocities * dim
         self._net = MGNet(
-            node_in=node_type_size + dim,
+            node_in=node_in,
             mesh_edge_in=2 * dim + 2,
             world_edge_in=dim + 1,
             out_size=dim + 1,
@@ -95,7 +109,7 @@ class MeshSimulator(CaseBoundSimulator):
             mp_steps=mp_steps,
             n_hidden=n_hidden,
         )
-        self._node_normalizer = OnlineNormalizer(node_type_size + dim)
+        self._node_normalizer = OnlineNormalizer(node_in)
         self._mesh_edge_normalizer = OnlineNormalizer(2 * dim + 2)
         self._world_edge_normalizer = OnlineNormalizer(dim + 1)
         self._target_normalizer = OnlineNormalizer(dim + 1)
@@ -184,6 +198,11 @@ class MeshSimulator(CaseBoundSimulator):
 
         self._advance_pointer(x_t, n_frames)
         scripted_velocity = self._eval_scripted_velocity(x_t)
+        velocity_history = (
+            self._window_velocity_history(current_positions)
+            if self._history_velocities > 0
+            else None
+        )
 
         (
             node_feats,
@@ -199,6 +218,7 @@ class MeshSimulator(CaseBoundSimulator):
             reference_coords,
             None,
             accumulate=False,
+            velocity_history=velocity_history,
         )
 
         out = self._net(
@@ -228,6 +248,7 @@ class MeshSimulator(CaseBoundSimulator):
         n_particles_per_example: Tensor | None,
         *,
         accumulate: bool,
+        velocity_history: Tensor | None = None,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
         """Build the five normalized network inputs shared by train and eval.
 
@@ -254,6 +275,10 @@ class MeshSimulator(CaseBoundSimulator):
             Forwarded to all four ``OnlineNormalizer`` calls made here (node,
             mesh-edge, world-edge); the caller's target normalizer is a
             separate call outside this method.
+        velocity_history:
+            ``(P, history_velocities * dim)`` flattened window velocities
+            (ADR-0049); required exactly when the simulator was built with
+            ``history_velocities > 0``, ``None`` otherwise.
 
         Returns
         -------
@@ -295,7 +320,16 @@ class MeshSimulator(CaseBoundSimulator):
         single-example fast path used by inference (single example, so the
         cross-boundary check above does not apply).
         """
-        node_feats_raw = torch.cat([one_hot, scripted_velocity], dim=-1)
+        node_parts = [one_hot, scripted_velocity]
+        if self._history_velocities > 0:
+            if velocity_history is None:
+                raise ValueError(
+                    "simulator was built with history_velocities="
+                    f"{self._history_velocities} but no velocity_history "
+                    "feature was supplied"
+                )
+            node_parts.append(velocity_history)
+        node_feats_raw = torch.cat(node_parts, dim=-1)
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
 
         sender, receiver = mesh_edge_index[0], mesh_edge_index[1]
@@ -303,6 +337,18 @@ class MeshSimulator(CaseBoundSimulator):
         u_norm = torch.linalg.norm(u_ij, dim=-1, keepdim=True)
         x_ij = x_last[sender] - x_last[receiver]
         x_norm = torch.linalg.norm(x_ij, dim=-1, keepdim=True)
+
+        # Stretch gate (ADR-0049): a mesh edge stretched past the threshold
+        # is torn — its message is dropped and, because the world-edge query
+        # below excludes only the GATED index, the pair regains world-edge
+        # eligibility if it comes back within the radius.
+        if self._mesh_edge_max_stretch > 0:
+            keep = (x_norm <= self._mesh_edge_max_stretch * u_norm).squeeze(-1)
+            mesh_edge_index = mesh_edge_index[:, keep]
+            sender, receiver = mesh_edge_index[0], mesh_edge_index[1]
+            u_ij, u_norm = u_ij[keep], u_norm[keep]
+            x_ij, x_norm = x_ij[keep], x_norm[keep]
+
         mesh_edge_feats_raw = torch.cat([u_ij, u_norm, x_ij, x_norm], dim=-1)
         mesh_edge_feats = self._mesh_edge_normalizer(
             mesh_edge_feats_raw, accumulate=accumulate
@@ -370,6 +416,7 @@ class MeshSimulator(CaseBoundSimulator):
         n_particles_per_example: Tensor,
         *,
         accumulate: bool,
+        velocity_history: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
         """One training forward pass: normalized network output and target.
 
@@ -397,6 +444,11 @@ class MeshSimulator(CaseBoundSimulator):
             If ``True``, this call's features are folded into all four
             ``OnlineNormalizer`` running statistics (node, mesh-edge,
             world-edge -- via :meth:`_graph_features` -- and target, here).
+        velocity_history:
+            ``(P, history_velocities * dim)`` flattened window velocities
+            computed by the caller from the NOISY position window
+            (ADR-0049); required exactly when the simulator was built with
+            ``history_velocities > 0``.
 
         Returns
         -------
@@ -444,6 +496,7 @@ class MeshSimulator(CaseBoundSimulator):
             reference_coords,
             n_particles_per_example,
             accumulate=accumulate,
+            velocity_history=velocity_history,
         )
 
         pred_norm = self._net(

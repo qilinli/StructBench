@@ -1,10 +1,10 @@
-# Taylor 2D — MGN PROVISIONAL config (ADR-0047; family recipe ADR-0043 §8).
-# Runs on the ADR-0047 synthesized lattice mesh + wall nodes (kinematic type
-# 2); no published MGN number exists for this task — provisional, no numeric
-# gate. Budget matched to the blessed CGN taylor recipe (100k steps, ADR-0047
-# §6), NOT DP's 10M. input_frames = 6 satisfies the taylor card (ADR-0035);
-# the family reads only the window's last frame (h = 0), so the extra frames
-# affect windowing and rollout seeding only.
+# Taylor 2D — MGN ADR-0049 arm N02+VH+SG2, the full repair: noise 0.02,
+# velocity-history features, and the mesh-edge stretch gate at 2.0x rest
+# length. Measured on T-20-80-150 GT: p99 edge stretch 5.8x, max 31x by
+# 300 us (10% of edges past 2x) — the synthesized lattice tears apart in the
+# mushroom foot, and MGN is the only family whose messages consume it.
+# Gated (torn) pairs regain world-edge eligibility. Threshold 2.0 clears
+# every physically coherent edge (notch-impact max stretch: 1.46x).
 # Not yet run.
 
 [run]
@@ -24,13 +24,10 @@ world_edge_radius = 1.5         # working frame (mm) = CGN taylor connectivity_r
                                 # Measured 2026-08-12: SPH smoothing radius 0.3-0.6 mm,
                                 # max wall penetration 0.389 mm — 1.5 mm sees the wall
                                 # >= 2 particle rows before contact.
-noise_std = 0.003               # DP family-reference value (ADR-0043 §8); CGN taylor
-                                # uses 0.02 — a taylor-scale noise sweep stays open
-                                # (training ledger).
+noise_std = 0.02                # blessed CGN taylor value (ADR-0049 noise rescale)
 normalizer_warmup_steps = 1000
-
-velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
-mesh_edge_max_stretch = 0.0   # stretch gate disabled — reference behaviour (ADR-0049)
+velocity_history = true       # +5 window velocities; CGN random-walk window noise (ADR-0049)
+mesh_edge_max_stretch = 2.0   # tear edges past 2x rest length (ADR-0049; measured p99 5.8x)
 
 [train]
 batch_size = 2                  # ADR-0043 §8 family reference

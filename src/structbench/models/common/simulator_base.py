@@ -103,6 +103,12 @@ class CaseBoundSimulator(nn.Module):
         Node-type codes whose next-step ground-truth velocity is fed as a
         node input feature (a subset of ``kinematic_types`` in the ADR-0043
         recipe: OBSTACLE is scripted, HANDLE is not).
+    history_velocities:
+        Number of finite-difference window velocities appended to the node
+        features (ADR-0049). ``0`` (the reference recipe) keeps the feature
+        builder Markovian in position; a velocity-history run sets it to
+        ``input_frames - 1``, and :meth:`_window_velocity_history` builds
+        the feature from the rollout window.
     device:
         Device the module is moved to at construction time. A subclass that
         registers parameters/buffers after calling ``super().__init__()``
@@ -115,6 +121,7 @@ class CaseBoundSimulator(nn.Module):
         node_type_size: int = 9,
         kinematic_types: tuple[int, ...] = (1, 3),
         scripted_types: tuple[int, ...] = (1,),
+        history_velocities: int = 0,
         device: str = "cpu",
     ) -> None:
         super().__init__()
@@ -122,6 +129,7 @@ class CaseBoundSimulator(nn.Module):
         self._node_type_size = node_type_size
         self._kinematic_types = kinematic_types
         self._scripted_types = scripted_types
+        self._history_velocities = history_velocities
 
         if not set(scripted_types) <= set(kinematic_types):
             raise ValueError(
@@ -211,6 +219,38 @@ class CaseBoundSimulator(nn.Module):
     def reset_rollout(self) -> None:
         """Reset the step pointer; the next call re-anchors at ``t = F``."""
         self._t = None
+
+    def _window_velocity_history(self, window: Tensor) -> Tensor:
+        """Flattened last ``history_velocities`` finite differences of a window.
+
+        Parameters
+        ----------
+        window:
+            ``(P, F, dim)`` position window, most recent frame last — the
+            same tensor :meth:`predict_positions` receives.
+
+        Returns
+        -------
+        Tensor
+            ``(P, history_velocities * dim)`` float32: the window's last
+            ``history_velocities`` per-frame position differences, oldest
+            first, flattened.
+
+        Raises
+        ------
+        ValueError
+            If the window carries fewer than ``history_velocities + 1``
+            frames — the rollout seed must supply the full history.
+        """
+        h = self._history_velocities
+        if window.shape[1] < h + 1:
+            raise ValueError(
+                f"velocity history needs {h + 1} window frames, got "
+                f"{window.shape[1]}; the rollout seed must supply the full "
+                "input_frames window (ADR-0035/ADR-0049)"
+            )
+        velocities = window[:, 1:] - window[:, :-1]
+        return velocities[:, -h:].flatten(1)
 
     def _advance_pointer(self, x_t: Tensor, n_frames: int) -> None:
         """Advance the autoregressive step pointer and verify it (tripwire).

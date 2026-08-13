@@ -1,11 +1,9 @@
-# Taylor 2D — Transolver PROVISIONAL config (ADR-0047; family recipe ADR-0044).
-# Runs on the ADR-0047 synthesized lattice mesh + wall nodes (kinematic type
-# 2); no published Transolver number exists for this task — provisional, no
-# numeric gate. Budget matched to the blessed CGN taylor recipe (100k steps,
-# ADR-0047 §6). input_frames = 6 satisfies the taylor card (ADR-0035); the
-# family reads only the window's last frame, so the extra frames affect
-# windowing and rollout seeding only. Functional input width derives from
-# dim: node_type_size + 3*dim = 9 channels.
+# Taylor 2D — Transolver ADR-0049 arm N02+VH: noise 0.02 AND velocity-history
+# features (the window's 5 finite-difference velocities appended to the node
+# features; training noise becomes the CGN random-walk over the window). The
+# reference builder is Markovian in position — it cannot see the impact
+# momentum, the prime suspect for extrapolation under-commitment (ADR-0049
+# diagnosis). Compare against transolver-n02 to isolate the velocity effect.
 # Not yet run.
 
 [run]
@@ -23,13 +21,12 @@ slice_num = 64
 mlp_ratio = 1
 dropout = 0.0
 node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
-noise_std = 0.003               # DP family-reference value; CGN taylor uses 0.02 —
-                                # a taylor-scale noise sweep stays open (ledger).
+noise_std = 0.02                # blessed CGN taylor value (ADR-0049 noise rescale)
 normalizer_warmup_steps = 1000
 weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference
 
-velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
+velocity_history = true       # +5 window velocities; CGN random-walk window noise (ADR-0049)
 
 [train]
 batch_size = 2                  # family reference (ADR-0044, matched to MGN)

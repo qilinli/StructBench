@@ -173,6 +173,8 @@ node_type_size = 9
 world_edge_radius = 30.0
 noise_std = 0.003
 normalizer_warmup_steps = 1000
+velocity_history = false
+mesh_edge_max_stretch = 0.0
 
 [train]
 batch_size = 8
@@ -251,6 +253,7 @@ noise_std = 0.003
 normalizer_warmup_steps = 1000
 weight_decay = 1e-5
 max_grad_norm = 0.1
+velocity_history = false
 
 [train]
 batch_size = 8
@@ -347,6 +350,7 @@ noise_std = 0.003
 normalizer_warmup_steps = 1000
 weight_decay = 1e-4
 max_grad_norm = 0.0
+velocity_history = false
 
 [train]
 batch_size = 8

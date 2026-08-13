@@ -1,11 +1,8 @@
-# Taylor 2D — Transolver PROVISIONAL config (ADR-0047; family recipe ADR-0044).
-# Runs on the ADR-0047 synthesized lattice mesh + wall nodes (kinematic type
-# 2); no published Transolver number exists for this task — provisional, no
-# numeric gate. Budget matched to the blessed CGN taylor recipe (100k steps,
-# ADR-0047 §6). input_frames = 6 satisfies the taylor card (ADR-0035); the
-# family reads only the window's last frame, so the extra frames affect
-# windowing and rollout seeding only. Functional input width derives from
-# dim: node_type_size + 3*dim = 9 channels.
+# Taylor 2D — Transolver ADR-0049 arm N02: noise rescaled to the blessed CGN
+# taylor value (0.02, ~7% of the 150 m/s per-step displacement; the ported DP
+# value 0.003 is ~1%). Single-knob change against the ADR-0047 baseline —
+# closes the "taylor-scale noise sweep" ledger item. Feature builder stays
+# reference Markovian.
 # Not yet run.
 
 [run]
@@ -23,8 +20,7 @@ slice_num = 64
 mlp_ratio = 1
 dropout = 0.0
 node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
-noise_std = 0.003               # DP family-reference value; CGN taylor uses 0.02 —
-                                # a taylor-scale noise sweep stays open (ledger).
+noise_std = 0.02                # blessed CGN taylor value (ADR-0049 noise rescale)
 normalizer_warmup_steps = 1000
 weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference

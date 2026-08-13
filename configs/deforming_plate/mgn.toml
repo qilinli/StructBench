@@ -35,6 +35,9 @@ world_edge_radius = 30.0        # working frame (mm); measured-SI confirmed (ADR
 noise_std = 0.003
 normalizer_warmup_steps = 1000
 
+velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
+mesh_edge_max_stretch = 0.0   # stretch gate disabled — reference behaviour (ADR-0049)
+
 [train]
 batch_size = 2                  # ADR-0043 §8 reference recipe
 lr_init = 1e-4                  # ADR-0043 §8 reference recipe

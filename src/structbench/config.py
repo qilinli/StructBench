@@ -126,6 +126,20 @@ class MGNConfig:
     normalizer_warmup_steps : int
         Number of training steps over which the online feature/target
         normalizers accumulate statistics before their outputs are used.
+    velocity_history : bool
+        Append the window's ``input_frames - 1`` finite-difference velocities
+        to the node features (ADR-0049). The reference recipe is Markovian in
+        position (``False``); enabling this gives the family CGN-parity
+        momentum awareness and switches the training noise from single-frame
+        Gaussian to the CGN random-walk over the full window, so the
+        velocity features are consistently noisy.
+    mesh_edge_max_stretch : float
+        Drop mesh-edge messages whose current length exceeds this multiple
+        of their rest length, in training and rollout alike (ADR-0049).
+        Dropped (torn) pairs regain world-edge eligibility. ``0.0`` (the
+        reference behaviour) disables the gate. Motivated by the Taylor
+        failure diagnosis: the synthesized SPH lattice stretches up to 31x
+        its rest length in the mushroom foot, poisoning message passing.
     """
 
     input_frames: int = 2
@@ -137,6 +151,8 @@ class MGNConfig:
     world_edge_radius: float = 30.0  # working frame (mm); measured (ADR-0042 §2b)
     noise_std: float = 0.003
     normalizer_warmup_steps: int = 1000
+    velocity_history: bool = False
+    mesh_edge_max_stretch: float = 0.0
 
 
 @dataclass
@@ -190,6 +206,13 @@ class TransolverConfig:
     max_grad_norm : float
         Global-norm gradient clip of the method-native optimizer recipe
         (thuml reference value 0.1; ``0`` disables the clip).
+    velocity_history : bool
+        Append the window's ``input_frames - 1`` finite-difference velocities
+        to the node features (ADR-0049). The reference recipe is Markovian in
+        position (``False``); enabling this gives the family CGN-parity
+        momentum awareness and switches the training noise from single-frame
+        Gaussian to the CGN random-walk over the full window, so the
+        velocity features are consistently noisy.
     """
 
     input_frames: int = 2
@@ -205,6 +228,7 @@ class TransolverConfig:
     normalizer_warmup_steps: int = 1000
     weight_decay: float = 1e-5
     max_grad_norm: float = 0.1
+    velocity_history: bool = False
 
 
 @dataclass
@@ -288,6 +312,13 @@ class GeoFlareConfig:
         ``0.0`` disables the clip, matching the reference recipe, which
         applies no clipping. The knob is kept for family-uniformity with
         ``TransolverConfig``.
+    velocity_history : bool
+        Append the window's ``input_frames - 1`` finite-difference velocities
+        to the node features (ADR-0049). The reference recipe is Markovian in
+        position (``False``); enabling this gives the family CGN-parity
+        momentum awareness and switches the training noise from single-frame
+        Gaussian to the CGN random-walk over the full window, so the
+        velocity features are consistently noisy.
     """
 
     input_frames: int = 2
@@ -308,6 +339,7 @@ class GeoFlareConfig:
     normalizer_warmup_steps: int = 1000
     weight_decay: float = 1e-4
     max_grad_norm: float = 0.0
+    velocity_history: bool = False
 
 
 @dataclass

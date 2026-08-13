@@ -149,6 +149,49 @@ def random_walk_position_noise(
     return position_sequence_noise
 
 
+def _mesh_family_noise(
+    position_seq: Tensor,
+    is_kinematic: Tensor,
+    noise_std: float,
+    velocity_history: bool,
+) -> tuple[Tensor, Tensor | None]:
+    """Noisy current positions + optional velocity-history feature (ADR-0049).
+
+    Shared by the three mesh-family training loops. The reference path
+    (``velocity_history=False``) adds single-frame Gaussian noise to the
+    current frame only and returns ``(x_noisy, None)``. The velocity-history
+    path applies :func:`random_walk_position_noise` over the FULL window —
+    the CGN recipe — so the window velocities the feature is built from are
+    consistently noisy, and returns ``(x_noisy, flattened_velocities)``.
+    Kinematic rows stay clean on both paths (ADR-0043 §4).
+
+    Parameters
+    ----------
+    position_seq : torch.Tensor
+        ``(P, F, dim)`` collated position windows, most recent frame last.
+    is_kinematic : torch.Tensor
+        ``(P,)`` bool mask of kinematic rows.
+    noise_std : float
+        The family config's ``noise_std``.
+    velocity_history : bool
+        The family config's ``velocity_history`` flag.
+
+    Returns
+    -------
+    tuple of (torch.Tensor, torch.Tensor or None)
+        ``(x_noisy (P, dim), velocity_history (P, (F-1)*dim) or None)``.
+    """
+    if not velocity_history:
+        noise = torch.randn_like(position_seq[:, -1]) * noise_std
+        noise = noise.masked_fill(is_kinematic.unsqueeze(-1), 0.0)
+        return position_seq[:, -1] + noise, None
+    noise_seq = random_walk_position_noise(position_seq, noise_std)
+    noise_seq = noise_seq.masked_fill(is_kinematic.unsqueeze(-1).unsqueeze(-1), 0.0)
+    noisy_seq = position_seq + noise_seq
+    velocities = noisy_seq[:, 1:] - noisy_seq[:, :-1]
+    return noisy_seq[:, -1], velocities.flatten(1)
+
+
 def build_simulator(
     stats: dict[str, dict[str, Tensor]],
     cgn: CGNConfig,
@@ -269,6 +312,8 @@ def build_mgn_simulator(
         n_hidden=mgn.nmlp_layers,
         node_type_size=mgn.node_type_size,
         world_edge_radius=mgn.world_edge_radius,
+        history_velocities=(mgn.input_frames - 1) if mgn.velocity_history else 0,
+        mesh_edge_max_stretch=mgn.mesh_edge_max_stretch,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
@@ -318,6 +363,7 @@ def build_transolver_simulator(
         mlp_ratio=cfg.mlp_ratio,
         dropout=cfg.dropout,
         node_type_size=cfg.node_type_size,
+        history_velocities=(cfg.input_frames - 1) if cfg.velocity_history else 0,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
@@ -376,6 +422,7 @@ def build_geoflare_simulator(
         radii=(cfg.radius_near, cfg.radius_far),
         neighbors=(cfg.neighbors_near, cfg.neighbors_far),
         node_type_size=cfg.node_type_size,
+        history_velocities=(cfg.input_frames - 1) if cfg.velocity_history else 0,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
@@ -1049,11 +1096,10 @@ def _train_mgn(
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
 
-            x_last = position_seq[:, -1]
             is_kinematic = torch.isin(particle_type, kinematic)
-            noise = torch.randn_like(x_last) * mgn.noise_std
-            noise = noise.masked_fill(is_kinematic.unsqueeze(-1), 0.0)
-            x_noisy = x_last + noise
+            x_noisy, velocity_history = _mesh_family_noise(
+                position_seq, is_kinematic, mgn.noise_std, mgn.velocity_history
+            )
 
             optimizer.zero_grad()
             pred, target = sim.forward_train(
@@ -1065,6 +1111,7 @@ def _train_mgn(
                 reference_coords,
                 n_particles_per_example,
                 accumulate=(step < mgn.normalizer_warmup_steps),
+                velocity_history=velocity_history,
             )
             delta_v = pred[:, :-1] - target[:, :-1]
             delta_aux = pred[:, -1] - target[:, -1]
@@ -1300,11 +1347,10 @@ def _train_transolver(
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
 
-            x_last = position_seq[:, -1]
             is_kinematic = torch.isin(particle_type, kinematic)
-            noise = torch.randn_like(x_last) * cfg.noise_std
-            noise = noise.masked_fill(is_kinematic.unsqueeze(-1), 0.0)
-            x_noisy = x_last + noise
+            x_noisy, velocity_history = _mesh_family_noise(
+                position_seq, is_kinematic, cfg.noise_std, cfg.velocity_history
+            )
 
             optimizer.zero_grad()
             pred, target = sim.forward_train(
@@ -1315,6 +1361,7 @@ def _train_transolver(
                 reference_coords,
                 n_particles_per_example,
                 accumulate=(step < cfg.normalizer_warmup_steps),
+                velocity_history=velocity_history,
             )
             delta_v = pred[:, :-1] - target[:, :-1]
             delta_aux = pred[:, -1] - target[:, -1]
@@ -1555,11 +1602,10 @@ def _train_geoflare(
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
 
-            x_last = position_seq[:, -1]
             is_kinematic = torch.isin(particle_type, kinematic)
-            noise = torch.randn_like(x_last) * cfg.noise_std
-            noise = noise.masked_fill(is_kinematic.unsqueeze(-1), 0.0)
-            x_noisy = x_last + noise
+            x_noisy, velocity_history = _mesh_family_noise(
+                position_seq, is_kinematic, cfg.noise_std, cfg.velocity_history
+            )
 
             optimizer.zero_grad()
             pred, target = sim.forward_train(
@@ -1570,6 +1616,7 @@ def _train_geoflare(
                 reference_coords,
                 n_particles_per_example,
                 accumulate=(step < cfg.normalizer_warmup_steps),
+                velocity_history=velocity_history,
             )
             delta_v = pred[:, :-1] - target[:, :-1]
             delta_aux = pred[:, -1] - target[:, -1]
