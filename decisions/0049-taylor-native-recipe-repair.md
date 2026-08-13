@@ -68,6 +68,16 @@ A same-day diagnosis session established three mechanisms, two measured:
      consistently noisy (`_mesh_family_noise`, shared by the three loops).
      Rollout builds the same feature from the sliding prediction window.
      This is CGN-parity momentum awareness, not an architecture change.
+     **Target convention (2026-08-13 review):** the velocity-history path
+     also adopts the GNS adjusted-next target (`next + noise[:, −1]`), so
+     the target is the *clean* next velocity — the model de-noises the
+     velocity exactly and is *not* asked to undo the random walk's
+     accumulated position offset (~3.3 σ at C = 5), a partially
+     unobservable component that would inflate the irreducible loss and
+     the online target-normalizer std and bias rollouts toward
+     over-contraction. The reference single-frame path keeps its MGN
+     γ = 1 convention untouched — each noise scheme is paired with its
+     own reference's target.
    - **`mesh_edge_max_stretch`** (MGN only): when > 0, mesh-edge messages
      whose current length exceeds the threshold × rest length are dropped —
      in training and rollout alike, inside the shared `_graph_features` —

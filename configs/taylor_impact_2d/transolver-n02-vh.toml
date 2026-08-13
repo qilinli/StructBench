@@ -26,7 +26,9 @@ normalizer_warmup_steps = 1000
 weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference
 
-velocity_history = true       # +5 window velocities; CGN random-walk window noise (ADR-0049)
+velocity_history = true       # +5 window velocities; CGN random-walk window noise +
+                              # GNS adjusted-next target (de-noise velocity, not the
+                              # accumulated position offset; ADR-0049)
 
 [train]
 batch_size = 2                  # family reference (ADR-0044, matched to MGN)

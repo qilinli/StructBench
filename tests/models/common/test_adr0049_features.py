@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 import torch
 
+from structbench.cli.train import _mesh_family_noise
 from structbench.models.geoflare import GeoFlareSimulator
 from structbench.models.mgn import MeshSimulator
 from structbench.models.transolver import TransolverSimulator
@@ -111,6 +112,49 @@ def test_forward_train_requires_velocity_history_when_enabled(build):
     assert pred.shape == target.shape == (P, 4)
     with pytest.raises(ValueError, match="velocity_history"):
         call(None)
+
+
+def test_mesh_family_noise_vh_target_is_clean_next_velocity():
+    # GNS adjusted-next convention (ADR-0049): on the velocity-history path
+    # the returned target satisfies next_target - x_noisy == next - x_clean
+    # EXACTLY (the accumulated position noise cancels), so the model
+    # de-noises the velocity, never the position offset.
+    torch.manual_seed(3)
+    P, F, dim = 7, 6, 2
+    position_seq = torch.randn(P, F, dim).cumsum(1)
+    next_position = position_seq[:, -1] + torch.randn(P, dim)
+    is_kinematic = torch.tensor([False] * 5 + [True] * 2)
+
+    x_noisy, vh, next_target = _mesh_family_noise(
+        position_seq, next_position, is_kinematic, 0.02, True
+    )
+    assert vh is not None and vh.shape == (P, (F - 1) * dim)
+    torch.testing.assert_close(
+        next_target - x_noisy, next_position - position_seq[:, -1]
+    )
+    # kinematic rows: no noise anywhere, target untouched
+    torch.testing.assert_close(x_noisy[5:], position_seq[5:, -1])
+    torch.testing.assert_close(next_target[5:], next_position[5:])
+    # noise really was injected on free rows
+    assert not torch.allclose(x_noisy[:5], position_seq[:5, -1])
+
+
+def test_mesh_family_noise_reference_path_keeps_mgn_gamma_one():
+    # single-frame path: next_position passes through UNCHANGED, so the
+    # caller's target next - x_noisy measures from the noisy position
+    # (MGN gamma = 1), and no velocity-history feature is built.
+    torch.manual_seed(4)
+    P, F, dim = 5, 6, 2
+    position_seq = torch.randn(P, F, dim).cumsum(1)
+    next_position = position_seq[:, -1] + torch.randn(P, dim)
+    is_kinematic = torch.zeros(P, dtype=torch.bool)
+
+    x_noisy, vh, next_target = _mesh_family_noise(
+        position_seq, next_position, is_kinematic, 0.02, False
+    )
+    assert vh is None
+    assert next_target is next_position
+    assert not torch.allclose(x_noisy, position_seq[:, -1])
 
 
 def test_mgn_stretch_gate_drops_torn_edges_and_restores_world_edges():

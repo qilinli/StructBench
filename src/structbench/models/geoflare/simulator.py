@@ -375,7 +375,12 @@ class GeoFlareSimulator(CaseBoundSimulator):
         expected to have already added noise to ``x_last``, so the velocity
         target ``next_positions - x_last`` is measured from the noisy
         position, matching the source MeshGraphNets training recipe without
-        a separate noise-correction term.
+        a separate noise-correction term. On the velocity-history path
+        (ADR-0049) the caller instead passes the noise-ADJUSTED next
+        position (``next + noise[:, -1]``, the GNS reference convention),
+        so the same subtraction yields the CLEAN next velocity — velocity
+        noise is corrected exactly, the accumulated random-walk position
+        offset deliberately is not (see ``_mesh_family_noise``).
         """
         one_hot = F.one_hot(particle_types, num_classes=self._node_type_size).to(
             torch.float32

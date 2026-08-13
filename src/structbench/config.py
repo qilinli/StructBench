@@ -130,9 +130,11 @@ class MGNConfig:
         Append the window's ``input_frames - 1`` finite-difference velocities
         to the node features (ADR-0049). The reference recipe is Markovian in
         position (``False``); enabling this gives the family CGN-parity
-        momentum awareness and switches the training noise from single-frame
-        Gaussian to the CGN random-walk over the full window, so the
-        velocity features are consistently noisy.
+        momentum awareness, switches the training noise from single-frame
+        Gaussian to the CGN random-walk over the full window (so the
+        velocity features are consistently noisy), and adopts the GNS
+        adjusted-next target: the model de-noises the velocity, not the
+        accumulated position offset.
     mesh_edge_max_stretch : float
         Drop mesh-edge messages whose current length exceeds this multiple
         of their rest length, in training and rollout alike (ADR-0049).
@@ -210,9 +212,11 @@ class TransolverConfig:
         Append the window's ``input_frames - 1`` finite-difference velocities
         to the node features (ADR-0049). The reference recipe is Markovian in
         position (``False``); enabling this gives the family CGN-parity
-        momentum awareness and switches the training noise from single-frame
-        Gaussian to the CGN random-walk over the full window, so the
-        velocity features are consistently noisy.
+        momentum awareness, switches the training noise from single-frame
+        Gaussian to the CGN random-walk over the full window (so the
+        velocity features are consistently noisy), and adopts the GNS
+        adjusted-next target: the model de-noises the velocity, not the
+        accumulated position offset.
     """
 
     input_frames: int = 2
@@ -316,9 +320,11 @@ class GeoFlareConfig:
         Append the window's ``input_frames - 1`` finite-difference velocities
         to the node features (ADR-0049). The reference recipe is Markovian in
         position (``False``); enabling this gives the family CGN-parity
-        momentum awareness and switches the training noise from single-frame
-        Gaussian to the CGN random-walk over the full window, so the
-        velocity features are consistently noisy.
+        momentum awareness, switches the training noise from single-frame
+        Gaussian to the CGN random-walk over the full window (so the
+        velocity features are consistently noisy), and adopts the GNS
+        adjusted-next target: the model de-noises the velocity, not the
+        accumulated position offset.
     """
 
     input_frames: int = 2

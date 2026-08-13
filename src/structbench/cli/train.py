@@ -151,24 +151,44 @@ def random_walk_position_noise(
 
 def _mesh_family_noise(
     position_seq: Tensor,
+    next_position: Tensor,
     is_kinematic: Tensor,
     noise_std: float,
     velocity_history: bool,
-) -> tuple[Tensor, Tensor | None]:
-    """Noisy current positions + optional velocity-history feature (ADR-0049).
+) -> tuple[Tensor, Tensor | None, Tensor]:
+    """Noisy inputs, optional velocity-history feature, and the matched target.
 
-    Shared by the three mesh-family training loops. The reference path
-    (``velocity_history=False``) adds single-frame Gaussian noise to the
-    current frame only and returns ``(x_noisy, None)``. The velocity-history
-    path applies :func:`random_walk_position_noise` over the FULL window —
-    the CGN recipe — so the window velocities the feature is built from are
-    consistently noisy, and returns ``(x_noisy, flattened_velocities)``.
-    Kinematic rows stay clean on both paths (ADR-0043 §4).
+    Shared by the three mesh-family training loops (ADR-0049). The two paths
+    deliberately pair DIFFERENT noise schemes with DIFFERENT target
+    conventions, each matching its reference recipe:
+
+    * Reference path (``velocity_history=False``): single-frame Gaussian
+      noise on the current frame; ``next_position`` is returned UNCHANGED,
+      so the caller's velocity target ``next - x_noisy`` measures from the
+      noisy position — the MeshGraphNets gamma = 1 convention (the model
+      learns to step back onto the clean trajectory; the correction is a
+      single sigma).
+    * Velocity-history path: :func:`random_walk_position_noise` over the
+      FULL window (the CGN recipe), so the velocity features are
+      consistently noisy — and the returned target next position is
+      ADJUSTED by the last frame's accumulated noise (GNS reference:
+      ``next + noise[:, -1]``), so ``next_adjusted - x_noisy`` equals the
+      CLEAN next velocity. The target corrects the velocity noise exactly
+      and does NOT ask the model to undo the accumulated position offset
+      (~3.3 sigma for 5 velocities) — a partially-unobservable component
+      that would inflate the irreducible loss and the target-normalizer
+      std, and bias rollouts toward over-contraction.
+
+    Kinematic rows stay clean on both paths (ADR-0043 §4), so their
+    adjusted target equals the ground truth and the scripted-velocity
+    feature is unaffected.
 
     Parameters
     ----------
     position_seq : torch.Tensor
         ``(P, F, dim)`` collated position windows, most recent frame last.
+    next_position : torch.Tensor
+        ``(P, dim)`` ground-truth next-frame positions.
     is_kinematic : torch.Tensor
         ``(P,)`` bool mask of kinematic rows.
     noise_std : float
@@ -178,18 +198,24 @@ def _mesh_family_noise(
 
     Returns
     -------
-    tuple of (torch.Tensor, torch.Tensor or None)
-        ``(x_noisy (P, dim), velocity_history (P, (F-1)*dim) or None)``.
+    tuple of (torch.Tensor, torch.Tensor or None, torch.Tensor)
+        ``(x_noisy (P, dim), velocity_history (P, (F-1)*dim) or None,
+        next_target (P, dim))`` — feed ``next_target``, not the raw
+        ``next_position``, to ``forward_train``.
     """
     if not velocity_history:
         noise = torch.randn_like(position_seq[:, -1]) * noise_std
         noise = noise.masked_fill(is_kinematic.unsqueeze(-1), 0.0)
-        return position_seq[:, -1] + noise, None
+        return position_seq[:, -1] + noise, None, next_position
     noise_seq = random_walk_position_noise(position_seq, noise_std)
     noise_seq = noise_seq.masked_fill(is_kinematic.unsqueeze(-1).unsqueeze(-1), 0.0)
     noisy_seq = position_seq + noise_seq
     velocities = noisy_seq[:, 1:] - noisy_seq[:, :-1]
-    return noisy_seq[:, -1], velocities.flatten(1)
+    return (
+        noisy_seq[:, -1],
+        velocities.flatten(1),
+        next_position + noise_seq[:, -1],
+    )
 
 
 def build_simulator(
@@ -1097,14 +1123,18 @@ def _train_mgn(
             n_particles_per_example = batch["n_particles_per_example"].to(device)
 
             is_kinematic = torch.isin(particle_type, kinematic)
-            x_noisy, velocity_history = _mesh_family_noise(
-                position_seq, is_kinematic, mgn.noise_std, mgn.velocity_history
+            x_noisy, velocity_history, next_target = _mesh_family_noise(
+                position_seq,
+                next_position,
+                is_kinematic,
+                mgn.noise_std,
+                mgn.velocity_history,
             )
 
             optimizer.zero_grad()
             pred, target = sim.forward_train(
                 x_noisy,
-                next_position,
+                next_target,
                 next_aux,
                 particle_type,
                 mesh_edge_index,
@@ -1348,14 +1378,18 @@ def _train_transolver(
             n_particles_per_example = batch["n_particles_per_example"].to(device)
 
             is_kinematic = torch.isin(particle_type, kinematic)
-            x_noisy, velocity_history = _mesh_family_noise(
-                position_seq, is_kinematic, cfg.noise_std, cfg.velocity_history
+            x_noisy, velocity_history, next_target = _mesh_family_noise(
+                position_seq,
+                next_position,
+                is_kinematic,
+                cfg.noise_std,
+                cfg.velocity_history,
             )
 
             optimizer.zero_grad()
             pred, target = sim.forward_train(
                 x_noisy,
-                next_position,
+                next_target,
                 next_aux,
                 particle_type,
                 reference_coords,
@@ -1603,14 +1637,18 @@ def _train_geoflare(
             n_particles_per_example = batch["n_particles_per_example"].to(device)
 
             is_kinematic = torch.isin(particle_type, kinematic)
-            x_noisy, velocity_history = _mesh_family_noise(
-                position_seq, is_kinematic, cfg.noise_std, cfg.velocity_history
+            x_noisy, velocity_history, next_target = _mesh_family_noise(
+                position_seq,
+                next_position,
+                is_kinematic,
+                cfg.noise_std,
+                cfg.velocity_history,
             )
 
             optimizer.zero_grad()
             pred, target = sim.forward_train(
                 x_noisy,
-                next_position,
+                next_target,
                 next_aux,
                 particle_type,
                 reference_coords,
