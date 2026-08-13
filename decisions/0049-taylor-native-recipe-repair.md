@@ -1,6 +1,6 @@
 # 0049 — Taylor native recipe repair: noise rescale, velocity history, MGN stretch gate
 
-**Status**: Draft
+**Status**: Accepted (maintainer, in-session 2026-08-13)
 **Type**: Durable
 **Date**: 2026-08-13
 
