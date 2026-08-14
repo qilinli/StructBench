@@ -72,6 +72,13 @@ class TransolverSimulator(CaseBoundSimulator):
         Number of finite-difference window velocities appended to the node
         features (ADR-0049); ``0`` keeps the reference Markovian-in-position
         feature builder.
+    frames_per_call:
+        Frames the decoder emits per forward call (ADR-0050/0051 ``k``),
+        already resolved to a concrete count (the k=T sentinel ``0`` is
+        resolved by :func:`~structbench.cli.train.build_transolver_simulator`
+        before construction). ``1`` (default) is the byte-identical
+        autoregressive scheme; ``k>1`` widens the decoder head to
+        ``k*(dim+1)``. Only ``1`` is wired so far.
     device:
         Device the network and normalizer buffers are moved to at
         construction time.
@@ -90,6 +97,7 @@ class TransolverSimulator(CaseBoundSimulator):
         kinematic_types: tuple[int, ...] = (1, 3),
         scripted_types: tuple[int, ...] = (1,),
         history_velocities: int = 0,
+        frames_per_call: int = 1,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -105,11 +113,31 @@ class TransolverSimulator(CaseBoundSimulator):
             # this subclass's wider str | torch.device parameter.
             device=str(device),
         )
+        # frames_per_call is the k of the ADR-0050/0051 prediction-scheme axis,
+        # already resolved to a concrete count (the k=T sentinel 0 is resolved
+        # by build_transolver_simulator BEFORE construction, so a 0 reaching
+        # here is an unresolved-sentinel bug). k>1 widens the decoder head to
+        # k*(dim+1); the (P, k*(dim+1)) -> (P, k, dim+1) reshape is a
+        # simulator-side convention (network.py is k-agnostic) and a no-op at
+        # k=1, so k=1 is byte-identical to the pre-0051 recipe.
+        if frames_per_call < 1:
+            raise ValueError(
+                "frames_per_call must be >= 1 at construction "
+                f"(got {frames_per_call}); the k=T sentinel (0) must be "
+                "resolved to a concrete horizon before the simulator is built"
+            )
+        if frames_per_call != 1:
+            raise NotImplementedError(
+                "frames_per_call > 1 (temporal bundling / one-shot) is not yet "
+                "wired; it lands in the ADR-0051 phase-2/3 rollout+noise work. "
+                f"got frames_per_call={frames_per_call}"
+            )
+        self._k = frames_per_call
         node_in = node_type_size + 3 * dim + history_velocities * dim
 
         self._net = TransolverNet(
             node_in=node_in,
-            out_size=dim + 1,
+            out_size=frames_per_call * (dim + 1),
             hidden_dim=hidden_dim,
             n_layers=n_layers,
             n_heads=n_heads,

@@ -217,6 +217,21 @@ class TransolverConfig:
         velocity features are consistently noisy), and adopts the GNS
         adjusted-next target: the model de-noises the velocity, not the
         accumulated position offset.
+    frames_per_call : int
+        Prediction-scheme axis (ADR-0050/0051): number of frames the decoder
+        emits per forward call. ``1`` (default) is today's autoregressive
+        next-step scheme — byte-identical to the pre-0051 recipe — and is also
+        the legacy-checkpoint fallback (a ``config.json`` written before this
+        field reconstructs as ``frames_per_call=1``, so old Transolver
+        checkpoints load unchanged). ``0`` is the one-shot sentinel: it
+        resolves at train time to ``T_working - input_frames`` (the scored
+        horizon of the loaded, ``train_frames``-truncated trajectories) and the
+        *resolved* integer is written back into ``config.json`` so evaluation
+        rebuilds the identical decoder head without re-resolving. ``1 < k < T``
+        is temporal bundling (MP-PDE). The decoder head width is
+        ``frames_per_call * (dim + 1)``, so a checkpoint's ``k`` is fixed at
+        train time; k>1 is a Transolver-only scheme (the neural-CFL audit in
+        ADR-0051 keeps message-passing backbones at k=1).
     """
 
     input_frames: int = 2
@@ -233,6 +248,7 @@ class TransolverConfig:
     weight_decay: float = 1e-5
     max_grad_norm: float = 0.1
     velocity_history: bool = False
+    frames_per_call: int = 1
 
 
 @dataclass

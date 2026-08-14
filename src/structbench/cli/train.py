@@ -390,6 +390,11 @@ def build_transolver_simulator(
         dropout=cfg.dropout,
         node_type_size=cfg.node_type_size,
         history_velocities=(cfg.input_frames - 1) if cfg.velocity_history else 0,
+        # ADR-0050/0051: cfg.frames_per_call is the resolved k. The k=T sentinel
+        # (0) is resolved to a concrete horizon upstream in _train_transolver
+        # (train) / evaluate reads the resolved integer from config.json, so a
+        # 0 never reaches here.
+        frames_per_call=cfg.frames_per_call,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,

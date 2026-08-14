@@ -254,6 +254,7 @@ normalizer_warmup_steps = 1000
 weight_decay = 1e-5
 max_grad_norm = 0.1
 velocity_history = false
+frames_per_call = 1
 
 [train]
 batch_size = 8
@@ -277,6 +278,15 @@ def test_load_run_config_transolver_happy_path(tmp_path):
     # Every TOML value equals the dataclass default, so equality is a full
     # per-field round-trip check.
     assert rc.model == TransolverConfig()
+
+
+def test_load_run_config_transolver_frames_per_call_roundtrips(tmp_path):
+    # The config layer accepts any int frames_per_call (the k=T sentinel 0 and
+    # bundling k>1); the simulator resolves/gates it later (ADR-0050/0051).
+    for value in (0, 5):
+        cfg = VALID_TRANSOLVER.replace("frames_per_call = 1", f"frames_per_call = {value}")
+        rc = load_run_config(_write(tmp_path, cfg))
+        assert rc.model.frames_per_call == value
 
 
 def test_load_run_config_rejects_transolver_unknown_key(tmp_path):

@@ -191,3 +191,35 @@ def test_save_load_roundtrip_before_bind_case(tmp_path):
 def test_scripted_types_must_be_subset_of_kinematic_types():
     with pytest.raises(ValueError):
         TransolverSimulator(scripted_types=(5,), kinematic_types=(1, 3))
+
+
+# --- ADR-0050/0051 prediction-scheme axis (frames_per_call) ---
+
+
+def test_frames_per_call_defaults_to_one():
+    # Default is the byte-identical autoregressive scheme.
+    assert TransolverSimulator()._k == 1
+
+
+def test_frames_per_call_k1_head_and_normalizer_widths_byte_identical():
+    # k=1 keeps out_size == dim+1 and the target normalizer at width dim+1;
+    # these are the structural invariants that make k=1 byte-identical to the
+    # pre-0051 recipe (the reshape and row-fold are no-ops at k=1).
+    dim = 3
+    sim = _tiny_sim(frames_per_call=1)
+    assert sim._net.blocks[-1].mlp2.out_features == dim + 1
+    assert sim._target_normalizer._sum.shape[0] == dim + 1
+
+
+def test_frames_per_call_zero_sentinel_raises_at_construction():
+    # The k=T sentinel (0) must be resolved to a concrete horizon upstream; an
+    # unresolved 0 reaching the constructor is a bug, not a silent no-op.
+    with pytest.raises(ValueError, match="must be >= 1"):
+        _tiny_sim(frames_per_call=0)
+
+
+def test_frames_per_call_gt_one_not_yet_wired():
+    # k>1 (temporal bundling / one-shot) lands in the ADR-0051 phase-2/3 work;
+    # until then it must fail loudly rather than silently train as k=1.
+    with pytest.raises(NotImplementedError, match="frames_per_call > 1"):
+        _tiny_sim(frames_per_call=5)
