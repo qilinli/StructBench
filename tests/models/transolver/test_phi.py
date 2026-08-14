@@ -189,3 +189,54 @@ def test_robust_sim_builds_and_vel_smooth() -> None:
     vh = torch.randn(11, 5 * 2)
     phi = sim._compute_phi(torch.randn(11, 2), vh, None)
     assert phi.shape == (11, 1) and torch.isfinite(phi).all()
+
+
+def test_multichannel_phi_shape_and_magnitude_matches_single() -> None:
+    """channels=3 gives (N, 3); channel 0 (magnitude) matches the scalar phi."""
+    torch.manual_seed(3)
+    x, v = torch.randn(20, 2), torch.randn(20, 2)
+    phi1 = strain_rate_phi(x, v, None, k=4, clamp=4.0)
+    phi3 = strain_rate_phi(x, v, None, k=4, clamp=4.0, channels=3)
+    assert phi3.shape == (20, 3)
+    # each channel standardized (per-example zero-mean unit-ish)
+    assert torch.allclose(phi3.mean(0), torch.zeros(3), atol=1e-5)
+    # magnitude channel == the single-channel phi (same bond ratio + reduction)
+    assert torch.allclose(phi3[:, :1], phi1, atol=1e-5)
+
+
+def test_multichannel_phi_batched_equals_per_example() -> None:
+    torch.manual_seed(2)
+    xa, va = torch.randn(11, 2), torch.randn(11, 2)
+    xb, vb = torch.randn(7, 2), torch.randn(7, 2)
+    kw = dict(channels=3)
+    batched = strain_rate_phi(
+        torch.cat([xa, xb]), torch.cat([va, vb]), torch.tensor([11, 7]), 4, 4.0, **kw
+    )
+    singles = torch.cat(
+        [
+            strain_rate_phi(xa, va, None, 4, 4.0, **kw),
+            strain_rate_phi(xb, vb, None, 4, 4.0, **kw),
+        ]
+    )
+    assert torch.allclose(batched, singles, atol=1e-6)
+
+
+def test_simulator_feature_multichannel_widens_node_in_by_channels() -> None:
+    base = TransolverSimulator(
+        dim=2, hidden_dim=16, n_layers=2, n_heads=2,
+        history_velocities=5, phi_mode="off",
+    )
+    feat3 = TransolverSimulator(
+        dim=2, hidden_dim=16, n_layers=2, n_heads=2,
+        history_velocities=5, phi_mode="feature", phi_channels=3,
+    )
+    base_in = base._net.preprocess[0].in_features
+    assert feat3._net.preprocess[0].in_features == base_in + 3
+
+
+def test_simulator_rejects_bad_phi_channels() -> None:
+    with pytest.raises(ValueError, match="phi_channels"):
+        TransolverSimulator(
+            dim=2, hidden_dim=16, n_layers=2, n_heads=2,
+            history_velocities=5, phi_mode="feature", phi_channels=2,
+        )

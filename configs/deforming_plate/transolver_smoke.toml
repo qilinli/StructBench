@@ -31,6 +31,7 @@ phi_smooth = false           # SRO Cause-1 fix: spatial kNN smoothing of phi; in
 phi_robust = false           # SRO Cause-1 fix: median/IQR robust phi statistics; inert when off
 phi_vel_smooth = false        # SRO Cause-1 fix: temporal window-velocity smoothing; inert when off
 phi_loss_weight = 0.0        # SRO physics-guided training: up-weight high-strain-rate loss; 0 = off
+phi_channels = 1
 
 [train]
 batch_size = 2

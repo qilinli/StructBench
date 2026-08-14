@@ -1,7 +1,12 @@
-# SAROS depth-sweep B1a — PHYSLOSS (physics-weighted loss lambda=2, phi_mode=off).
-# Go/no-go spike (verifier smallest_v0): 3 arms x 2 seeds at L=8/M=64, 60k reduced
-# budget, on the ADR-0049 transolver-n02-vh recipe. Identical except phi_mode.
-# If persistent beats plain+feature here, promote to the L in {2,4,12} depth-sweep.
+# SAROS next-wave — MULTI-CHANNEL phi (featrob3).
+# Extends the CONFIRMED feature lever (Taylor test_extrap -33% at 4 seeds) with a
+# 3-channel phi: [magnitude, volumetric (signed along-bond divergence), shear
+# (perpendicular/deviatoric rate)] from a bond decomposition (no matrix inverse).
+# Same L=8/M=64, 60k reduced budget, ADR-0049 transolver-n02-vh recipe; feature
+# mode (no bottleneck feedback). Compare feat3 vs feat (1ch) to see if richer phi
+# sharpens the velocity-extrapolation win; watch val for in-dist degradation.
+# featrob3 adds the robust/smooth/vel-smooth standardization (best single-channel
+# stats), applied per channel. Not yet run.
 
 # Taylor 2D — Transolver ADR-0049 arm N02+VH: noise 0.02 AND velocity-history
 # features (the window's 5 finite-difference velocities appended to the node
@@ -32,15 +37,15 @@ weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference
 
 velocity_history = true       # +5 window velocities; CGN random-walk window noise +
-phi_mode = "off"              # SRO physics-conditioned slicing: off|feature|persistent (ADR draft)
+phi_mode = "feature"              # SRO physics-conditioned slicing: off|feature|persistent (ADR draft)
 phi_neighbors = 16            # kNN count for the strain-rate proxy (phi); inert when phi_mode="off"
 phi_clamp = 4.0               # symmetric clamp on standardized phi; inert when off
 phi_lambda_init = 0.0         # per-block phi-gate init; 0.0 => step-0 == vanilla; inert when off
-phi_smooth = false           # SRO Cause-1 fix: spatial kNN smoothing of phi; inert when phi_mode="off"
-phi_robust = false           # SRO Cause-1 fix: median/IQR robust phi statistics; inert when off
-phi_vel_smooth = false        # SRO Cause-1 fix: temporal window-velocity smoothing; inert when off
-phi_loss_weight = 2.0        # SRO physics-guided training: up-weight high-strain-rate loss; 0 = off
-phi_channels = 1
+phi_smooth = true            # SRO Cause-1 fix: spatial kNN smoothing of phi; inert when phi_mode="off"
+phi_robust = true            # SRO Cause-1 fix: median/IQR robust phi statistics; inert when off
+phi_vel_smooth = true         # SRO Cause-1 fix: temporal window-velocity smoothing; inert when off
+phi_loss_weight = 0.0        # SRO physics-guided training: up-weight high-strain-rate loss; 0 = off
+phi_channels = 3
                               # GNS adjusted-next target (de-noise velocity, not the
                               # accumulated position offset; ADR-0049)
 

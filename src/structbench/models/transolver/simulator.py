@@ -103,6 +103,7 @@ class TransolverSimulator(CaseBoundSimulator):
         phi_smooth: bool = False,
         phi_robust: bool = False,
         phi_vel_smooth: bool = False,
+        phi_channels: int = 1,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -139,9 +140,12 @@ class TransolverSimulator(CaseBoundSimulator):
         self._phi_smooth = phi_smooth
         self._phi_robust = phi_robust
         self._phi_vel_smooth = phi_vel_smooth
+        if phi_channels not in (1, 3):
+            raise ValueError(f"phi_channels must be 1 or 3, got {phi_channels!r}")
+        self._phi_channels = phi_channels
         node_in = node_type_size + 3 * dim + history_velocities * dim
         if phi_mode == "feature":
-            node_in += 1  # phi appended as one extra channel
+            node_in += phi_channels  # phi appended as extra node channel(s)
 
         self._net = TransolverNet(
             node_in=node_in,
@@ -154,6 +158,7 @@ class TransolverSimulator(CaseBoundSimulator):
             dropout=dropout,
             phi_conditioned=(phi_mode == "persistent"),
             phi_lambda_init=phi_lambda_init,
+            phi_channels=phi_channels,
         )
         self._node_normalizer = OnlineNormalizer(node_in)
         self._target_normalizer = OnlineNormalizer(dim + 1)
@@ -248,6 +253,7 @@ class TransolverSimulator(CaseBoundSimulator):
             self._phi_clamp,
             smooth=self._phi_smooth,
             robust=self._phi_robust,
+            channels=self._phi_channels,
         )
 
     def predict_positions(

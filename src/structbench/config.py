@@ -241,6 +241,7 @@ class TransolverConfig:
     phi_robust: bool = False
     phi_vel_smooth: bool = False
     phi_loss_weight: float = 0.0
+    phi_channels: int = 1
 
 
 @dataclass
@@ -665,6 +666,17 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
         raise ConfigError(
             "[model] phi_loss_weight > 0 requires velocity_history = true "
             "(the physics-weighted loss needs phi from the window)"
+        )
+    phi_channels = getattr(model, "phi_channels", 1)
+    if phi_channels not in (1, 3):
+        raise ConfigError(
+            f"[model] phi_channels must be 1 or 3, got {phi_channels!r} "
+            "(1 = scalar magnitude; 3 = magnitude, volumetric, shear)"
+        )
+    if phi_channels != 1 and phi_mode == "off":
+        raise ConfigError(
+            "[model] phi_channels > 1 requires phi_mode != 'off' "
+            "(extra channels are only used when phi conditions the model)"
         )
 
     return ResolvedRunConfig(

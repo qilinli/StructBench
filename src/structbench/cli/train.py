@@ -397,6 +397,7 @@ def build_transolver_simulator(
         phi_smooth=cfg.phi_smooth,
         phi_robust=cfg.phi_robust,
         phi_vel_smooth=cfg.phi_vel_smooth,
+        phi_channels=cfg.phi_channels,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,

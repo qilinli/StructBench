@@ -262,6 +262,7 @@ phi_smooth = false
 phi_robust = false
 phi_vel_smooth = false
 phi_loss_weight = 0.0
+phi_channels = 1
 
 [train]
 batch_size = 8

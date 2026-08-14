@@ -393,6 +393,7 @@ class TransolverNet(nn.Module):
         dropout: float = 0.0,
         phi_conditioned: bool = False,
         phi_lambda_init: float = 0.0,
+        phi_channels: int = 1,
     ) -> None:
         super().__init__()
         self.preprocess = build_mlp_2layer(node_in, hidden_dim * 2, hidden_dim)
@@ -406,7 +407,7 @@ class TransolverNet(nn.Module):
         # zero-init scalar gate `lam`. Built only when enabled, so a disabled
         # net is byte-identical vanilla.
         self.phi_g: nn.Linear | None = (
-            nn.Linear(1, slice_num) if phi_conditioned else None
+            nn.Linear(phi_channels, slice_num) if phi_conditioned else None
         )
         self.blocks = nn.ModuleList(
             [
