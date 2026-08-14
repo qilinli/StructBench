@@ -1,0 +1,42 @@
+# notch_beam_2d_impact — Transolver ONE-SHOT (k=T) baseline, seed 1 (ADR-0050/0051).
+# Clone of the reference transolver recipe with frames_per_call=0 (one-shot
+# sentinel -> resolves to the scored horizon at train time) and noise_std=0
+# (injected noise is inert/meaningless without rollout). Everything else
+# (arch, input_frames, budget, train_frames) matches the k=1 reference for a
+# fair scheme-only comparison. Not yet run.
+
+[run]
+benchmark = "notch_beam_2d_impact"
+seed = 1
+
+[model]
+family = "transolver"
+input_frames = 6                # notch card protocol (ADR-0035); see header
+dim = 2
+hidden_dim = 128                # ADR-0044 family reference
+n_layers = 8
+n_heads = 8
+slice_num = 64
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 4              # raw ids: 1 = beam, 2 = pin, 3 = supports (max id + 1)
+noise_std = 0.0                  # inert at k=T (one-shot has no rollout; ADR-0051)
+                                # 0.01 — declared deviation, ledger.
+normalizer_warmup_steps = 1000
+weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
+max_grad_norm = 0.1             # global-norm clip, thuml reference
+
+velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
+frames_per_call = 0             # ADR-0050/0051 one-shot (k=T) sentinel
+
+[train]
+batch_size = 2                  # family reference (ADR-0044, matched to MGN)
+lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
+lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
+                                # ADR-0044); present because [train] is family-uniform.
+training_steps = 250_000        # h250c-matched budget (ADR-0048), not DP's 10M
+val_every = 2000                # h250c cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 250      # ADR-0039 §4 recipe: train only the scored window
