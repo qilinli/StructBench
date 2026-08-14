@@ -1,0 +1,55 @@
+# SAROS depth-sweep B1a — PLAIN (vanilla, phi_mode=off). Control arm.
+# Go/no-go spike (verifier smallest_v0): 3 arms x 2 seeds at L=8/M=64, 60k reduced
+# budget, on the ADR-0049 transolver-n02-vh recipe. Identical except phi_mode.
+# If persistent beats plain+feature here, promote to the L in {2,4,12} depth-sweep.
+
+# Taylor 2D — Transolver ADR-0049 arm N02+VH: noise 0.02 AND velocity-history
+# features (the window's 5 finite-difference velocities appended to the node
+# features; training noise becomes the CGN random-walk over the window). The
+# reference builder is Markovian in position — it cannot see the impact
+# momentum, the prime suspect for extrapolation under-commitment (ADR-0049
+# diagnosis). Compare against transolver-n02 to isolate the velocity effect.
+# Not yet run.
+
+[run]
+benchmark = "taylor_impact_2d"
+seed = 3
+
+[model]
+family = "transolver"
+input_frames = 6                # taylor card protocol (ADR-0035); see header
+dim = 2
+hidden_dim = 128                # ADR-0044 family reference
+n_layers = 8
+n_heads = 8
+slice_num = 64
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
+noise_std = 0.02                # blessed CGN taylor value (ADR-0049 noise rescale)
+normalizer_warmup_steps = 1000
+weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
+max_grad_norm = 0.1             # global-norm clip, thuml reference
+
+velocity_history = true       # +5 window velocities; CGN random-walk window noise +
+phi_mode = "off"              # SRO physics-conditioned slicing: off|feature|persistent (ADR draft)
+phi_neighbors = 16            # kNN count for the strain-rate proxy (phi); inert when phi_mode="off"
+phi_clamp = 4.0               # symmetric clamp on standardized phi; inert when off
+phi_lambda_init = 0.0         # per-block phi-gate init; 0.0 => step-0 == vanilla; inert when off
+phi_smooth = false           # SRO Cause-1 fix: spatial kNN smoothing of phi; inert when phi_mode="off"
+phi_robust = false           # SRO Cause-1 fix: median/IQR robust phi statistics; inert when off
+phi_vel_smooth = false        # SRO Cause-1 fix: temporal window-velocity smoothing; inert when off
+                              # GNS adjusted-next target (de-noise velocity, not the
+                              # accumulated position offset; ADR-0049)
+
+[train]
+batch_size = 2                  # family reference (ADR-0044, matched to MGN)
+lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
+lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
+                                # ADR-0044); present because [train] is family-uniform.
+training_steps = 60_000         # SAROS B1a reduced sweep budget (plateaus ~70k)
+val_every = 2000                # CGN taylor cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0
