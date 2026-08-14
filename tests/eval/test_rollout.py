@@ -1,6 +1,7 @@
 import dataclasses
 
 import numpy as np
+import pytest
 import torch
 
 from structbench.datasets.canonical import CaseTrajectory
@@ -316,3 +317,88 @@ def test_rollout_scored_frames_windows_qois():
     assert res.qoi_true["last_x"] == 4.0
     assert res.qoi_true["last_t"] == 4.0
     np.testing.assert_allclose(res.qoi_error["last_x"], 0.0, atol=1e-5)
+
+
+# --- ADR-0050/0051 k-frames-per-call: bundled rollout (rank-dispatch) ---
+
+
+class _KFrameConstVelSim:
+    """Predicts ``k`` constant-velocity frames as a ``(P, k, dim)`` bundle.
+
+    Exposes ``frames_per_call`` so the one-step sweep switches to teacher-forced
+    mode, and counts ``predict_positions`` calls so a one-shot (single-call)
+    rollout can be asserted. Accepts (and ignores) the ``teacher_forced``
+    keyword the one-step path passes to a k>1 simulator.
+    """
+
+    def __init__(self, k: int) -> None:
+        self.frames_per_call = k
+        self.calls = 0
+
+    def predict_positions(
+        self,
+        position_sequence,
+        nparticles_per_example,
+        particle_types,
+        *,
+        teacher_forced: bool = False,
+    ):
+        self.calls += 1
+        last = position_sequence[:, -1]  # (P, dim)
+        vel = last - position_sequence[:, -2]  # (P, dim)
+        steps = torch.arange(1, self.frames_per_call + 1).view(1, -1, 1)
+        nxt = last.unsqueeze(1) + steps * vel.unsqueeze(1)  # (P, k, dim)
+        aux = torch.zeros(position_sequence.shape[0], self.frames_per_call, 1)
+        return nxt, aux
+
+
+@pytest.mark.parametrize("k", [2, 3, 4, 5])
+def test_kframe_rollout_exact_for_constant_velocity(k):
+    # A k-frame bundle of the true constant velocity reproduces GT for any k,
+    # including k values that leave a ragged remainder (predict-k-and-truncate):
+    # 10 predicted frames, k=3 -> 3*3+1, k=4 -> 4+4+2, k=5 -> 5+5.
+    traj = _const_vel_traj(T=12, P=4)
+    res = rollout(_KFrameConstVelSim(k), traj, input_frames=2)
+    assert res.predicted_positions.shape == (12, 4, 2)
+    assert res.mean_position_rmse == pytest.approx(0.0, abs=1e-5)
+
+
+def test_kframe_oneshot_is_a_single_forward_call():
+    # k = T - input_frames covers the whole horizon: one bundle, no re-seed.
+    traj = _const_vel_traj(T=12, P=4)
+    sim = _KFrameConstVelSim(k=10)
+    res = rollout(sim, traj, input_frames=2)
+    assert sim.calls == 1
+    assert res.mean_position_rmse == pytest.approx(0.0, abs=1e-5)
+
+
+def _moving_kin_traj(T: int = 10, P: int = 3) -> CaseTrajectory:
+    # Particle 0 is kinematic (type 2) with QUADRATIC motion, so the const-vel
+    # sim predicts it WRONG -- unlike Taylor's static wall, this actually
+    # exercises the all-k-frame kinematic override.
+    pos = np.zeros((T, P, 2), dtype=np.float32)
+    pos[:, 0, 0] = (np.arange(T) ** 2).astype(np.float32)  # kinematic, quadratic
+    pos[:, 1:, 0] = np.arange(T)[:, None]  # free, constant velocity
+    aux = np.zeros((T, P), dtype=np.float32)
+    ptype = np.array([2, 1, 1], dtype=np.int64)
+    return CaseTrajectory("m", pos, ptype, aux, np.arange(T, dtype=float))
+
+
+def test_kframe_rollout_overrides_kinematic_across_whole_bundle():
+    # The kinematic particle's predicted positions must equal GT at EVERY
+    # frame, including mid-bundle frames the const-vel sim gets wrong.
+    traj = _moving_kin_traj(T=10)
+    res = rollout(_KFrameConstVelSim(3), traj, input_frames=2, kinematic_types=(2,))
+    np.testing.assert_allclose(
+        res.predicted_positions[:, 0], traj.positions[:, 0], atol=1e-5
+    )
+
+
+def test_kframe_one_step_scores_first_bundle_frame():
+    # One-step is teacher-forced and scores only the first bundle frame; the
+    # const-vel bundle's frame 0 is exact, so the one-step RMSE is ~0 and has
+    # the usual (T - input_frames,) shape.
+    traj = _const_vel_traj(T=12, P=4)
+    rmse = one_step_position_rmse(_KFrameConstVelSim(4), traj, input_frames=2)
+    assert rmse.shape == (10,)
+    np.testing.assert_allclose(rmse, 0.0, atol=1e-5)

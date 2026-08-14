@@ -78,7 +78,9 @@ class TransolverSimulator(CaseBoundSimulator):
         resolved by :func:`~structbench.cli.train.build_transolver_simulator`
         before construction). ``1`` (default) is the byte-identical
         autoregressive scheme; ``k>1`` widens the decoder head to
-        ``k*(dim+1)``. Only ``1`` is wired so far.
+        ``k*(dim+1)`` and makes :meth:`predict_positions` / :meth:`forward_train`
+        emit ``k`` per-frame velocities (integrated on eval). The 1<k<T
+        training-seam pushforward lives in the training loop, not here.
     device:
         Device the network and normalizer buffers are moved to at
         construction time.
@@ -126,12 +128,6 @@ class TransolverSimulator(CaseBoundSimulator):
                 f"(got {frames_per_call}); the k=T sentinel (0) must be "
                 "resolved to a concrete horizon before the simulator is built"
             )
-        if frames_per_call != 1:
-            raise NotImplementedError(
-                "frames_per_call > 1 (temporal bundling / one-shot) is not yet "
-                "wired; it lands in the ADR-0051 phase-2/3 rollout+noise work. "
-                f"got frames_per_call={frames_per_call}"
-            )
         self._k = frames_per_call
         node_in = node_type_size + 3 * dim + history_velocities * dim
 
@@ -149,6 +145,17 @@ class TransolverSimulator(CaseBoundSimulator):
         self._target_normalizer = OnlineNormalizer(dim + 1)
 
         self.to(device)
+
+    @property
+    def frames_per_call(self) -> int:
+        """Resolved ``k`` (frames emitted per forward call; ADR-0050/0051).
+
+        Read by :mod:`structbench.eval` to decide whether a returned bundle is
+        a single frame (``k=1``, 2-D) or a ``(P, k, dim)`` stack, and to switch
+        the one-step sweep into teacher-forced (pointer-by-1) mode for ``k>1``.
+        Families that never bundle simply do not expose this attribute.
+        """
+        return self._k
 
     def _features(
         self,
@@ -207,8 +214,10 @@ class TransolverSimulator(CaseBoundSimulator):
         current_positions: Tensor,
         nparticles_per_example: Tensor,
         particle_types: Tensor,
+        *,
+        teacher_forced: bool = False,
     ) -> tuple[Tensor, Tensor]:
-        """Predict the next positions and de-normalized stress.
+        """Predict the next ``k`` positions and de-normalized stress.
 
         Parameters
         ----------
@@ -224,13 +233,24 @@ class TransolverSimulator(CaseBoundSimulator):
             mask, cached by :meth:`~.CaseBoundSimulator.bind_case`, are used
             instead. The caller is expected to pass the same
             ``particle_types`` that were bound.
+        teacher_forced:
+            Pointer-advance mode (ADR-0050/0051). ``False`` (default) is the
+            rollout regime: the pointer advances by ``k`` per call, matching
+            the ``k`` frames a bundle consumes. ``True`` is the teacher-forced
+            one-step sweep, where the caller re-feeds a ground-truth window
+            slid by ONE frame each call and scores only the first predicted
+            frame, so the pointer must advance by 1. A no-op at ``k=1`` (the
+            advance is 1 either way).
 
         Returns
         -------
         tuple[Tensor, Tensor]
-            ``(next_positions (P, dim), aux (P, 1))``. ``aux`` is the
-            de-normalized predicted stress, kept 2-D per the
-            ``_SimulatorLike`` contract.
+            At ``k=1`` (byte-identical to the pre-0051 recipe):
+            ``(next_positions (P, dim), aux (P, 1))``. At ``k>1``:
+            ``(next_positions (P, k, dim), aux (P, k, 1))`` — the ``k`` bundled
+            frames, positions obtained by integrating the ``k`` predicted
+            per-frame velocities from ``x_t`` (``cumsum``). ``aux`` is the
+            de-normalized predicted stress.
 
         Raises
         ------
@@ -264,7 +284,11 @@ class TransolverSimulator(CaseBoundSimulator):
         x_t = current_positions[:, -1].contiguous()
         n_frames = current_positions.shape[1]
 
-        self._advance_pointer(x_t, n_frames)
+        # Rollout advances the pointer by the bundle size k; the teacher-forced
+        # one-step sweep slides the GT window by 1 and so advances by 1. At k=1
+        # both are 1 (byte-identical). The scripted-velocity INPUT feature stays
+        # a single (immediate-next) actuator velocity for all k.
+        self._advance_pointer(x_t, n_frames, step=1 if teacher_forced else self._k)
         scripted_velocity = self._eval_scripted_velocity(x_t)
         velocity_history = (
             self._window_velocity_history(current_positions)
@@ -281,15 +305,26 @@ class TransolverSimulator(CaseBoundSimulator):
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=False)
 
-        out = self._net(node_feats, None)
-        # Inverse-normalize the FULL (P, dim+1) output first -- slicing
-        # before inverse would broadcast the dim-wide velocity slice against
-        # the (dim+1)-wide std/mean buffers.
-        out = self._target_normalizer.inverse(out)
-        velocity = out[:, : self._dim]
-        stress = out[:, self._dim :]
+        out = self._net(node_feats, None)  # (P, k*(dim+1))
+        if self._k == 1:
+            # Byte-identical k=1 path. Inverse-normalize the FULL (P, dim+1)
+            # output first -- slicing before inverse would broadcast the
+            # dim-wide velocity slice against the (dim+1)-wide std/mean buffers.
+            out = self._target_normalizer.inverse(out)
+            velocity = out[:, : self._dim]
+            stress = out[:, self._dim :]
+            next_positions = x_t + velocity
+            return next_positions, stress
 
-        next_positions = x_t + velocity
+        # k>1: reshape to (P, k, dim+1), inverse-normalize on the row-folded
+        # (P*k, dim+1) view (same width-(dim+1) stats as k=1), then integrate
+        # the k per-frame velocities from x_t to k absolute positions.
+        p, k, dim = out.shape[0], self._k, self._dim
+        out = self._target_normalizer.inverse(out.reshape(p * k, dim + 1))
+        out = out.reshape(p, k, dim + 1)
+        velocity = out[:, :, :dim]  # (P, k, dim)
+        stress = out[:, :, dim:]  # (P, k, 1)
+        next_positions = x_t.unsqueeze(1) + torch.cumsum(velocity, dim=1)
         return next_positions, stress
 
     def forward_train(
@@ -312,10 +347,11 @@ class TransolverSimulator(CaseBoundSimulator):
             ``(P, dim)`` current world positions; noise (if any) has ALREADY
             been applied by the caller before this method is called.
         next_positions:
-            ``(P, dim)`` ground-truth next-frame world positions.
+            Ground-truth next-frame world positions: ``(P, dim)`` at ``k=1``;
+            ``(P, k, dim)`` at ``k>1`` (the k bundled target frames).
         next_aux:
-            ``(P,)`` ground-truth stress (working-frame units, e.g. MPa) at
-            the next frame.
+            Ground-truth stress (working-frame units, e.g. MPa): ``(P,)`` at
+            ``k=1``; ``(P, k)`` at ``k>1``.
         particle_types:
             ``(P,)`` int64 node-type codes.
         reference_coords:
@@ -338,11 +374,14 @@ class TransolverSimulator(CaseBoundSimulator):
         Returns
         -------
         tuple[Tensor, Tensor]
-            ``(pred_norm, target_norm)``, each ``(P, dim + 1)``: the raw
-            network output (already in normalized/target space, matching
-            what :meth:`predict_positions` inverse-normalizes) and the
-            normalized ground-truth target ``cat([next_positions - x_last,
-            next_aux[:, None]], dim=1)``.
+            ``(pred_norm, target_norm)``: the raw network output (already in
+            normalized/target space, matching what :meth:`predict_positions`
+            inverse-normalizes) and the normalized ground-truth target. Each is
+            ``(P, dim + 1)`` at ``k=1`` (target
+            ``cat([next_positions - x_last, next_aux[:, None]], dim=1)``) and
+            ``(P, k, dim + 1)`` at ``k>1`` (per-frame running-integration
+            velocity targets ``cat([Δpositions, next_aux[..., None]], -1)``,
+            normalized on the row-folded ``(P*k, dim+1)`` view).
 
         Notes
         -----
@@ -368,8 +407,12 @@ class TransolverSimulator(CaseBoundSimulator):
         one_hot = F.one_hot(particle_types, num_classes=self._node_type_size).to(
             torch.float32
         )
+        # The scripted-velocity INPUT feature stays a single (immediate-next)
+        # actuator velocity for all k, so at k>1 it reads the FIRST bundle
+        # frame; node_in is unchanged (ADR-0051).
+        first_next = next_positions if self._k == 1 else next_positions[:, 0]
         scripted_velocity = self._train_scripted_velocity(
-            x_last, next_positions, particle_types
+            x_last, first_next, particle_types
         )
 
         node_feats_raw = self._features(
@@ -377,9 +420,24 @@ class TransolverSimulator(CaseBoundSimulator):
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
 
-        pred_norm = self._net(node_feats, n_particles_per_example)
+        pred_norm = self._net(node_feats, n_particles_per_example)  # (P, k*(dim+1))
 
-        target_raw = torch.cat([next_positions - x_last, next_aux[:, None]], dim=1)
-        target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
+        if self._k == 1:
+            # Byte-identical k=1 path.
+            target_raw = torch.cat([next_positions - x_last, next_aux[:, None]], dim=1)
+            target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
+            return pred_norm, target_norm
 
+        # k>1: per-frame velocity targets via running integration
+        # (v_0 = next[:,0] - x_last; v_j = next[:,j] - next[:,j-1]), so every
+        # one of the k targets stays one-step scaled and the width-(dim+1)
+        # target normalizer stays valid (fed the row-folded (P*k, dim+1) view).
+        p, k, dim = x_last.shape[0], self._k, self._dim
+        running = torch.cat([x_last.unsqueeze(1), next_positions], dim=1)
+        velocities = running[:, 1:] - running[:, :-1]  # (P, k, dim)
+        target_raw = torch.cat([velocities, next_aux.unsqueeze(-1)], dim=-1)
+        target_norm = self._target_normalizer(
+            target_raw.reshape(p * k, dim + 1), accumulate=accumulate
+        ).reshape(p, k, dim + 1)
+        pred_norm = pred_norm.reshape(p, k, dim + 1)
         return pred_norm, target_norm

@@ -61,3 +61,43 @@ def test_collate_samples_output_unaffected_by_traj_idx_key():
         "n_particles_per_example",
     }
     assert "traj_idx" not in out
+
+
+# --- ADR-0050/0051 k-frames-per-call: k-frame target span ---
+
+
+def test_window_dataset_kframe_target_shapes_and_count():
+    # T=6, input_frames=3, k=2 -> starts t in {3,4} (t+k<=6) -> 2 samples;
+    # target span positions[t:t+2] -> (P, k, dim) / (P, k).
+    ds = WindowDataset([_traj("a", P=5)], input_frames=3, frames_per_call=2)
+    assert len(ds) == 2
+    s = ds[0]
+    assert s["position_seq"].shape == (5, 3, 2)
+    assert s["next_position"].shape == (5, 2, 2)  # (P, k, dim)
+    assert s["next_aux"].shape == (5, 2)  # (P, k)
+    # frames 3,4 have x = 3,4 for every particle
+    torch.testing.assert_close(
+        s["next_position"][:, :, 0], torch.tensor([[3.0, 4.0]] * 5)
+    )
+
+
+def test_window_dataset_oneshot_is_one_sample_per_trajectory():
+    # k = T - input_frames covers the whole horizon in one window.
+    ds = WindowDataset(
+        [_traj("a", 5), _traj("b", 4)], input_frames=3, frames_per_call=3
+    )
+    assert len(ds) == 2  # exactly one per trajectory
+    s = ds[0]
+    assert s["next_position"].shape == (5, 3, 2)
+    torch.testing.assert_close(
+        s["next_position"][:, :, 0], torch.tensor([[3.0, 4.0, 5.0]] * 5)
+    )
+
+
+def test_window_dataset_k1_default_matches_pre_0051():
+    # The default (k=1) must yield the exact pre-0051 sample count and a 2-D
+    # single-frame target, so every k=1 family is byte-identical.
+    default = WindowDataset([_traj("a", 5)], input_frames=3)
+    explicit = WindowDataset([_traj("a", 5)], input_frames=3, frames_per_call=1)
+    assert len(default) == len(explicit) == 3
+    assert default[0]["next_position"].shape == (5, 2)  # (P, dim), not (P, 1, dim)

@@ -23,7 +23,14 @@ class _SimulatorLike(Protocol):
         nparticles_per_example: torch.Tensor,
         particle_types: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Return ``(next_positions (P,dim), aux (P,n_aux))``."""
+        """Return ``(next_positions (P,dim), aux (P,n_aux))``.
+
+        A k-frames-per-call simulator (ADR-0050/0051) instead returns a
+        ``(P, k, dim)`` / ``(P, k, n_aux)`` bundle; :func:`rollout` and the
+        one-step sweeps dispatch on the returned rank, so k=1 simulators (every
+        non-Transolver family) need no change. A k>1 simulator additionally
+        accepts a ``teacher_forced`` keyword the one-step sweeps pass it.
+        """
         ...
 
 
@@ -141,16 +148,44 @@ def rollout(
     aux_true = torch.from_numpy(trajectory.aux).to(device)
     aux_pred = [aux_true[i] for i in range(input_frames)]
 
+    # Rank-dispatch on the returned tensor (ADR-0050/0051): a 2-D (P, dim)
+    # return is the autoregressive k=1 path (byte-identical, and what every
+    # non-Transolver family returns); a 3-D (P, k, dim) return is a k-frame
+    # bundle. The predicted[] / aux_pred[] lists end at exactly n_frames
+    # entries either way, so RolloutResult's (T, P, dim)/(T, P) contract and
+    # everything downstream stay scheme-agnostic.
     with torch.no_grad():
-        for t in range(input_frames, n_frames):
+        t = input_frames
+        while t < n_frames:
             seq_pw = seq.permute(1, 0, 2).contiguous()  # (P, input_frames, dim)
             next_pos, aux = simulator.predict_positions(seq_pw, npp, ptype)
-            if kin_idx.numel():
-                next_pos = next_pos.clone()
-                next_pos[kin_idx] = pos[t][kin_idx]
-            predicted.append(next_pos)
-            aux_pred.append(aux[:, 0])
-            seq = torch.cat([seq[1:], next_pos[None]], dim=0)
+            if next_pos.ndim == 2:
+                # k=1 autoregressive step (byte-identical to the pre-0051 loop).
+                if kin_idx.numel():
+                    next_pos = next_pos.clone()
+                    next_pos[kin_idx] = pos[t][kin_idx]
+                predicted.append(next_pos)
+                aux_pred.append(aux[:, 0])
+                seq = torch.cat([seq[1:], next_pos[None]], dim=0)
+                t += 1
+            else:
+                # k>1 bundle: predict-k-and-truncate remainder (fixed head).
+                k_eff = min(next_pos.shape[1], n_frames - t)
+                bundle = next_pos[:, :k_eff]  # (P, k_eff, dim)
+                bundle_aux = aux[:, :k_eff]  # (P, k_eff, 1)
+                if kin_idx.numel():
+                    # Override every bundle frame's kinematic rows with GT
+                    # BEFORE the re-seed, so the fed-back window's last frame
+                    # carries GT kinematic rows and the next bundle's tripwire
+                    # stays green.
+                    bundle = bundle.clone()
+                    for j in range(k_eff):
+                        bundle[kin_idx, j] = pos[t + j][kin_idx]
+                for j in range(k_eff):
+                    predicted.append(bundle[:, j])
+                    aux_pred.append(bundle_aux[:, j, 0])
+                seq = torch.stack(predicted[-input_frames:], dim=0)
+                t += k_eff
 
     pred_pos = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     pred_aux = torch.stack(aux_pred, dim=0).cpu().numpy().astype(np.float32)
@@ -250,11 +285,21 @@ def one_step_position_rmse(
     kin_mask_np = np.isin(trajectory.particle_type, np.asarray(kinematic_types))
     keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
 
+    # A k>1 bundled simulator predicts k frames per call; the one-step metric
+    # scores only the FIRST (genuine single-step-from-GT-history) frame, and
+    # needs teacher-forced pointer mode (advance by 1, not k) since this sweep
+    # slides the GT window by 1. k=1 simulators expose no frames_per_call and
+    # take the unchanged, byte-identical path.
+    tf_kw = (
+        {"teacher_forced": True} if getattr(simulator, "frames_per_call", 1) > 1 else {}
+    )
     predicted = []
     with torch.no_grad():
         for t in range(input_frames, n_frames):
             seq_pw = pos[t - input_frames : t].permute(1, 0, 2).contiguous()
-            next_pos, _ = simulator.predict_positions(seq_pw, npp, ptype)
+            next_pos, _ = simulator.predict_positions(seq_pw, npp, ptype, **tf_kw)
+            if next_pos.ndim == 3:  # (P, k, dim) bundle -> first frame
+                next_pos = next_pos[:, 0]
             predicted.append(next_pos)
 
     pred = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
@@ -308,11 +353,18 @@ def one_step_aux_rmse(
     kin_mask_np = np.isin(trajectory.particle_type, np.asarray(kinematic_types))
     keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
 
+    # See one_step_position_rmse: teacher-forced pointer mode + first-frame
+    # scoring for a k>1 bundle; byte-identical unchanged path at k=1.
+    tf_kw = (
+        {"teacher_forced": True} if getattr(simulator, "frames_per_call", 1) > 1 else {}
+    )
     predicted = []
     with torch.no_grad():
         for t in range(input_frames, n_frames):
             seq_pw = pos[t - input_frames : t].permute(1, 0, 2).contiguous()
-            _, aux = simulator.predict_positions(seq_pw, npp, ptype)
+            _, aux = simulator.predict_positions(seq_pw, npp, ptype, **tf_kw)
+            if aux.ndim == 3:  # (P, k, 1) bundle -> first frame's aux
+                aux = aux[:, 0]
             predicted.append(aux[:, 0])
 
     pred = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)

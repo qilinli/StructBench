@@ -284,7 +284,9 @@ def test_load_run_config_transolver_frames_per_call_roundtrips(tmp_path):
     # The config layer accepts any int frames_per_call (the k=T sentinel 0 and
     # bundling k>1); the simulator resolves/gates it later (ADR-0050/0051).
     for value in (0, 5):
-        cfg = VALID_TRANSOLVER.replace("frames_per_call = 1", f"frames_per_call = {value}")
+        cfg = VALID_TRANSOLVER.replace(
+            "frames_per_call = 1", f"frames_per_call = {value}"
+        )
         rc = load_run_config(_write(tmp_path, cfg))
         assert rc.model.frames_per_call == value
 

@@ -31,29 +31,46 @@ class WindowDataset(Dataset):
     input_frames:
         Number of consecutive input frames per sample (the model's history
         length; ADR-0035).
+    frames_per_call:
+        Number of consecutive target frames per sample (the ADR-0050/0051
+        prediction-scheme ``k``). ``1`` (default) is the autoregressive
+        single-frame target and is byte-identical to the pre-0051 dataset —
+        every ``k=1`` family (CGN/MGN/GeoFLARE) constructs this positionally
+        and is unaffected. ``k>1`` makes each sample's target the span
+        ``positions[t:t+k]`` / ``aux[t:t+k]``; a one-shot ``k = T -
+        input_frames`` yields exactly one sample per trajectory.
 
     Notes
     -----
-    For a trajectory with ``T`` frames and a given ``input_frames`` the number
-    of samples is ``T - input_frames``.  The first valid target index is
-    ``input_frames`` (0-based), the last is ``T - 1``.
+    For a trajectory with ``T`` frames the number of samples is
+    ``T - input_frames - (frames_per_call - 1)``; the last valid target-span
+    start is ``T - frames_per_call``. At ``k=1`` this is ``T - input_frames``,
+    the pre-0051 count.
     """
 
-    def __init__(self, trajectories: list[CaseTrajectory], input_frames: int) -> None:
+    def __init__(
+        self,
+        trajectories: list[CaseTrajectory],
+        input_frames: int,
+        frames_per_call: int = 1,
+    ) -> None:
         self._input_frames = input_frames
-        # index: list of (traj, t, traj_idx) where t is the index of the
+        self._k = frames_per_call
+        # index: list of (traj, t, traj_idx) where t is the index of the FIRST
         # predicted frame and traj_idx is trajectories' position in the input
         # list (so a mesh collate can look up each sample's static mesh data
-        # by trajectory). Interleave across trajectories (t-major,
-        # traj-minor) so that a shuffle=False DataLoader places one sample
-        # per trajectory in each batch when all trajectories share the same
-        # length.
+        # by trajectory). Interleave across trajectories (t-major, traj-minor)
+        # so that a shuffle=False DataLoader places one sample per trajectory
+        # in each batch when all trajectories share the same length. The
+        # k-frame target span positions[t:t+k] needs t+k <= T, so the last
+        # start is T-k; at k=1 this reduces to the pre-0051 range(input_frames,
+        # max_frames) with guard t < T (byte-identical).
         self._index: list[tuple[CaseTrajectory, int, int]] = []
         if trajectories:
             max_frames = max(tr.positions.shape[0] for tr in trajectories)
-            for t in range(input_frames, max_frames):
+            for t in range(input_frames, max_frames - frames_per_call + 1):
                 for traj_idx, tr in enumerate(trajectories):
-                    if t < tr.positions.shape[0]:
+                    if t + frames_per_call <= tr.positions.shape[0]:
                         self._index.append((tr, t, traj_idx))
 
     def __len__(self) -> int:
@@ -72,8 +89,10 @@ class WindowDataset(Dataset):
         dict
             ``position_seq``: Tensor of shape ``(P, input_frames, dim)``, mm.
             ``particle_type``: LongTensor of shape ``(P,)``.
-            ``next_position``: Tensor of shape ``(P, dim)``, mm.
-            ``next_aux``: Tensor of shape ``(P,)``; auxiliary target, units are
+            ``next_position``: Tensor of shape ``(P, dim)`` at ``k=1``, mm;
+            ``(P, k, dim)`` at ``frames_per_call = k > 1``.
+            ``next_aux``: Tensor of shape ``(P,)`` at ``k=1`` (``(P, k)`` at
+            ``k>1``); auxiliary target, units are
             benchmark-dependent (e.g. MPa for von Mises stress, dimensionless
             for max principal strain).
             ``n_particles``: int number of particles ``P``.
@@ -86,13 +105,26 @@ class WindowDataset(Dataset):
         """
         tr, t, traj_idx = self._index[i]
         w = self._input_frames
+        k = self._k
         seq = tr.positions[t - w : t]  # (input_frames, P, dim)
         seq = np.transpose(seq, (1, 0, 2))  # (P, input_frames, dim)
+        if k == 1:
+            # Byte-identical k=1 target: single frame, (P, dim) / (P,).
+            next_position = torch.from_numpy(tr.positions[t])
+            next_aux = torch.from_numpy(tr.aux[t])
+        else:
+            # k-frame target span: (P, k, dim) / (P, k).
+            next_position = torch.from_numpy(
+                np.ascontiguousarray(np.transpose(tr.positions[t : t + k], (1, 0, 2)))
+            )
+            next_aux = torch.from_numpy(
+                np.ascontiguousarray(np.transpose(tr.aux[t : t + k], (1, 0)))
+            )
         return {
             "position_seq": torch.from_numpy(np.ascontiguousarray(seq)),
             "particle_type": torch.from_numpy(tr.particle_type),
-            "next_position": torch.from_numpy(tr.positions[t]),
-            "next_aux": torch.from_numpy(tr.aux[t]),
+            "next_position": next_position,
+            "next_aux": next_aux,
             "n_particles": int(tr.positions.shape[1]),
             "traj_idx": traj_idx,
         }

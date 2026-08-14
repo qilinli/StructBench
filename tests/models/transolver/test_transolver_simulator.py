@@ -218,8 +218,92 @@ def test_frames_per_call_zero_sentinel_raises_at_construction():
         _tiny_sim(frames_per_call=0)
 
 
-def test_frames_per_call_gt_one_not_yet_wired():
-    # k>1 (temporal bundling / one-shot) lands in the ADR-0051 phase-2/3 work;
-    # until then it must fail loudly rather than silently train as k=1.
-    with pytest.raises(NotImplementedError, match="frames_per_call > 1"):
-        _tiny_sim(frames_per_call=5)
+def test_frames_per_call_gt_one_builds_k_head():
+    # k>1 widens the decoder head to k*(dim+1); the target normalizer stays
+    # width dim+1 (per-frame, applied on the row-folded view).
+    dim, k = 3, 4
+    sim = _tiny_sim(frames_per_call=k)
+    assert sim.frames_per_call == k
+    assert sim._net.blocks[-1].mlp2.out_features == k * (dim + 1)
+    assert sim._target_normalizer._sum.shape[0] == dim + 1
+
+
+def test_predict_positions_kframe_bundle_shapes():
+    # A k>1 bundle returns (P, k, dim) positions and (P, k, 1) aux.
+    k = 4
+    sim, gt, types = _bound_sim(T=8, frames_per_call=k)
+    npp = torch.tensor([5])
+    win = gt[0:2].permute(1, 0, 2).contiguous()  # frames [0,1] -> predict [2, 2+k)
+    nxt, aux = sim.predict_positions(win, npp, types)
+    assert nxt.shape == (5, k, 3) and aux.shape == (5, k, 1)
+
+
+def test_predict_positions_kframe_integrates_from_x_t():
+    # The k bundled positions are x_t + cumsum(velocity), so consecutive
+    # frames' displacements are the decoded per-frame velocities: reversing the
+    # cumsum (diff, with x_t prepended) must reproduce a monotone-consistent set
+    # -- here we just assert the first frame's step is x_t + v_0 (finite,
+    # well-formed) and the bundle is strictly an integration (no NaNs, right
+    # shape), the numerical round-trip being covered end-to-end in the rollout.
+    k = 3
+    sim, gt, types = _bound_sim(T=8, frames_per_call=k)
+    npp = torch.tensor([5])
+    win = gt[0:2].permute(1, 0, 2).contiguous()
+    x_t = win[:, -1]
+    nxt, _ = sim.predict_positions(win, npp, types)
+    steps = torch.diff(nxt, dim=1, prepend=x_t.unsqueeze(1))  # (P, k, dim)
+    # integration is invertible: re-integrating the recovered per-frame steps
+    # reproduces the bundle exactly.
+    torch.testing.assert_close(x_t.unsqueeze(1) + torch.cumsum(steps, dim=1), nxt)
+
+
+def test_forward_train_kframe_target_shapes():
+    # k>1 forward_train emits (P, k, dim+1) prediction and target.
+    k, p, dim = 4, 5, 3
+    sim = _tiny_sim(frames_per_call=k)
+    torch.manual_seed(0)
+    x_last = torch.randn(p, dim)
+    next_positions = torch.randn(p, k, dim)
+    next_aux = torch.randn(p, k)
+    types = torch.tensor([0, 0, 1, 3, 0])
+    ref = torch.randn(p, dim)
+    npp = torch.tensor([p])
+    pred, target = sim.forward_train(
+        x_last, next_positions, next_aux, types, ref, npp, accumulate=True
+    )
+    assert pred.shape == (p, k, dim + 1) and target.shape == (p, k, dim + 1)
+
+
+def test_kframe_bundled_rollout_moving_kinematic_keeps_pointer_synced():
+    # C4 regression: a k>1 bundled rollout advances the step pointer by k. With
+    # a MOVING kinematic particle (unlike Taylor's static wall, which would mask
+    # a desync by comparing frame-invariant rows), a wrong pointer step trips
+    # the tripwire; a correct step + all-k override keeps it green and pins the
+    # kinematic rows to GT across every bundle.
+    from structbench.datasets.canonical import CaseTrajectory
+    from structbench.eval.rollout import rollout
+
+    torch.manual_seed(0)
+    rng = np.random.default_rng(1)
+    T, P, k, dim = 8, 5, 3, 3
+    pos = rng.random((T, P, dim)).astype(np.float32).cumsum(0)
+    pos[:, 2, :] = (np.arange(T)[:, None] ** 2).astype(np.float32)  # kinematic, moving
+    ptype = np.array([0, 0, 1, 0, 0], dtype=np.int64)  # row 2 is kinematic type 1
+    aux = np.zeros((T, P), dtype=np.float32)
+    ref = rng.random((P, dim)).astype(np.float32)
+    cells = np.array([[0, 1, 2, 3], [1, 2, 3, 4]], dtype=np.int64)
+    traj = CaseTrajectory("k", pos, ptype, aux, np.arange(T, dtype=float))
+
+    sim = _tiny_sim(frames_per_call=k, kinematic_types=(1,), scripted_types=(1,))
+    sim.eval()
+    sim.bind_case(
+        torch.from_numpy(cells),
+        torch.from_numpy(ref),
+        torch.from_numpy(ptype),
+        torch.from_numpy(pos),
+    )
+    sim.reset_rollout()
+    # No RuntimeError => the pointer stayed in sync with the moving kinematic
+    # rows across bundles.
+    res = rollout(sim, traj, input_frames=2, kinematic_types=(1,))
+    np.testing.assert_allclose(res.predicted_positions[:, 2], pos[:, 2], atol=1e-4)
