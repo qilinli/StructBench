@@ -55,8 +55,23 @@ def knn_neighbor_indices(coords: Tensor, k: int) -> Tensor:
     return idx
 
 
-def _segment_phi(x_e: Tensor, v_e: Tensor, k: int, clamp: float) -> Tensor:
-    """Standardized strain-rate proxy for one example, ``(N, 1)``."""
+def _segment_phi(
+    x_e: Tensor,
+    v_e: Tensor,
+    k: int,
+    clamp: float,
+    smooth: bool = False,
+    robust: bool = False,
+) -> Tensor:
+    """Standardized strain-rate proxy for one example, ``(N, 1)``.
+
+    ``smooth`` adds a spatial neighbour-average pass over the same kNN set (a
+    spatial low-pass that damps the ``dv/dx`` high-pass amplification of
+    rollout drift, ADR-SRO Cause-1 fix). ``robust`` swaps the neighbour mean
+    and the mean/std standardization for **median / IQR** order statistics, so
+    a few blown-up points cannot shift every point's φ. Both default off ⇒
+    the raw ADR-0047 behaviour.
+    """
     n = x_e.shape[0]
     if n < 2:
         return x_e.new_zeros((n, 1))
@@ -65,10 +80,25 @@ def _segment_phi(x_e: Tensor, v_e: Tensor, k: int, clamp: float) -> Tensor:
     valid = idx != rows  # exclude self by index equality (not by column 0)
     dx = torch.linalg.vector_norm(x_e[idx] - x_e.unsqueeze(1), dim=-1)  # (N, eff_k)
     dv = torch.linalg.vector_norm(v_e[idx] - v_e.unsqueeze(1), dim=-1)  # (N, eff_k)
-    ratio = (dv / dx.clamp_min(1e-6)) * valid  # zero invalid (self) slots
-    count = valid.sum(dim=1).clamp_min(1)  # masked mean over >= 1 neighbours
-    phi = (ratio.sum(dim=1) / count).unsqueeze(1)  # (N, 1)
-    phi = (phi - phi.mean()) / (phi.std() + 1e-6)  # per-example standardize
+    ratio = dv / dx.clamp_min(1e-6)  # (N, eff_k) local velocity gradient
+    if robust:
+        phi = torch.nanmedian(
+            ratio.masked_fill(~valid, float("nan")), dim=1
+        ).values.unsqueeze(1)  # (N, 1) median over valid neighbours
+    else:
+        count = valid.sum(dim=1).clamp_min(1)
+        phi = ((ratio * valid).sum(dim=1) / count).unsqueeze(1)
+    if smooth:  # spatial low-pass: masked mean of φ over the same neighbours
+        phi_nb = phi[idx].squeeze(-1)  # (N, eff_k)
+        phi = (phi_nb * valid).sum(dim=1, keepdim=True) / valid.sum(
+            dim=1, keepdim=True
+        ).clamp_min(1)
+    if robust:
+        med = phi.median()
+        iqr = phi.quantile(0.75) - phi.quantile(0.25)
+        phi = (phi - med) / (iqr + 1e-6)
+    else:
+        phi = (phi - phi.mean()) / (phi.std() + 1e-6)  # per-example standardize
     return phi.clamp(-clamp, clamp)
 
 
@@ -78,6 +108,8 @@ def strain_rate_phi(
     n_particles_per_example: Tensor | None,
     k: int,
     clamp: float,
+    smooth: bool = False,
+    robust: bool = False,
 ) -> Tensor:
     """Per-point strain-rate activity field ``phi``, computed per example.
 
@@ -106,11 +138,13 @@ def strain_rate_phi(
         ``(P, 1)`` standardized strain-rate proxy, on ``x``'s dtype and device.
     """
     if n_particles_per_example is None:
-        return _segment_phi(x, v, k, clamp)
+        return _segment_phi(x, v, k, clamp, smooth, robust)
     out = x.new_empty((x.shape[0], 1))
     start = 0
     for count in n_particles_per_example.tolist():
         end = start + int(count)
-        out[start:end] = _segment_phi(x[start:end], v[start:end], k, clamp)
+        out[start:end] = _segment_phi(
+            x[start:end], v[start:end], k, clamp, smooth, robust
+        )
         start = end
     return out

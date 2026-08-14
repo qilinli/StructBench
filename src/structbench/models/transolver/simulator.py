@@ -100,6 +100,9 @@ class TransolverSimulator(CaseBoundSimulator):
         phi_neighbors: int = 16,
         phi_clamp: float = 4.0,
         phi_lambda_init: float = 0.0,
+        phi_smooth: bool = False,
+        phi_robust: bool = False,
+        phi_vel_smooth: bool = False,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -130,6 +133,12 @@ class TransolverSimulator(CaseBoundSimulator):
         self._phi_mode = phi_mode
         self._phi_neighbors = phi_neighbors
         self._phi_clamp = phi_clamp
+        # ADR-SRO Cause-1 robustness knobs (all default off = raw ADR-0047 φ):
+        # spatial smoothing + robust median/IQR + temporal velocity-smoothing,
+        # to damp the high-pass amplification of rollout drift.
+        self._phi_smooth = phi_smooth
+        self._phi_robust = phi_robust
+        self._phi_vel_smooth = phi_vel_smooth
         node_in = node_type_size + 3 * dim + history_velocities * dim
         if phi_mode == "feature":
             node_in += 1  # phi appended as one extra channel
@@ -223,8 +232,23 @@ class TransolverSimulator(CaseBoundSimulator):
                 "phi requires velocity history; build with history_velocities > 0 "
                 "(the phi_mode!='off' constructor guard should have caught this)"
             )
-        v_last = velocity_history[:, -self._dim :]
-        return strain_rate_phi(x, v_last, n_per, self._phi_neighbors, self._phi_clamp)
+        if self._phi_vel_smooth:
+            # temporal low-pass: mean over the window's velocities before the
+            # strain-rate gradient, damping per-frame prediction jitter.
+            v = velocity_history.reshape(-1, self._history_velocities, self._dim).mean(
+                1
+            )
+        else:
+            v = velocity_history[:, -self._dim :]
+        return strain_rate_phi(
+            x,
+            v,
+            n_per,
+            self._phi_neighbors,
+            self._phi_clamp,
+            smooth=self._phi_smooth,
+            robust=self._phi_robust,
+        )
 
     def predict_positions(
         self,

@@ -258,6 +258,9 @@ phi_mode = "off"
 phi_neighbors = 16
 phi_clamp = 4.0
 phi_lambda_init = 0.0
+phi_smooth = false
+phi_robust = false
+phi_vel_smooth = false
 
 [train]
 batch_size = 8

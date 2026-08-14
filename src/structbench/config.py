@@ -237,6 +237,9 @@ class TransolverConfig:
     phi_neighbors: int = 16
     phi_clamp: float = 4.0
     phi_lambda_init: float = 0.0
+    phi_smooth: bool = False
+    phi_robust: bool = False
+    phi_vel_smooth: bool = False
 
 
 @dataclass

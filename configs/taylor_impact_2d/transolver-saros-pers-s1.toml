@@ -36,6 +36,9 @@ phi_mode = "persistent"              # SRO physics-conditioned slicing: off|feat
 phi_neighbors = 16            # kNN count for the strain-rate proxy (phi); inert when phi_mode="off"
 phi_clamp = 4.0               # symmetric clamp on standardized phi; inert when off
 phi_lambda_init = 0.0         # per-block phi-gate init; 0.0 => step-0 == vanilla; inert when off
+phi_smooth = false           # SRO Cause-1 fix: spatial kNN smoothing of phi; inert when phi_mode="off"
+phi_robust = false           # SRO Cause-1 fix: median/IQR robust phi statistics; inert when off
+phi_vel_smooth = false        # SRO Cause-1 fix: temporal window-velocity smoothing; inert when off
                               # GNS adjusted-next target (de-noise velocity, not the
                               # accumulated position offset; ADR-0049)
 

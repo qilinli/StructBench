@@ -160,3 +160,32 @@ def test_simulator_phi_requires_velocity_history() -> None:
 def test_simulator_rejects_unknown_phi_mode() -> None:
     with pytest.raises(ValueError, match="phi_mode"):
         TransolverSimulator(dim=2, phi_mode="bogus", history_velocities=5)
+
+
+def test_robust_smooth_phi_batched_equals_per_example() -> None:
+    # The Cause-1 robustness knobs (spatial smooth + median/IQR) must preserve
+    # the per-example invariant.
+    torch.manual_seed(2)
+    xa, va = torch.randn(13, 2), torch.randn(13, 2)
+    xb, vb = torch.randn(9, 2), torch.randn(9, 2)
+    kw = dict(smooth=True, robust=True)
+    batched = strain_rate_phi(
+        torch.cat([xa, xb]), torch.cat([va, vb]), torch.tensor([13, 9]), 4, 4.0, **kw
+    )
+    singles = torch.cat(
+        [strain_rate_phi(xa, va, None, 4, 4.0, **kw),
+         strain_rate_phi(xb, vb, None, 4, 4.0, **kw)]
+    )
+    assert torch.allclose(batched, singles, atol=1e-6)
+    assert torch.isfinite(batched).all()
+
+
+def test_robust_sim_builds_and_vel_smooth() -> None:
+    sim = TransolverSimulator(dim=2, hidden_dim=16, n_layers=2, n_heads=2,
+                              history_velocities=5, phi_mode="persistent",
+                              phi_smooth=True, phi_robust=True, phi_vel_smooth=True)
+    assert sim._phi_smooth and sim._phi_robust and sim._phi_vel_smooth
+    # phi computes with velocity-smoothing over the 5-velocity window
+    vh = torch.randn(11, 5 * 2)
+    phi = sim._compute_phi(torch.randn(11, 2), vh, None)
+    assert phi.shape == (11, 1) and torch.isfinite(phi).all()
