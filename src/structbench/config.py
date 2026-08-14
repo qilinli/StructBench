@@ -198,6 +198,10 @@ class TransolverConfig:
     noise_std : float
         Standard deviation of the random-walk training noise at the last
         step, applied to NORMAL-typed nodes only (ADR-0043 §4, MGN parity).
+        Active only at ``frames_per_call == 1``: injected single-step noise is
+        a k=1 robustness mechanism, replaced at ``k>1`` by the pushforward
+        (1<k<T) or dropped (one-shot). A nonzero value is INERT at ``k>1`` and
+        the trainer logs a warning (ADR-0050/0051).
     normalizer_warmup_steps : int
         Number of training steps over which the online feature/target
         normalizers accumulate statistics before their outputs are used

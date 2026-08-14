@@ -9,6 +9,7 @@ evaluate() gate). Mirrors ``tests/cli/test_mgn_train_smoke.py`` (ADR-0043
 """
 
 import json
+import logging
 import math
 
 import numpy as np
@@ -231,7 +232,7 @@ def test_transolver_oneshot_kT_train_and_evaluate_smoke(tmp_path, monkeypatch):
 
 
 def test_transolver_pushforward_bundling_train_and_evaluate_smoke(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, caplog
 ):
     """1<k<T temporal bundling (MP-PDE pushforward) end-to-end: ADR-0051 phase 3.
 
@@ -242,9 +243,14 @@ def test_transolver_pushforward_bundling_train_and_evaluate_smoke(
     """
     import structbench.cli.train as cli_train
 
+    caplog.set_level(logging.WARNING, logger="structbench.cli.train")
     spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
         tmp_path, frames_per_call=2
     )
+
+    # noise_std (the fixture's default 0.003) is inert in the pushforward
+    # regime, so the trainer warns rather than let it look active (ADR-0051).
+    assert "noise_std" in caplog.text and "IGNORED" in caplog.text
 
     record = json.loads((out / "config.json").read_text(encoding="utf-8"))
     # An explicit 1<k<T is recorded verbatim (only the k=T sentinel is resolved).

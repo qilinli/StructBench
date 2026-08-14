@@ -89,6 +89,14 @@ feature is valid at any k; the scheme is chosen by regime:
   target normalizer's inverse is untrained, so the step instead trains a plain
   clean bundle1; the pushforward engages once the normalizers are ready.
 
+Because injected single-step noise is a `k=1`-only mechanism (replaced by the
+pushforward at `1<k<T`, dropped at `k=T`), `noise_std` is **inert at any k>1**;
+the `velocity_history` INPUT feature still applies (from clean/drifted windows),
+decoupled from its k=1 noise-scheme side effect. A nonzero `noise_std` at k>1 —
+common when a k>1 arm is cloned from a k=1 recipe — is left as a deliberate
+design choice (not composed with the pushforward), and the trainer **logs a
+warning** so the inert knob is not mistaken for active.
+
 ### k=1 byte-identity invariants (the acceptance bar)
 
 k=1 is byte-identical to pre-0051, contingent on a fixed set of invariants

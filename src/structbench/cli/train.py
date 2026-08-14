@@ -1485,6 +1485,24 @@ def _train_transolver(
     # drift the seam, bundle2 for the loss), so its target span is 2k; the
     # single-forward regimes (k=1, one-shot) use a k-frame span.
     target_frames = 2 * k if is_pushforward else k
+    # ADR-0050/0051: injected single-step noise is a k=1-only robustness
+    # mechanism. At k>1 it is replaced by the pushforward (1<k<T) or dropped
+    # (one-shot clean L2), so a nonzero noise_std is INERT — warn rather than
+    # let it look active in a config cloned from a k=1 recipe.
+    if k > 1 and cfg.noise_std:
+        scheme = (
+            "one-shot clean full-sequence L2"
+            if is_one_shot
+            else "MP-PDE bundle-seam pushforward"
+        )
+        logger.warning(
+            "noise_std=%.4g is IGNORED at frames_per_call=%d: rollout "
+            "robustness at k>1 comes from the %s, not injected single-step "
+            "noise (ADR-0050/0051). Set noise_std=0 to silence this.",
+            cfg.noise_std,
+            k,
+            scheme,
+        )
 
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
     sim = build_transolver_simulator(
