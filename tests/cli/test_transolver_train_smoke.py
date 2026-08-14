@@ -228,3 +228,75 @@ def test_transolver_oneshot_kT_train_and_evaluate_smoke(tmp_path, monkeypatch):
     assert np.isfinite(per_case["one_step_position_rmse"])
     assert np.isfinite(per_case["rollout_position_rmse"])
     assert np.isfinite(per_case["rollout_aux_rmse"])
+
+
+def test_transolver_pushforward_bundling_train_and_evaluate_smoke(
+    tmp_path, monkeypatch
+):
+    """1<k<T temporal bundling (MP-PDE pushforward) end-to-end: ADR-0051 phase 3.
+
+    k=2 on the T=8 / input_frames=2 fixture is genuine bundling (horizon 6 > 2,
+    so not one-shot), exercising both the normalizer-warmup clean-bundle branch
+    (first 5 steps) and the two-forward-pass seam pushforward after it, then the
+    bundled rollout + teacher-forced one-step in evaluate().
+    """
+    import structbench.cli.train as cli_train
+
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path, frames_per_call=2
+    )
+
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    # An explicit 1<k<T is recorded verbatim (only the k=T sentinel is resolved).
+    assert record["model"]["frames_per_call"] == 2
+
+    ckpts = list(out.glob("model-*.pt"))
+    assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    per_case = metrics["cases"][ids["val"][0]]
+    assert np.isfinite(per_case["one_step_position_rmse"])
+    assert np.isfinite(per_case["rollout_position_rmse"])
+    assert np.isfinite(per_case["rollout_aux_rmse"])
+
+
+def test_transolver_pushforward_helper_shapes_and_grad_through_bundle2():
+    """The pushforward helper: warmup and seam branches, k-frame shapes, and
+    gradient that flows through bundle2 (the second, with-grad forward)."""
+    from structbench.cli.train import _transolver_pushforward
+    from structbench.models.transolver import TransolverSimulator
+
+    torch.manual_seed(0)
+    k, P, F, dim = 2, 5, 2, 3
+    sim = TransolverSimulator(
+        dim=dim,
+        hidden_dim=8,
+        n_layers=1,
+        n_heads=2,
+        slice_num=2,
+        frames_per_call=k,
+        kinematic_types=(1,),
+        scripted_types=(1,),
+    )
+    position_seq = torch.randn(P, F, dim)
+    next_position = torch.randn(P, 2 * k, dim)  # two consecutive GT bundles
+    next_aux = torch.randn(P, 2 * k)
+    ptype = torch.tensor([0, 0, 1, 0, 0])
+    ref = torch.randn(P, dim)
+    npp = torch.tensor([P])
+    is_kin = ptype == 1
+    args = (sim, position_seq, next_position, next_aux, ptype, ref, npp, is_kin, k)
+
+    # warmup branch: plain clean bundle1, (P, k, dim+1) shapes.
+    pw, tw = _transolver_pushforward(*args, velocity_history=False, warmup=True)
+    assert pw.shape == (P, k, dim + 1) and tw.shape == (P, k, dim + 1)
+
+    # pushforward branch: same shapes, and the bundle2 prediction carries
+    # gradient (the two-pass seam training backprops through the net).
+    pp, tp = _transolver_pushforward(*args, velocity_history=False, warmup=False)
+    assert pp.shape == (P, k, dim + 1) and tp.shape == (P, k, dim + 1)
+    assert pp.requires_grad
+    pp.sum().backward()
+    grads = [p.grad for p in sim.parameters() if p.grad is not None]
+    assert grads, "no gradient reached the network through the pushforward"

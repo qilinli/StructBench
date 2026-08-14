@@ -1284,6 +1284,100 @@ def _resolve_transolver_k(
     return cfg, (k >= horizon), horizon
 
 
+def _transolver_pushforward(
+    sim: TransolverSimulator,
+    position_seq: Tensor,
+    next_position: Tensor,
+    next_aux: Tensor,
+    particle_type: Tensor,
+    reference_coords: Tensor,
+    n_particles_per_example: Tensor,
+    is_kinematic: Tensor,
+    k: int,
+    velocity_history: bool,
+    *,
+    warmup: bool,
+) -> tuple[Tensor, Tensor]:
+    """MP-PDE bundle-seam pushforward for the 1<k<T temporal-bundling regime.
+
+    The sample carries TWO consecutive GT bundles (``next_position`` is
+    ``(P, 2k, dim)``): bundle1 ``[t, t+k)`` and bundle2 ``[t+k, t+2k)``. Robustness
+    for bundling lives at the SEAM between bundles (no autoregressive feedback
+    exists WITHIN a bundle), so — following Brandstetter et al. (MP-PDE, ICLR
+    2022) — this runs bundle1 forward WITHOUT gradient, seeds bundle2's input
+    window from bundle1's own drifted output, and backpropagates only through
+    bundle2. The model thus learns to predict a bundle from a realistically
+    drifted (predicted, not ground-truth) seam window.
+
+    Kinematic rows of the drifted seam are clamped back to ground truth (their
+    motion is prescribed and GT-known for the whole bundle), so bundle2's
+    scripted-velocity input feature stays clean on a moving actuator (ADR-0043
+    §4; the C4 review point).
+
+    During normalizer warmup (``warmup=True``) the target normalizer's inverse
+    is still untrained, so a decoded seam would be garbage; the step instead
+    trains a plain clean-input bundle1 (and accumulates stats) until the
+    normalizers are ready, then the pushforward engages.
+
+    Returns ``(pred, target)`` — each ``(P, k, dim+1)`` — for the loss.
+    """
+    b1_next, b2_next = next_position[:, :k], next_position[:, k:]
+    b1_aux, b2_aux = next_aux[:, :k], next_aux[:, k:]
+
+    def _vh(window: Tensor) -> Tensor | None:
+        if not velocity_history:
+            return None
+        return (window[:, 1:] - window[:, :-1]).flatten(1)
+
+    x_last = position_seq[:, -1]
+    if warmup:
+        # Warm the online normalizers on the CLEAN first bundle; the seam
+        # pushforward needs a trained target normalizer to decode positions.
+        return sim.forward_train(
+            x_last,
+            b1_next,
+            b1_aux,
+            particle_type,
+            reference_coords,
+            n_particles_per_example,
+            accumulate=True,
+            velocity_history=_vh(position_seq),
+        )
+
+    # bundle1: no-grad forward -> decode to positions -> clamp kinematic rows.
+    with torch.no_grad():
+        pred1_norm, _ = sim.forward_train(
+            x_last,
+            b1_next,
+            b1_aux,
+            particle_type,
+            reference_coords,
+            n_particles_per_example,
+            accumulate=False,
+            velocity_history=_vh(position_seq),
+        )
+        pred1_pos, _ = sim._decode_positions(pred1_norm, x_last)  # (P, k, dim)
+        pred1_pos = pred1_pos.clone()
+        pred1_pos[is_kinematic] = b1_next[is_kinematic]
+
+    # seam window: last input_frames of [input window ++ drifted bundle1].
+    f = position_seq.shape[1]
+    seam_win = torch.cat([position_seq, pred1_pos], dim=1)[:, -f:]
+
+    # bundle2: forward WITH gradient on the drifted seam; the loss target is the
+    # clean GT bundle2, so gradient flows only through this pass (pushforward).
+    return sim.forward_train(
+        seam_win[:, -1],
+        b2_next,
+        b2_aux,
+        particle_type,
+        reference_coords,
+        n_particles_per_example,
+        accumulate=False,
+        velocity_history=_vh(seam_win),
+    )
+
+
 def _train_transolver(
     spec: BenchmarkSpec,
     cfg: TransolverConfig,
@@ -1381,17 +1475,16 @@ def _train_transolver(
     # ADR-0050/0051 prediction-scheme axis. Resolve the k=T sentinel and record
     # the concrete k in cfg (so build_transolver_simulator and
     # resolved_config_dict below both see it). k=1 is the autoregressive scheme;
-    # k>1 here is necessarily one-shot (1<k<T temporal bundling needs the
-    # MP-PDE seam pushforward, ADR-0051 phase 3, and is rejected until wired).
+    # k=1 is autoregressive; k covering the whole horizon is one-shot (k=T,
+    # clean full-sequence L2); 1<k<T is temporal bundling, trained with the
+    # MP-PDE bundle-seam pushforward (two forward passes per step, below).
     cfg, is_one_shot, horizon = _resolve_transolver_k(cfg, train_trajs)
     k = cfg.frames_per_call
-    if k > 1 and not is_one_shot:
-        raise NotImplementedError(
-            "1<k<T temporal bundling (frames_per_call="
-            f"{k}, horizon={horizon}) requires the MP-PDE bundle-seam "
-            "pushforward, which lands in ADR-0051 phase 3. Use frames_per_call="
-            "1 (autoregressive) or 0 (one-shot, k=T) for now."
-        )
+    is_pushforward = k > 1 and not is_one_shot
+    # The pushforward needs TWO consecutive GT bundles per sample (bundle1 to
+    # drift the seam, bundle2 for the loss), so its target span is 2k; the
+    # single-forward regimes (k=1, one-shot) use a k-frame span.
+    target_frames = 2 * k if is_pushforward else k
 
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
     sim = build_transolver_simulator(
@@ -1422,13 +1515,14 @@ def _train_transolver(
         encoding="utf-8",
     )
 
-    dataset = WindowDataset(train_trajs, cfg.input_frames, frames_per_call=k)
+    dataset = WindowDataset(train_trajs, cfg.input_frames, target_frames=target_frames)
     if len(dataset) == 0:
         raise ValueError(
             f"empty training set: no TRAIN trajectory has "
-            f"input_frames + frames_per_call = {cfg.input_frames + k} or more "
-            f"frames, so there are no k={k} samples. Check the data root, or "
-            f"reduce input_frames / frames_per_call."
+            f"input_frames + target_frames = {cfg.input_frames + target_frames} "
+            f"or more frames, so there are no frames_per_call={k} samples "
+            f"({'pushforward needs 2k target frames; ' if is_pushforward else ''}"
+            f"check the data root, or reduce input_frames / frames_per_call)."
         )
     loader = DataLoader(
         dataset,
@@ -1440,12 +1534,19 @@ def _train_transolver(
         sim.parameters(), lr=train_cfg.lr_init, weight_decay=cfg.weight_decay
     )
 
+    regime = (
+        " (autoregressive)"
+        if k == 1
+        else " (one-shot)"
+        if is_one_shot
+        else " (pushforward bundling)"
+    )
     logger.info(
         "starting transolver training: %d steps, batch %d, frames_per_call %d%s",
         train_cfg.training_steps,
         train_cfg.batch_size,
         k,
-        " (one-shot)" if is_one_shot and k > 1 else "",
+        regime,
     )
 
     step = 0
@@ -1462,29 +1563,45 @@ def _train_transolver(
             n_particles_per_example = batch["n_particles_per_example"].to(device)
 
             is_kinematic = torch.isin(particle_type, kinematic)
-            # ADR-0051 noise regime: k=1 keeps the reference single-step /
-            # velocity-history noise; k>1 here is one-shot (bundling is rejected
-            # above), so noise is off and the target is clean full-sequence L2.
-            x_noisy, velocity_history, next_target = _mesh_family_noise(
-                position_seq,
-                next_position,
-                is_kinematic,
-                cfg.noise_std,
-                cfg.velocity_history,
-                noise_off=(k > 1),
-            )
-
+            accumulate = step < cfg.normalizer_warmup_steps
             optimizer.zero_grad()
-            pred, target = sim.forward_train(
-                x_noisy,
-                next_target,
-                next_aux,
-                particle_type,
-                reference_coords,
-                n_particles_per_example,
-                accumulate=(step < cfg.normalizer_warmup_steps),
-                velocity_history=velocity_history,
-            )
+            # ADR-0051 noise/target regime by frames_per_call:
+            #   1<k<T -> MP-PDE bundle-seam pushforward (two forward passes);
+            #   k=1   -> reference single-step / velocity-history noise;
+            #   k=T   -> one-shot, noise off, clean full-sequence L2.
+            if is_pushforward:
+                pred, target = _transolver_pushforward(
+                    sim,
+                    position_seq,
+                    next_position,
+                    next_aux,
+                    particle_type,
+                    reference_coords,
+                    n_particles_per_example,
+                    is_kinematic,
+                    k,
+                    cfg.velocity_history,
+                    warmup=accumulate,
+                )
+            else:
+                x_noisy, velocity_history, next_target = _mesh_family_noise(
+                    position_seq,
+                    next_position,
+                    is_kinematic,
+                    cfg.noise_std,
+                    cfg.velocity_history,
+                    noise_off=(k > 1),
+                )
+                pred, target = sim.forward_train(
+                    x_noisy,
+                    next_target,
+                    next_aux,
+                    particle_type,
+                    reference_coords,
+                    n_particles_per_example,
+                    accumulate=accumulate,
+                    velocity_history=velocity_history,
+                )
             # Rank-agnostic: (P, dim+1) at k=1 (byte-identical), (P, k, dim+1)
             # at k>1; the kinematic row mask selects on dim 0 either way and
             # .mean() averages uniformly over free rows (and k frames).

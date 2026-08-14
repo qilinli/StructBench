@@ -319,12 +319,37 @@ class TransolverSimulator(CaseBoundSimulator):
         # k>1: reshape to (P, k, dim+1), inverse-normalize on the row-folded
         # (P*k, dim+1) view (same width-(dim+1) stats as k=1), then integrate
         # the k per-frame velocities from x_t to k absolute positions.
-        p, k, dim = out.shape[0], self._k, self._dim
-        out = self._target_normalizer.inverse(out.reshape(p * k, dim + 1))
+        return self._decode_positions(out, x_t)
+
+    def _decode_positions(
+        self, pred_norm: Tensor, x_last: Tensor
+    ) -> tuple[Tensor, Tensor]:
+        """Integrate a normalized k-frame output into ``k`` absolute positions.
+
+        Shared by :meth:`predict_positions` (eval) and the 1<k<T pushforward
+        seam in the training loop: inverse-normalize the ``(P, k*(dim+1))``
+        network output on the row-folded ``(P*k, dim+1)`` view (the same
+        width-(dim+1) target stats k=1 uses), then integrate the ``k``
+        per-frame velocities from ``x_last`` via ``cumsum``.
+
+        Parameters
+        ----------
+        pred_norm:
+            ``(P, k*(dim+1))`` raw network output (normalized/target space).
+        x_last:
+            ``(P, dim)`` positions to integrate the velocities from.
+
+        Returns
+        -------
+        tuple[Tensor, Tensor]
+            ``(positions (P, k, dim), stress (P, k, 1))``.
+        """
+        p, k, dim = pred_norm.shape[0], self._k, self._dim
+        out = self._target_normalizer.inverse(pred_norm.reshape(p * k, dim + 1))
         out = out.reshape(p, k, dim + 1)
         velocity = out[:, :, :dim]  # (P, k, dim)
         stress = out[:, :, dim:]  # (P, k, 1)
-        next_positions = x_t.unsqueeze(1) + torch.cumsum(velocity, dim=1)
+        next_positions = x_last.unsqueeze(1) + torch.cumsum(velocity, dim=1)
         return next_positions, stress
 
     def forward_train(
