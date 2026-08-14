@@ -1,0 +1,41 @@
+# Taylor 2D — Transolver k-frames sweep arm (k16, seed 1); ADR-0050/0051.
+# Base recipe transolver-n02-vh (L8/M64, velocity_history); k-sweep at
+# 60k reduced budget into runs/kframes-*. frames_per_call=16 (pushforward bundling).
+# noise_std set 0 (inert at k>1; ADR-0051).
+
+[run]
+benchmark = "taylor_impact_2d"
+seed = 1
+
+[model]
+family = "transolver"
+input_frames = 6                # taylor card protocol (ADR-0035); see header
+dim = 2
+hidden_dim = 128                # ADR-0044 family reference
+n_layers = 8
+n_heads = 8
+slice_num = 64
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
+noise_std = 0.0
+normalizer_warmup_steps = 1000
+weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
+max_grad_norm = 0.1             # global-norm clip, thuml reference
+
+velocity_history = true       # +5 window velocities; CGN random-walk window noise +
+                              # GNS adjusted-next target (de-noise velocity, not the
+                              # accumulated position offset; ADR-0049)
+frames_per_call = 16            # ADR-0050/0051 k-frames axis (pushforward)
+
+[train]
+batch_size = 2                  # family reference (ADR-0044, matched to MGN)
+lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
+lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
+                                # ADR-0044); present because [train] is family-uniform.
+training_steps = 60_000         # reduced k-sweep budget
+val_every = 2000                # CGN taylor cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0
