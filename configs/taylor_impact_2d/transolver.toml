@@ -37,6 +37,7 @@ phi_lambda_init = 0.0         # per-block phi-gate init; 0.0 => step-0 == vanill
 phi_smooth = false           # SRO Cause-1 fix: spatial kNN smoothing of phi; inert when phi_mode="off"
 phi_robust = false           # SRO Cause-1 fix: median/IQR robust phi statistics; inert when off
 phi_vel_smooth = false        # SRO Cause-1 fix: temporal window-velocity smoothing; inert when off
+phi_loss_weight = 0.0        # SRO physics-guided training: up-weight high-strain-rate loss; 0 = off
 
 [train]
 batch_size = 2                  # family reference (ADR-0044, matched to MGN)

@@ -1413,7 +1413,19 @@ def _train_transolver(
                 + train_cfg.w_aux * delta_aux**2
             )
             free = ~is_kinematic
-            if free.any():
+            if cfg.phi_loss_weight > 0 and velocity_history is not None:
+                # SRO physics-guided training: up-weight the high-strain-rate
+                # front via a normalized weighted mean (no architecture change).
+                phi_w = sim._compute_phi(
+                    x_noisy, velocity_history, n_particles_per_example
+                ).squeeze(-1)
+                weight = 1.0 + cfg.phi_loss_weight * torch.relu(phi_w)
+                if free.any():
+                    fw = weight[free]
+                    loss = (fw * per_particle[free]).sum() / fw.sum().clamp_min(1e-6)
+                else:
+                    loss = per_particle.new_tensor(0.0, requires_grad=True)
+            elif free.any():
                 loss = per_particle[free].mean()
             else:
                 # all-kinematic batch: nothing to learn from; zero loss, no NaN

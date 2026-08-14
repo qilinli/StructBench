@@ -261,6 +261,7 @@ phi_lambda_init = 0.0
 phi_smooth = false
 phi_robust = false
 phi_vel_smooth = false
+phi_loss_weight = 0.0
 
 [train]
 batch_size = 8

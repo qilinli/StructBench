@@ -240,6 +240,7 @@ class TransolverConfig:
     phi_smooth: bool = False
     phi_robust: bool = False
     phi_vel_smooth: bool = False
+    phi_loss_weight: float = 0.0
 
 
 @dataclass
@@ -657,6 +658,13 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
         raise ConfigError(
             f"[model] phi_mode={phi_mode!r} requires velocity_history = true "
             "(phi is a strain-rate proxy from the velocity-history window)"
+        )
+    if getattr(model, "phi_loss_weight", 0.0) > 0 and not getattr(
+        model, "velocity_history", False
+    ):
+        raise ConfigError(
+            "[model] phi_loss_weight > 0 requires velocity_history = true "
+            "(the physics-weighted loss needs phi from the window)"
         )
 
     return ResolvedRunConfig(
