@@ -252,7 +252,7 @@ class CaseBoundSimulator(nn.Module):
         velocities = window[:, 1:] - window[:, :-1]
         return velocities[:, -h:].flatten(1)
 
-    def _advance_pointer(self, x_t: Tensor, n_frames: int) -> None:
+    def _advance_pointer(self, x_t: Tensor, n_frames: int, step: int = 1) -> None:
         """Advance the autoregressive step pointer and verify it (tripwire).
 
         No-op when the bound case has no kinematic particles: ``self._t`` is
@@ -269,6 +269,15 @@ class CaseBoundSimulator(nn.Module):
             The input window's frame count ``F``; anchors the pointer at
             ``t = F`` on the first call after :meth:`bind_case`/
             :meth:`reset_rollout`.
+        step:
+            Frames the previous call consumed — the pointer advance per call
+            (ADR-0050/0051). ``1`` (default) is the autoregressive scheme and
+            every ``k=1`` family (MGN/GeoFLARE call this positionally); a
+            ``k``-frame bundle advances by ``k`` so the tripwire's
+            ``gt_positions[t-1]`` aligns with the re-seeded window's last
+            predicted frame. Only the LAST (possibly short) bundle of a rollout
+            advances by a value other than ``k``, and no call follows it, so a
+            fixed ``step=k`` never misleads a successor.
 
         Raises
         ------
@@ -284,7 +293,7 @@ class CaseBoundSimulator(nn.Module):
         # has_kinematic is only ever True after a bind_case() that set both.
         assert kin_mask is not None and gt_positions is not None
 
-        t = n_frames if self._t is None else self._t + 1
+        t = n_frames if self._t is None else self._t + step
         gt_prev = gt_positions[t - 1]
         if not torch.allclose(x_t[kin_mask], gt_prev[kin_mask], atol=1e-4):
             raise RuntimeError(

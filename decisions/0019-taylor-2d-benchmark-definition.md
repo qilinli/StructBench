@@ -28,7 +28,10 @@ benchmark *task and protocol*, which any model is evaluated against.
    per-particle acceleration; an Euler step integrates to the next position,
    and the model is rolled out autoregressively to reconstruct the full
    trajectory. This is the schema's `transition` unit (ADR-0011) used as the
-   training example.
+   training example. *(Note, 2026-08-14: "autoregressive next-step" describes
+   the DEFAULT prediction scheme, not a constraint on models — the metric is
+   scheme-agnostic. ADR-0050/0051 add a k-frames-per-call axis for which this is
+   the `k=1` point.)*
 
 2. **Auxiliary field — von Mises stress.** Alongside position, the benchmark
    predicts a per-particle scalar: **von Mises stress**, computed from the

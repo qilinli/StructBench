@@ -25,6 +25,7 @@ weight_decay = 1e-5      # AdamW, thuml reference (grounding §4.1)
 max_grad_norm = 0.1      # global-norm clip, thuml reference
 
 velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
+frames_per_call = 1            # ADR-0050/0051 prediction scheme: 1 = autoregressive next-step
 
 [train]
 batch_size = 2

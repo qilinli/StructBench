@@ -198,6 +198,10 @@ class TransolverConfig:
     noise_std : float
         Standard deviation of the random-walk training noise at the last
         step, applied to NORMAL-typed nodes only (ADR-0043 §4, MGN parity).
+        Active only at ``frames_per_call == 1``: injected single-step noise is
+        a k=1 robustness mechanism, replaced at ``k>1`` by the pushforward
+        (1<k<T) or dropped (one-shot). A nonzero value is INERT at ``k>1`` and
+        the trainer logs a warning (ADR-0050/0051).
     normalizer_warmup_steps : int
         Number of training steps over which the online feature/target
         normalizers accumulate statistics before their outputs are used
@@ -217,6 +221,21 @@ class TransolverConfig:
         velocity features are consistently noisy), and adopts the GNS
         adjusted-next target: the model de-noises the velocity, not the
         accumulated position offset.
+    frames_per_call : int
+        Prediction-scheme axis (ADR-0050/0051): number of frames the decoder
+        emits per forward call. ``1`` (default) is today's autoregressive
+        next-step scheme — byte-identical to the pre-0051 recipe — and is also
+        the legacy-checkpoint fallback (a ``config.json`` written before this
+        field reconstructs as ``frames_per_call=1``, so old Transolver
+        checkpoints load unchanged). ``0`` is the one-shot sentinel: it
+        resolves at train time to ``T_working - input_frames`` (the scored
+        horizon of the loaded, ``train_frames``-truncated trajectories) and the
+        *resolved* integer is written back into ``config.json`` so evaluation
+        rebuilds the identical decoder head without re-resolving. ``1 < k < T``
+        is temporal bundling (MP-PDE). The decoder head width is
+        ``frames_per_call * (dim + 1)``, so a checkpoint's ``k`` is fixed at
+        train time; k>1 is a Transolver-only scheme (the neural-CFL audit in
+        ADR-0051 keeps message-passing backbones at k=1).
     """
 
     input_frames: int = 2
@@ -233,6 +252,7 @@ class TransolverConfig:
     weight_decay: float = 1e-5
     max_grad_norm: float = 0.1
     velocity_history: bool = False
+    frames_per_call: int = 1
 
 
 @dataclass
@@ -631,6 +651,16 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
         raise ConfigError(
             f"[model] unknown aux_transform {transform!r}; "
             f"supported: {', '.join(sorted(AUX_TRANSFORMS))}"
+        )
+
+    # Prediction-scheme axis (ADR-0050/0051): 0 is the one-shot sentinel and
+    # k>=1 is the concrete frames-per-call; a negative value is a typo. Reject
+    # it at load with a clear message rather than deep in simulator construction.
+    frames_per_call = getattr(model, "frames_per_call", None)
+    if frames_per_call is not None and frames_per_call < 0:
+        raise ConfigError(
+            f"[model] frames_per_call must be >= 0 (0 = one-shot k=T sentinel, "
+            f"k>=1 = frames predicted per forward call); got {frames_per_call}"
         )
 
     return ResolvedRunConfig(

@@ -9,6 +9,7 @@ evaluate() gate). Mirrors ``tests/cli/test_mgn_train_smoke.py`` (ADR-0043
 """
 
 import json
+import logging
 import math
 
 import numpy as np
@@ -83,7 +84,7 @@ def _write_cases(root, ids):
         write_case(case, root / f"{cid}.h5")
 
 
-def _run_transolver_smoke(tmp_path):
+def _run_transolver_smoke(tmp_path, *, frames_per_call: int = 1):
     """Shared spec/data/train setup for both smoke tests below.
 
     Builds the tiny synthetic mesh benchmark, writes its cases, and runs a
@@ -115,6 +116,7 @@ def _run_transolver_smoke(tmp_path):
         n_heads=2,
         slice_num=8,
         normalizer_warmup_steps=5,
+        frames_per_call=frames_per_call,
     )
     tcfg = TrainConfig(
         benchmark="TransolverSmoke",
@@ -193,3 +195,114 @@ def test_transolver_evaluate_smoke(tmp_path, monkeypatch):
     assert all(
         isinstance(v, float) and math.isfinite(v) for v in qoi_abs_error.values()
     )
+
+
+def test_transolver_oneshot_kT_train_and_evaluate_smoke(tmp_path, monkeypatch):
+    """One-shot (frames_per_call=0 sentinel) end-to-end: ADR-0051 phase 2.
+
+    Verifies the k=T scheme trains (clean full-sequence L2, noise off), the
+    sentinel resolves at train time to a concrete k = T_working - input_frames
+    and that RESOLVED integer is stored in config.json (so evaluate rebuilds
+    the identical fixed head without re-resolving), and the bundled one-shot
+    rollout + teacher-forced one-step both produce finite metrics.
+    """
+    import structbench.cli.train as cli_train
+
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path, frames_per_call=0
+    )
+
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    k = record["model"]["frames_per_call"]
+    # sentinel resolved and stored as a concrete horizon-covering k (> 1),
+    # never the raw 0 (which evaluate() could not turn back into a head shape).
+    assert isinstance(k, int) and k > 1
+
+    ckpts = list(out.glob("model-*.pt"))
+    assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
+
+    # evaluate() rebuilds the k-head from config.json (no spec re-resolution)
+    # and runs the one-shot rollout + teacher-forced one-step.
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    per_case = metrics["cases"][ids["val"][0]]
+    assert np.isfinite(per_case["one_step_position_rmse"])
+    assert np.isfinite(per_case["rollout_position_rmse"])
+    assert np.isfinite(per_case["rollout_aux_rmse"])
+
+
+def test_transolver_pushforward_bundling_train_and_evaluate_smoke(
+    tmp_path, monkeypatch, caplog
+):
+    """1<k<T temporal bundling (MP-PDE pushforward) end-to-end: ADR-0051 phase 3.
+
+    k=2 on the T=8 / input_frames=2 fixture is genuine bundling (horizon 6 > 2,
+    so not one-shot), exercising both the normalizer-warmup clean-bundle branch
+    (first 5 steps) and the two-forward-pass seam pushforward after it, then the
+    bundled rollout + teacher-forced one-step in evaluate().
+    """
+    import structbench.cli.train as cli_train
+
+    caplog.set_level(logging.WARNING, logger="structbench.cli.train")
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path, frames_per_call=2
+    )
+
+    # noise_std (the fixture's default 0.003) is inert in the pushforward
+    # regime, so the trainer warns rather than let it look active (ADR-0051).
+    assert "noise_std" in caplog.text and "IGNORED" in caplog.text
+
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    # An explicit 1<k<T is recorded verbatim (only the k=T sentinel is resolved).
+    assert record["model"]["frames_per_call"] == 2
+
+    ckpts = list(out.glob("model-*.pt"))
+    assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    per_case = metrics["cases"][ids["val"][0]]
+    assert np.isfinite(per_case["one_step_position_rmse"])
+    assert np.isfinite(per_case["rollout_position_rmse"])
+    assert np.isfinite(per_case["rollout_aux_rmse"])
+
+
+def test_transolver_pushforward_helper_shapes_and_grad_through_bundle2():
+    """The pushforward helper: warmup and seam branches, k-frame shapes, and
+    gradient that flows through bundle2 (the second, with-grad forward)."""
+    from structbench.cli.train import _transolver_pushforward
+    from structbench.models.transolver import TransolverSimulator
+
+    torch.manual_seed(0)
+    k, P, F, dim = 2, 5, 2, 3
+    sim = TransolverSimulator(
+        dim=dim,
+        hidden_dim=8,
+        n_layers=1,
+        n_heads=2,
+        slice_num=2,
+        frames_per_call=k,
+        kinematic_types=(1,),
+        scripted_types=(1,),
+    )
+    position_seq = torch.randn(P, F, dim)
+    next_position = torch.randn(P, 2 * k, dim)  # two consecutive GT bundles
+    next_aux = torch.randn(P, 2 * k)
+    ptype = torch.tensor([0, 0, 1, 0, 0])
+    ref = torch.randn(P, dim)
+    npp = torch.tensor([P])
+    is_kin = ptype == 1
+    args = (sim, position_seq, next_position, next_aux, ptype, ref, npp, is_kin, k)
+
+    # warmup branch: plain clean bundle1, (P, k, dim+1) shapes.
+    pw, tw = _transolver_pushforward(*args, velocity_history=False, warmup=True)
+    assert pw.shape == (P, k, dim + 1) and tw.shape == (P, k, dim + 1)
+
+    # pushforward branch: same shapes, and the bundle2 prediction carries
+    # gradient (the two-pass seam training backprops through the net).
+    pp, tp = _transolver_pushforward(*args, velocity_history=False, warmup=False)
+    assert pp.shape == (P, k, dim + 1) and tp.shape == (P, k, dim + 1)
+    assert pp.requires_grad
+    pp.sum().backward()
+    grads = [p.grad for p in sim.parameters() if p.grad is not None]
+    assert grads, "no gradient reached the network through the pushforward"

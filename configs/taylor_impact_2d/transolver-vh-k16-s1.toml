@@ -1,11 +1,7 @@
-# Taylor 2D — Transolver ADR-0049 tuning arm BIG: n02-vh recipe at doubled
-# capacity (hidden 128->256, slice_num 64->128; ~0.72M -> ~2.9M params).
-# Evidence: at reference size Transolver's interp deficit concentrates on
-# the 100 mm bars (2.88 / 2.98 mm — its two worst cases; 8000 particles
-# through 64 slice tokens), while GeoFLARE (128 slices + local geometry
-# pathway) is best-in-class there (0.67-0.89 mm). Tests the slice/width
-# bottleneck hypothesis. mlp_ratio stays 1 (single-knob-pair discipline).
-# Not yet run.
+# Taylor 2D — Transolver k-frames sweep arm (k16, seed 1); ADR-0050/0051.
+# Base recipe transolver-n02-vh (L8/M64, velocity_history); k-sweep at
+# 60k reduced budget into runs/kframes-*. frames_per_call=16 (pushforward bundling).
+# noise_std set 0 (inert at k>1; ADR-0051).
 
 [run]
 benchmark = "taylor_impact_2d"
@@ -15,14 +11,14 @@ seed = 1
 family = "transolver"
 input_frames = 6                # taylor card protocol (ADR-0035); see header
 dim = 2
-hidden_dim = 256                # 2x the ADR-0044 reference (tuning arm; see header)
+hidden_dim = 128                # ADR-0044 family reference
 n_layers = 8
 n_heads = 8
-slice_num = 128                 # 2x the ADR-0044 reference (tuning arm; see header)
+slice_num = 64
 mlp_ratio = 1
 dropout = 0.0
 node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
-noise_std = 0.02                # blessed CGN taylor value (ADR-0049 noise rescale)
+noise_std = 0.0
 normalizer_warmup_steps = 1000
 weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference
@@ -30,14 +26,14 @@ max_grad_norm = 0.1             # global-norm clip, thuml reference
 velocity_history = true       # +5 window velocities; CGN random-walk window noise +
                               # GNS adjusted-next target (de-noise velocity, not the
                               # accumulated position offset; ADR-0049)
-frames_per_call = 1            # ADR-0050/0051 prediction scheme: 1 = autoregressive next-step
+frames_per_call = 16            # ADR-0050/0051 k-frames axis (pushforward)
 
 [train]
 batch_size = 2                  # family reference (ADR-0044, matched to MGN)
 lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
 lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
                                 # ADR-0044); present because [train] is family-uniform.
-training_steps = 100_000        # CGN-matched budget (ADR-0047 §6), not DP's 10M
+training_steps = 60_000         # reduced k-sweep budget
 val_every = 2000                # CGN taylor cadence
 w_pos = 1.0
 w_aux = 1.0

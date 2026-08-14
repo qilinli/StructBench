@@ -56,7 +56,9 @@ maintainer trained GNS separately per family in the prior work.
    von Mises derivation), which both modules reference.
 
 3. **Task (both benchmarks)** — the ADR-0019 autoregressive transition
-   task. The auxiliary per-particle field is the **K&C scaled damage
+   task. *(Note, 2026-08-14: autoregressive is the default scheme, not a model
+   constraint; ADR-0050/0051 add the k-frames-per-call axis, `k=1` here.)* The
+   auxiliary per-particle field is the **K&C scaled damage
    measure** (what `MAT_CONCRETE_DAMAGE_REL3` writes to the d3plot
    effective-plastic-strain slot; the prior study's extracts call it
    "strain"). Canonically named `damage`; it carries the crack pattern,
