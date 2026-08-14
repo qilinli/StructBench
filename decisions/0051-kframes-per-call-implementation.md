@@ -1,8 +1,8 @@
 # 0051 — Prediction-scheme axis: k-frames-per-call implementation (Transolver)
 
-**Status**: Proposed — supersedes the BACKLOG status of ADR-0050 on acceptance
+**Status**: Accepted — supersedes ADR-0050 (merged to `main`, 2026-08-15)
 **Type**: Durable
-**Date**: 2026-08-14
+**Date**: 2026-08-14 (accepted 2026-08-15 after the first Taylor k-sweep)
 
 ## Context
 
@@ -142,6 +142,30 @@ and unaffected; and a legacy `config.json` lacking the field rebuilds as k=1.
   `t_peak_von_mises` QoIs may **degrade** at large k (spectral blur, the
   implicit-integrator dissipation analogue — the existing QoI set is the
   discriminator, no new metric); watch `test_extrap` for an OOD signal.
+- **Validation results (first Taylor k-sweep, 2026-08-14; `k ∈ {1, 16, 0(=T)}`
+  ×2 seeds, 60k; grid uses 16 not 5 to span `[1, 145]`).** All six arms trained
+  and evaluated end-to-end (jobs COMPLETED; k=1 byte-identical; the k=T sentinel
+  resolved to 145 on real data; the 1<k<T pushforward trained stably).
+  - **Primary hypothesis CONFIRMED.** Rollout position RMSE improves with k on
+    both splits — interp `0.272 → 0.151 → 0.138` mm, extrap `0.738 → 0.407 →
+    0.457` mm — all 5–18× under the blessed CGN (1.274 / 7.645). Notably there
+    is an **OOD interior optimum at k=16** (extrap 0.407, below both k=1 and
+    k=T), which a `{1, 5, T}` grid would have missed.
+  - **Two signed predictions did NOT hold, and are refined.** (a) One-step does
+    *not* stay flat — it degrades 25–50× at k>1 (k=16 worst) because
+    bundling/one-shot never optimize single steps and the teacher-forced probe
+    is off their training distribution: **one-step is the wrong lens for k>1;
+    rollout is the fair metric.** (b) The QoI cost is **non-monotone** —
+    **k=16, not k=T, is worst** on `peak_von_mises` (12.1 vs k1 1.6, kT 2.7 MPa)
+    and on aux-field RMSE, while owning the best position/geometry QoIs
+    (`final_length`, `mushroom_width` on extrap). This is consistent with
+    **stress-field bundle-SEAM artifacts**: the pushforward stabilizes the
+    *position* seam but the *aux* field has no seam mechanism — a concrete
+    follow-up (per-bundle aux seam handling).
+  - **Caveats:** directional only — 2 seeds (large spread), 60k reduced budget,
+    one benchmark, and the k=T 33-sample one-shot confound. A denser, more-seeded
+    sweep and the aux-seam mechanism are the real study; these results validate
+    the *scheme and implementation*, not a publishable claim.
 - **Deferred:** (a) notch `k=T` horizon divergence (`scored_frames=250 <
   n_frames=502`): the general rollout loop degrades gracefully — the scored span
   is a genuine single one-shot call, frames beyond it are an AR continuation of

@@ -1,12 +1,12 @@
 # 0050 — Prediction-scheme axis: unified k-frames-per-call (autoregressive ↔ bundled ↔ one-shot)
 
-**Status**: Proposed — **BACKLOG** (recorded for the decision log; not scheduled, and NOT approved for implementation. Warrants further discussion and analysis before it becomes an active ADR.)
+**Status**: Superseded by 0051 (was: Proposed — BACKLOG)
 
-> **Amendment (2026-08-14):** the seven open decisions below are now settled and
-> the scheme is implemented for the Transolver family; see **ADR-0051**
-> (k-frames-per-call implementation), which supersedes this backlog status on
-> acceptance. This ADR is retained as the design-rationale and physics record
-> (the analogy, neural-CFL, and regime hypothesis are not repeated in 0051).
+> **Superseded (2026-08-15):** the seven open decisions below are settled and the
+> scheme is implemented, validated, and merged for the Transolver family — see
+> **ADR-0051** (k-frames-per-call implementation, Accepted). This ADR is retained
+> as the design-rationale and physics record (the explicit/implicit analogy,
+> neural-CFL condition, and regime hypothesis are not repeated in 0051).
 **Type**: Durable
 **Date**: 2026-08-13
 
