@@ -132,11 +132,22 @@ class PhysicsAttentionIrregularMesh(nn.Module):
         dim_head: int = 64,
         slice_num: int = 64,
         dropout: float = 0.0,
+        phi_gate: bool = False,
+        phi_lambda_init: float = 0.0,
     ) -> None:
         super().__init__()
         self.heads = heads
         self.dim_head = dim_head
         inner_dim = dim_head * heads
+
+        # Physics-conditioned slicing (SRO): a per-block scalar gate on the
+        # externally supplied phi bias, created ONLY when phi is enabled so a
+        # disabled model is byte-identical vanilla. Zero-init => step-0 output
+        # equals vanilla and the gate opens under training (a zero-gated
+        # residual warm start).
+        self.lam: nn.Parameter | None = (
+            nn.Parameter(torch.full((1,), float(phi_lambda_init))) if phi_gate else None
+        )
 
         self.in_project_x = nn.Linear(dim, inner_dim)
         self.in_project_fx = nn.Linear(dim, inner_dim)
@@ -155,7 +166,7 @@ class PhysicsAttentionIrregularMesh(nn.Module):
         self.scale = dim_head**-0.5
         self.attn_dropout = nn.Dropout(dropout)
 
-    def _slice_weights(self, x: Tensor) -> Tensor:
+    def _slice_weights(self, x: Tensor, phi_bias: Tensor | None = None) -> Tensor:
         """Compute the Eq (1) slice-assignment weights, row-wise.
 
         Point-wise (each row of ``x`` is independent of every other row), so
@@ -166,6 +177,12 @@ class PhysicsAttentionIrregularMesh(nn.Module):
         ----------
         x:
             ``(P, dim)`` point features.
+        phi_bias:
+            ``(P, slice_num)`` physics-conditioning bias ``g(phi)`` (SRO), or
+            ``None`` for vanilla. When given, ``lam * phi_bias`` is added to
+            the slice logits before the softmax (broadcast across heads), so
+            the conditioned assignment flows symmetrically into both token
+            aggregation (Eq 2) and deslice (Eq 4).
 
         Returns
         -------
@@ -175,9 +192,16 @@ class PhysicsAttentionIrregularMesh(nn.Module):
         """
         x_mid = self.in_project_x(x).reshape(-1, self.heads, self.dim_head)
         logits = self.in_project_slice(x_mid) / self.temperature
+        if phi_bias is not None and self.lam is not None:
+            logits = logits + self.lam * phi_bias.unsqueeze(1)  # (P,1,M) over H
         return torch.softmax(logits, dim=-1)
 
-    def forward(self, x: Tensor, segments: list[tuple[int, int]]) -> Tensor:
+    def forward(
+        self,
+        x: Tensor,
+        segments: list[tuple[int, int]],
+        phi_bias: Tensor | None = None,
+    ) -> Tensor:
         """Run Physics-Attention over a (possibly multi-example) flat point set.
 
         Parameters
@@ -191,6 +215,9 @@ class PhysicsAttentionIrregularMesh(nn.Module):
             attention call, rather than recomputed (``torch.cumsum(...)
             .tolist()``) on every call -- that would force a host<->device
             sync per block per forward at reference depth (``n_layers=8``).
+        phi_bias:
+            ``(P, slice_num)`` physics-conditioning bias (SRO) applied to the
+            slice logits, or ``None`` for vanilla.
 
         Returns
         -------
@@ -198,7 +225,7 @@ class PhysicsAttentionIrregularMesh(nn.Module):
             ``(P, dim)`` updated point features.
         """
         fx_mid = self.in_project_fx(x).reshape(-1, self.heads, self.dim_head)
-        w = self._slice_weights(x)  # (P, H, M)
+        w = self._slice_weights(x, phi_bias)  # (P, H, M)
         outs: list[Tensor] = []
         for start, end in segments:
             w_e, fx_e = w[start:end], fx_mid[start:end]
@@ -251,6 +278,8 @@ class TransolverBlock(nn.Module):
         dropout: float,
         last_layer: bool,
         out_size: int,
+        phi_gate: bool = False,
+        phi_lambda_init: float = 0.0,
     ) -> None:
         super().__init__()
         self.last_layer = last_layer
@@ -262,6 +291,8 @@ class TransolverBlock(nn.Module):
             dim_head=dim_head,
             slice_num=slice_num,
             dropout=dropout,
+            phi_gate=phi_gate,
+            phi_lambda_init=phi_lambda_init,
         )
         self.ln_2 = nn.LayerNorm(hidden_dim)
         self.mlp = build_mlp_2layer(hidden_dim, hidden_dim * mlp_ratio, hidden_dim)
@@ -269,7 +300,12 @@ class TransolverBlock(nn.Module):
             self.ln_3 = nn.LayerNorm(hidden_dim)
             self.mlp2 = nn.Linear(hidden_dim, out_size)
 
-    def forward(self, fx: Tensor, segments: list[tuple[int, int]]) -> Tensor:
+    def forward(
+        self,
+        fx: Tensor,
+        segments: list[tuple[int, int]],
+        phi_bias: Tensor | None = None,
+    ) -> Tensor:
         """Apply the block.
 
         Parameters
@@ -280,6 +316,8 @@ class TransolverBlock(nn.Module):
             Contiguous per-example ``(start, end)`` index pairs, precomputed
             once by ``TransolverNet.forward`` and forwarded unchanged to
             ``attn`` (see :meth:`PhysicsAttentionIrregularMesh.forward`).
+        phi_bias:
+            ``(P, slice_num)`` physics-conditioning bias (SRO), or ``None``.
 
         Returns
         -------
@@ -287,7 +325,7 @@ class TransolverBlock(nn.Module):
             ``(P, hidden_dim)`` updated latents, or ``(P, out_size)`` if this
             is the last block (decoder head applied, no residual).
         """
-        fx = self.attn(self.ln_1(fx), segments) + fx
+        fx = self.attn(self.ln_1(fx), segments, phi_bias) + fx
         fx = self.mlp(self.ln_2(fx)) + fx
         if self.last_layer:
             return self.mlp2(self.ln_3(fx))
@@ -353,6 +391,8 @@ class TransolverNet(nn.Module):
         slice_num: int = 64,
         mlp_ratio: int = 1,
         dropout: float = 0.0,
+        phi_conditioned: bool = False,
+        phi_lambda_init: float = 0.0,
     ) -> None:
         super().__init__()
         self.preprocess = build_mlp_2layer(node_in, hidden_dim * 2, hidden_dim)
@@ -360,6 +400,14 @@ class TransolverNet(nn.Module):
         # variants, where it is nested inside an `if fx is None` branch and
         # so is dead code on their fx-conditioned tasks). Grounding SS3.3.
         self.placeholder = nn.Parameter((1 / hidden_dim) * torch.rand(hidden_dim))
+        # Physics-conditioned slicing (SRO): a SINGLE shared map g: phi -> slice
+        # bias, built once and reused across all blocks (phi is fixed per step,
+        # so g(phi) is computed once per forward); each block owns its own
+        # zero-init scalar gate `lam`. Built only when enabled, so a disabled
+        # net is byte-identical vanilla.
+        self.phi_g: nn.Linear | None = (
+            nn.Linear(1, slice_num) if phi_conditioned else None
+        )
         self.blocks = nn.ModuleList(
             [
                 TransolverBlock(
@@ -370,6 +418,8 @@ class TransolverNet(nn.Module):
                     dropout,
                     last_layer=(i == n_layers - 1),
                     out_size=out_size,
+                    phi_gate=phi_conditioned,
+                    phi_lambda_init=phi_lambda_init,
                 )
                 for i in range(n_layers)
             ]
@@ -377,7 +427,10 @@ class TransolverNet(nn.Module):
         self._initialize_weights()
 
     def forward(
-        self, node_feats: Tensor, n_particles_per_example: Tensor | None
+        self,
+        node_feats: Tensor,
+        n_particles_per_example: Tensor | None,
+        phi: Tensor | None = None,
     ) -> Tensor:
         """Run the full forward pass.
 
@@ -389,6 +442,12 @@ class TransolverNet(nn.Module):
         n_particles_per_example:
             ``(B,)`` particle counts per example, in concatenation order, or
             ``None`` for a single example.
+        phi:
+            ``(P, 1)`` physics-conditioning field (SRO), or ``None``. When
+            given and the net was built ``phi_conditioned``, the shared map
+            ``g(phi)`` is computed once and re-injected into every block's
+            slice logits (persistent conditioning). Ignored if the net has no
+            ``phi_g`` (vanilla) — so a phi passed to a vanilla net is a no-op.
 
         Returns
         -------
@@ -399,9 +458,12 @@ class TransolverNet(nn.Module):
         # .tolist() forces a host<->device sync, so compute segments ONCE
         # here rather than once per block (n_layers=8 at reference depth).
         segments = _segments(node_feats.shape[0], n_particles_per_example)
+        phi_bias = (
+            self.phi_g(phi) if (phi is not None and self.phi_g is not None) else None
+        )
         fx = self.preprocess(node_feats) + self.placeholder
         for block in self.blocks:
-            fx = block(fx, segments)
+            fx = block(fx, segments, phi_bias)
         return fx
 
     def _initialize_weights(self) -> None:

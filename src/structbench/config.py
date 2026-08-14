@@ -233,6 +233,10 @@ class TransolverConfig:
     weight_decay: float = 1e-5
     max_grad_norm: float = 0.1
     velocity_history: bool = False
+    phi_mode: str = "off"
+    phi_neighbors: int = 16
+    phi_clamp: float = 4.0
+    phi_lambda_init: float = 0.0
 
 
 @dataclass
@@ -444,6 +448,11 @@ MODEL_FAMILIES: dict[str, type] = {
 }
 
 #: ``[run]`` keys — exactly these, no more, no fewer.
+#: Valid ``phi_mode`` values for physics-conditioned slicing (SRO, transolver).
+#: Kept in sync with ``models.transolver.simulator._PHI_MODES`` (duplicated here
+#: so config validation stays torch-free).
+_PHI_MODES = frozenset({"off", "feature", "persistent"})
+
 _RUN_KEYS = {"benchmark", "seed"}
 
 #: ``TrainConfig`` fields sourced from ``[run]`` rather than ``[train]``.
@@ -631,6 +640,20 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
         raise ConfigError(
             f"[model] unknown aux_transform {transform!r}; "
             f"supported: {', '.join(sorted(AUX_TRANSFORMS))}"
+        )
+
+    # Physics-conditioned slicing (SRO, transolver): validate the mode and the
+    # cross-field requirement that phi needs a velocity-history window.
+    phi_mode = getattr(model, "phi_mode", "off")
+    if phi_mode not in _PHI_MODES:
+        raise ConfigError(
+            f"[model] unknown phi_mode {phi_mode!r}; "
+            f"supported: {', '.join(sorted(_PHI_MODES))}"
+        )
+    if phi_mode != "off" and not getattr(model, "velocity_history", False):
+        raise ConfigError(
+            f"[model] phi_mode={phi_mode!r} requires velocity_history = true "
+            "(phi is a strain-rate proxy from the velocity-history window)"
         )
 
     return ResolvedRunConfig(

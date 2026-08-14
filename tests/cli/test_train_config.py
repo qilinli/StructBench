@@ -254,6 +254,10 @@ normalizer_warmup_steps = 1000
 weight_decay = 1e-5
 max_grad_norm = 0.1
 velocity_history = false
+phi_mode = "off"
+phi_neighbors = 16
+phi_clamp = 4.0
+phi_lambda_init = 0.0
 
 [train]
 batch_size = 8
@@ -266,6 +270,18 @@ w_aux = 1.0
 aux_tail_weight = 0.0
 train_frames = 0
 """
+
+
+def test_load_run_config_transolver_rejects_phi_without_velocity_history(tmp_path):
+    bad = VALID_TRANSOLVER.replace('phi_mode = "off"', 'phi_mode = "persistent"')
+    with pytest.raises(ConfigError, match="velocity_history"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_transolver_rejects_unknown_phi_mode(tmp_path):
+    bad = VALID_TRANSOLVER.replace('phi_mode = "off"', 'phi_mode = "bogus"')
+    with pytest.raises(ConfigError, match="phi_mode"):
+        load_run_config(_write(tmp_path, bad))
 
 
 def test_load_run_config_transolver_happy_path(tmp_path):

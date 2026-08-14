@@ -28,6 +28,12 @@ from torch import Tensor
 from ..common import CaseBoundSimulator
 from ..mgn.normalizers import OnlineNormalizer
 from .network import TransolverNet
+from .phi import strain_rate_phi
+
+#: Valid ``phi_mode`` values for physics-conditioned slicing (SRO).
+#: ``off`` = vanilla; ``feature`` = phi as a single-shot node channel;
+#: ``persistent`` = per-block slice-logit conditioning (the method).
+_PHI_MODES = frozenset({"off", "feature", "persistent"})
 
 
 class TransolverSimulator(CaseBoundSimulator):
@@ -90,6 +96,10 @@ class TransolverSimulator(CaseBoundSimulator):
         kinematic_types: tuple[int, ...] = (1, 3),
         scripted_types: tuple[int, ...] = (1,),
         history_velocities: int = 0,
+        phi_mode: str = "off",
+        phi_neighbors: int = 16,
+        phi_clamp: float = 4.0,
+        phi_lambda_init: float = 0.0,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -105,7 +115,24 @@ class TransolverSimulator(CaseBoundSimulator):
             # this subclass's wider str | torch.device parameter.
             device=str(device),
         )
+        # Physics-conditioned slicing (SRO). "off" is byte-identical vanilla;
+        # "feature" appends phi as one node channel (single-shot control);
+        # "persistent" re-injects phi into every block's slice logits (the
+        # method). phi is a strain-rate proxy from the velocity-history window,
+        # so it REQUIRES history_velocities > 0.
+        if phi_mode not in _PHI_MODES:
+            raise ValueError(f"phi_mode {phi_mode!r} not in {sorted(_PHI_MODES)}")
+        if phi_mode != "off" and history_velocities <= 0:
+            raise ValueError(
+                f"phi_mode={phi_mode!r} needs velocity history (a strain-rate "
+                "proxy from the window); build with history_velocities > 0"
+            )
+        self._phi_mode = phi_mode
+        self._phi_neighbors = phi_neighbors
+        self._phi_clamp = phi_clamp
         node_in = node_type_size + 3 * dim + history_velocities * dim
+        if phi_mode == "feature":
+            node_in += 1  # phi appended as one extra channel
 
         self._net = TransolverNet(
             node_in=node_in,
@@ -116,6 +143,8 @@ class TransolverSimulator(CaseBoundSimulator):
             slice_num=slice_num,
             mlp_ratio=mlp_ratio,
             dropout=dropout,
+            phi_conditioned=(phi_mode == "persistent"),
+            phi_lambda_init=phi_lambda_init,
         )
         self._node_normalizer = OnlineNormalizer(node_in)
         self._target_normalizer = OnlineNormalizer(dim + 1)
@@ -129,6 +158,7 @@ class TransolverSimulator(CaseBoundSimulator):
         x_t: Tensor,
         reference_coords: Tensor,
         velocity_history: Tensor | None = None,
+        phi: Tensor | None = None,
     ) -> Tensor:
         """Build the raw (pre-normalization) node feature tensor.
 
@@ -172,7 +202,29 @@ class TransolverSimulator(CaseBoundSimulator):
                     "feature was supplied"
                 )
             parts.append(velocity_history)
+        if self._phi_mode == "feature":
+            if phi is None:
+                raise ValueError("phi_mode='feature' requires a phi tensor")
+            parts.append(phi)
         return torch.cat(parts, dim=-1)
+
+    def _compute_phi(
+        self, x: Tensor, velocity_history: Tensor | None, n_per: Tensor | None
+    ) -> Tensor:
+        """Strain-rate activity field ``phi`` from the current window (SRO).
+
+        Uses the most recent window velocity (``velocity_history[:, -dim:]``)
+        and the current positions ``x`` — both legal model inputs, never the
+        target — so it is leakage-free. Per-example (``n_per``) so a batched
+        forward matches the per-example forward.
+        """
+        if velocity_history is None:
+            raise ValueError(
+                "phi requires velocity history; build with history_velocities > 0 "
+                "(the phi_mode!='off' constructor guard should have caught this)"
+            )
+        v_last = velocity_history[:, -self._dim :]
+        return strain_rate_phi(x, v_last, n_per, self._phi_neighbors, self._phi_clamp)
 
     def predict_positions(
         self,
@@ -243,6 +295,12 @@ class TransolverSimulator(CaseBoundSimulator):
             if self._history_velocities > 0
             else None
         )
+        # SRO: strain-rate activity field (single bound example => n_per=None).
+        phi = (
+            self._compute_phi(x_t, velocity_history, None)
+            if self._phi_mode != "off"
+            else None
+        )
 
         node_feats_raw = self._features(
             node_type_onehot,
@@ -250,10 +308,12 @@ class TransolverSimulator(CaseBoundSimulator):
             x_t,
             reference_coords,
             velocity_history,
+            phi,
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=False)
 
-        out = self._net(node_feats, None)
+        net_phi = phi if self._phi_mode == "persistent" else None
+        out = self._net(node_feats, None, net_phi)
         # Inverse-normalize the FULL (P, dim+1) output first -- slicing
         # before inverse would broadcast the dim-wide velocity slice against
         # the (dim+1)-wide std/mean buffers.
@@ -343,13 +403,22 @@ class TransolverSimulator(CaseBoundSimulator):
         scripted_velocity = self._train_scripted_velocity(
             x_last, next_positions, particle_types
         )
+        # SRO: phi from the NOISY window (velocity_history + x_last) only —
+        # never next_positions/next_aux (the target) — so it stays leakage-free
+        # and self-consistent with the noisy velocity features. Per-example.
+        phi = (
+            self._compute_phi(x_last, velocity_history, n_particles_per_example)
+            if self._phi_mode != "off"
+            else None
+        )
 
         node_feats_raw = self._features(
-            one_hot, scripted_velocity, x_last, reference_coords, velocity_history
+            one_hot, scripted_velocity, x_last, reference_coords, velocity_history, phi
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
 
-        pred_norm = self._net(node_feats, n_particles_per_example)
+        net_phi = phi if self._phi_mode == "persistent" else None
+        pred_norm = self._net(node_feats, n_particles_per_example, net_phi)
 
         target_raw = torch.cat([next_positions - x_last, next_aux[:, None]], dim=1)
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)

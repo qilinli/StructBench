@@ -28,6 +28,10 @@ weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference
 
 velocity_history = true       # +5 window velocities; CGN random-walk window noise +
+phi_mode = "off"              # SRO physics-conditioned slicing: off|feature|persistent (ADR draft)
+phi_neighbors = 16            # kNN count for the strain-rate proxy (phi); inert when phi_mode="off"
+phi_clamp = 4.0               # symmetric clamp on standardized phi; inert when off
+phi_lambda_init = 0.0         # per-block phi-gate init; 0.0 => step-0 == vanilla; inert when off
                               # GNS adjusted-next target (de-noise velocity, not the
                               # accumulated position offset; ADR-0049)
 
