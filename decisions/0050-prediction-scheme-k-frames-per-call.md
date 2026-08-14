@@ -64,6 +64,59 @@ recordable cleanly and why k=1 is a strict generalisation:
 - Splits, horizon, and the seed→[input_frames, end] scoring convention do not
   move.
 
+## Physics grounding (added 2026-08-14)
+
+*Recorded from the 2026-08-14 in-session discussion of how structural systems
+evolve in time; the fuller narrative lives in the maintainer's research notes.
+This section sharpens the hypothesis and derives part of the scope.*
+
+**The k-axis is the explicit↔implicit axis, relearned.** Explicit vs implicit
+time integration is at bottom a trade between how far information travels per
+step and how large a step is allowed: explicit updates are local and
+CFL-bound (the scheme's information speed must beat the physical wave speed);
+implicit steps couple every DOF through a global solve, buying unconditional
+stability at the price of that solve. The neural analogue is exact — local
+message passing has explicit-like information speed, global attention is
+implicit-like — but a learned stepper is neither integrator: it is an
+**amortized flow map**, taking implicit-scale steps (the 2 µs Taylor output
+frame spans on the order of 20–50 of LS-DYNA's own CFL-bound substeps) at
+explicit-scale per-call cost. Learning decouples what classical schemes lock
+together: step span (k) becomes a config knob, stability becomes a
+training-time property (the noise/pushforward branch below is numerical
+dissipation's training-time analogue), and information speed becomes an
+architecture property.
+
+**Neural CFL condition.** Per call, the model's receptive field must cover
+the physical domain of influence of the frames it predicts:
+`receptive field ≥ wave speed × k × frame dt`. Taylor worked example: copper
+bulk sound speed ≈ 4 mm/µs × 2 µs ≈ 8 mm of influence per frame, against the
+blessed CGN's 10 message-passing steps × 1.5 mm connectivity radius = 15 mm
+receptive field — k=1 clears the condition with ~2× margin. At k=5 the last
+bundled frame needs ~40 mm ≈ 27 message-passing rounds: local message passing
+cannot see far enough. This *derives* the Transolver-first scope (open
+decision 7) rather than merely preferring it, and makes a per-benchmark,
+per-backbone neural-CFL audit (wave speed, frame dt, hops × radius) a cheap
+prerequisite for any k>1 work.
+
+**Regime grounding of the hypothesis.** Taylor and notch are impact-driven
+and strongly dissipative — plasticity and fracture contract the dynamics;
+nothing self-sustains and no phase-critical resonance must be tracked. The
+dominant pathology is therefore rollout error accumulation, which larger k
+removes by construction: "larger k helps here" follows from contractivity,
+not only from the No-Free-Lunch pattern cited above. The argument is
+regime-specific and *flips* for phase-critical, forcing-driven-throughout
+problems (vibration/seismic), where stepping or forcing transduction should
+win — so the k-sweep's conclusion is not expected to transfer across regimes,
+which is itself the publishable framing.
+
+**Predicted failure mode, with the sentinel already in protocol.** Large k
+trades accumulation error for spectral blur — the same trade implicit
+integrators make via numerical dissipation. Prediction: k=T improves rollout
+position RMSE but degrades `peak_von_mises` / `t_peak_von_mises`, exactly the
+QoIs the Taylor protocol already flags as penalising temporally coarse
+surrogates. The existing QoI set is the discriminator; no new metric is
+needed.
+
 ## Pipeline-impact analysis (why this is ADR-0044/0047-scale, not a knob)
 
 | Component | Current | With k>1 | Difficulty |
@@ -112,8 +165,9 @@ part most in need of design before any code.
    final bundle vs predict-k-and-truncate.
 6. **Loss weighting** across the k horizon — uniform vs decaying for harder
    late-in-bundle frames.
-7. **Scope** — Transolver first; whether CGN/MGN ever bundle (message-passing
-   backbones can, but out of first scope).
+7. **Scope** — Transolver first; whether CGN/MGN ever bundle (per the
+   neural-CFL analysis above, message-passing backbones would need global
+   mixing or ~3× more rounds to see far enough at k=5 — out of first scope).
 
 ## Alternatives considered
 
@@ -140,3 +194,7 @@ part most in need of design before any code.
 - If pursued, the payoff is a single-backbone k-sweep across structural
   impact/fracture benchmarks — a cleaner controlled comparison than CarCrashNet
   (one-shot only) or MP-PDE (bundling on fluid PDEs) report.
+- The physics grounding (2026-08-14) turns the sweep from exploratory into
+  hypothesis-driven: signed predictions — per regime (impact-dissipative:
+  larger k wins) and per metric (rollout RMSE improves, peak-stress QoIs
+  degrade) — are on record before any implementation.
