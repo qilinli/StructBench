@@ -649,6 +649,16 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             f"supported: {', '.join(sorted(AUX_TRANSFORMS))}"
         )
 
+    # Prediction-scheme axis (ADR-0050/0051): 0 is the one-shot sentinel and
+    # k>=1 is the concrete frames-per-call; a negative value is a typo. Reject
+    # it at load with a clear message rather than deep in simulator construction.
+    frames_per_call = getattr(model, "frames_per_call", None)
+    if frames_per_call is not None and frames_per_call < 0:
+        raise ConfigError(
+            f"[model] frames_per_call must be >= 0 (0 = one-shot k=T sentinel, "
+            f"k>=1 = frames predicted per forward call); got {frames_per_call}"
+        )
+
     return ResolvedRunConfig(
         family=family,
         model=model,

@@ -291,6 +291,14 @@ def test_load_run_config_transolver_frames_per_call_roundtrips(tmp_path):
         assert rc.model.frames_per_call == value
 
 
+def test_load_run_config_rejects_negative_frames_per_call(tmp_path):
+    # A typo'd negative k is rejected at load with a clear message (0 is the
+    # one-shot sentinel; k>=1 is concrete), not deep in simulator construction.
+    bad = VALID_TRANSOLVER.replace("frames_per_call = 1", "frames_per_call = -3")
+    with pytest.raises(ConfigError, match="frames_per_call must be >= 0"):
+        load_run_config(_write(tmp_path, bad))
+
+
 def test_load_run_config_rejects_transolver_unknown_key(tmp_path):
     bad = VALID_TRANSOLVER.replace("noise_std = 0.003", "noise_st = 0.003")
     with pytest.raises(ConfigError, match="unknown keys: noise_st"):
