@@ -1,6 +1,6 @@
 # 0055 — Relative-L2 metric alongside physical-unit RMSE (literature comparability)
 
-**Status**: Proposed (draft by Claude Code; maintainer finalises)
+**Status**: Accepted (maintainer approved in-session, 2026-08-15)
 **Type**: Durable
 **Date**: 2026-08-15
 
@@ -56,19 +56,18 @@ physical-unit metrics.
    registry render (ADR-0046 surfaces every `metrics` key as a comparison column —
    which is the point here).
 
-## Open decisions for the maintainer
+## Resolved decisions (maintainer approved, 2026-08-15)
 
-- **A. Displacement reference frame:** frame-0 (the GT prefix start, consistent
-  with the QoIs and the input window) **vs** `reference_coords` (rest geometry, a
-  cleaner "deformation from undeformed"). *Recommend frame-0* for consistency with
-  the existing displacement QoIs, but rest-coords is defensible.
-- **B. Pooling:** leaderboard `rollout_rel_l2` = per-frame-mean (recommended, matches
-  the RMSE leaderboard convention). Some papers report a single pooled/whole-sequence
-  relative L2; if we want exact parity with a specific paper's table, add a pooled
-  variant as a blessing-only / notes field (not a leaderboard column), mirroring the
-  ADR-0043/0046 treatment of the pooled RMSE.
-- **C. Registry columns:** confirm `rel_l2_*` should appear as leaderboard comparison
-  columns (yes — cross-paper comparability is the purpose) rather than notes.
+- **A. Displacement reference frame → frame-0.** Consistent with the input prefix
+  and the existing displacement QoIs (`terminal_peak_displacement`, midspan
+  deflection); `u = pos − pos[0]`.
+- **B. Pooling → per-frame-mean** for the leaderboard `rollout_rel_l2_*` (matches the
+  RMSE leaderboard convention: per-frame relative L2 → mean over scored frames). A
+  pooled/whole-sequence variant is NOT added now; it can be added later as a
+  blessing-only / notes field if exact parity with a specific paper's table is
+  needed (mirroring ADR-0043/0046's pooled-RMSE treatment).
+- **C. Registry columns → yes.** `rel_l2_displacement` and `rel_l2_aux` are surfaced
+  as leaderboard comparison columns — cross-paper comparability is the purpose.
 
 ## Alternatives considered
 
