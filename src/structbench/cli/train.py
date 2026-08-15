@@ -67,6 +67,7 @@ from ..datasets import (
 from ..eval import (
     one_step_aux_rmse,
     one_step_position_rmse,
+    one_step_rel_l2,
     rollout,
     time_conditioned_rollout,
 )
@@ -2548,6 +2549,10 @@ def evaluate(
             mesh_sim.reset_rollout()
         one_step: np.ndarray | None
         one_step_aux: np.ndarray | None
+        # Relative-L2 companions of the one-step RMSEs (ADR-0055); null for the
+        # time-conditioned scheme, exactly like one_step / one_step_aux.
+        one_step_rel_disp: np.ndarray | None
+        one_step_rel_aux: np.ndarray | None
         if tc:
             # Time-conditioned: independent per-frame query, no accumulation and
             # no teacher-forced one-step sweep (ADR-0054). one_step_* is undefined.
@@ -2571,6 +2576,8 @@ def evaluate(
             )
             one_step = None
             one_step_aux = None
+            one_step_rel_disp = None
+            one_step_rel_aux = None
         else:
             result = rollout(
                 simulator,
@@ -2599,6 +2606,16 @@ def evaluate(
                 device,
                 kinematic_types=spec.kinematic_types,
             )
+            if mesh_sim is not None:
+                mesh_sim.reset_rollout()
+            # One sweep yields both relative-L2 companions (ADR-0055).
+            one_step_rel_disp, one_step_rel_aux = one_step_rel_l2(
+                simulator,
+                trajectory,
+                model_cfg.input_frames,
+                device,
+                kinematic_types=spec.kinematic_types,
+            )
         # One-step aggregates cover the same scored span as the rollout means
         # (ADR-0035 parity, ADR-0039 horizon); per-frame arrays stay full.
         n_scored = (
@@ -2615,8 +2632,22 @@ def evaluate(
             "one_step_aux_rmse": (
                 None if one_step_aux is None else float(one_step_aux[:n_scored].mean())
             ),
+            # Relative-L2 companions (ADR-0055), same scored span/mask as the
+            # RMSEs; null one-step for a time-conditioned run.
+            "one_step_rel_l2_displacement": (
+                None
+                if one_step_rel_disp is None
+                else float(one_step_rel_disp[:n_scored].mean())
+            ),
+            "one_step_rel_l2_aux": (
+                None
+                if one_step_rel_aux is None
+                else float(one_step_rel_aux[:n_scored].mean())
+            ),
             "rollout_position_rmse": result.mean_position_rmse,
             "rollout_aux_rmse": result.mean_aux_rmse,
+            "rollout_rel_l2_displacement": result.mean_rel_l2_displacement,
+            "rollout_rel_l2_aux": result.mean_rel_l2_aux,
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
             # frame to trajectory end. Non-leaderboard; equals the scored value
             # when the benchmark pins no horizon. Field name matches the
@@ -2693,8 +2724,16 @@ def evaluate(
         "mean": {
             "one_step_position_rmse": _mean_over_cases("one_step_position_rmse"),
             "one_step_aux_rmse": _mean_over_cases("one_step_aux_rmse"),
+            "one_step_rel_l2_displacement": _mean_over_cases(
+                "one_step_rel_l2_displacement"
+            ),
+            "one_step_rel_l2_aux": _mean_over_cases("one_step_rel_l2_aux"),
             "rollout_position_rmse": _mean_over_cases("rollout_position_rmse"),
             "rollout_aux_rmse": _mean_over_cases("rollout_aux_rmse"),
+            "rollout_rel_l2_displacement": _mean_over_cases(
+                "rollout_rel_l2_displacement"
+            ),
+            "rollout_rel_l2_aux": _mean_over_cases("rollout_rel_l2_aux"),
             "rollout_position_rmse_full": _mean_over_cases(
                 "rollout_position_rmse_full"
             ),
@@ -2854,6 +2893,15 @@ def _print_split_report(metrics: dict[str, Any]) -> None:
         f" | one-step {aux_field} RMSE {_fmt(mean['one_step_aux_rmse'])}"
         f" | rollout position RMSE {_fmt(mean['rollout_position_rmse'])} mm"
         f" | {aux_rmse_str}"
+    )
+    # Relative-L2 companions (ADR-0055), dimensionless; .get() tolerates a
+    # metrics dict predating this metric (older re-printed records).
+    print(
+        f"[{split}] one-step rel-L2 disp "
+        f"{_fmt(mean.get('one_step_rel_l2_displacement'))}"
+        f" | one-step rel-L2 {aux_field} {_fmt(mean.get('one_step_rel_l2_aux'))}"
+        f" | rollout rel-L2 disp {_fmt(mean.get('rollout_rel_l2_displacement'))}"
+        f" | rollout rel-L2 {aux_field} {_fmt(mean.get('rollout_rel_l2_aux'))}"
     )
     qoi = ", ".join(
         f"{name} {value:.4f}" for name, value in mean["qoi_abs_error"].items()

@@ -11,7 +11,7 @@ import torch
 from numpy.typing import NDArray
 
 from ..datasets.canonical import CaseTrajectory
-from .metrics import QoiFn, QoiInputs, field_rmse, position_rmse
+from .metrics import QoiFn, QoiInputs, field_rmse, position_rmse, relative_l2
 
 
 class _SimulatorLike(Protocol):
@@ -58,6 +58,12 @@ class RolloutResult:
     aux_rmse: NDArray[np.float64]  # (nsteps,)
     mean_position_rmse: float = float("nan")
     mean_aux_rmse: float = float("nan")
+    # Relative-L2 companions of the two RMSE means (ADR-0055), reported
+    # alongside them for cross-paper comparability. Displacement relative L2 is
+    # on u = pos - pos[0] (frame-0 reference, decision A); aux relative L2 is on
+    # the raw aux field. Same scored horizon and kinematic mask as the RMSEs.
+    mean_rel_l2_displacement: float = float("nan")
+    mean_rel_l2_aux: float = float("nan")
     qoi_pred: dict[str, float] = field(default_factory=dict)
     qoi_true: dict[str, float] = field(default_factory=dict)
     qoi_error: dict[str, float] = field(default_factory=dict)
@@ -214,7 +220,8 @@ def _finalize_rollout(
     Stacks the per-frame ``predicted``/``aux_pred`` lists (each already
     containing ``T`` entries: the ``input_frames`` seeded frames plus every
     predicted frame), zeroes kinematic aux, computes the ADR-0035/0039 scored
-    per-frame RMSEs and QoIs, and packages a :class:`RolloutResult`. Shared by
+    per-frame RMSEs, their relative-L2 companions (ADR-0055), and the QoIs, and
+    packages a :class:`RolloutResult`. Shared by
     the autoregressive :func:`rollout` and the time-conditioned
     :func:`time_conditioned_rollout` so both report identically defined
     metrics (registry comparability, ADR-0054 decision C).
@@ -233,6 +240,20 @@ def _finalize_rollout(
     )
     aux_rmse = field_rmse(
         pred_aux[input_frames:], trajectory.aux[input_frames:], keep=keep
+    )
+    # Relative-L2 companions (ADR-0055), same predicted span and kinematic mask
+    # as the RMSEs. Displacement is referenced to the GT frame-0 initial
+    # positions for BOTH predicted and ground truth (decision A: frame-0 is the
+    # shared seeded prefix, and relative L2 must be on displacement, not on
+    # origin-dominated absolute coordinates).
+    ref0 = trajectory.positions[0]  # (P, dim) GT frame-0 geometry
+    rel_l2_disp = relative_l2(
+        pred_pos[input_frames:] - ref0,
+        trajectory.positions[input_frames:] - ref0,
+        mask=keep,
+    )
+    rel_l2_aux = relative_l2(
+        pred_aux[input_frames:], trajectory.aux[input_frames:], mask=keep
     )
 
     # Scored span (ADR-0039): scored_frames mirrors T as an exclusive bound,
@@ -263,6 +284,8 @@ def _finalize_rollout(
         aux_rmse=aux_rmse,
         mean_position_rmse=float(pos_rmse[:n_scored].mean()),
         mean_aux_rmse=float(aux_rmse[:n_scored].mean()),
+        mean_rel_l2_displacement=float(rel_l2_disp[:n_scored].mean()),
+        mean_rel_l2_aux=float(rel_l2_aux[:n_scored].mean()),
         qoi_pred=qoi_pred,
         qoi_true=qoi_true,
         qoi_error={name: qoi_pred[name] - qoi_true[name] for name in qoi_pred},
@@ -500,3 +523,76 @@ def one_step_aux_rmse(
 
     pred = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     return field_rmse(pred, trajectory.aux[input_frames:], keep=keep)
+
+
+def one_step_rel_l2(
+    simulator: _SimulatorLike,
+    trajectory: CaseTrajectory,
+    input_frames: int,
+    device: str = "cpu",
+    kinematic_types: tuple[int, ...] = (),
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Teacher-forced next-step relative L2 per predicted frame (ADR-0055).
+
+    The relative-L2 companion of :func:`one_step_position_rmse` /
+    :func:`one_step_aux_rmse`: the same teacher-forced sweep — every frame from
+    ``input_frames`` onward predicted from its *ground-truth* history, so no
+    rollout error accumulates — over the same ``[input_frames, T)`` span
+    (ADR-0035), reporting relative L2 (ADR-0055) instead of physical-unit RMSE.
+
+    A single sweep yields *both* the displacement and the aux relative L2 (both
+    derive from the same teacher-forced predictions), so one call replaces what
+    would otherwise be two RMSE-shaped sweeps. Displacement is referenced to the
+    ground-truth frame-0 initial positions (``u = pos - pos[0]``, ADR-0055
+    decision A): relative L2 on absolute coordinates is origin-dominated, so it
+    must be taken on displacement.
+
+    Parameters
+    ----------
+    simulator, trajectory, input_frames, device, kinematic_types:
+        As in :func:`one_step_position_rmse`.
+
+    Returns
+    -------
+    tuple of numpy.ndarray
+        ``(rel_l2_displacement, rel_l2_aux)``, each shape
+        ``(T - input_frames,)`` and dimensionless.
+    """
+    pos = torch.from_numpy(trajectory.positions).to(device)
+    n_frames, n_particles, _ = pos.shape
+    if n_frames <= input_frames:
+        raise ValueError(
+            f"trajectory has {n_frames} frames; input_frames={input_frames}"
+        )
+    ptype = torch.from_numpy(trajectory.particle_type).to(device)
+    npp = torch.tensor([n_particles], device=device)
+
+    kin_mask_np = np.isin(trajectory.particle_type, np.asarray(kinematic_types))
+    keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
+
+    # See one_step_position_rmse: teacher-forced pointer mode + first-frame
+    # scoring for a k>1 bundle; byte-identical unchanged path at k=1.
+    tf_kw = (
+        {"teacher_forced": True} if getattr(simulator, "frames_per_call", 1) > 1 else {}
+    )
+    pred_pos_frames = []
+    pred_aux_frames = []
+    with torch.no_grad():
+        for t in range(input_frames, n_frames):
+            seq_pw = pos[t - input_frames : t].permute(1, 0, 2).contiguous()
+            next_pos, aux = simulator.predict_positions(seq_pw, npp, ptype, **tf_kw)
+            if next_pos.ndim == 3:  # (P, k, dim) bundle -> first frame
+                next_pos = next_pos[:, 0]
+            if aux.ndim == 3:  # (P, k, 1) bundle -> first frame's aux
+                aux = aux[:, 0]
+            pred_pos_frames.append(next_pos)
+            pred_aux_frames.append(aux[:, 0])
+
+    pred_pos = torch.stack(pred_pos_frames, dim=0).cpu().numpy().astype(np.float32)
+    pred_aux = torch.stack(pred_aux_frames, dim=0).cpu().numpy().astype(np.float32)
+    ref0 = trajectory.positions[0]  # (P, dim) GT frame-0 geometry
+    rel_l2_disp = relative_l2(
+        pred_pos - ref0, trajectory.positions[input_frames:] - ref0, mask=keep
+    )
+    rel_l2_aux = relative_l2(pred_aux, trajectory.aux[input_frames:], mask=keep)
+    return rel_l2_disp, rel_l2_aux

@@ -91,6 +91,56 @@ def field_rmse(
     return np.sqrt(d.mean(axis=1))
 
 
+def relative_l2(
+    pred_field: NDArray,
+    gt_field: NDArray,
+    mask: NDArray[np.bool_] | None = None,
+    eps: float = 1e-8,
+) -> NDArray[np.float64]:
+    """Per-frame relative L2 error of a per-particle field (ADR-0055).
+
+    Relative L2 is ``‖û − u‖₂ / max(‖u‖₂, ε)`` over the scored particles — the
+    metric the neural-operator literature reports almost universally (Wu et al.
+    Transolver, Li et al. FNO/Geo-FNO, GNOT, the crash-operator papers). It is
+    reported **alongside** the physical-unit RMSEs for cross-paper
+    comparability, never as a replacement (ADR-0055): the RMSEs remain
+    StructBench's engineering headline and blessed/gate anchors.
+
+    Parameters
+    ----------
+    pred_field, gt_field:
+        Arrays of shape ``(T, P)`` (a scalar field, e.g. the aux field) or
+        ``(T, P, dim)`` (a vector field, e.g. displacement). The L2 norms run
+        over every non-time axis, so a vector field is normed over particles
+        and components jointly.
+    mask:
+        Optional boolean particle mask ``(P,)`` (``True`` keeps the particle);
+        when given, both norms run over kept particles only — the same
+        kinematic/scripted exclusion the RMSE metrics apply (ADR-0026), so the
+        two read over an identical particle set.
+    eps:
+        Floor on the reference norm ``‖u‖₂`` (default ``1e-8``); guards a
+        near-static frame (e.g. displacement ~0 just after seeding) against
+        division by zero (ADR-0055 §4).
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T,)``, dimensionless — one relative L2 value per frame, the
+        per-frame form mirroring :func:`position_rmse` so the caller can mean
+        it over the scored horizon (ADR-0055 decision B).
+    """
+    pred = np.asarray(pred_field, float)
+    gt = np.asarray(gt_field, float)
+    if mask is not None:
+        pred = pred[:, mask]
+        gt = gt[:, mask]
+    axes = tuple(range(1, gt.ndim))  # all but the time axis
+    err = np.sqrt(((pred - gt) ** 2).sum(axis=axes))
+    ref = np.sqrt((gt**2).sum(axis=axes))
+    return err / np.maximum(ref, eps)
+
+
 def final_length(inputs: QoiInputs) -> float:
     """x-extent of the final frame (ADR-0019 QoI; value unchanged).
 

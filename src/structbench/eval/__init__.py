@@ -13,6 +13,7 @@ from .metrics import (
     peak_nodal_aux,
     peak_stress,
     position_rmse,
+    relative_l2,
     t_peak_mean_aux,
     terminal_peak_displacement,
 )
@@ -20,6 +21,7 @@ from .rollout import (
     RolloutResult,
     one_step_aux_rmse,
     one_step_position_rmse,
+    one_step_rel_l2,
     rollout,
     time_conditioned_rollout,
 )
@@ -27,6 +29,7 @@ from .rollout import (
 __all__ = [
     "position_rmse",
     "field_rmse",
+    "relative_l2",
     "final_length",
     "mushroom_width",
     "arrival_time",
@@ -44,4 +47,5 @@ __all__ = [
     "time_conditioned_rollout",
     "one_step_position_rmse",
     "one_step_aux_rmse",
+    "one_step_rel_l2",
 ]
