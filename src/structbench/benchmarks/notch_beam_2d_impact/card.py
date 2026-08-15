@@ -91,7 +91,19 @@ CARD = BenchmarkCard(
         "criterion; a 221-case sweep shows the GT fraction shifts ~0.05 "
         "mean per case across the factor-2 band [0.005, 0.02], and "
         "frame-249 vs frame-501 fractions are nearly identical (0.305 vs "
-        "0.317 mean), corroborating the 250 us horizon."
+        "0.317 mean), corroborating the 250 us horizon. "
+        "Probe split (characterisation, 2026-08-15): the probe cases are "
+        "out-of-distribution on THREE axes at once — span (400/800 mm) and "
+        "impactor velocity both outside the training grids ({320,480,640} mm; "
+        "{40,80,120,160} m/s), and, decisively, an OFF-CENTRE impact. All 108 "
+        "train/val/test_interp cases are struck exactly at midspan (impact "
+        "offset 0.0 mm, every notch a/b/c variant and span); the probe impacts "
+        "land ~6% off-centre — a loading mode absent from training entirely. "
+        "Probe scores therefore measure graceful failure on a genuinely new "
+        "loading configuration, not ordinary interpolation: global-attention "
+        "operators mis-localise the response to the learned midspan prior, "
+        "while relative-position message-passing (MGN/CGN) degrades more "
+        "gracefully."
     ),
     size_gb=24.9,
     figures=(
