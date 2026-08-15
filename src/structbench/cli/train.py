@@ -2840,13 +2840,19 @@ def _print_split_report(metrics: dict[str, Any]) -> None:
     split, mean = metrics["split"], metrics["mean"]
     aux_field = metrics.get("aux_field", "aux")
     aux_unit = metrics.get("aux_unit", "")
-    aux_rmse_str = f"rollout {aux_field} RMSE {mean['rollout_aux_rmse']:.4f}"
+
+    def _fmt(value: float | None) -> str:
+        # one_step_* is None under the ADR-0054 time-conditioned scheme
+        # (independent per-t queries have no single-step notion).
+        return "N/A" if value is None else f"{value:.4f}"
+
+    aux_rmse_str = f"rollout {aux_field} RMSE {_fmt(mean['rollout_aux_rmse'])}"
     if aux_unit:
         aux_rmse_str = f"{aux_rmse_str} {aux_unit}"
     print(
-        f"[{split}] one-step position RMSE {mean['one_step_position_rmse']:.4f} mm"
-        f" | one-step {aux_field} RMSE {mean['one_step_aux_rmse']:.4f}"
-        f" | rollout position RMSE {mean['rollout_position_rmse']:.4f} mm"
+        f"[{split}] one-step position RMSE {_fmt(mean['one_step_position_rmse'])} mm"
+        f" | one-step {aux_field} RMSE {_fmt(mean['one_step_aux_rmse'])}"
+        f" | rollout position RMSE {_fmt(mean['rollout_position_rmse'])} mm"
         f" | {aux_rmse_str}"
     )
     qoi = ", ".join(
