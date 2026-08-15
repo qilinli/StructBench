@@ -255,6 +255,7 @@ weight_decay = 1e-5
 max_grad_norm = 0.1
 velocity_history = false
 frames_per_call = 1
+impact_velocity_feature = false
 
 [train]
 batch_size = 8
@@ -289,6 +290,20 @@ def test_load_run_config_transolver_frames_per_call_roundtrips(tmp_path):
         )
         rc = load_run_config(_write(tmp_path, cfg))
         assert rc.model.frames_per_call == value
+
+
+def test_load_run_config_transolver_impact_velocity_feature_roundtrips(tmp_path):
+    # ADR-0051 B: default off; explicit on round-trips.
+    assert (
+        load_run_config(
+            _write(tmp_path, VALID_TRANSOLVER)
+        ).model.impact_velocity_feature
+        is False
+    )
+    on = VALID_TRANSOLVER.replace(
+        "impact_velocity_feature = false", "impact_velocity_feature = true"
+    )
+    assert load_run_config(_write(tmp_path, on)).model.impact_velocity_feature is True
 
 
 def test_load_run_config_rejects_negative_frames_per_call(tmp_path):

@@ -100,12 +100,25 @@ def test_forward_train_requires_velocity_history_when_enabled(build):
     def call(velocity_history):
         if isinstance(sim, MeshSimulator):
             return sim.forward_train(
-                x, nxt, aux, types, mesh_edges, ref, npp,
-                accumulate=False, velocity_history=velocity_history,
+                x,
+                nxt,
+                aux,
+                types,
+                mesh_edges,
+                ref,
+                npp,
+                accumulate=False,
+                velocity_history=velocity_history,
             )
         return sim.forward_train(
-            x, nxt, aux, types, ref, npp,
-            accumulate=False, velocity_history=velocity_history,
+            x,
+            nxt,
+            aux,
+            types,
+            ref,
+            npp,
+            accumulate=False,
+            velocity_history=velocity_history,
         )
 
     pred, target = call(vh)

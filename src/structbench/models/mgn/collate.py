@@ -71,7 +71,11 @@ def mesh_static_from_trajectory(traj: CaseTrajectory) -> MeshStatic:
     )
 
 
-def collate_mesh_samples(batch: list[dict], statics: Sequence[MeshStatic]) -> dict:
+def collate_mesh_samples(
+    batch: list[dict],
+    statics: Sequence[MeshStatic],
+    loading_scalars: Sequence[float] | None = None,
+) -> dict:
     """Collate a batch of windowed samples into one mesh-batched graph.
 
     Calls :func:`~structbench.datasets.particle.collate_samples` for the
@@ -130,4 +134,19 @@ def collate_mesh_samples(batch: list[dict], statics: Sequence[MeshStatic]) -> di
 
     out["mesh_edge_index"] = torch.cat(edge_parts, dim=1)
     out["reference_coords"] = torch.cat(coord_parts, dim=0)
+
+    if loading_scalars is not None:
+        # ADR-0051 B: broadcast each sample's scalar loading parameter (by
+        # traj_idx) to its particle rows, giving a (sum_P, 1) global feature.
+        out["loading_feature"] = torch.cat(
+            [
+                torch.full(
+                    (sample["n_particles"], 1),
+                    float(loading_scalars[sample["traj_idx"]]),
+                    dtype=torch.float32,
+                )
+                for sample in batch
+            ],
+            dim=0,
+        )
     return out
