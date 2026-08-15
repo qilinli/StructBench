@@ -252,7 +252,7 @@ class TransolverConfig:
         scalar) is the natural refinement for spatially-structured loading.
     time_conditioned : bool
         Use the faithful thuml time-conditioned (``Time_Input``) prediction
-        scheme (ADR-0053): the model maps ``(static geometry, node types,
+        scheme (ADR-0054): the model maps ``(static geometry, node types,
         scalar impact velocity?, prescribed boundary state at t, query time t)
         -> absolute state at t``, history-free and non-autoregressive. This is
         Transolver's *native structural* scheme (the Plasticity template), as
@@ -691,7 +691,7 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             f"k>=1 = frames predicted per forward call); got {frames_per_call}"
         )
 
-    # ADR-0053: the time-conditioned scheme is history-free and
+    # ADR-0054: the time-conditioned scheme is history-free and
     # non-autoregressive, so it is mutually exclusive with the velocity-history
     # window and the k-frames-per-call bundling axis. Reject the combination at
     # load rather than deep in simulator construction.
@@ -699,13 +699,13 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
         if getattr(model, "velocity_history", False):
             raise ConfigError(
                 "[model] time_conditioned=true requires velocity_history=false "
-                "(the time-conditioned scheme is history-free; ADR-0053)"
+                "(the time-conditioned scheme is history-free; ADR-0054)"
             )
         if frames_per_call != 1:
             raise ConfigError(
                 "[model] time_conditioned=true requires frames_per_call=1 "
                 f"(got {frames_per_call}); the time-conditioned and "
-                "k-frames-per-call schemes are mutually exclusive (ADR-0053)"
+                "k-frames-per-call schemes are mutually exclusive (ADR-0054)"
             )
 
     return ResolvedRunConfig(

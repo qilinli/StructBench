@@ -50,14 +50,14 @@ def timestep_embedding(timesteps: Tensor, dim: int, max_period: int = 10000) -> 
     sinusoidal feature, low frequencies first. Combined with the learned
     ``time_fc`` MLP inside :class:`TransolverNet`, this is the exact additive
     time injection the official structural (Plasticity) scheme uses
-    (ADR-0053). The function is parameter-free — its gradient flows straight
+    (ADR-0054). The function is parameter-free — its gradient flows straight
     into ``time_fc`` and whatever produced ``timesteps``.
 
     Parameters
     ----------
     timesteps:
         ``(B,)`` (or any 1-D) tensor of normalized query times ``t ∈ [0, 1]``
-        (frame index over the scored horizon; ADR-0053).
+        (frame index over the scored horizon; ADR-0054).
     dim:
         Embedding width (``hidden_dim`` of the network so the result adds
         directly to the preprocessed node features).
@@ -386,7 +386,7 @@ class TransolverNet(nn.Module):
     dropout:
         Dropout probability, forwarded to every block.
     time_conditioned:
-        Enable the faithful thuml ``Time_Input`` scheme (ADR-0053): a
+        Enable the faithful thuml ``Time_Input`` scheme (ADR-0054): a
         sinusoidal :func:`timestep_embedding` of the per-example query time,
         passed through a learned ``time_fc`` MLP (``Linear→SiLU→Linear``) and
         ADDED to the preprocessed node features before the Physics-Attention
@@ -411,7 +411,7 @@ class TransolverNet(nn.Module):
         self.time_conditioned = time_conditioned
         # thuml Time_Input MLP (Linear -> SiLU -> Linear), created ONLY when
         # time-conditioned so the default network registers no new parameters
-        # and stays byte-identical (ADR-0053). Built before _initialize_weights
+        # and stays byte-identical (ADR-0054). Built before _initialize_weights
         # so its Linear layers get the same trunc_normal_ init as every other.
         if time_conditioned:
             self.time_fc = nn.Sequential(
@@ -457,7 +457,7 @@ class TransolverNet(nn.Module):
             ``(B,)`` particle counts per example, in concatenation order, or
             ``None`` for a single example.
         t:
-            Per-example normalized query time (ADR-0053), shape ``(B,)`` or
+            Per-example normalized query time (ADR-0054), shape ``(B,)`` or
             ``(B, 1)`` (``(1,)``/``(1, 1)`` for a single example). Required
             when the network was built with ``time_conditioned=True`` and
             ignored otherwise; ``None`` (default) keeps the pre-0053 forward.
@@ -476,7 +476,7 @@ class TransolverNet(nn.Module):
             if t is None:
                 raise ValueError(
                     "TransolverNet was built with time_conditioned=True but "
-                    "forward() received t=None (ADR-0053)"
+                    "forward() received t=None (ADR-0054)"
                 )
             # thuml additive time injection: sinusoidal embedding -> time_fc,
             # broadcast to each example's points, ADDED before the blocks.

@@ -28,7 +28,7 @@ max_grad_norm = 0.1             # global-norm clip, thuml reference
 velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
 frames_per_call = 1            # ADR-0050/0051 prediction scheme: 1 = autoregressive next-step
 impact_velocity_feature = false  # ADR-0051 B: scalar loading-param channel (off = byte-identical)
-time_conditioned = false        # ADR-0053: faithful thuml time-conditioned scheme (off = byte-identical)
+time_conditioned = false        # ADR-0054: faithful thuml time-conditioned scheme (off = byte-identical)
 
 [train]
 batch_size = 2                  # family reference (ADR-0044, matched to MGN)

@@ -217,7 +217,7 @@ def _finalize_rollout(
     per-frame RMSEs and QoIs, and packages a :class:`RolloutResult`. Shared by
     the autoregressive :func:`rollout` and the time-conditioned
     :func:`time_conditioned_rollout` so both report identically defined
-    metrics (registry comparability, ADR-0053 decision C).
+    metrics (registry comparability, ADR-0054 decision C).
     """
     pred_pos = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     pred_aux = torch.stack(aux_pred, dim=0).cpu().numpy().astype(np.float32)
@@ -270,7 +270,7 @@ def _finalize_rollout(
 
 
 class _TimeConditionedSimulatorLike(Protocol):
-    """Structural type for the time-conditioned simulator (ADR-0053)."""
+    """Structural type for the time-conditioned simulator (ADR-0054)."""
 
     def predict_state_at(
         self, frame: int, t_norm: float
@@ -291,7 +291,7 @@ def time_conditioned_rollout(
 ) -> RolloutResult:
     """Independent-query trajectory assembly for the time-conditioned scheme.
 
-    The faithful thuml structural scheme (ADR-0053) is NOT autoregressive: each
+    The faithful thuml structural scheme (ADR-0054) is NOT autoregressive: each
     frame ``f`` is predicted independently from the static geometry and the
     normalized query time ``t = f / (time_ref_frames - 1)`` — there is no
     feedback and no error accumulation. This queries every predicted frame
@@ -320,7 +320,7 @@ def time_conditioned_rollout(
     time_ref_frames:
         Denominator of the normalized query time: ``t = f / (time_ref_frames
         - 1)``. Must match the value the checkpoint was trained with (the
-        scored horizon in frames; ADR-0053).
+        scored horizon in frames; ADR-0054).
     device:
         Torch device string.
     qois, kinematic_types, scored_frames:

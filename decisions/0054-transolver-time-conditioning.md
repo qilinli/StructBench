@@ -1,4 +1,4 @@
-# 0053 — Time-conditioned prediction scheme for Transolver (native structural baseline)
+# 0054 — Time-conditioned prediction scheme for Transolver (native structural baseline)
 
 **Status**: Accepted (maintainer settled A/B/C in-session, 2026-08-15)
 **Type**: Durable

@@ -152,7 +152,7 @@ def collate_mesh_samples(
         )
 
     if include_target_frame:
-        # ADR-0053: one query-frame index per example (B,), for the
+        # ADR-0054: one query-frame index per example (B,), for the
         # time-conditioned path's normalized query time. Per-EXAMPLE (not
         # per-particle): the network broadcasts each example's time embedding
         # to its own particle rows.

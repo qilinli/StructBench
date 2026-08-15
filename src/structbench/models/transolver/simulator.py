@@ -136,7 +136,7 @@ class TransolverSimulator(CaseBoundSimulator):
         # default (byte-identical). Distinct from velocity_history (per-node
         # velocity window); this is the operator-learning/one-shot convention.
         self._impact_velocity_feature = impact_velocity_feature
-        # ADR-0053: faithful thuml time-conditioned (Time_Input) scheme. The
+        # ADR-0054: faithful thuml time-conditioned (Time_Input) scheme. The
         # model maps (static geometry, node types, scalar impact velocity?,
         # scripted BC displacement at t, query time t) -> absolute state at t;
         # it is history-free and non-autoregressive, so it is mutually
@@ -147,13 +147,13 @@ class TransolverSimulator(CaseBoundSimulator):
                 raise ValueError(
                     "time_conditioned=True requires frames_per_call=1 "
                     f"(got {frames_per_call}); the time-conditioned and "
-                    "k-frames-per-call schemes are mutually exclusive (ADR-0053)"
+                    "k-frames-per-call schemes are mutually exclusive (ADR-0054)"
                 )
             if history_velocities != 0:
                 raise ValueError(
                     "time_conditioned=True requires history_velocities=0 "
                     f"(got {history_velocities}); the time-conditioned scheme "
-                    "is history-free (ADR-0053)"
+                    "is history-free (ADR-0054)"
                 )
             # TC input = one_hot + reference coords + scripted-BC displacement
             # at t (+ scalar impact velocity). No current-position or velocity
@@ -196,7 +196,7 @@ class TransolverSimulator(CaseBoundSimulator):
 
     @property
     def time_conditioned(self) -> bool:
-        """Whether this simulator uses the ADR-0053 time-conditioned scheme.
+        """Whether this simulator uses the ADR-0054 time-conditioned scheme.
 
         Read by :mod:`structbench.eval` and :mod:`structbench.cli.train` to
         route to the independent-query eval/training path (no autoregressive
@@ -553,14 +553,14 @@ class TransolverSimulator(CaseBoundSimulator):
         pred_norm = pred_norm.reshape(p, k, dim + 1)
         return pred_norm, target_norm
 
-    # --- ADR-0053 time-conditioned scheme -----------------------------------
+    # --- ADR-0054 time-conditioned scheme -----------------------------------
 
     def _kinematic_bc(
         self, gt_position: Tensor, reference_coords: Tensor, kin_mask: Tensor
     ) -> Tensor:
         """Scripted-boundary input channel: kinematic-node displacement at t.
 
-        The faithful thuml time-conditioned scheme (ADR-0053, decision A)
+        The faithful thuml time-conditioned scheme (ADR-0054, decision A)
         feeds the prescribed boundary state at the queried time ``t`` as an
         input channel — the analog of Plasticity's die state. Here that is the
         kinematic (prescribed-motion) nodes' displacement from rest at frame
@@ -596,7 +596,7 @@ class TransolverSimulator(CaseBoundSimulator):
         """Build the raw (pre-normalization) time-conditioned node features.
 
         ``cat([one_hot, reference_coords, kinematic_bc, loading_feature?])``
-        (ADR-0053): the static geometry (node type + rest coords), the
+        (ADR-0054): the static geometry (node type + rest coords), the
         prescribed boundary displacement at the queried time, and optionally
         the case's scalar impact velocity. No current-position or velocity
         channels — time enters additively inside the network, not here.
@@ -623,7 +623,7 @@ class TransolverSimulator(CaseBoundSimulator):
         accumulate: bool,
         loading_feature: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
-        """One time-conditioned training forward pass (ADR-0053).
+        """One time-conditioned training forward pass (ADR-0054).
 
         Maps ``(static geometry, node types, scalar impact velocity?, scripted
         BC at t, query time t) -> displacement-from-rest at t`` plus aux, with
@@ -683,7 +683,7 @@ class TransolverSimulator(CaseBoundSimulator):
         return pred_norm, target_norm
 
     def predict_state_at(self, frame: int, t_norm: float) -> tuple[Tensor, Tensor]:
-        """Predict the absolute state at a single scored frame (ADR-0053 eval).
+        """Predict the absolute state at a single scored frame (ADR-0054 eval).
 
         Independent-query, history-free: for the bound case's queried frame,
         assemble the static TC features (rest coords + node types + scalar
@@ -701,7 +701,7 @@ class TransolverSimulator(CaseBoundSimulator):
             and the kinematic override).
         t_norm:
             Normalized query time for ``frame`` (``frame`` over the scored
-            horizon; ADR-0053), a Python float.
+            horizon; ADR-0054), a Python float.
 
         Returns
         -------

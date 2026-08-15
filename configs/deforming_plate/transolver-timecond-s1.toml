@@ -1,5 +1,5 @@
 # DeformingPlate — Transolver TIME-CONDITIONED (native structural scheme),
-# seed 1 (ADR-0053).
+# seed 1 (ADR-0054).
 # DP is where time-conditioning is most clearly native: a quasi-static
 # actuator-pull, not a ballistic impact. The faithful thuml structural
 # (Plasticity) template: history-free, non-autoregressive. The model maps
@@ -15,7 +15,7 @@
 # already carries the actuator conditioning the quasi-static pull needs.
 #
 # BUDGET IS A PLACEHOLDER: training_steps set by the maintainer after a
-# throughput measurement to fit the 3-day wall-clock cap (ADR-0053 scope);
+# throughput measurement to fit the 3-day wall-clock cap (ADR-0054 scope);
 # both DP baselines are budget-matched to the slower method's 3-day step count.
 
 [run]
@@ -33,15 +33,15 @@ slice_num = 64
 mlp_ratio = 1
 dropout = 0.0
 node_type_size = 9
-noise_std = 0.0          # inert under time-conditioning (no rollout; ADR-0053)
+noise_std = 0.0          # inert under time-conditioning (no rollout; ADR-0054)
 normalizer_warmup_steps = 1000
 weight_decay = 1e-5      # AdamW, thuml reference (grounding §4.1)
 max_grad_norm = 0.1      # global-norm clip, thuml reference
 
-velocity_history = false        # REQUIRED false for time-conditioning (ADR-0053)
-frames_per_call = 1             # REQUIRED 1 for time-conditioning (ADR-0053)
+velocity_history = false        # REQUIRED false for time-conditioning (ADR-0054)
+frames_per_call = 1             # REQUIRED 1 for time-conditioning (ADR-0054)
 impact_velocity_feature = false  # DP has no scalar loading param (see header)
-time_conditioned = true          # ADR-0053: faithful thuml native structural scheme
+time_conditioned = true          # ADR-0054: faithful thuml native structural scheme
 
 [train]
 batch_size = 2
@@ -49,7 +49,7 @@ lr_init = 1e-3
 lr_decay = 0.1           # UNUSED by the transolver family (cosine anneal,
                          # ADR-0044); present because [train] is family-uniform.
 training_steps = 200_000   # PLACEHOLDER — DP budget set by maintainer after
-                           # throughput measurement, 3-day cap (ADR-0053)
+                           # throughput measurement, 3-day cap (ADR-0054)
 val_every = 5_000
 w_pos = 1.0
 w_aux = 1.0

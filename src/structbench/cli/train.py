@@ -1256,7 +1256,7 @@ def _train_mgn(
 def _tc_time_ref_frames(
     scored_frames: int | None, train_frames: int, traj_len: int
 ) -> int:
-    """Denominator of the time-conditioned normalized query time (ADR-0053).
+    """Denominator of the time-conditioned normalized query time (ADR-0054).
 
     The query time is ``t = frame / (time_ref_frames - 1)``, so ``time_ref_frames``
     is the scored horizon in frames. It must be identical at train and eval for
@@ -1503,7 +1503,7 @@ def _train_transolver(
                 "mesh benchmark"
             )
 
-    # ADR-0053: the time-conditioned scheme is a distinct, history-free,
+    # ADR-0054: the time-conditioned scheme is a distinct, history-free,
     # non-autoregressive prediction path — a dedicated loop, not the AR/k-frames
     # machinery below.
     if cfg.time_conditioned:
@@ -1776,14 +1776,14 @@ def _train_transolver_tc(
     device: str,
     data_root: Path,
 ) -> Path | None:
-    """Time-conditioned Transolver training (ADR-0053).
+    """Time-conditioned Transolver training (ADR-0054).
 
     The faithful thuml structural (Plasticity) scheme: history-free and
     non-autoregressive. Each sample is a single scored frame ``t``; the model
     is trained to map ``(static geometry, node types, scalar impact velocity?,
     prescribed boundary state at t, normalized query time t) -> absolute state
     at t`` (regressed as rest-frame displacement + aux). There is no rollout
-    window, no injected noise (inert without autoregression, ADR-0053 decision
+    window, no injected noise (inert without autoregression, ADR-0054 decision
     3), and no k-frames bundling. The optimizer recipe (AdamW + cosine LR +
     grad-norm clip) and the online-normalizer warmup mirror
     :func:`_train_transolver`; validation rolls out the independent-query
@@ -1798,7 +1798,7 @@ def _train_transolver_tc(
         logger.warning(
             "noise_std=%.4g is IGNORED for time_conditioned=true: the "
             "time-conditioned scheme is non-autoregressive, so injected "
-            "single-step noise is inert (ADR-0053). Set noise_std=0 to silence.",
+            "single-step noise is inert (ADR-0054). Set noise_std=0 to silence.",
             cfg.noise_std,
         )
 
@@ -1808,7 +1808,7 @@ def _train_transolver_tc(
             raise ValueError(
                 f"benchmark {spec.card.name!r} has no loading_scalar (scalar "
                 "impact-velocity parameter), but the transolver config sets "
-                "impact_velocity_feature=True (ADR-0051 B / ADR-0053)."
+                "impact_velocity_feature=True (ADR-0051 B / ADR-0054)."
             )
         loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
 
@@ -1875,7 +1875,7 @@ def _train_transolver_tc(
 
     logger.info(
         "starting transolver training: %d steps, batch %d, time-conditioned "
-        "(ADR-0053), time_ref_frames=%d%s",
+        "(ADR-0054), time_ref_frames=%d%s",
         train_cfg.training_steps,
         train_cfg.batch_size,
         time_ref,
@@ -2505,7 +2505,7 @@ def evaluate(
     # gates the per-case bind_case/reset_rollout calls below without
     # re-checking `family` at each site.
     mesh_sim = simulator if isinstance(simulator, CaseBoundSimulator) else None
-    # ADR-0053: a time-conditioned run has no autoregressive rollout and no
+    # ADR-0054: a time-conditioned run has no autoregressive rollout and no
     # teacher-forced one-step sweep — it queries every scored frame
     # independently and one_step_* is undefined (reported as null).
     tc = getattr(model_cfg, "time_conditioned", False)
@@ -2550,7 +2550,7 @@ def evaluate(
         one_step_aux: np.ndarray | None
         if tc:
             # Time-conditioned: independent per-frame query, no accumulation and
-            # no teacher-forced one-step sweep (ADR-0053). one_step_* is undefined.
+            # no teacher-forced one-step sweep (ADR-0054). one_step_* is undefined.
             # tc is only ever set for a transolver run (the only family exposing
             # predict_state_at); assert so mypy narrows the union.
             assert isinstance(simulator, TransolverSimulator)
@@ -2607,7 +2607,7 @@ def evaluate(
             else min(spec.scored_frames, len(trajectory.time)) - model_cfg.input_frames
         )
         cases[case_id] = {
-            # null one-step for a time-conditioned run (ADR-0053): the metric
+            # null one-step for a time-conditioned run (ADR-0054): the metric
             # is undefined, not zero — distinct from a finite AR value.
             "one_step_position_rmse": (
                 None if one_step is None else float(one_step[:n_scored].mean())
@@ -2644,7 +2644,7 @@ def evaluate(
         if save_rollouts:
             npz_path = rollout_dir / f"{split_name}-{case_id}.npz"
             if one_step is None:
-                # Time-conditioned: no one-step arrays to persist (null; ADR-0053).
+                # Time-conditioned: no one-step arrays to persist (null; ADR-0054).
                 np.savez(
                     npz_path,
                     predicted_positions=result.predicted_positions,
@@ -2666,7 +2666,7 @@ def evaluate(
 
     def _mean_over_cases(key: str) -> float | None:
         # A time-conditioned run's one_step_* is null per case; its mean is
-        # likewise null (ADR-0053), never a NaN or a spurious 0.
+        # likewise null (ADR-0054), never a NaN or a spurious 0.
         vals = [case[key] for case in cases.values() if case[key] is not None]
         return float(np.mean(vals)) if vals else None
 
