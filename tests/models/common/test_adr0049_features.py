@@ -139,7 +139,7 @@ def test_mesh_family_noise_vh_target_is_clean_next_velocity():
     is_kinematic = torch.tensor([False] * 5 + [True] * 2)
 
     x_noisy, vh, next_target = _mesh_family_noise(
-        position_seq, next_position, is_kinematic, 0.02, True
+        position_seq, next_position, is_kinematic, 0.02, F - 1
     )
     assert vh is not None and vh.shape == (P, (F - 1) * dim)
     torch.testing.assert_close(
@@ -150,6 +150,30 @@ def test_mesh_family_noise_vh_target_is_clean_next_velocity():
     torch.testing.assert_close(next_target[5:], next_position[5:])
     # noise really was injected on free rows
     assert not torch.allclose(x_noisy[:5], position_seq[:5, -1])
+
+
+def test_mesh_family_noise_intermediate_history_uses_last_k_velocities():
+    # ADR-0053: history_frames = k with 0 < k < F-1 (decoupled from the
+    # input_frames seed) builds exactly k velocities from the last k+1 frames,
+    # with the random walk history-matched to that span; the GNS clean-velocity
+    # target invariant still holds and kinematic rows stay clean.
+    torch.manual_seed(5)
+    P, F, dim = 6, 6, 2
+    position_seq = torch.randn(P, F, dim).cumsum(1)
+    next_position = position_seq[:, -1] + torch.randn(P, dim)
+    is_kinematic = torch.tensor([False] * 4 + [True] * 2)
+
+    k = 2  # strictly between Markovian (0) and the full window (F - 1 = 5)
+    x_noisy, vh, next_target = _mesh_family_noise(
+        position_seq, next_position, is_kinematic, 0.02, k
+    )
+    assert vh is not None and vh.shape == (P, k * dim)
+    torch.testing.assert_close(
+        next_target - x_noisy, next_position - position_seq[:, -1]
+    )
+    torch.testing.assert_close(x_noisy[4:], position_seq[4:, -1])
+    torch.testing.assert_close(next_target[4:], next_position[4:])
+    assert not torch.allclose(x_noisy[:4], position_seq[:4, -1])
 
 
 def test_mesh_family_noise_reference_path_keeps_mgn_gamma_one():
@@ -163,7 +187,7 @@ def test_mesh_family_noise_reference_path_keeps_mgn_gamma_one():
     is_kinematic = torch.zeros(P, dtype=torch.bool)
 
     x_noisy, vh, next_target = _mesh_family_noise(
-        position_seq, next_position, is_kinematic, 0.02, False
+        position_seq, next_position, is_kinematic, 0.02, 0
     )
     assert vh is None
     assert next_target is next_position
