@@ -31,7 +31,7 @@ normalizer_warmup_steps = 5
 weight_decay = 1e-4
 max_grad_norm = 0.0
 
-velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
+history_frames = 0            # reference Markovian feature builder (ADR-0049 off)
 
 [train]
 batch_size = 2

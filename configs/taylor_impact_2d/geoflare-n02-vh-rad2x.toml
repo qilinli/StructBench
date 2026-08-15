@@ -32,7 +32,7 @@ normalizer_warmup_steps = 1000
 weight_decay = 1e-4             # reference AdamW-arm value (ADR-0045)
 max_grad_norm = 0.0             # OFF — reference example has no gradient clipping
 
-velocity_history = true       # +5 window velocities; CGN random-walk window noise +
+history_frames = 5            # +5 window velocities; CGN random-walk window noise +
                               # GNS adjusted-next target (de-noise velocity, not the
                               # accumulated position offset; ADR-0049)
 

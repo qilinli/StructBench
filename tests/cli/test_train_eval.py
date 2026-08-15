@@ -989,6 +989,37 @@ def test_model_config_from_record_returns_cgn_config(tmp_path):
     assert model_cfg == cgn
 
 
+def test_read_run_record_maps_legacy_velocity_history_to_history_frames(tmp_path):
+    """ADR-0053: pre-0053 records name the mesh history via the
+    ``velocity_history`` boolean; the adapter maps it to ``history_frames``
+    (``True`` -> ``input_frames - 1``, ``False`` -> 0) and drops the stale key,
+    so old MGN/Transolver/GeoFLARE checkpoints stay evaluable."""
+    mgn = MGNConfig(**SMALL_MGN)
+    record_dict = resolved_config_dict(
+        "mgn",
+        mgn,
+        TrainConfig(benchmark="deforming_plate"),
+        horizon="full",
+        eval_times="native",
+        n_particle_types=mgn.node_type_size,
+        data_root=tmp_path,
+    )
+    # Rewrite the model block to the pre-0053 shape: drop the new count, add the
+    # legacy boolean (True selects the full input_frames-1 window).
+    record_dict["model"].pop("history_frames")
+    record_dict["model"]["velocity_history"] = True
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(record_dict), encoding="utf-8")
+
+    record = read_run_record(config_path)
+    assert "velocity_history" not in record["model"]
+    assert record["model"]["history_frames"] == mgn.input_frames - 1
+    # And the stale key no longer trips the dataclass splat.
+    model_cfg = _model_config_from_record(record)
+    assert isinstance(model_cfg, MGNConfig)
+    assert model_cfg.history_frames == mgn.input_frames - 1
+
+
 def _mesh_case_file(tmp_path, case_id="dp-0", n_nodes=6, n_cells=2, n_frames=5):
     """Tiny deforming-plate-shaped mesh case with one kinematic (OBSTACLE)
     node among otherwise-NORMAL nodes (SI units).

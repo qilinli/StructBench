@@ -71,6 +71,12 @@ RESULTS: tuple[BaselineResult, ...] = (
     ),
 )
 
+
+def _impact_velocity(case_id: str) -> float:
+    """Impact speed (m/s) from a Taylor case id ``T-20-<geom>-<velocity>``."""
+    return float(case_id.rsplit("-", 1)[1])
+
+
 SPEC = BenchmarkSpec(
     card=CARD,
     results=RESULTS,
@@ -88,6 +94,7 @@ SPEC = BenchmarkSpec(
     kinematic_types=(WALL_NODE_TYPE,),
     mesh_transform=native_mesh_transform,
     scripted_types=(WALL_NODE_TYPE,),
+    loading_scalar=_impact_velocity,
 )
 
 __all__ = [

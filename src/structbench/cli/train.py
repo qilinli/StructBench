@@ -154,7 +154,7 @@ def _mesh_family_noise(
     next_position: Tensor,
     is_kinematic: Tensor,
     noise_std: float,
-    velocity_history: bool,
+    history_frames: int,
     noise_off: bool = False,
 ) -> tuple[Tensor, Tensor | None, Tensor]:
     """Noisy inputs, optional velocity-history feature, and the matched target.
@@ -163,15 +163,17 @@ def _mesh_family_noise(
     deliberately pair DIFFERENT noise schemes with DIFFERENT target
     conventions, each matching its reference recipe:
 
-    * Reference path (``velocity_history=False``): single-frame Gaussian
+    * Reference path (``history_frames == 0``): single-frame Gaussian
       noise on the current frame; ``next_position`` is returned UNCHANGED,
       so the caller's velocity target ``next - x_noisy`` measures from the
       noisy position — the MeshGraphNets gamma = 1 convention (the model
       learns to step back onto the clean trajectory; the correction is a
       single sigma).
-    * Velocity-history path: :func:`random_walk_position_noise` over the
-      FULL window (the CGN recipe), so the velocity features are
-      consistently noisy — and the returned target next position is
+    * History path (``history_frames > 0``): :func:`random_walk_position_noise`
+      over the ``history_frames + 1`` frames the model uses (the CGN recipe,
+      history-matched per ADR-0053; at ``history_frames == input_frames - 1``
+      this is the full window), so the velocity features are consistently noisy
+      — and the returned target next position is
       ADJUSTED by the last frame's accumulated noise (GNS reference:
       ``next + noise[:, -1]``), so ``next_adjusted - x_noisy`` equals the
       CLEAN next velocity. The target corrects the velocity noise exactly
@@ -187,11 +189,11 @@ def _mesh_family_noise(
     ``noise_off=True`` selects a THIRD regime, the ADR-0051 one-shot (k=T)
     scheme: with no autoregressive feedback, single-step drift noise is
     meaningless (it would bias the one-shot model toward over-contraction, the
-    ADR-0049 pathology), so the inputs are CLEAN, the velocity-history feature
+    ADR-0049 pathology), so the inputs are CLEAN, the history feature
     (if enabled) is the CLEAN window's velocities, and the k-frame target is
     returned unchanged (clean full-sequence L2, the CarCrashNet regime). This
-    decouples the ``velocity_history`` INPUT feature from the noise SCHEME,
-    which the two-branch reference recipe conflates.
+    decouples the history INPUT feature from the noise SCHEME, which the
+    two-branch reference recipe conflates.
 
     Parameters
     ----------
@@ -204,8 +206,10 @@ def _mesh_family_noise(
         ``(P,)`` bool mask of kinematic rows.
     noise_std : float
         The family config's ``noise_std``.
-    velocity_history : bool
-        The family config's ``velocity_history`` flag.
+    history_frames : int
+        The family config's ``history_frames`` count (ADR-0053): ``0`` selects
+        the Markovian single-frame Gaussian path; ``k > 0`` selects the
+        random-walk path over the last ``k`` window velocities.
     noise_off : bool
         Select the one-shot clean regime (ADR-0051). Default ``False`` keeps
         the two k=1 reference paths byte-identical (MGN/GeoFLARE never pass it).
@@ -213,24 +217,29 @@ def _mesh_family_noise(
     Returns
     -------
     tuple of (torch.Tensor, torch.Tensor or None, torch.Tensor)
-        ``(x_noisy (P, dim), velocity_history (P, (F-1)*dim) or None,
+        ``(x_noisy (P, dim), velocity_history (P, history_frames*dim) or None,
         next_target)`` — feed ``next_target``, not the raw ``next_position``,
         to ``forward_train``.
     """
     if noise_off:
         x_clean = position_seq[:, -1]
         vh = None
-        if velocity_history:
-            velocities = position_seq[:, 1:] - position_seq[:, :-1]
-            vh = velocities.flatten(1)
+        if history_frames:
+            win = position_seq[:, -(history_frames + 1) :]
+            vh = (win[:, 1:] - win[:, :-1]).flatten(1)
         return x_clean, vh, next_position
-    if not velocity_history:
+    if history_frames == 0:
         noise = torch.randn_like(position_seq[:, -1]) * noise_std
         noise = noise.masked_fill(is_kinematic.unsqueeze(-1), 0.0)
         return position_seq[:, -1] + noise, None, next_position
-    noise_seq = random_walk_position_noise(position_seq, noise_std)
+    # ADR-0053: the random walk (and its velocity features) spans exactly the
+    # history_frames + 1 frames the model uses, so intermediate k gets a
+    # history-matched noise scale; at k = input_frames - 1 the window is the
+    # full seq and this is byte-identical to the pre-0053 velocity_history path.
+    win = position_seq[:, -(history_frames + 1) :]
+    noise_seq = random_walk_position_noise(win, noise_std)
     noise_seq = noise_seq.masked_fill(is_kinematic.unsqueeze(-1).unsqueeze(-1), 0.0)
-    noisy_seq = position_seq + noise_seq
+    noisy_seq = win + noise_seq
     velocities = noisy_seq[:, 1:] - noisy_seq[:, :-1]
     return (
         noisy_seq[:, -1],
@@ -359,7 +368,7 @@ def build_mgn_simulator(
         n_hidden=mgn.nmlp_layers,
         node_type_size=mgn.node_type_size,
         world_edge_radius=mgn.world_edge_radius,
-        history_velocities=(mgn.input_frames - 1) if mgn.velocity_history else 0,
+        history_velocities=mgn.history_frames,
         mesh_edge_max_stretch=mgn.mesh_edge_max_stretch,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
@@ -410,12 +419,13 @@ def build_transolver_simulator(
         mlp_ratio=cfg.mlp_ratio,
         dropout=cfg.dropout,
         node_type_size=cfg.node_type_size,
-        history_velocities=(cfg.input_frames - 1) if cfg.velocity_history else 0,
+        history_velocities=cfg.history_frames,
         # ADR-0050/0051: cfg.frames_per_call is the resolved k. The k=T sentinel
         # (0) is resolved to a concrete horizon upstream in _train_transolver
         # (train) / evaluate reads the resolved integer from config.json, so a
         # 0 never reaches here.
         frames_per_call=cfg.frames_per_call,
+        impact_velocity_feature=cfg.impact_velocity_feature,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
@@ -474,7 +484,7 @@ def build_geoflare_simulator(
         radii=(cfg.radius_near, cfg.radius_far),
         neighbors=(cfg.neighbors_near, cfg.neighbors_far),
         node_type_size=cfg.node_type_size,
-        history_velocities=(cfg.input_frames - 1) if cfg.velocity_history else 0,
+        history_velocities=cfg.history_frames,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
@@ -1025,7 +1035,7 @@ def _train_mgn(
 
     Each step builds the noisy inputs and the matched target via
     :func:`_mesh_family_noise` (reference path: single-frame Gaussian noise
-    on the current frame, MGN gamma = 1 target; ``velocity_history`` path:
+    on the current frame, MGN gamma = 1 target; ``history_frames > 0`` path:
     CGN random-walk over the window with the GNS adjusted-next target —
     ADR-0049) on non-kinematic (NORMAL) rows only — kinematic rows are
     never noised, since their motion is prescribed — then calls
@@ -1156,7 +1166,7 @@ def _train_mgn(
                 next_position,
                 is_kinematic,
                 mgn.noise_std,
-                mgn.velocity_history,
+                mgn.history_frames,
             )
 
             optimizer.zero_grad()
@@ -1294,7 +1304,8 @@ def _transolver_pushforward(
     n_particles_per_example: Tensor,
     is_kinematic: Tensor,
     k: int,
-    velocity_history: bool,
+    history_frames: int,
+    loading_feature: Tensor | None = None,
     *,
     warmup: bool,
 ) -> tuple[Tensor, Tensor]:
@@ -1325,9 +1336,10 @@ def _transolver_pushforward(
     b1_aux, b2_aux = next_aux[:, :k], next_aux[:, k:]
 
     def _vh(window: Tensor) -> Tensor | None:
-        if not velocity_history:
+        if history_frames == 0:
             return None
-        return (window[:, 1:] - window[:, :-1]).flatten(1)
+        win = window[:, -(history_frames + 1) :]
+        return (win[:, 1:] - win[:, :-1]).flatten(1)
 
     x_last = position_seq[:, -1]
     if warmup:
@@ -1342,6 +1354,7 @@ def _transolver_pushforward(
             n_particles_per_example,
             accumulate=True,
             velocity_history=_vh(position_seq),
+            loading_feature=loading_feature,
         )
 
     # bundle1: no-grad forward -> decode to positions -> clamp kinematic rows.
@@ -1355,6 +1368,7 @@ def _transolver_pushforward(
             n_particles_per_example,
             accumulate=False,
             velocity_history=_vh(position_seq),
+            loading_feature=loading_feature,
         )
         pred1_pos, _ = sim._decode_positions(pred1_norm, x_last)  # (P, k, dim)
         pred1_pos = pred1_pos.clone()
@@ -1375,6 +1389,7 @@ def _transolver_pushforward(
         n_particles_per_example,
         accumulate=False,
         velocity_history=_vh(seam_win),
+        loading_feature=loading_feature,
     )
 
 
@@ -1408,7 +1423,7 @@ def _train_transolver(
 
     Each step builds the noisy inputs and the matched target via
     :func:`_mesh_family_noise` (reference path: single-frame Gaussian noise
-    on the current frame, MGN gamma = 1 target; ``velocity_history`` path:
+    on the current frame, MGN gamma = 1 target; ``history_frames > 0`` path:
     CGN random-walk over the window with the GNS adjusted-next target —
     ADR-0049) on non-kinematic (NORMAL) rows only — kinematic rows are
     never noised, since their motion is prescribed — then calls
@@ -1505,6 +1520,18 @@ def _train_transolver(
         )
 
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
+    # ADR-0051 B: per-trajectory scalar loading parameter (impact velocity),
+    # resolved from the benchmark spec; None (and no extra channel) when the
+    # feature is off.
+    loading_scalars: list[float] | None = None
+    if cfg.impact_velocity_feature:
+        if spec.loading_scalar is None:
+            raise ValueError(
+                f"benchmark {spec.card.name!r} has no loading_scalar (scalar "
+                "impact-velocity parameter), but the transolver config sets "
+                "impact_velocity_feature=True (ADR-0051 B)."
+            )
+        loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
     sim = build_transolver_simulator(
         cfg,
         kinematic_types=spec.kinematic_types,
@@ -1546,7 +1573,9 @@ def _train_transolver(
         dataset,
         batch_size=train_cfg.batch_size,
         shuffle=True,
-        collate_fn=functools.partial(collate_mesh_samples, statics=statics),
+        collate_fn=functools.partial(
+            collate_mesh_samples, statics=statics, loading_scalars=loading_scalars
+        ),
     )
     optimizer = torch.optim.AdamW(
         sim.parameters(), lr=train_cfg.lr_init, weight_decay=cfg.weight_decay
@@ -1579,6 +1608,11 @@ def _train_transolver(
             next_aux = batch["next_aux"].to(device)
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
+            # ADR-0051 B: (sum_P, 1) global loading-param channel, present only
+            # when impact_velocity_feature is on (else None).
+            loading_feature = batch.get("loading_feature")
+            if loading_feature is not None:
+                loading_feature = loading_feature.to(device)
 
             is_kinematic = torch.isin(particle_type, kinematic)
             accumulate = step < cfg.normalizer_warmup_steps
@@ -1598,7 +1632,8 @@ def _train_transolver(
                     n_particles_per_example,
                     is_kinematic,
                     k,
-                    cfg.velocity_history,
+                    cfg.history_frames,
+                    loading_feature,
                     warmup=accumulate,
                 )
             else:
@@ -1607,7 +1642,7 @@ def _train_transolver(
                     next_position,
                     is_kinematic,
                     cfg.noise_std,
-                    cfg.velocity_history,
+                    cfg.history_frames,
                     noise_off=(k > 1),
                 )
                 pred, target = sim.forward_train(
@@ -1619,6 +1654,7 @@ def _train_transolver(
                     n_particles_per_example,
                     accumulate=accumulate,
                     velocity_history=velocity_history,
+                    loading_feature=loading_feature,
                 )
             # Rank-agnostic: (P, dim+1) at k=1 (byte-identical), (P, k, dim+1)
             # at k>1; the kinematic row mask selects on dim 0 either way and
@@ -1657,6 +1693,12 @@ def _train_transolver(
                             torch.from_numpy(tr.reference_coords).to(device),
                             torch.from_numpy(tr.particle_type).to(device),
                             torch.from_numpy(tr.positions).to(device),
+                            loading_scalar=(
+                                spec.loading_scalar(tr.case_id)
+                                if getattr(cfg, "impact_velocity_feature", False)
+                                and spec.loading_scalar
+                                else None
+                            ),
                         )
                         sim.reset_rollout()
                         result = rollout(
@@ -1731,7 +1773,7 @@ def _train_geoflare(
 
     Each step builds the noisy inputs and the matched target via
     :func:`_mesh_family_noise` (reference path: single-frame Gaussian noise
-    on the current frame, MGN gamma = 1 target; ``velocity_history`` path:
+    on the current frame, MGN gamma = 1 target; ``history_frames > 0`` path:
     CGN random-walk over the window with the GNS adjusted-next target —
     ADR-0049) on non-kinematic (NORMAL) rows only — kinematic rows are
     never noised, since their motion is prescribed — then calls
@@ -1870,7 +1912,7 @@ def _train_geoflare(
                 next_position,
                 is_kinematic,
                 cfg.noise_std,
-                cfg.velocity_history,
+                cfg.history_frames,
             )
 
             optimizer.zero_grad()
@@ -1918,6 +1960,12 @@ def _train_geoflare(
                             torch.from_numpy(tr.reference_coords).to(device),
                             torch.from_numpy(tr.particle_type).to(device),
                             torch.from_numpy(tr.positions).to(device),
+                            loading_scalar=(
+                                spec.loading_scalar(tr.case_id)
+                                if getattr(cfg, "impact_velocity_feature", False)
+                                and spec.loading_scalar
+                                else None
+                            ),
                         )
                         sim.reset_rollout()
                         result = rollout(
@@ -2230,6 +2278,12 @@ def evaluate(
                 torch.from_numpy(trajectory.reference_coords).to(device),
                 torch.from_numpy(trajectory.particle_type).to(device),
                 torch.from_numpy(trajectory.positions).to(device),
+                loading_scalar=(
+                    spec.loading_scalar(case_id)
+                    if getattr(model_cfg, "impact_velocity_feature", False)
+                    and spec.loading_scalar
+                    else None
+                ),
             )
             mesh_sim.reset_rollout()
         result = rollout(

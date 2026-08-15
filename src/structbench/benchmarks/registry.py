@@ -102,6 +102,14 @@ class BenchmarkSpec:
     construction. ``None`` leaves the family default (the ADR-0043
     ``(1,)``); Taylor pins its wall type here (ADR-0047), whose scripted
     velocity is identically zero."""
+    loading_scalar: Callable[[str], float] | None = None
+    """Maps a case id to its scalar loading parameter (impact velocity),
+    consumed by the Transolver ``impact_velocity_feature`` (ADR-0051 B): the
+    operator-learning / one-shot convention of feeding a known scalar loading
+    parameter (Transolver Plasticity, GeoTransolver/CrashSolver) rather than a
+    per-node velocity history. ``None`` when the benchmark has no such scalar
+    (e.g. actuator-driven deforming-plate), in which case a run that requests
+    the feature is rejected at train time."""
 
     def __post_init__(self) -> None:
         for required in ("train", "val"):

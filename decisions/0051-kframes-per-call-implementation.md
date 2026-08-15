@@ -234,3 +234,35 @@ k=5).
   enum above).
 - **Results-registry entries record the scheme per run** (extends deferred (c)),
   so cross-scheme rows are never silently compared as if same-scheme.
+
+## Amendment (2026-08-15): input conditioning for faithful one-shot baselines (B)
+
+A literature review of how the official publications set up their prediction task
+(deep-research, 2026-08-15) found a decisive convention: one-shot / operator-
+learning surrogates feed a **single initial state + a KNOWN scalar loading
+parameter** (impact velocity), NOT a GNS/MeshGraphNets per-node velocity history.
+Verified in the primary sources — Transolver ([arXiv:2402.02366](https://arxiv.org/abs/2402.02366)):
+its structural **Plasticity** benchmark uses die geometry + time only (no
+velocity history; time-conditioned querying), while the per-node velocity-history
+window is the **fluid** Navier-Stokes recipe (autoregressive). NVIDIA
+GeoTransolver / PhysicsNeMo crash and CrashSolver ([arXiv:2510.15201](https://arxiv.org/abs/2510.15201),
+[2605.07098](https://arxiv.org/html/2605.07098v2)) map the t0 mesh + **global
+scalar parameters** (impact velocity, thickness, wall position) to the whole
+trajectory one-shot.
+
+Consequence for StructBench: a `velocity_history=False` one-shot baseline is
+**velocity-blind** (single frame, cannot infer impact speed) — so `velocity_history=True`
+would be the *wrong* (autoregressive) fix. The faithful conditioning is a **known
+scalar loading parameter**:
+
+- **Implemented (B):** `TransolverConfig.impact_velocity_feature` — a global
+  scalar impact-velocity node channel (off by default, byte-identical), resolved
+  per case by `BenchmarkSpec.loading_scalar(case_id)` (Taylor + notch parsers;
+  deforming-plate has none — actuator-driven, so a run requesting it is rejected).
+- **B is the faithful default.** **C** — a per-node *initial-velocity field* (a
+  single t0 frame, not a history window) — is flagged for our own proposal, since
+  it better fits spatially-structured loading (notch/plate) where a global scalar
+  under-specifies; the reviewed papers use a scalar, so B is the literature match.
+- Validation: Taylor + notch Transolver one-shot baselines run with B; the
+  velocity-blind one-shot runs are kept as the ablation isolating the scalar's
+  effect (esp. on OOD extrapolation).

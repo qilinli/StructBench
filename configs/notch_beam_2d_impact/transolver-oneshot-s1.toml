@@ -1,11 +1,9 @@
-# Notch-impact — Transolver PROVISIONAL config (ADR-0048; family recipe ADR-0044).
-# Runs on the ADR-0048 beam-only synthesized lattice mesh (pin + supports
-# unmeshed, kinematic AND scripted); no published number for this task —
-# provisional, no numeric gate. Budget matched to the blessed CGN h250c recipe
-# (250k steps, train_frames=250, ADR-0039); input_frames = 6 per the card.
-# DECLARED DEVIATIONS from h250c: no aux_transform/aux_tail_weight (raw-space
-# aux, plain MSE), family-native batch 2 / noise 0.003 — ledger.
-# Not yet run.
+# notch_beam_2d_impact — Transolver ONE-SHOT (k=T) baseline, seed 1 (ADR-0050/0051).
+# Clone of the reference transolver recipe with frames_per_call=0 (one-shot
+# sentinel -> resolves to the scored horizon at train time) and noise_std=0
+# (injected noise is inert/meaningless without rollout). Everything else
+# (arch, input_frames, budget, train_frames) matches the k=1 reference for a
+# fair scheme-only comparison. Not yet run.
 
 [run]
 benchmark = "notch_beam_2d_impact"
@@ -22,14 +20,14 @@ slice_num = 64
 mlp_ratio = 1
 dropout = 0.0
 node_type_size = 4              # raw ids: 1 = beam, 2 = pin, 3 = supports (max id + 1)
-noise_std = 0.003               # DP family-reference value; CGN notch (h250c) uses
+noise_std = 0.0                  # inert at k=T (one-shot has no rollout; ADR-0051)
                                 # 0.01 — declared deviation, ledger.
 normalizer_warmup_steps = 1000
 weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference
 
 history_frames = 0            # reference Markovian feature builder (ADR-0049 off)
-frames_per_call = 1            # ADR-0050/0051 prediction scheme: 1 = autoregressive next-step
+frames_per_call = 0             # ADR-0050/0051 one-shot (k=T) sentinel
 impact_velocity_feature = false  # ADR-0051 B: scalar loading-param channel (off = byte-identical)
 
 [train]

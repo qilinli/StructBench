@@ -99,7 +99,8 @@ What becomes easier, harder, or constrained as a result.
 | 0048 | Notch-impact multi-method extension: native MGN/Transolver/GeoFLARE on the notched-beam SPH benchmark | Durable | Accepted |
 | 0049 | Taylor native recipe repair: noise rescale, velocity history, MGN stretch gate | Durable | Accepted |
 | 0050 | Prediction-scheme axis: unified k-frames-per-call (autoregressive ↔ bundled ↔ one-shot) | Durable | Superseded by 0051 (source corrections 2026-08-15) |
-| 0051 | k-frames-per-call implementation (Transolver): resolved decisions, neural-CFL, pushforward | Durable | Accepted (amended 2026-08-15: time-query scheme recorded) |
+| 0051 | k-frames-per-call implementation (Transolver): resolved decisions, neural-CFL, pushforward | Durable | Accepted (amended 2026-08-15: one-shot impact-velocity conditioning; time-query scheme recorded) |
+| 0053 | Decouple model history (`history_frames`) from the `input_frames` seed / scored-span protocol | Durable | Accepted |
 
 ---
 
