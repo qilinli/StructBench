@@ -1,7 +1,7 @@
 # 0053 — Decouple model history from the seed / scored-span protocol
 
 **Status**: Accepted — amends ADR-0035, supersedes the `velocity_history`
-boolean of ADR-0049 (implemented on `feat/adr-0053-decouple-history`, byte-identical, pending merge)
+boolean of ADR-0049 (byte-identical; merged to `main`, 2026-08-15)
 **Type**: Durable
 **Date**: 2026-08-15
 
