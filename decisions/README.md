@@ -100,6 +100,7 @@ What becomes easier, harder, or constrained as a result.
 | 0049 | Taylor native recipe repair: noise rescale, velocity history, MGN stretch gate | Durable | Accepted |
 | 0050 | Prediction-scheme axis: unified k-frames-per-call (autoregressive ↔ bundled ↔ one-shot) | Durable | Superseded by 0051 |
 | 0051 | k-frames-per-call implementation (Transolver): resolved decisions, neural-CFL, pushforward | Durable | Accepted |
+| 0053 | Decouple model history (`history_frames`) from the `input_frames` seed / scored-span protocol | Durable | Accepted |
 
 ---
 

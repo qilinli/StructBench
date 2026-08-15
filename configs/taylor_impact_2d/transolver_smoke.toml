@@ -22,7 +22,7 @@ normalizer_warmup_steps = 5
 weight_decay = 1e-5
 max_grad_norm = 0.1
 
-velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
+history_frames = 0            # reference Markovian feature builder (ADR-0049 off)
 frames_per_call = 1            # ADR-0050/0051 prediction scheme: 1 = autoregressive next-step
 impact_velocity_feature = false  # ADR-0051 B: scalar loading-param channel (off = byte-identical)
 

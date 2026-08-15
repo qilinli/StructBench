@@ -34,7 +34,7 @@ normalizer_warmup_steps = 1000
 weight_decay = 1e-4             # reference AdamW-arm value (ADR-0045)
 max_grad_norm = 0.0             # OFF — reference example has no gradient clipping
 
-velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
+history_frames = 0            # reference Markovian feature builder (ADR-0049 off)
 
 [train]
 batch_size = 2                  # family reference (ADR-0045, matched to MGN)

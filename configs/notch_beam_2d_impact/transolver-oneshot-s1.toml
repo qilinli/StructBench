@@ -26,7 +26,7 @@ normalizer_warmup_steps = 1000
 weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference
 
-velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
+history_frames = 0            # reference Markovian feature builder (ADR-0049 off)
 frames_per_call = 0             # ADR-0050/0051 one-shot (k=T) sentinel
 impact_velocity_feature = false  # ADR-0051 B: scalar loading-param channel (off = byte-identical)
 
