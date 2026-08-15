@@ -1,0 +1,46 @@
+# Taylor 2D — MGN ADR-0049 arm N02+VH+SG2, the full repair: noise 0.02,
+# velocity-history features, and the mesh-edge stretch gate at 2.0x rest
+# length. Measured on T-20-80-150 GT: p99 edge stretch 5.8x, max 31x by
+# 300 us (10% of edges past 2x) — the synthesized lattice tears apart in the
+# mushroom foot, and MGN is the only family whose messages consume it.
+# Gated (torn) pairs regain world-edge eligibility. Threshold 2.0 clears
+# every physically coherent edge (notch-impact max stretch: 1.46x).
+# Not yet run.
+
+[run]
+benchmark = "taylor_impact_2d"
+seed = 1                        # avoid seed 0 for training runs (CORRECTIONS 2026-07-10)
+
+[model]
+family = "mgn"
+input_frames = 6                # taylor card protocol (ADR-0035); h=0 — see header
+dim = 2
+hidden_dim = 128                # ADR-0043 §8 family reference
+message_passing_steps = 15
+nmlp_layers = 2
+node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
+world_edge_radius = 1.5         # working frame (mm) = CGN taylor connectivity_radius
+                                # (3x particle spacing, CORRECTIONS 2026-07-06/07).
+                                # Measured 2026-08-12: SPH smoothing radius 0.3-0.6 mm,
+                                # max wall penetration 0.389 mm — 1.5 mm sees the wall
+                                # >= 2 particle rows before contact.
+noise_std = 0.02                # blessed CGN taylor value (ADR-0049 noise rescale)
+normalizer_warmup_steps = 1000
+velocity_history = true       # +5 window velocities; CGN random-walk window noise +
+                              # GNS adjusted-next target (de-noise velocity, not the
+                              # accumulated position offset; ADR-0049)
+mesh_edge_max_stretch = 2.0   # tear edges past 2x rest length (ADR-0049; measured p99 5.8x)
+
+[train]
+batch_size = 2                  # ADR-0043 §8 family reference
+lr_init = 1e-4
+lr_decay = 0.1
+# lr_decay_steps is derived from training_steps by config.py: round(steps * 40000/100000).
+# Derived lr_decay_steps=40000 — the CGN taylor schedule knee (clean decade drops
+# at 40k/80k).
+training_steps = 100_000        # CGN-matched budget (ADR-0047 §6), not DP's 10M
+val_every = 2000                # CGN taylor cadence (3 val rollouts per pass)
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0           # plain MSE (ADR-0043 §9 single L2, equal weight)
+train_frames = 0                # full trajectories; no ADR-0039-style truncation
