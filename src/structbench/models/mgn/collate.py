@@ -75,6 +75,7 @@ def collate_mesh_samples(
     batch: list[dict],
     statics: Sequence[MeshStatic],
     loading_scalars: Sequence[float] | None = None,
+    include_target_frame: bool = False,
 ) -> dict:
     """Collate a batch of windowed samples into one mesh-batched graph.
 
@@ -148,5 +149,14 @@ def collate_mesh_samples(
                 for sample in batch
             ],
             dim=0,
+        )
+
+    if include_target_frame:
+        # ADR-0053: one query-frame index per example (B,), for the
+        # time-conditioned path's normalized query time. Per-EXAMPLE (not
+        # per-particle): the network broadcasts each example's time embedding
+        # to its own particle rows.
+        out["target_frame"] = torch.tensor(
+            [int(sample["target_frame"]) for sample in batch], dtype=torch.long
         )
     return out

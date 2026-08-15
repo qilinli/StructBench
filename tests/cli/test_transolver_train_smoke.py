@@ -88,7 +88,11 @@ def _write_cases(root, ids):
 
 
 def _run_transolver_smoke(
-    tmp_path, *, frames_per_call: int = 1, impact_velocity_feature: bool = False
+    tmp_path,
+    *,
+    frames_per_call: int = 1,
+    impact_velocity_feature: bool = False,
+    time_conditioned: bool = False,
 ):
     """Shared spec/data/train setup for both smoke tests below.
 
@@ -123,6 +127,9 @@ def _run_transolver_smoke(
         normalizer_warmup_steps=5,
         frames_per_call=frames_per_call,
         impact_velocity_feature=impact_velocity_feature,
+        time_conditioned=time_conditioned,
+        # time-conditioning is history-free / non-autoregressive: noise is inert
+        noise_std=0.0 if time_conditioned else TransolverConfig().noise_std,
     )
     tcfg = TrainConfig(
         benchmark="TransolverSmoke",
@@ -271,6 +278,46 @@ def test_transolver_pushforward_bundling_train_and_evaluate_smoke(
     assert np.isfinite(per_case["one_step_position_rmse"])
     assert np.isfinite(per_case["rollout_position_rmse"])
     assert np.isfinite(per_case["rollout_aux_rmse"])
+
+
+def test_transolver_time_conditioned_train_and_evaluate_smoke(tmp_path, monkeypatch):
+    """Time-conditioned (ADR-0053) end-to-end: train -> checkpoint -> evaluate.
+
+    Exercises the native structural scheme through a REAL train() (dedicated
+    history-free TC loop, per-frame query targets, include_target_frame collate)
+    and the TC evaluate() branch (independent per-frame query via
+    time_conditioned_rollout, one_step_* reported as null). Uses
+    impact_velocity_feature=true so the scalar-conditioning path is covered too.
+    """
+    import structbench.cli.train as cli_train
+
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path, time_conditioned=True, impact_velocity_feature=True
+    )
+
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    assert record["model"]["time_conditioned"] is True
+    assert record["model"]["frames_per_call"] == 1
+
+    ckpts = list(out.glob("model-*.pt"))
+    assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    per_case = metrics["cases"][ids["val"][0]]
+    # rollout metrics are finite; one_step_* is undefined for TC -> null.
+    assert np.isfinite(per_case["rollout_position_rmse"])
+    assert np.isfinite(per_case["rollout_aux_rmse"])
+    assert per_case["one_step_position_rmse"] is None
+    assert per_case["one_step_aux_rmse"] is None
+    assert metrics["mean"]["one_step_position_rmse"] is None
+    assert np.isfinite(metrics["mean"]["rollout_position_rmse"])
+    # QoIs still computed and finite.
+    for key in ("qoi_pred", "qoi_true", "qoi_error"):
+        assert set(per_case[key]) == {"peak_vm_stress", "terminal_peak_deflection"}
+        assert all(math.isfinite(v) for v in per_case[key].values())
+    # metrics JSON is strict-serializable with nulls (allow_nan=False).
+    assert (out / "metrics-val.json").exists()
 
 
 def test_transolver_pushforward_helper_shapes_and_grad_through_bundle2():

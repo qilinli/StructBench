@@ -1,0 +1,48 @@
+# notch_beam_2d_impact — Transolver TIME-CONDITIONED (native structural scheme) +
+# impact-velocity conditioning, seed 1 (ADR-0053).
+# The faithful thuml structural (Plasticity) template: history-free,
+# non-autoregressive. The model maps (rest geometry + node types + scalar
+# impact velocity + prescribed pin/support state at t + query time t) ->
+# absolute state at t; every scored frame is queried independently (no rollout,
+# no velocity window). frames_per_call=1 and velocity_history=false are
+# REQUIRED (mutually exclusive with time-conditioning). noise_std=0 (inert:
+# injected single-step noise needs autoregression). Budget matches the h250c /
+# oneshot-iv recipe (250k, train_frames=250) for a scheme-only comparison over
+# the ADR-0039 250 µs scored horizon. Not yet run.
+
+[run]
+benchmark = "notch_beam_2d_impact"
+seed = 1
+
+[model]
+family = "transolver"
+input_frames = 6                # notch card protocol (ADR-0035); see header
+dim = 2
+hidden_dim = 128                # ADR-0044 family reference
+n_layers = 8
+n_heads = 8
+slice_num = 64
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 4              # raw ids: 1 = beam, 2 = pin, 3 = supports (max id + 1)
+noise_std = 0.0                  # inert under time-conditioning (no rollout; ADR-0053)
+normalizer_warmup_steps = 1000
+weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
+max_grad_norm = 0.1             # global-norm clip, thuml reference
+
+velocity_history = false        # REQUIRED false for time-conditioning (ADR-0053)
+frames_per_call = 1             # REQUIRED 1 for time-conditioning (ADR-0053)
+impact_velocity_feature = true   # ADR-0051 B: scalar impact-velocity conditioning
+time_conditioned = true          # ADR-0053: faithful thuml native structural scheme
+
+[train]
+batch_size = 2                  # family reference (ADR-0044, matched to MGN)
+lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
+lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
+                                # ADR-0044); present because [train] is family-uniform.
+training_steps = 250_000        # h250c-matched budget (ADR-0048), not DP's 10M
+val_every = 2000                # h250c cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 250      # ADR-0039 §4 recipe: train only the scored window

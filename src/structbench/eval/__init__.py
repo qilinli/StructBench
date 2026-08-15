@@ -21,6 +21,7 @@ from .rollout import (
     one_step_aux_rmse,
     one_step_position_rmse,
     rollout,
+    time_conditioned_rollout,
 )
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "QoiInputs",
     "RolloutResult",
     "rollout",
+    "time_conditioned_rollout",
     "one_step_position_rmse",
     "one_step_aux_rmse",
 ]

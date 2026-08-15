@@ -64,7 +64,12 @@ from ..datasets import (
     collate_samples,
     load_case_trajectory,
 )
-from ..eval import one_step_aux_rmse, one_step_position_rmse, rollout
+from ..eval import (
+    one_step_aux_rmse,
+    one_step_position_rmse,
+    rollout,
+    time_conditioned_rollout,
+)
 from ..models.cgn import LearnedSimulator
 from ..models.cgn.simulator import time_diff
 from ..models.common import CaseBoundSimulator
@@ -417,6 +422,7 @@ def build_transolver_simulator(
         # 0 never reaches here.
         frames_per_call=cfg.frames_per_call,
         impact_velocity_feature=cfg.impact_velocity_feature,
+        time_conditioned=cfg.time_conditioned,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
@@ -1247,6 +1253,26 @@ def _train_mgn(
     return best_ckpt
 
 
+def _tc_time_ref_frames(
+    scored_frames: int | None, train_frames: int, traj_len: int
+) -> int:
+    """Denominator of the time-conditioned normalized query time (ADR-0053).
+
+    The query time is ``t = frame / (time_ref_frames - 1)``, so ``time_ref_frames``
+    is the scored horizon in frames. It must be identical at train and eval for
+    ``t`` to mean the same physical instant; both call this with the SAME inputs
+    (the benchmark spec's ``scored_frames`` and the config's ``train_frames``),
+    so no value need be persisted. Precedence: the pinned scored horizon
+    (``scored_frames``) if set; else the recipe truncation (``train_frames``) if
+    set; else the trajectory's own frame count.
+    """
+    if scored_frames is not None:
+        return scored_frames
+    if train_frames > 0:
+        return train_frames
+    return traj_len
+
+
 def _resolve_transolver_k(
     cfg: TransolverConfig, train_trajs: list[CaseTrajectory]
 ) -> tuple[TransolverConfig, bool, int]:
@@ -1477,6 +1503,14 @@ def _train_transolver(
                 "mesh benchmark"
             )
 
+    # ADR-0053: the time-conditioned scheme is a distinct, history-free,
+    # non-autoregressive prediction path — a dedicated loop, not the AR/k-frames
+    # machinery below.
+    if cfg.time_conditioned:
+        return _train_transolver_tc(
+            spec, cfg, train_cfg, train_trajs, val_trajs, out_dir, device, data_root
+        )
+
     # ADR-0050/0051 prediction-scheme axis. Resolve the k=T sentinel and record
     # the concrete k in cfg (so build_transolver_simulator and
     # resolved_config_dict below both see it). k=1 is the autoregressive scheme;
@@ -1695,6 +1729,238 @@ def _train_transolver(
                             sim,
                             tr,
                             cfg.input_frames,
+                            device,
+                            kinematic_types=spec.kinematic_types,
+                            scored_frames=spec.scored_frames,
+                        )
+                        pos_losses.append(float(result.position_rmse.mean()))
+                val_pos = (
+                    sum(pos_losses) / len(pos_losses) if pos_losses else float("inf")
+                )
+                logger.info(
+                    "step %d: train_loss %.6f val_pos %.4f mm (best_pos %.4f)",
+                    step,
+                    loss.item(),
+                    val_pos,
+                    best_pos,
+                )
+                if val_pos < best_pos:
+                    best_pos = val_pos
+                    best_ckpt = out_dir / f"model-best-{step:06d}.pt"
+                    sim.save(str(best_ckpt))
+                    logger.info("saved improved checkpoint: %s", best_ckpt)
+                sim.train()
+
+            if step % PERIODIC_CKPT_EVERY == 0:
+                periodic_ckpt = out_dir / f"ckpt-{step:06d}.pt"
+                sim.save(str(periodic_ckpt))
+                logger.info("saved periodic checkpoint: %s", periodic_ckpt)
+
+            if step >= train_cfg.training_steps:
+                break
+
+    if best_ckpt is None:
+        best_ckpt = out_dir / f"model-final-{step:06d}.pt"
+        sim.save(str(best_ckpt))
+        logger.info("no validation improvement; saved final checkpoint: %s", best_ckpt)
+    return best_ckpt
+
+
+def _train_transolver_tc(
+    spec: BenchmarkSpec,
+    cfg: TransolverConfig,
+    train_cfg: TrainConfig,
+    train_trajs: list[CaseTrajectory],
+    val_trajs: list[CaseTrajectory],
+    out_dir: Path,
+    device: str,
+    data_root: Path,
+) -> Path | None:
+    """Time-conditioned Transolver training (ADR-0053).
+
+    The faithful thuml structural (Plasticity) scheme: history-free and
+    non-autoregressive. Each sample is a single scored frame ``t``; the model
+    is trained to map ``(static geometry, node types, scalar impact velocity?,
+    prescribed boundary state at t, normalized query time t) -> absolute state
+    at t`` (regressed as rest-frame displacement + aux). There is no rollout
+    window, no injected noise (inert without autoregression, ADR-0053 decision
+    3), and no k-frames bundling. The optimizer recipe (AdamW + cosine LR +
+    grad-norm clip) and the online-normalizer warmup mirror
+    :func:`_train_transolver`; validation rolls out the independent-query
+    :func:`~structbench.eval.time_conditioned_rollout` per case and selects on
+    its mean position RMSE.
+
+    The normalized query time is ``t = frame / (time_ref_frames - 1)``, with
+    ``time_ref_frames`` fixed via :func:`_tc_time_ref_frames` so train and eval
+    agree on what each ``t`` means.
+    """
+    if cfg.noise_std:
+        logger.warning(
+            "noise_std=%.4g is IGNORED for time_conditioned=true: the "
+            "time-conditioned scheme is non-autoregressive, so injected "
+            "single-step noise is inert (ADR-0053). Set noise_std=0 to silence.",
+            cfg.noise_std,
+        )
+
+    loading_scalars: list[float] | None = None
+    if cfg.impact_velocity_feature:
+        if spec.loading_scalar is None:
+            raise ValueError(
+                f"benchmark {spec.card.name!r} has no loading_scalar (scalar "
+                "impact-velocity parameter), but the transolver config sets "
+                "impact_velocity_feature=True (ADR-0051 B / ADR-0053)."
+            )
+        loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
+
+    min_len = min(int(tr.positions.shape[0]) for tr in train_trajs)
+    time_ref = _tc_time_ref_frames(spec.scored_frames, train_cfg.train_frames, min_len)
+    if time_ref < 2:
+        raise ValueError(
+            f"time-conditioned time_ref_frames={time_ref} < 2 (scored_frames="
+            f"{spec.scored_frames}, train_frames={train_cfg.train_frames}, "
+            f"min train length={min_len})"
+        )
+
+    statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
+    sim = build_transolver_simulator(
+        cfg,
+        kinematic_types=spec.kinematic_types,
+        scripted_types=spec.scripted_types,
+        device=device,
+    )
+    sim.to(device)
+
+    kinematic = torch.as_tensor(
+        list(spec.kinematic_types), dtype=torch.long, device=device
+    )
+
+    (out_dir / "config.json").write_text(
+        json.dumps(
+            resolved_config_dict(
+                "transolver",
+                cfg,
+                train_cfg,
+                horizon=spec.card.horizon,
+                eval_times=spec.card.eval_times,
+                n_particle_types=cfg.node_type_size,
+                data_root=data_root,
+            ),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    dataset = WindowDataset(train_trajs, cfg.input_frames, target_frames=1)
+    if len(dataset) == 0:
+        raise ValueError(
+            "empty training set: no TRAIN trajectory has more than "
+            f"input_frames = {cfg.input_frames} frames, so there are no "
+            "time-conditioned query frames (check the data root or reduce "
+            "input_frames)."
+        )
+    loader = DataLoader(
+        dataset,
+        batch_size=train_cfg.batch_size,
+        shuffle=True,
+        collate_fn=functools.partial(
+            collate_mesh_samples,
+            statics=statics,
+            loading_scalars=loading_scalars,
+            include_target_frame=True,
+        ),
+    )
+    optimizer = torch.optim.AdamW(
+        sim.parameters(), lr=train_cfg.lr_init, weight_decay=cfg.weight_decay
+    )
+
+    logger.info(
+        "starting transolver training: %d steps, batch %d, time-conditioned "
+        "(ADR-0053), time_ref_frames=%d%s",
+        train_cfg.training_steps,
+        train_cfg.batch_size,
+        time_ref,
+        " (impact-velocity conditioned)" if cfg.impact_velocity_feature else "",
+    )
+
+    step = 0
+    best_pos = float("inf")
+    best_ckpt: Path | None = None
+    sim.train()
+    while step < train_cfg.training_steps:
+        for batch in loader:
+            particle_type = batch["particle_type"].to(device)
+            next_position = batch["next_position"].to(device)  # (P, dim) GT at t
+            next_aux = batch["next_aux"].to(device)  # (P,) GT aux at t
+            reference_coords = batch["reference_coords"].to(device)
+            n_particles_per_example = batch["n_particles_per_example"].to(device)
+            target_frame = batch["target_frame"].to(device)  # (B,)
+            loading_feature = batch.get("loading_feature")
+            if loading_feature is not None:
+                loading_feature = loading_feature.to(device)
+
+            t_norm = target_frame.to(torch.float32) / (time_ref - 1)  # (B,)
+            is_kinematic = torch.isin(particle_type, kinematic)
+            accumulate = step < cfg.normalizer_warmup_steps
+            optimizer.zero_grad()
+            pred, target = sim.forward_train_tc(
+                next_position,
+                next_aux,
+                particle_type,
+                reference_coords,
+                n_particles_per_example,
+                t_norm,
+                accumulate=accumulate,
+                loading_feature=loading_feature,
+            )
+            delta_v = pred[..., :-1] - target[..., :-1]
+            delta_aux = pred[..., -1] - target[..., -1]
+            per_particle = (
+                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
+                + train_cfg.w_aux * delta_aux**2
+            )
+            free = ~is_kinematic
+            if free.any():
+                loss = per_particle[free].mean()
+            else:
+                loss = per_particle.new_tensor(0.0, requires_grad=True)
+
+            loss.backward()
+            if cfg.max_grad_norm > 0:
+                torch.nn.utils.clip_grad_norm_(sim.parameters(), cfg.max_grad_norm)
+            optimizer.step()
+
+            lr_new = _lr_at_cosine(step, train_cfg)
+            for group in optimizer.param_groups:
+                group["lr"] = lr_new
+
+            step += 1
+
+            if step % train_cfg.val_every == 0:
+                sim.eval()
+                pos_losses: list[float] = []
+                with torch.no_grad():
+                    for tr in val_trajs:
+                        sim.bind_case(
+                            torch.from_numpy(tr.cells).to(device),
+                            torch.from_numpy(tr.reference_coords).to(device),
+                            torch.from_numpy(tr.particle_type).to(device),
+                            torch.from_numpy(tr.positions).to(device),
+                            loading_scalar=(
+                                spec.loading_scalar(tr.case_id)
+                                if cfg.impact_velocity_feature and spec.loading_scalar
+                                else None
+                            ),
+                        )
+                        val_time_ref = _tc_time_ref_frames(
+                            spec.scored_frames,
+                            train_cfg.train_frames,
+                            int(tr.positions.shape[0]),
+                        )
+                        result = time_conditioned_rollout(
+                            sim,
+                            tr,
+                            cfg.input_frames,
+                            val_time_ref,
                             device,
                             kinematic_types=spec.kinematic_types,
                             scored_frames=spec.scored_frames,
@@ -2239,6 +2505,10 @@ def evaluate(
     # gates the per-case bind_case/reset_rollout calls below without
     # re-checking `family` at each site.
     mesh_sim = simulator if isinstance(simulator, CaseBoundSimulator) else None
+    # ADR-0053: a time-conditioned run has no autoregressive rollout and no
+    # teacher-forced one-step sweep — it queries every scored frame
+    # independently and one_step_* is undefined (reported as null).
+    tc = getattr(model_cfg, "time_conditioned", False)
 
     # Explicit-checkpoint sweeps must not clobber the selected checkpoint's
     # canonical artifacts: suffix the metrics file and skip the rollout .npz.
@@ -2276,33 +2546,59 @@ def evaluate(
                 ),
             )
             mesh_sim.reset_rollout()
-        result = rollout(
-            simulator,
-            trajectory,
-            model_cfg.input_frames,
-            device,
-            qois=spec.qois,
-            kinematic_types=spec.kinematic_types,
-            scored_frames=spec.scored_frames,
-        )
-        if mesh_sim is not None:
-            mesh_sim.reset_rollout()
-        one_step = one_step_position_rmse(
-            simulator,
-            trajectory,
-            model_cfg.input_frames,
-            device,
-            kinematic_types=spec.kinematic_types,
-        )
-        if mesh_sim is not None:
-            mesh_sim.reset_rollout()
-        one_step_aux = one_step_aux_rmse(
-            simulator,
-            trajectory,
-            model_cfg.input_frames,
-            device,
-            kinematic_types=spec.kinematic_types,
-        )
+        one_step: np.ndarray | None
+        one_step_aux: np.ndarray | None
+        if tc:
+            # Time-conditioned: independent per-frame query, no accumulation and
+            # no teacher-forced one-step sweep (ADR-0053). one_step_* is undefined.
+            # tc is only ever set for a transolver run (the only family exposing
+            # predict_state_at); assert so mypy narrows the union.
+            assert isinstance(simulator, TransolverSimulator)
+            time_ref = _tc_time_ref_frames(
+                spec.scored_frames,
+                record["train"].get("train_frames", 0),
+                len(trajectory.time),
+            )
+            result = time_conditioned_rollout(
+                simulator,
+                trajectory,
+                model_cfg.input_frames,
+                time_ref,
+                device,
+                qois=spec.qois,
+                kinematic_types=spec.kinematic_types,
+                scored_frames=spec.scored_frames,
+            )
+            one_step = None
+            one_step_aux = None
+        else:
+            result = rollout(
+                simulator,
+                trajectory,
+                model_cfg.input_frames,
+                device,
+                qois=spec.qois,
+                kinematic_types=spec.kinematic_types,
+                scored_frames=spec.scored_frames,
+            )
+            if mesh_sim is not None:
+                mesh_sim.reset_rollout()
+            one_step = one_step_position_rmse(
+                simulator,
+                trajectory,
+                model_cfg.input_frames,
+                device,
+                kinematic_types=spec.kinematic_types,
+            )
+            if mesh_sim is not None:
+                mesh_sim.reset_rollout()
+            one_step_aux = one_step_aux_rmse(
+                simulator,
+                trajectory,
+                model_cfg.input_frames,
+                device,
+                kinematic_types=spec.kinematic_types,
+            )
         # One-step aggregates cover the same scored span as the rollout means
         # (ADR-0035 parity, ADR-0039 horizon); per-frame arrays stay full.
         n_scored = (
@@ -2311,8 +2607,14 @@ def evaluate(
             else min(spec.scored_frames, len(trajectory.time)) - model_cfg.input_frames
         )
         cases[case_id] = {
-            "one_step_position_rmse": float(one_step[:n_scored].mean()),
-            "one_step_aux_rmse": float(one_step_aux[:n_scored].mean()),
+            # null one-step for a time-conditioned run (ADR-0053): the metric
+            # is undefined, not zero — distinct from a finite AR value.
+            "one_step_position_rmse": (
+                None if one_step is None else float(one_step[:n_scored].mean())
+            ),
+            "one_step_aux_rmse": (
+                None if one_step_aux is None else float(one_step_aux[:n_scored].mean())
+            ),
             "rollout_position_rmse": result.mean_position_rmse,
             "rollout_aux_rmse": result.mean_aux_rmse,
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
@@ -2324,29 +2626,49 @@ def evaluate(
             "qoi_true": result.qoi_true,
             "qoi_error": result.qoi_error,
         }
+        one_step_str = (
+            "n/a"
+            if one_step is None
+            else f"{cases[case_id]['one_step_position_rmse']:.4f}"
+        )
         logger.info(
-            "[%s] %s: one-step %.4f mm | rollout %.4f mm | %s %.4f %s",
+            "[%s] %s: one-step %s mm | rollout %.4f mm | %s %.4f %s",
             split_name,
             case_id,
-            cases[case_id]["one_step_position_rmse"],
+            one_step_str,
             result.mean_position_rmse,
             spec.aux_field,
             result.mean_aux_rmse,
             spec.card.aux_unit,
         )
         if save_rollouts:
-            np.savez(
-                rollout_dir / f"{split_name}-{case_id}.npz",
-                predicted_positions=result.predicted_positions,
-                predicted_aux=result.predicted_aux,
-                position_rmse=result.position_rmse,
-                aux_rmse=result.aux_rmse,
-                one_step_position_rmse=one_step,
-                one_step_aux_rmse=one_step_aux,
-            )
+            npz_path = rollout_dir / f"{split_name}-{case_id}.npz"
+            if one_step is None:
+                # Time-conditioned: no one-step arrays to persist (null; ADR-0053).
+                np.savez(
+                    npz_path,
+                    predicted_positions=result.predicted_positions,
+                    predicted_aux=result.predicted_aux,
+                    position_rmse=result.position_rmse,
+                    aux_rmse=result.aux_rmse,
+                )
+            else:
+                assert one_step_aux is not None  # set together with one_step
+                np.savez(
+                    npz_path,
+                    predicted_positions=result.predicted_positions,
+                    predicted_aux=result.predicted_aux,
+                    position_rmse=result.position_rmse,
+                    aux_rmse=result.aux_rmse,
+                    one_step_position_rmse=one_step,
+                    one_step_aux_rmse=one_step_aux,
+                )
 
-    def _mean_over_cases(key: str) -> float:
-        return float(np.mean([case[key] for case in cases.values()]))
+    def _mean_over_cases(key: str) -> float | None:
+        # A time-conditioned run's one_step_* is null per case; its mean is
+        # likewise null (ADR-0053), never a NaN or a spurious 0.
+        vals = [case[key] for case in cases.values() if case[key] is not None]
+        return float(np.mean(vals)) if vals else None
 
     metrics: dict[str, Any] = {
         "split": split_name,

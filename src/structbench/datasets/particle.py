@@ -105,6 +105,10 @@ class WindowDataset(Dataset):
             path), consumed by the mesh collate
             (:func:`structbench.models.mgn.collate.collate_mesh_samples`) to
             look up each sample's static mesh data.
+            ``target_frame``: int index of the (first) predicted frame ``t``.
+            Additive to the sample contract: unused by :func:`collate_samples`
+            and by the mesh collate unless ``include_target_frame=True`` (the
+            time-conditioned path, ADR-0053).
         """
         tr, t, traj_idx = self._index[i]
         w = self._input_frames
@@ -130,6 +134,11 @@ class WindowDataset(Dataset):
             "next_aux": next_aux,
             "n_particles": int(tr.positions.shape[1]),
             "traj_idx": traj_idx,
+            # Index of the (first) predicted frame, used by the time-conditioned
+            # collate (ADR-0053) to derive the normalized query time. Additive
+            # to the sample contract: ignored by collate_samples (the CGN path)
+            # and by the mesh collate unless it is asked for it.
+            "target_frame": t,
         }
 
 

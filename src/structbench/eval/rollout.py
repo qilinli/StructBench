@@ -187,8 +187,41 @@ def rollout(
                 seq = torch.stack(predicted[-input_frames:], dim=0)
                 t += k_eff
 
+    return _finalize_rollout(
+        predicted,
+        aux_pred,
+        trajectory,
+        input_frames,
+        kin_mask_np,
+        keep,
+        scored_frames,
+        qois,
+    )
+
+
+def _finalize_rollout(
+    predicted: list[torch.Tensor],
+    aux_pred: list[torch.Tensor],
+    trajectory: CaseTrajectory,
+    input_frames: int,
+    kin_mask_np: np.ndarray,
+    keep: np.ndarray | None,
+    scored_frames: int | None,
+    qois: Mapping[str, QoiFn] | None,
+) -> RolloutResult:
+    """Assemble per-frame arrays into a :class:`RolloutResult` (shared tail).
+
+    Stacks the per-frame ``predicted``/``aux_pred`` lists (each already
+    containing ``T`` entries: the ``input_frames`` seeded frames plus every
+    predicted frame), zeroes kinematic aux, computes the ADR-0035/0039 scored
+    per-frame RMSEs and QoIs, and packages a :class:`RolloutResult`. Shared by
+    the autoregressive :func:`rollout` and the time-conditioned
+    :func:`time_conditioned_rollout` so both report identically defined
+    metrics (registry comparability, ADR-0053 decision C).
+    """
     pred_pos = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     pred_aux = torch.stack(aux_pred, dim=0).cpu().numpy().astype(np.float32)
+    n_frames = pred_pos.shape[0]
     if kin_mask_np.any():
         # Kinematic particles receive no aux training signal (their loss is
         # masked, ADR-0026), so the decoder's output there is meaningless;
@@ -233,6 +266,104 @@ def rollout(
         qoi_pred=qoi_pred,
         qoi_true=qoi_true,
         qoi_error={name: qoi_pred[name] - qoi_true[name] for name in qoi_pred},
+    )
+
+
+class _TimeConditionedSimulatorLike(Protocol):
+    """Structural type for the time-conditioned simulator (ADR-0053)."""
+
+    def predict_state_at(
+        self, frame: int, t_norm: float
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return ``(positions (P, dim), aux (P, 1))`` at a scored frame."""
+        ...
+
+
+def time_conditioned_rollout(
+    simulator: _TimeConditionedSimulatorLike,
+    trajectory: CaseTrajectory,
+    input_frames: int,
+    time_ref_frames: int,
+    device: str = "cpu",
+    qois: Mapping[str, QoiFn] | None = None,
+    kinematic_types: tuple[int, ...] = (),
+    scored_frames: int | None = None,
+) -> RolloutResult:
+    """Independent-query trajectory assembly for the time-conditioned scheme.
+
+    The faithful thuml structural scheme (ADR-0053) is NOT autoregressive: each
+    frame ``f`` is predicted independently from the static geometry and the
+    normalized query time ``t = f / (time_ref_frames - 1)`` — there is no
+    feedback and no error accumulation. This queries every predicted frame
+    ``f ∈ [input_frames, T)`` via ``simulator.predict_state_at``, seeds the
+    first ``input_frames`` frames with ground truth (mirroring
+    :func:`rollout`'s contract so metrics stay comparable), and reports the
+    same ADR-0035/0039 per-frame position/aux RMSEs and QoIs. The reported
+    ``position_rmse`` therefore fills the ``rollout_position_rmse`` slot but is
+    a genuine independent-query error, not a rollout-accumulated one.
+
+    Frames past the scored horizon (``f >= time_ref_frames``) query ``t > 1``
+    — a genuine time-extrapolation of the model, contributing only to the
+    non-scored full-horizon diagnostic (``position_rmse[scored:]``).
+
+    Parameters
+    ----------
+    simulator:
+        Object exposing ``predict_state_at(frame, t_norm) -> (positions, aux)``
+        and already bound to ``trajectory``'s case (rest coords, node types,
+        ground-truth trajectory) via ``bind_case``.
+    trajectory:
+        Ground-truth :class:`CaseTrajectory`.
+    input_frames:
+        History length / seed count (kept for metric-span parity with the AR
+        baseline; the TC model is history-free).
+    time_ref_frames:
+        Denominator of the normalized query time: ``t = f / (time_ref_frames
+        - 1)``. Must match the value the checkpoint was trained with (the
+        scored horizon in frames; ADR-0053).
+    device:
+        Torch device string.
+    qois, kinematic_types, scored_frames:
+        As in :func:`rollout`.
+
+    Returns
+    -------
+    RolloutResult
+    """
+    pos = torch.from_numpy(trajectory.positions).to(device)  # (T, P, dim)
+    n_frames = pos.shape[0]
+    aux_true = torch.from_numpy(trajectory.aux).to(device)
+
+    if input_frames < 2:
+        raise ValueError(f"input_frames must be >= 2, got {input_frames}")
+    if input_frames >= n_frames:
+        raise ValueError(
+            f"input_frames={input_frames} but trajectory has {n_frames} frames"
+        )
+    if time_ref_frames < 2:
+        raise ValueError(f"time_ref_frames must be >= 2, got {time_ref_frames}")
+
+    kin_mask_np = np.isin(trajectory.particle_type, np.asarray(kinematic_types))
+    keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
+
+    predicted = [pos[i] for i in range(input_frames)]
+    aux_pred = [aux_true[i] for i in range(input_frames)]
+    with torch.no_grad():
+        for f in range(input_frames, n_frames):
+            t_norm = f / (time_ref_frames - 1)
+            next_pos, aux = simulator.predict_state_at(f, t_norm)
+            predicted.append(next_pos)
+            aux_pred.append(aux[:, 0])
+
+    return _finalize_rollout(
+        predicted,
+        aux_pred,
+        trajectory,
+        input_frames,
+        kin_mask_np,
+        keep,
+        scored_frames,
+        qois,
     )
 
 

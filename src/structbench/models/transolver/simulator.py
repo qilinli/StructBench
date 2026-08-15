@@ -101,6 +101,7 @@ class TransolverSimulator(CaseBoundSimulator):
         history_velocities: int = 0,
         frames_per_call: int = 1,
         impact_velocity_feature: bool = False,
+        time_conditioned: bool = False,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -135,12 +136,36 @@ class TransolverSimulator(CaseBoundSimulator):
         # default (byte-identical). Distinct from velocity_history (per-node
         # velocity window); this is the operator-learning/one-shot convention.
         self._impact_velocity_feature = impact_velocity_feature
-        node_in = (
-            node_type_size
-            + 3 * dim
-            + history_velocities * dim
-            + (1 if impact_velocity_feature else 0)
-        )
+        # ADR-0053: faithful thuml time-conditioned (Time_Input) scheme. The
+        # model maps (static geometry, node types, scalar impact velocity?,
+        # scripted BC displacement at t, query time t) -> absolute state at t;
+        # it is history-free and non-autoregressive, so it is mutually
+        # exclusive with the velocity-history window and the k>1 bundling axis.
+        self._time_conditioned = time_conditioned
+        if time_conditioned:
+            if frames_per_call != 1:
+                raise ValueError(
+                    "time_conditioned=True requires frames_per_call=1 "
+                    f"(got {frames_per_call}); the time-conditioned and "
+                    "k-frames-per-call schemes are mutually exclusive (ADR-0053)"
+                )
+            if history_velocities != 0:
+                raise ValueError(
+                    "time_conditioned=True requires history_velocities=0 "
+                    f"(got {history_velocities}); the time-conditioned scheme "
+                    "is history-free (ADR-0053)"
+                )
+            # TC input = one_hot + reference coords + scripted-BC displacement
+            # at t (+ scalar impact velocity). No current-position or velocity
+            # window channels: the geometry is static and time enters additively.
+            node_in = node_type_size + 2 * dim + (1 if impact_velocity_feature else 0)
+        else:
+            node_in = (
+                node_type_size
+                + 3 * dim
+                + history_velocities * dim
+                + (1 if impact_velocity_feature else 0)
+            )
 
         self._net = TransolverNet(
             node_in=node_in,
@@ -151,6 +176,7 @@ class TransolverSimulator(CaseBoundSimulator):
             slice_num=slice_num,
             mlp_ratio=mlp_ratio,
             dropout=dropout,
+            time_conditioned=time_conditioned,
         )
         self._node_normalizer = OnlineNormalizer(node_in)
         self._target_normalizer = OnlineNormalizer(dim + 1)
@@ -167,6 +193,16 @@ class TransolverSimulator(CaseBoundSimulator):
         Families that never bundle simply do not expose this attribute.
         """
         return self._k
+
+    @property
+    def time_conditioned(self) -> bool:
+        """Whether this simulator uses the ADR-0053 time-conditioned scheme.
+
+        Read by :mod:`structbench.eval` and :mod:`structbench.cli.train` to
+        route to the independent-query eval/training path (no autoregressive
+        rollout, no one-step teacher forcing) instead of :meth:`predict_positions`.
+        """
+        return self._time_conditioned
 
     def _features(
         self,
@@ -516,3 +552,201 @@ class TransolverSimulator(CaseBoundSimulator):
         ).reshape(p, k, dim + 1)
         pred_norm = pred_norm.reshape(p, k, dim + 1)
         return pred_norm, target_norm
+
+    # --- ADR-0053 time-conditioned scheme -----------------------------------
+
+    def _kinematic_bc(
+        self, gt_position: Tensor, reference_coords: Tensor, kin_mask: Tensor
+    ) -> Tensor:
+        """Scripted-boundary input channel: kinematic-node displacement at t.
+
+        The faithful thuml time-conditioned scheme (ADR-0053, decision A)
+        feeds the prescribed boundary state at the queried time ``t`` as an
+        input channel — the analog of Plasticity's die state. Here that is the
+        kinematic (prescribed-motion) nodes' displacement from rest at frame
+        ``t``: ``gt_position - reference_coords`` on kinematic rows, zero on
+        every free (NORMAL) row. Kinematic positions are known boundary
+        conditions, so this is legitimate conditioning, not leakage.
+
+        Parameters
+        ----------
+        gt_position:
+            ``(P, dim)`` ground-truth world positions at the queried frame.
+        reference_coords:
+            ``(P, dim)`` mesh-space (rest/reference) coordinates.
+        kin_mask:
+            ``(P,)`` bool mask, ``True`` on kinematic (prescribed) rows.
+
+        Returns
+        -------
+        Tensor
+            ``(P, dim)`` displacement on kinematic rows, zero elsewhere.
+        """
+        bc = torch.zeros_like(reference_coords)
+        bc[kin_mask] = gt_position[kin_mask] - reference_coords[kin_mask]
+        return bc
+
+    def _features_tc(
+        self,
+        one_hot: Tensor,
+        reference_coords: Tensor,
+        kinematic_bc: Tensor,
+        loading_feature: Tensor | None,
+    ) -> Tensor:
+        """Build the raw (pre-normalization) time-conditioned node features.
+
+        ``cat([one_hot, reference_coords, kinematic_bc, loading_feature?])``
+        (ADR-0053): the static geometry (node type + rest coords), the
+        prescribed boundary displacement at the queried time, and optionally
+        the case's scalar impact velocity. No current-position or velocity
+        channels — time enters additively inside the network, not here.
+        """
+        parts = [one_hot, reference_coords, kinematic_bc]
+        if self._impact_velocity_feature:
+            if loading_feature is None:
+                raise ValueError(
+                    "simulator was built with impact_velocity_feature=True but "
+                    "no loading_feature (case impact-velocity scalar) was supplied"
+                )
+            parts.append(loading_feature)
+        return torch.cat(parts, dim=-1)
+
+    def forward_train_tc(
+        self,
+        gt_position: Tensor,
+        gt_aux: Tensor,
+        particle_types: Tensor,
+        reference_coords: Tensor,
+        n_particles_per_example: Tensor,
+        t_norm: Tensor,
+        *,
+        accumulate: bool,
+        loading_feature: Tensor | None = None,
+    ) -> tuple[Tensor, Tensor]:
+        """One time-conditioned training forward pass (ADR-0053).
+
+        Maps ``(static geometry, node types, scalar impact velocity?, scripted
+        BC at t, query time t) -> displacement-from-rest at t`` plus aux, with
+        no history and no autoregressive feedback. The regressed target is the
+        rest-frame displacement (``gt_position - reference_coords``), a
+        well-conditioned parameterisation of the absolute state at ``t``
+        (position is recovered as ``reference_coords + displacement``); the aux
+        channel is the raw GT aux at ``t``.
+
+        Parameters
+        ----------
+        gt_position:
+            ``(P, dim)`` ground-truth world positions at the queried frames.
+        gt_aux:
+            ``(P,)`` ground-truth aux (e.g. stress) at the queried frames.
+        particle_types:
+            ``(P,)`` int64 node-type codes.
+        reference_coords:
+            ``(P, dim)`` mesh-space (rest/reference) coordinates.
+        n_particles_per_example:
+            ``(B,)`` int64 per-example node counts (ragged-batch segments and
+            the per-example time broadcast).
+        t_norm:
+            ``(B,)`` per-example normalized query time ``t ∈ [0, 1]``.
+        accumulate:
+            Fold this call's features into the online node/target normalizers.
+        loading_feature:
+            ``(P, 1)`` scalar impact-velocity channel; required exactly when
+            ``impact_velocity_feature`` is on.
+
+        Returns
+        -------
+        tuple[Tensor, Tensor]
+            ``(pred_norm, target_norm)``, each ``(P, dim + 1)`` in the target
+            normalizer's space, for the standard position(+aux) RMSE loss.
+        """
+        one_hot = F.one_hot(particle_types, num_classes=self._node_type_size).to(
+            torch.float32
+        )
+        kinematic = torch.as_tensor(
+            self._kinematic_types,
+            dtype=particle_types.dtype,
+            device=particle_types.device,
+        )
+        kin_mask = torch.isin(particle_types, kinematic)
+        kinematic_bc = self._kinematic_bc(gt_position, reference_coords, kin_mask)
+
+        node_feats_raw = self._features_tc(
+            one_hot, reference_coords, kinematic_bc, loading_feature
+        )
+        node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
+
+        pred_norm = self._net(node_feats, n_particles_per_example, t=t_norm)
+
+        target_raw = torch.cat([gt_position - reference_coords, gt_aux[:, None]], dim=1)
+        target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
+        return pred_norm, target_norm
+
+    def predict_state_at(self, frame: int, t_norm: float) -> tuple[Tensor, Tensor]:
+        """Predict the absolute state at a single scored frame (ADR-0053 eval).
+
+        Independent-query, history-free: for the bound case's queried frame,
+        assemble the static TC features (rest coords + node types + scalar
+        impact velocity? + scripted BC at ``frame``), run the network at the
+        normalized time ``t_norm``, reconstruct absolute positions
+        (``reference_coords + predicted displacement``), then OVERRIDE the
+        kinematic rows with their ground-truth positions at ``frame`` (their
+        motion is prescribed). No step pointer / tripwire is used — every
+        frame is an independent query.
+
+        Parameters
+        ----------
+        frame:
+            Ground-truth frame index to query (supplies the scripted BC input
+            and the kinematic override).
+        t_norm:
+            Normalized query time for ``frame`` (``frame`` over the scored
+            horizon; ADR-0053), a Python float.
+
+        Returns
+        -------
+        tuple[Tensor, Tensor]
+            ``(positions (P, dim), aux (P, 1))`` at ``frame``.
+
+        Raises
+        ------
+        RuntimeError
+            If called before :meth:`~.CaseBoundSimulator.bind_case`.
+        """
+        reference_coords = self._reference_coords
+        node_type_onehot = self._node_type_onehot
+        kin_mask = self._kin_mask
+        gt_positions = self._gt_positions
+        if (
+            reference_coords is None
+            or node_type_onehot is None
+            or kin_mask is None
+            or gt_positions is None
+        ):
+            raise RuntimeError(
+                "TransolverSimulator.predict_state_at() called before "
+                "bind_case(); bind_case() must be called with the case being "
+                "evaluated before any prediction."
+            )
+
+        gt_frame = gt_positions[frame]
+        kinematic_bc = self._kinematic_bc(gt_frame, reference_coords, kin_mask)
+        loading_feature = self._loading_feature(reference_coords)
+
+        node_feats_raw = self._features_tc(
+            node_type_onehot, reference_coords, kinematic_bc, loading_feature
+        )
+        node_feats = self._node_normalizer(node_feats_raw, accumulate=False)
+
+        t = torch.tensor(
+            [[float(t_norm)]],
+            dtype=reference_coords.dtype,
+            device=reference_coords.device,
+        )
+        out = self._net(node_feats, None, t=t)  # (P, dim+1)
+        out = self._target_normalizer.inverse(out)
+        displacement = out[:, : self._dim]
+        stress = out[:, self._dim :]
+        positions = (reference_coords + displacement).clone()
+        positions[kin_mask] = gt_frame[kin_mask]
+        return positions, stress
