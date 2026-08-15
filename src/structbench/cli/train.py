@@ -416,6 +416,7 @@ def build_transolver_simulator(
         # (train) / evaluate reads the resolved integer from config.json, so a
         # 0 never reaches here.
         frames_per_call=cfg.frames_per_call,
+        impact_velocity_feature=cfg.impact_velocity_feature,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
@@ -1295,6 +1296,7 @@ def _transolver_pushforward(
     is_kinematic: Tensor,
     k: int,
     velocity_history: bool,
+    loading_feature: Tensor | None = None,
     *,
     warmup: bool,
 ) -> tuple[Tensor, Tensor]:
@@ -1342,6 +1344,7 @@ def _transolver_pushforward(
             n_particles_per_example,
             accumulate=True,
             velocity_history=_vh(position_seq),
+            loading_feature=loading_feature,
         )
 
     # bundle1: no-grad forward -> decode to positions -> clamp kinematic rows.
@@ -1355,6 +1358,7 @@ def _transolver_pushforward(
             n_particles_per_example,
             accumulate=False,
             velocity_history=_vh(position_seq),
+            loading_feature=loading_feature,
         )
         pred1_pos, _ = sim._decode_positions(pred1_norm, x_last)  # (P, k, dim)
         pred1_pos = pred1_pos.clone()
@@ -1375,6 +1379,7 @@ def _transolver_pushforward(
         n_particles_per_example,
         accumulate=False,
         velocity_history=_vh(seam_win),
+        loading_feature=loading_feature,
     )
 
 
@@ -1505,6 +1510,18 @@ def _train_transolver(
         )
 
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
+    # ADR-0051 B: per-trajectory scalar loading parameter (impact velocity),
+    # resolved from the benchmark spec; None (and no extra channel) when the
+    # feature is off.
+    loading_scalars: list[float] | None = None
+    if cfg.impact_velocity_feature:
+        if spec.loading_scalar is None:
+            raise ValueError(
+                f"benchmark {spec.card.name!r} has no loading_scalar (scalar "
+                "impact-velocity parameter), but the transolver config sets "
+                "impact_velocity_feature=True (ADR-0051 B)."
+            )
+        loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
     sim = build_transolver_simulator(
         cfg,
         kinematic_types=spec.kinematic_types,
@@ -1546,7 +1563,9 @@ def _train_transolver(
         dataset,
         batch_size=train_cfg.batch_size,
         shuffle=True,
-        collate_fn=functools.partial(collate_mesh_samples, statics=statics),
+        collate_fn=functools.partial(
+            collate_mesh_samples, statics=statics, loading_scalars=loading_scalars
+        ),
     )
     optimizer = torch.optim.AdamW(
         sim.parameters(), lr=train_cfg.lr_init, weight_decay=cfg.weight_decay
@@ -1579,6 +1598,11 @@ def _train_transolver(
             next_aux = batch["next_aux"].to(device)
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
+            # ADR-0051 B: (sum_P, 1) global loading-param channel, present only
+            # when impact_velocity_feature is on (else None).
+            loading_feature = batch.get("loading_feature")
+            if loading_feature is not None:
+                loading_feature = loading_feature.to(device)
 
             is_kinematic = torch.isin(particle_type, kinematic)
             accumulate = step < cfg.normalizer_warmup_steps
@@ -1599,6 +1623,7 @@ def _train_transolver(
                     is_kinematic,
                     k,
                     cfg.velocity_history,
+                    loading_feature,
                     warmup=accumulate,
                 )
             else:
@@ -1619,6 +1644,7 @@ def _train_transolver(
                     n_particles_per_example,
                     accumulate=accumulate,
                     velocity_history=velocity_history,
+                    loading_feature=loading_feature,
                 )
             # Rank-agnostic: (P, dim+1) at k=1 (byte-identical), (P, k, dim+1)
             # at k>1; the kinematic row mask selects on dim 0 either way and
@@ -1657,6 +1683,12 @@ def _train_transolver(
                             torch.from_numpy(tr.reference_coords).to(device),
                             torch.from_numpy(tr.particle_type).to(device),
                             torch.from_numpy(tr.positions).to(device),
+                            loading_scalar=(
+                                spec.loading_scalar(tr.case_id)
+                                if getattr(cfg, "impact_velocity_feature", False)
+                                and spec.loading_scalar
+                                else None
+                            ),
                         )
                         sim.reset_rollout()
                         result = rollout(
@@ -1918,6 +1950,12 @@ def _train_geoflare(
                             torch.from_numpy(tr.reference_coords).to(device),
                             torch.from_numpy(tr.particle_type).to(device),
                             torch.from_numpy(tr.positions).to(device),
+                            loading_scalar=(
+                                spec.loading_scalar(tr.case_id)
+                                if getattr(cfg, "impact_velocity_feature", False)
+                                and spec.loading_scalar
+                                else None
+                            ),
                         )
                         sim.reset_rollout()
                         result = rollout(
@@ -2230,6 +2268,12 @@ def evaluate(
                 torch.from_numpy(trajectory.reference_coords).to(device),
                 torch.from_numpy(trajectory.particle_type).to(device),
                 torch.from_numpy(trajectory.positions).to(device),
+                loading_scalar=(
+                    spec.loading_scalar(case_id)
+                    if getattr(model_cfg, "impact_velocity_feature", False)
+                    and spec.loading_scalar
+                    else None
+                ),
             )
             mesh_sim.reset_rollout()
         result = rollout(

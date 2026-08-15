@@ -236,6 +236,20 @@ class TransolverConfig:
         ``frames_per_call * (dim + 1)``, so a checkpoint's ``k`` is fixed at
         train time; k>1 is a Transolver-only scheme (the neural-CFL audit in
         ADR-0051 keeps message-passing backbones at k=1).
+    impact_velocity_feature : bool
+        Append the case's scalar loading parameter (impact velocity, resolved
+        per case via the benchmark spec's ``loading_scalar``) as a single
+        global node-feature channel broadcast to every node. ``False``
+        (default) is byte-identical to the pre-existing recipe. This is the
+        operator-learning / one-shot convention established by the official
+        Transolver / GeoTransolver / CrashSolver publications — a *known scalar
+        loading parameter*, distinct from ``velocity_history`` (which is the
+        autoregressive GNS/MeshGraphNets per-node velocity window). It matters
+        for the one-shot (``frames_per_call=0``) baseline, which is otherwise
+        velocity-blind: with ``velocity_history=False`` the model sees only the
+        single most-recent frame, so it cannot infer the impact speed without
+        this scalar. A per-node initial-velocity *field* (rather than a global
+        scalar) is the natural refinement for spatially-structured loading.
     """
 
     input_frames: int = 2
@@ -253,6 +267,7 @@ class TransolverConfig:
     max_grad_norm: float = 0.1
     velocity_history: bool = False
     frames_per_call: int = 1
+    impact_velocity_feature: bool = False
 
 
 @dataclass

@@ -1,9 +1,9 @@
-# Taylor 2D — Transolver ADR-0049 arm N02: noise rescaled to the blessed CGN
-# taylor value (0.02, ~7% of the 150 m/s per-step displacement; the ported DP
-# value 0.003 is ~1%). Single-knob change against the ADR-0047 baseline —
-# closes the "taylor-scale noise sweep" ledger item. Feature builder stays
-# reference Markovian.
-# Not yet run.
+# taylor_impact_2d — Transolver ONE-SHOT (k=T) baseline, seed 1 (ADR-0050/0051).
+# Clone of the reference transolver recipe with frames_per_call=0 (one-shot
+# sentinel -> resolves to the scored horizon at train time) and noise_std=0
+# (injected noise is inert/meaningless without rollout). Everything else
+# (arch, input_frames, budget, train_frames) matches the k=1 reference for a
+# fair scheme-only comparison. Not yet run.
 
 [run]
 benchmark = "taylor_impact_2d"
@@ -20,13 +20,14 @@ slice_num = 64
 mlp_ratio = 1
 dropout = 0.0
 node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
-noise_std = 0.02                # blessed CGN taylor value (ADR-0049 noise rescale)
+noise_std = 0.0                  # inert at k=T (one-shot has no rollout; ADR-0051)
+                                # a taylor-scale noise sweep stays open (ledger).
 normalizer_warmup_steps = 1000
 weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference
 
 velocity_history = false      # reference Markovian feature builder (ADR-0049 off)
-frames_per_call = 1            # ADR-0050/0051 prediction scheme: 1 = autoregressive next-step
+frames_per_call = 0             # ADR-0050/0051 one-shot (k=T) sentinel
 impact_velocity_feature = false  # ADR-0051 B: scalar loading-param channel (off = byte-identical)
 
 [train]

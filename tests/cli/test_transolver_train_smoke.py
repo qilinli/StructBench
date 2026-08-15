@@ -64,6 +64,9 @@ def _mini_spec(case_ids: dict[str, list[str]]) -> BenchmarkSpec:
         boundary_feature_fn=None,
         dataset_id="transolver-smoke",
         kinematic_types=(1, 3),
+        # ADR-0051 B: a per-case scalar so impact_velocity_feature can be
+        # smoke-tested end-to-end (varies by case to exercise the broadcast).
+        loading_scalar=lambda cid: 100.0 + float(cid.rsplit("_", 1)[1]),
     )
 
 
@@ -84,7 +87,9 @@ def _write_cases(root, ids):
         write_case(case, root / f"{cid}.h5")
 
 
-def _run_transolver_smoke(tmp_path, *, frames_per_call: int = 1):
+def _run_transolver_smoke(
+    tmp_path, *, frames_per_call: int = 1, impact_velocity_feature: bool = False
+):
     """Shared spec/data/train setup for both smoke tests below.
 
     Builds the tiny synthetic mesh benchmark, writes its cases, and runs a
@@ -117,6 +122,7 @@ def _run_transolver_smoke(tmp_path, *, frames_per_call: int = 1):
         slice_num=8,
         normalizer_warmup_steps=5,
         frames_per_call=frames_per_call,
+        impact_velocity_feature=impact_velocity_feature,
     )
     tcfg = TrainConfig(
         benchmark="TransolverSmoke",
@@ -306,3 +312,42 @@ def test_transolver_pushforward_helper_shapes_and_grad_through_bundle2():
     pp.sum().backward()
     grads = [p.grad for p in sim.parameters() if p.grad is not None]
     assert grads, "no gradient reached the network through the pushforward"
+
+
+def test_transolver_impact_velocity_feature_train_and_evaluate_smoke(
+    tmp_path, monkeypatch
+):
+    """ADR-0051 B: the scalar loading-param channel trains + evaluates end-to-end.
+
+    Exercises the full plumbing: per-trajectory loading_scalars -> collate
+    loading_feature -> forward_train (node_in + 1) -> val/eval bind_case scalar
+    -> predict_positions broadcast.
+    """
+    import structbench.cli.train as cli_train
+    from structbench.models.transolver import TransolverSimulator
+
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path, impact_velocity_feature=True
+    )
+
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    assert record["model"]["impact_velocity_feature"] is True
+
+    # the checkpoint's node input carries the extra global channel (node_in+1):
+    # loads only into a feature-on simulator of the matching width.
+    sim = TransolverSimulator(
+        dim=3,
+        hidden_dim=16,
+        n_layers=2,
+        n_heads=2,
+        slice_num=8,
+        impact_velocity_feature=True,
+    )
+    sim.load(sorted(out.glob("model-*.pt"))[-1])
+    assert sim._node_normalizer._sum.shape[0] == sim._node_type_size + 3 * 3 + 1
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    per_case = metrics["cases"][ids["val"][0]]
+    assert np.isfinite(per_case["one_step_position_rmse"])
+    assert np.isfinite(per_case["rollout_position_rmse"])

@@ -307,3 +307,46 @@ def test_kframe_bundled_rollout_moving_kinematic_keeps_pointer_synced():
     # rows across bundles.
     res = rollout(sim, traj, input_frames=2, kinematic_types=(1,))
     np.testing.assert_allclose(res.predicted_positions[:, 2], pos[:, 2], atol=1e-4)
+
+
+# --- ADR-0051 B: impact-velocity scalar loading feature ---
+
+
+def test_impact_velocity_feature_widens_node_in_by_one():
+    off = _tiny_sim(impact_velocity_feature=False)
+    on = _tiny_sim(impact_velocity_feature=True)
+    assert on._node_normalizer._sum.shape[0] == off._node_normalizer._sum.shape[0] + 1
+    assert on._net.preprocess[0].in_features == off._net.preprocess[0].in_features + 1
+
+
+def test_impact_velocity_feature_off_is_byte_identical_node_in():
+    # default (off) keeps the pre-B node_in = node_type_size + 3*dim.
+    dim = 3
+    sim = _tiny_sim()
+    assert sim._node_normalizer._sum.shape[0] == sim._node_type_size + 3 * dim
+
+
+def test_impact_velocity_feature_requires_bound_scalar():
+    # feature on, but bind_case supplied no loading_scalar -> loud error, not a
+    # silent zero channel.
+    sim, gt, types = _bound_sim(impact_velocity_feature=True)  # binds without scalar
+    npp = torch.tensor([5])
+    win = gt[0:2].permute(1, 0, 2).contiguous()
+    with pytest.raises(RuntimeError, match="loading_scalar"):
+        sim.predict_positions(win, npp, types)
+
+
+def test_impact_velocity_feature_predicts_with_bound_scalar():
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    P = 5
+    sim = _tiny_sim(impact_velocity_feature=True)
+    cells = torch.tensor([[0, 1, 2, 3], [1, 2, 3, 4]], dtype=torch.int64)
+    ref = torch.tensor(rng.random((P, 3)), dtype=torch.float32)
+    types = torch.tensor([0, 0, 1, 3, 0], dtype=torch.int64)
+    gt = torch.tensor(rng.random((6, P, 3)), dtype=torch.float32).cumsum(0)
+    sim.bind_case(cells, ref, types, gt, loading_scalar=150.0)
+    nxt, aux = sim.predict_positions(
+        gt[0:2].permute(1, 0, 2).contiguous(), torch.tensor([P]), types
+    )
+    assert nxt.shape == (P, 3) and aux.shape == (P, 1)

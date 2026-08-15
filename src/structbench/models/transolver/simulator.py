@@ -100,6 +100,7 @@ class TransolverSimulator(CaseBoundSimulator):
         scripted_types: tuple[int, ...] = (1,),
         history_velocities: int = 0,
         frames_per_call: int = 1,
+        impact_velocity_feature: bool = False,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -129,7 +130,17 @@ class TransolverSimulator(CaseBoundSimulator):
                 "resolved to a concrete horizon before the simulator is built"
             )
         self._k = frames_per_call
-        node_in = node_type_size + 3 * dim + history_velocities * dim
+        # ADR-0051 B: one extra global node channel carrying the case's scalar
+        # loading parameter (impact velocity), broadcast to every node. Off by
+        # default (byte-identical). Distinct from velocity_history (per-node
+        # velocity window); this is the operator-learning/one-shot convention.
+        self._impact_velocity_feature = impact_velocity_feature
+        node_in = (
+            node_type_size
+            + 3 * dim
+            + history_velocities * dim
+            + (1 if impact_velocity_feature else 0)
+        )
 
         self._net = TransolverNet(
             node_in=node_in,
@@ -164,6 +175,7 @@ class TransolverSimulator(CaseBoundSimulator):
         x_t: Tensor,
         reference_coords: Tensor,
         velocity_history: Tensor | None = None,
+        loading_feature: Tensor | None = None,
     ) -> Tensor:
         """Build the raw (pre-normalization) node feature tensor.
 
@@ -207,7 +219,37 @@ class TransolverSimulator(CaseBoundSimulator):
                     "feature was supplied"
                 )
             parts.append(velocity_history)
+        if self._impact_velocity_feature:
+            if loading_feature is None:
+                raise ValueError(
+                    "simulator was built with impact_velocity_feature=True but "
+                    "no loading_feature (case impact-velocity scalar) was "
+                    "supplied"
+                )
+            parts.append(loading_feature)
         return torch.cat(parts, dim=-1)
+
+    def _loading_feature(self, ref: Tensor) -> Tensor | None:
+        """Broadcast the bound case's scalar loading parameter to ``(P, 1)``.
+
+        Returns ``None`` when ``impact_velocity_feature`` is off (ADR-0051 B).
+        Used on the eval path, where the scalar comes from
+        :meth:`~.CaseBoundSimulator.bind_case`; the training path passes its
+        own collated ``loading_feature`` instead.
+        """
+        if not self._impact_velocity_feature:
+            return None
+        if self._loading_scalar is None:
+            raise RuntimeError(
+                "impact_velocity_feature is on but bind_case() supplied no "
+                "loading_scalar for this case"
+            )
+        return torch.full(
+            (ref.shape[0], 1),
+            float(self._loading_scalar),
+            dtype=ref.dtype,
+            device=ref.device,
+        )
 
     def predict_positions(
         self,
@@ -295,6 +337,7 @@ class TransolverSimulator(CaseBoundSimulator):
             if self._history_velocities > 0
             else None
         )
+        loading_feature = self._loading_feature(x_t)
 
         node_feats_raw = self._features(
             node_type_onehot,
@@ -302,6 +345,7 @@ class TransolverSimulator(CaseBoundSimulator):
             x_t,
             reference_coords,
             velocity_history,
+            loading_feature,
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=False)
 
@@ -363,6 +407,7 @@ class TransolverSimulator(CaseBoundSimulator):
         *,
         accumulate: bool,
         velocity_history: Tensor | None = None,
+        loading_feature: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
         """One training forward pass: normalized network output and target.
 
@@ -441,7 +486,12 @@ class TransolverSimulator(CaseBoundSimulator):
         )
 
         node_feats_raw = self._features(
-            one_hot, scripted_velocity, x_last, reference_coords, velocity_history
+            one_hot,
+            scripted_velocity,
+            x_last,
+            reference_coords,
+            velocity_history,
+            loading_feature,
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
 

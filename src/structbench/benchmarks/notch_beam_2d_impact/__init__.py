@@ -88,6 +88,22 @@ RESULTS: tuple[BaselineResult, ...] = (
     ),
 )
 
+
+def _impact_velocity(case_id: str) -> float:
+    """Impact speed (m/s) from a notch case id.
+
+    Two id formats coexist: the main grid ``NB-I-<span>-<proj>-<cfg>-<V>``
+    (velocity is the last ``-`` field) and the off-grid probe cases
+    ``S_<w>_<h>_V<V>_<label>`` (velocity is the ``V`` token).
+    """
+    if case_id.startswith("NB-"):
+        return float(case_id.rsplit("-", 1)[1])
+    for token in case_id.split("_"):
+        if token.startswith("V") and token[1:].isdigit():
+            return float(token[1:])
+    raise ValueError(f"cannot parse impact velocity from notch case id {case_id!r}")
+
+
 SPEC = BenchmarkSpec(
     card=CARD,
     results=RESULTS,
@@ -106,4 +122,5 @@ SPEC = BenchmarkSpec(
     scored_frames=250,
     mesh_transform=native_mesh_transform,
     scripted_types=(PIN_TYPE, SUPPORT_TYPE),
+    loading_scalar=_impact_velocity,
 )

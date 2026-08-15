@@ -152,6 +152,11 @@ class CaseBoundSimulator(nn.Module):
         self._has_kinematic: bool = False
         self._n_gt_frames: int = 0
         self._t: int | None = None
+        # Per-case scalar loading parameter (impact velocity), cached by
+        # bind_case for a subclass that uses it as a global node feature
+        # (ADR-0051 B); None when the benchmark has no such scalar or the
+        # feature is off.
+        self._loading_scalar: float | None = None
 
         self.to(device)
 
@@ -161,6 +166,7 @@ class CaseBoundSimulator(nn.Module):
         reference_coords: Tensor,
         particle_types: Tensor,
         kinematic_positions: Tensor,
+        loading_scalar: float | None = None,
     ) -> None:
         """Bind one case's static geometry and GT trajectory; reset pointer.
 
@@ -180,6 +186,10 @@ class CaseBoundSimulator(nn.Module):
             case. Only rows whose type is in ``kinematic_types`` are ever
             read (the scripted-velocity node feature, restricted further to
             ``scripted_types``, and the pointer tripwire).
+        loading_scalar:
+            The case's scalar loading parameter (impact velocity), cached for
+            a subclass that uses the ``impact_velocity_feature`` global node
+            channel (ADR-0051 B). ``None`` when the feature is off.
         """
         self._reference_coords = reference_coords
         self._node_type_onehot = F.one_hot(
@@ -196,6 +206,7 @@ class CaseBoundSimulator(nn.Module):
         self._gt_positions = kinematic_positions
         self._n_gt_frames = kinematic_positions.shape[0]
         self._t = None
+        self._loading_scalar = loading_scalar
 
         self._on_bind_case(cells)
 
