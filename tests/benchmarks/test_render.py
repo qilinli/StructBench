@@ -257,6 +257,67 @@ def test_single_metric_group_stays_one_unlabelled_table():
     assert "| test_interp | 1.5 |" in text
 
 
+# --- ADR-0055 (amended 2026-08-15): relative L2 is the headline metric ---
+
+
+def _rel_l2_result():
+    """A result carrying relative-L2 headline keys, RMSE, and a QoI — the shape
+    a registry entry takes once the ADR-0055 amendment's re-eval populates the
+    new keys (rel-L2 keys first, as the headline group)."""
+    return BaselineResult(
+        family="transolver",
+        label="Transolver-TC",
+        run_commit="abc1234",
+        run_date="2026-08-15",
+        provisional=True,
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.033,
+                "rollout_rel_l2_aux": 0.211,
+                "rollout_pos_rmse_mm": 1.5,
+                "one_step_pos_rmse_mm": 0.004,
+                "qoi_final_length_mae_mm": 0.2,
+            },
+        },
+    )
+
+
+def test_numbers_to_beat_leads_with_relative_l2_group():
+    # rel-L2 headline group first, RMSE second, QoI last; rel-L2 keys sit under
+    # their own heading, not lumped with the RMSE group.
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_rel_l2_result(),))
+    text = render_archive_readme(spec, "taylor_impact_2d")
+    rel_title = "_Trajectory error — relative L2 (headline)_"
+    rmse_title = "_Trajectory error (RMSE)_"
+    qoi_title = "_Quantities of interest (MAE)_"
+    assert rel_title in text and rmse_title in text and qoi_title in text
+    assert text.index(rel_title) < text.index(rmse_title) < text.index(qoi_title)
+    rel_section = text.split(rel_title, 1)[1].split(rmse_title, 1)[0]
+    assert "rollout_rel_l2_disp" in rel_section
+    rmse_section = text.split(rmse_title, 1)[1].split(qoi_title, 1)[0]
+    assert "rel_l2" not in rmse_section
+    assert "rollout_pos_rmse_mm" in rmse_section
+
+
+def test_method_comparison_orders_rel_l2_before_rmse_before_qoi():
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_rel_l2_result(),))
+    lines = _method_comparison(spec)
+
+    def row(metric: str) -> int:
+        return next(i for i, ln in enumerate(lines) if f"· {metric} " in ln)
+
+    assert row("rollout_rel_l2_disp") < row("rollout_pos_rmse_mm")
+    assert row("rollout_pos_rmse_mm") < row("qoi_final_length_mae_mm")
+
+
+def test_baseline_line_headline_is_relative_l2_when_present():
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_rel_l2_result(),))
+    line = _baseline_line(spec)
+    assert "rollout_rel_l2_disp" in line
+    # the physical-unit RMSE is retained elsewhere but is NOT the quoted headline
+    assert "rollout_pos_rmse_mm" not in line
+
+
 def test_landing_page_folds_protocol_rationale_but_index_does_not():
     spec = get_benchmark("taylor_impact_2d")
     page = render_benchmark_page(spec, "taylor_impact_2d")

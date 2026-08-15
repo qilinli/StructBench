@@ -9,6 +9,7 @@ asserts the committed index matches :func:`render_index`.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 
 from .card import BenchmarkCard
 from .registry import BenchmarkSpec
@@ -105,6 +106,34 @@ def _eval_lines(c: BenchmarkCard, *, fold_rationale: bool = False) -> list[str]:
     return lines
 
 
+def _partition_metrics(names: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Split metric keys into ``(relative_l2, rmse, qoi)`` groups, each
+    preserving the caller's first-seen order.
+
+    ADR-0055 (amended 2026-08-15): relative L2 is the headline metric, so its
+    keys lead; physical-unit RMSE is the retained secondary group; ``qoi_*``
+    keys are the separate engineering axis. A key is relative-L2 iff it contains
+    ``rel_l2`` (covers ``rollout_rel_l2_displacement`` and any unit-suffixed
+    registry variant); QoI iff it starts ``qoi_``; RMSE otherwise.
+    """
+    rel = [m for m in names if "rel_l2" in m]
+    qoi = [m for m in names if m.startswith("qoi_")]
+    rmse = [m for m in names if "rel_l2" not in m and not m.startswith("qoi_")]
+    return rel, rmse, qoi
+
+
+def _headline_metric(metrics: Mapping[str, float]) -> str:
+    """The metric key quoted first in the docs-index one-liner: the rollout
+    relative-L2 displacement if present (ADR-0055 headline), else any
+    relative-L2 key, else the first metric (pre-amendment behaviour, and the
+    fallback for runs whose relative-L2 keys are not yet populated)."""
+    rel_keys = [m for m in metrics if "rel_l2" in m]
+    if rel_keys:
+        rollout_disp = (m for m in rel_keys if "rollout" in m and "disp" in m)
+        return next(rollout_disp, rel_keys[0])
+    return next(iter(metrics))
+
+
 def _baseline_line(spec: BenchmarkSpec) -> str:
     """Compact one-line results summary for the docs index (ADR-0033)."""
     if not spec.results:
@@ -114,8 +143,8 @@ def _baseline_line(spec: BenchmarkSpec) -> str:
         headline = ""
         for split in spec.splits:
             if split in r.metrics:
-                metric, value = next(iter(r.metrics[split].items()))
-                headline = f": {split} {metric} {_fmt_value(value)}"
+                key = _headline_metric(r.metrics[split])
+                headline = f": {split} {key} {_fmt_value(r.metrics[split][key])}"
                 break
         # Honest-not-silent (ADR-0033/0046): a provisional entry is tagged
         # here too, so the index never quietly reads as blessed.
@@ -208,14 +237,17 @@ def _numbers_to_beat(spec: BenchmarkSpec) -> list[str]:
             for metric in r.metrics.get(split, {}):
                 if metric not in metric_names:
                     metric_names.append(metric)
-        qoi = [m for m in metric_names if m.startswith("qoi_")]
-        rmse = [m for m in metric_names if not m.startswith("qoi_")]
-        if qoi and rmse:
-            groups = [
-                ("Trajectory error (RMSE)", rmse),
-                ("Quantities of interest (MAE)", qoi),
-            ]
-        else:
+        rel, rmse, qoi = _partition_metrics(metric_names)
+        # ADR-0055 (amended): relative-L2 headline group leads, RMSE secondary,
+        # QoI last. Empty groups are dropped; a lone group renders unlabelled
+        # (pre-amendment single-table behaviour, incl. runs without rel-L2 yet).
+        candidates = [
+            ("Trajectory error — relative L2 (headline)", rel),
+            ("Trajectory error (RMSE)", rmse),
+            ("Quantities of interest (MAE)", qoi),
+        ]
+        groups = [(title, names) for title, names in candidates if names]
+        if len(groups) <= 1:
             groups = [("", metric_names)]
         for title, names in groups:
             if title:
@@ -237,8 +269,9 @@ def _method_comparison(spec: BenchmarkSpec) -> list[str]:
     ``split · metric`` pairs: a split is included iff at least one result
     carries it; its metric columns are the global first-seen order (results
     in declaration order, each result's splits in card order) filtered to
-    keys present in any entry for that split, then stable-partitioned RMSE
-    keys before ``qoi_`` keys. Missing cells render ``—``. A footnote is
+    keys present in any entry for that split, then stable-partitioned into
+    relative-L2 headline keys, RMSE keys, then ``qoi_`` keys (ADR-0055,
+    amended 2026-08-15). Missing cells render ``—``. A footnote is
     appended whenever any column is provisional (honest-not-silent,
     ADR-0033). Called by both :func:`render_benchmark_page` and
     :func:`render_archive_readme`, immediately before ``## Numbers to beat``.
@@ -276,9 +309,9 @@ def _method_comparison(spec: BenchmarkSpec) -> list[str]:
         ]
         if not present:
             continue
-        rmse = [m for m in present if not m.startswith("qoi_")]
-        qoi = [m for m in present if m.startswith("qoi_")]
-        for metric in rmse + qoi:
+        # ADR-0055 (amended): relative-L2 headline rows first, then RMSE, then QoI.
+        rel, rmse, qoi = _partition_metrics(present)
+        for metric in rel + rmse + qoi:
             cells = []
             for r in spec.results:
                 values = r.metrics.get(split, {})

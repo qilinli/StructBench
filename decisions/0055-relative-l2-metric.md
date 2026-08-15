@@ -1,6 +1,9 @@
-# 0055 — Relative-L2 metric alongside physical-unit RMSE (literature comparability)
+# 0055 — Relative-L2 metric as the headline (literature comparability)
 
-**Status**: Accepted (maintainer approved in-session, 2026-08-15)
+**Status**: Accepted (maintainer approved in-session, 2026-08-15); **amended
+2026-08-15** — relative L2 lifted from *additional* metric to the **headline**
+metric (see Amendment). The original "Decision" section below is the as-accepted
+record; the Amendment supersedes decision 1's metric hierarchy.
 **Type**: Durable
 **Date**: 2026-08-15
 
@@ -91,8 +94,57 @@ physical-unit metrics.
 - **Payoff:** our Transolver/GeoFLARE (and future crash-benchmark) numbers become
   directly comparable to the published operator relative-L2 tables.
 
+## Amendment (2026-08-15): relative L2 is the headline metric
+
+*Maintainer-directed in-session. Supersedes decision 1's "the physical-unit RMSEs +
+QoIs remain the engineering headline" and converts the rejected "Replace RMSE with
+relative L2" alternative into a **partial** acceptance — relative L2 leads, but RMSE
+is retained, not removed.*
+
+The as-accepted ADR added relative L2 *alongside* the RMSEs but kept RMSE as the
+headline. That under-serves VISION's stated core purpose — "evaluation protocols that
+let results be compared meaningfully across methods." The neural-operator literature
+reports relative L2 near-universally; leading with it is what makes StructBench's
+numbers directly readable next to published tables (the v0.3 cross-method goal). The
+engineering-relevance half of VISION is preserved by *retaining* the physical units,
+not by leading with them.
+
+**Revised decisions (supersede decision 1 where they conflict):**
+
+1. **`rollout_rel_l2_displacement` is the headline / ranking metric on every
+   benchmark leaderboard** — the first column and the number quoted in the docs-index
+   one-liner; `rollout_rel_l2_aux` beside it. Uniform across Taylor, notch, wave-1D,
+   DeformingPlate.
+2. **Physical-unit RMSE (`*_position_rmse`, `*_aux_rmse`) is retained as a secondary
+   column group** — still rendered on every leaderboard and card, demoted *below* the
+   relative-L2 headline group, never dropped. Keeps the engineering-relevance identity
+   (a structural engineer still reads mm / MPa) and stays the substrate for the
+   blessed anchors.
+3. **QoIs unchanged** — the physical engineering quantities (deflection mm, cracked
+   fraction, peak stress MPa) are a separate reporting axis, rendered as their own
+   group after the trajectory-error groups; neither headline nor secondary-RMSE.
+4. **The blessing gate metric is per-source and orthogonal to the leaderboard
+   headline.** The DeformingPlate MGN gate stays *pooled position RMSE* (ADR-0043) —
+   there is no published MGN-DP relative-L2 number to validate blessing against. The
+   operator baselines' published comparison anchor *is* relative L2. What leads the
+   leaderboard does not move any benchmark's blessing criterion.
+5. **Headline aggregation stays per-frame-mean** (decision B) so it reads
+   consistently with the retained RMSE column. *Open note:* some operator papers
+   report a pooled / whole-sequence relative L2; if exact table-parity with a specific
+   paper is later needed, add the pooled variant as a blessing-only companion
+   (mirroring ADR-0043/0046's pooled-RMSE treatment) rather than switching the
+   leaderboard aggregation.
+
+**Consequences.** A reporting-hierarchy change only: no metric *definition*, no
+blessed number, no frozen split, and no blessing gate moves. The registry/card render
+(ADR-0046) reorders into three groups — relative-L2 headline, RMSE secondary, QoI —
+and degrades gracefully for runs whose relative-L2 keys are not yet populated (they
+render RMSE-first until the pending re-eval fills the new keys).
+
 ## Status / next
 
-Proposed. On acceptance: implement `relative_l2` in `eval/metrics.py`, thread it in
-`eval/rollout.py` alongside the RMSEs (AR + TC paths), extend the registry/card
-render, re-eval the current baselines, and record the values.
+Accepted + amended. Implemented (2026-08-15) on `feat/native-baselines`:
+`relative_l2` in `eval/metrics.py`, threaded in `eval/rollout.py` (AR + TC paths,
+commit 1c7ad7b); the ADR-0046 render reordered so relative L2 leads. Remaining: the
+cheap re-eval of the current baselines to populate the new keys, then record the
+values in each benchmark's registry.
