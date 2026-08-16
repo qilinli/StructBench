@@ -82,35 +82,35 @@ _Headline — pooled relative L2 (↓ better)_
 
 | Method | Scheme | interp·disp | interp·aux | extrap·disp | extrap·aux |
 |---|---|---|---|---|---|
-| Transolver-TC *(provisional)* | time-conditioned | 0.009383 | 0.1749 | 0.01637 | 0.1982 |
-| CGN baseline | autoregressive | 0.1299 | 0.3223 | 0.5547 | 0.4531 |
+| Transolver *(provisional)* | time-conditioned | 0.009383 | 0.1749 | 0.01637 | 0.1982 |
+| CGN | autoregressive | 0.1299 | 0.3223 | 0.5547 | 0.4531 |
 | MGN *(provisional)* | autoregressive | 0.2157 | 0.3456 | 0.3233 | 0.4327 |
 
 _Trajectory error — RMSE_
 
 | Method | Scheme | interp·pos_mm | interp·vm_mpa | interp·1s·pos_mm | interp·1s·vm_mpa | extrap·pos_mm | extrap·vm_mpa | extrap·1s·pos_mm | extrap·1s·vm_mpa |
 |---|---|---|---|---|---|---|---|---|---|
-| Transolver-TC *(provisional)* | time-conditioned | 0.1043 | 28.56 | — | — | 0.2344 | 35.23 | — | — |
-| CGN baseline | autoregressive | 1.274 | 52.57 | 0.003244 | 36.09 | 7.645 | 79.46 | 0.004649 | 40.43 |
+| Transolver *(provisional)* | time-conditioned | 0.1043 | 28.56 | — | — | 0.2344 | 35.23 | — | — |
+| CGN | autoregressive | 1.274 | 52.57 | 0.003244 | 36.09 | 7.645 | 79.46 | 0.004649 | 40.43 |
 | MGN *(provisional)* | autoregressive | 2.272 | 55.79 | 0.004279 | 31.32 | 4.313 | 75.08 | 0.005979 | 36.08 |
 
 _Quantities of interest (MAE)_
 
 | Method | Scheme | interp·final_length_mm | interp·mushroom_width_mm | interp·peak_vm_mpa | interp·t_peak_vm_ms | extrap·final_length_mm | extrap·mushroom_width_mm | extrap·peak_vm_mpa | extrap·t_peak_vm_ms |
 |---|---|---|---|---|---|---|---|---|---|
-| Transolver-TC *(provisional)* | time-conditioned | 0.5557 | 0.3532 | 2.164 | 0.001986 | 1.81 | 3.148 | 2.297 | 0.01064 |
-| CGN baseline | autoregressive | 3.083 | 4.754 | 2.865 | 0.003993 | 3.198 | 11.59 | 19.21 | 0.2293 |
+| Transolver *(provisional)* | time-conditioned | 0.5557 | 0.3532 | 2.164 | 0.001986 | 1.81 | 3.148 | 2.297 | 0.01064 |
+| CGN | autoregressive | 3.083 | 4.754 | 2.865 | 0.003993 | 3.198 | 11.59 | 19.21 | 0.2293 |
 | MGN *(provisional)* | autoregressive | 9.108 | 6.097 | 3.639 | 0.001335 | 14.06 | 6.482 | 6.766 | 0.1087 |
 
 *Provisional entries are best-effort implementations whose fidelity is not validated against published numbers (ADR-0044/0045) — never read them as blessed baselines.*
 
 ## Baseline details
 
-**CGN baseline** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)
+**CGN** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)
 
 *Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp. Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values above are unchanged.*
 
-**Transolver-TC** (transolver, 2026-08-16, commit `59d5786`) (provisional)
+**Transolver** (transolver, 2026-08-16, commit `59d5786`) (provisional)
 
 *Native time-conditioned Transolver (ADR-0054): each frame is predicted independently from the reference geometry + normalized query time + impact-velocity scalar, history-free with no rollout accumulation, so one-step is N/A (the faithful thuml structural scheme, not autoregressive). Seed 2 of the s1-s2 pair, val-selected model-best-100000.pt, run taylor-transolver-tc-s2. PROVISIONAL (ADR-0044/0045): a best-effort native implementation, not validated against a published Taylor-Transolver number. On Taylor it is the strongest baseline by a wide margin (~14x lower displacement relative L2 than CGN on test_interp) because avoiding rollout accumulation dominates on this smooth-kinematics task. Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval.*
 

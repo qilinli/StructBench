@@ -53,23 +53,23 @@ _Headline — pooled relative L2 (↓ better)_
 
 | Method | Scheme | interp·disp | interp·aux | probe·disp | probe·aux |
 |---|---|---|---|---|---|
-| CGN baseline | autoregressive | 0.2827 | 0.5876 | 0.5905 | 0.8535 |
+| CGN | autoregressive | 0.2827 | 0.5876 | 0.5905 | 0.8535 |
 
 _Trajectory error — RMSE_
 
 | Method | Scheme | interp·pos_mm | interp·strain | interp·1s·pos_mm | interp·1s·strain | probe·pos_mm | probe·strain | probe·1s·pos_mm | probe·1s·strain |
 |---|---|---|---|---|---|---|---|---|---|
-| CGN baseline | autoregressive | 0.2497 | 0.01697 | 0.0006992 | 0.0006181 | 0.3951 | 0.01931 | 0.0006437 | 0.0009397 |
+| CGN | autoregressive | 0.2497 | 0.01697 | 0.0006992 | 0.0006181 | 0.3951 | 0.01931 | 0.0006437 | 0.0009397 |
 
 _Quantities of interest (MAE)_
 
 | Method | Scheme | interp·midspan_deflection_peak_mm | interp·cracked_fraction | probe·midspan_deflection_peak_mm | probe·cracked_fraction |
 |---|---|---|---|---|---|
-| CGN baseline | autoregressive | 0.5843 | 0.1892 | 1.337 | 0.186 |
+| CGN | autoregressive | 0.5843 | 0.1892 | 1.337 | 0.186 |
 
 ## Baseline details
 
-**CGN baseline** (cgn, 2026-07-24, commit `5956d81`, checkpoint: `models/notch_beam_2d_impact/cgn-5956d81/model-best-186000.pt` — private archive; publication parked)
+**CGN** (cgn, 2026-07-24, commit `5956d81`, checkpoint: `models/notch_beam_2d_impact/cgn-5956d81/model-best-186000.pt` — private archive; publication parked)
 
 *Single-scale CGN (ADR-0034) on the ADR-0039 §4 truncated recipe with the ADR-0038 strain knobs (train_frames 250, aux_tail_weight 3, asinh aux transform at scale 0.01; hidden 192 / 15 MP steps / 2-layer node MLP, noise_std 0.01, batch 4) at 250k steps; seed 1 of the 2026-07-24 h250c pair (seeds 1-2), val-selected checkpoint model-best-186000.pt (186k), one A100-80GB, ~80 h. Extending the same recipe from 200k to 250k steps cut seed-mean test rollout position RMSE 21% and deflection MAE 30% while validation strain RMSE stayed flat (0.0173 -> 0.0163): the extra budget buys kinematics, not damage-field quality. Caveats: the model over-predicts cracked fraction on the reviewed cases (crack MAE 0.19 vs sibling seed s2's 0.13, the one metric s2 wins); the off-grid probe case S_80_400_V140 is this seed's worst rollout (0.59 mm scored vs 0.40 for s2); predictions break the mirror symmetry of centered-notch cases while the ground truth stays symmetric (2026-07-24 finding); full-horizon (502-frame) rollout position RMSE is 0.87 mm on test_interp - diagnostic only, not scored. Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values are unchanged.*
 

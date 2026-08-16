@@ -28,7 +28,7 @@ from .card import CARD
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
         family="cgn",
-        label="CGN baseline",
+        label="CGN",
         scheme="autoregressive",
         run_commit="7be9d4b",
         run_date="2026-07-08",
@@ -79,7 +79,7 @@ RESULTS: tuple[BaselineResult, ...] = (
     ),
     BaselineResult(
         family="transolver",
-        label="Transolver-TC",
+        label="Transolver",
         scheme="time-conditioned",
         provisional=True,
         run_commit="59d5786",

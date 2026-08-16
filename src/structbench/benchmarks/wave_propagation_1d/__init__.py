@@ -31,7 +31,7 @@ __all__ = [
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
         family="cgn",
-        label="CGN baseline",
+        label="CGN",
         scheme="autoregressive",
         run_commit="48046ea",
         run_date="2026-07-10",

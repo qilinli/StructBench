@@ -160,7 +160,7 @@ def test_benchmark_page_embeds_overview_numbers_and_figures():
     # the blessed baseline leaderboard + details + quickstart are present
     assert "## Leaderboard" in text
     assert "## Baseline details" in text
-    assert "CGN baseline" in text
+    assert "| CGN |" in text  # the blessed method row in the leaderboard
     assert "## Quickstart" in text
     assert "configs/taylor_impact_2d/cgn.toml" in text
 
