@@ -36,6 +36,8 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-07-10",
         metrics={
             "test_interp": {
+                "rollout_rel_l2_disp": 0.3507,
+                "rollout_rel_l2_aux": 0.9025,
                 "rollout_pos_rmse_mm": 0.8750,
                 "rollout_axial_rmse_mpa": 0.1676,
                 "one_step_pos_rmse_mm": 0.004882,
@@ -64,7 +66,11 @@ RESULTS: tuple[BaselineResult, ...] = (
             "the 30 ms horizon; the pointwise-max peak_stress QoI "
             "overshoots in both held-out cases (pred 1.738/1.481 MPa vs true "
             "0.860/0.426 MPa) - arrival-time QoIs are the trustworthy wave "
-            "quantities (all within ~1 output frame)."
+            "quantities (all within ~1 output frame). Relative L2 "
+            "(rollout_rel_l2_disp/aux) is the pooled space+time headline "
+            "(ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; "
+            "RMSE reproduced to <1%, so the blessed RMSE/QoI values are "
+            "unchanged."
         ),
     ),
 )

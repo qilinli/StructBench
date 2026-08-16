@@ -33,6 +33,8 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-07-08",
         metrics={
             "test_interp": {
+                "rollout_rel_l2_disp": 0.1299,
+                "rollout_rel_l2_aux": 0.3223,
                 "rollout_pos_rmse_mm": 1.274,
                 "rollout_vm_rmse_mpa": 52.57,
                 "one_step_pos_rmse_mm": 0.003244,
@@ -43,6 +45,8 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_t_peak_vm_mae_ms": 0.003993,
             },
             "test_extrap": {
+                "rollout_rel_l2_disp": 0.5547,
+                "rollout_rel_l2_aux": 0.4531,
                 "rollout_pos_rmse_mm": 7.645,
                 "rollout_vm_rmse_mpa": 79.46,
                 "one_step_pos_rmse_mm": 0.004649,
@@ -66,7 +70,10 @@ RESULTS: tuple[BaselineResult, ...] = (
             "position it is the best of four on test_interp and the most "
             "conservative (highest) on test_extrap. Extrapolation to 200 m/s is "
             "the benchmark's honest failure mode: rollout position degrades ~6x "
-            "against test_interp."
+            "against test_interp. Relative L2 (rollout_rel_l2_disp/aux) is the "
+            "pooled space+time headline (ADR-0055), added 2026-08-16 from a "
+            "re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed "
+            "RMSE/QoI values above are unchanged."
         ),
     ),
 )

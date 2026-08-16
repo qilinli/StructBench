@@ -78,6 +78,8 @@ input_frames = 6 gives the model C = 5 input velocities (input_frames - 1), the 
 
 | Metric | **cgn** |
 |---|---|
+| test_interp · rollout_rel_l2_disp | 0.1299 |
+| test_interp · rollout_rel_l2_aux | 0.3223 |
 | test_interp · rollout_pos_rmse_mm | 1.274 |
 | test_interp · rollout_vm_rmse_mpa | 52.57 |
 | test_interp · one_step_pos_rmse_mm | 0.003244 |
@@ -86,6 +88,8 @@ input_frames = 6 gives the model C = 5 input velocities (input_frames - 1), the 
 | test_interp · qoi_mushroom_width_mae_mm | 4.754 |
 | test_interp · qoi_peak_vm_mae_mpa | 2.865 |
 | test_interp · qoi_t_peak_vm_mae_ms | 0.003993 |
+| test_extrap · rollout_rel_l2_disp | 0.5547 |
+| test_extrap · rollout_rel_l2_aux | 0.4531 |
 | test_extrap · rollout_pos_rmse_mm | 7.645 |
 | test_extrap · rollout_vm_rmse_mpa | 79.46 |
 | test_extrap · one_step_pos_rmse_mm | 0.004649 |
@@ -98,6 +102,13 @@ input_frames = 6 gives the model C = 5 input velocities (input_frames - 1), the 
 ## Numbers to beat
 
 **CGN baseline** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)
+
+_Trajectory error — relative L2 (headline)_
+
+| split | rollout_rel_l2_disp | rollout_rel_l2_aux |
+|---|---|---|
+| test_interp | 0.1299 | 0.3223 |
+| test_extrap | 0.5547 | 0.4531 |
 
 _Trajectory error (RMSE)_
 
@@ -113,7 +124,7 @@ _Quantities of interest (MAE)_
 | test_interp | 3.083 | 4.754 | 2.865 | 0.003993 |
 | test_extrap | 3.198 | 11.59 | 19.21 | 0.2293 |
 
-*Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp.*
+*Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp. Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values above are unchanged.*
 
 ## Quickstart
 

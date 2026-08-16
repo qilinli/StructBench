@@ -45,6 +45,8 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-07-24",
         metrics={
             "test_interp": {
+                "rollout_rel_l2_disp": 0.2827,
+                "rollout_rel_l2_aux": 0.5876,
                 "rollout_pos_rmse_mm": 0.2497,
                 "rollout_strain_rmse": 0.01697,
                 "one_step_pos_rmse_mm": 0.0006992,
@@ -53,6 +55,8 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_cracked_fraction_mae": 0.1892,
             },
             "probe": {
+                "rollout_rel_l2_disp": 0.5905,
+                "rollout_rel_l2_aux": 0.8535,
                 "rollout_pos_rmse_mm": 0.3951,
                 "rollout_strain_rmse": 0.01931,
                 "one_step_pos_rmse_mm": 0.0006437,
@@ -83,7 +87,11 @@ RESULTS: tuple[BaselineResult, ...] = (
             "0.40 for s2); predictions break the mirror symmetry of "
             "centered-notch cases while the ground truth stays symmetric "
             "(2026-07-24 finding); full-horizon (502-frame) rollout position "
-            "RMSE is 0.87 mm on test_interp - diagnostic only, not scored."
+            "RMSE is 0.87 mm on test_interp - diagnostic only, not scored. "
+            "Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time "
+            "headline (ADR-0055), added 2026-08-16 from a re-eval on this "
+            "checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values "
+            "are unchanged."
         ),
     ),
 )

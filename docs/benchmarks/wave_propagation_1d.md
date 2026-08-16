@@ -83,6 +83,8 @@ input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS 
 
 | Metric | **cgn** |
 |---|---|
+| test_interp · rollout_rel_l2_disp | 0.3507 |
+| test_interp · rollout_rel_l2_aux | 0.9025 |
 | test_interp · rollout_pos_rmse_mm | 0.875 |
 | test_interp · rollout_axial_rmse_mpa | 0.1676 |
 | test_interp · one_step_pos_rmse_mm | 0.004882 |
@@ -96,6 +98,12 @@ input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS 
 
 **CGN baseline** (cgn, 2026-07-10, commit `48046ea`, checkpoint: `models/wave_propagation_1d/cgn-48046ea/model-best-050000.pt` — private archive; publication parked)
 
+_Trajectory error — relative L2 (headline)_
+
+| split | rollout_rel_l2_disp | rollout_rel_l2_aux |
+|---|---|---|
+| test_interp | 0.3507 | 0.9025 |
+
 _Trajectory error (RMSE)_
 
 | split | rollout_pos_rmse_mm | rollout_axial_rmse_mpa | one_step_pos_rmse_mm | one_step_axial_rmse_mpa |
@@ -108,7 +116,7 @@ _Quantities of interest (MAE)_
 |---|---|---|---|---|
 | test_interp | 0.1007 | 0.05045 | 0.1006 | 0.9665 |
 
-*Single-scale CGN (ADR-0034) on the round-2 capacity recipe (hidden 128 / 10 MP steps / 2-layer node MLP, noise_std 0.06) at 50k steps, batch 32; seed 1 of the X1 arm (seeds 1-2) of the 2026-07-10 17-run recipe fleet, val-selected checkpoint model-best-050000.pt (50k), one A100-80GB, ~3.9 h. The winning arm beats the shipped-config control (64/5/1, noise 0.02) by ~2-3x on both rollout channels at half the step budget; blessed from the round-2 winner on maintainer instruction without the pre-declared 4-seed confirmation fleet. Caveats: test_interp is a 2-case split; rollout RMSE is dominated by the final ~5 ms of the 30 ms horizon; the pointwise-max peak_stress QoI overshoots in both held-out cases (pred 1.738/1.481 MPa vs true 0.860/0.426 MPa) - arrival-time QoIs are the trustworthy wave quantities (all within ~1 output frame).*
+*Single-scale CGN (ADR-0034) on the round-2 capacity recipe (hidden 128 / 10 MP steps / 2-layer node MLP, noise_std 0.06) at 50k steps, batch 32; seed 1 of the X1 arm (seeds 1-2) of the 2026-07-10 17-run recipe fleet, val-selected checkpoint model-best-050000.pt (50k), one A100-80GB, ~3.9 h. The winning arm beats the shipped-config control (64/5/1, noise 0.02) by ~2-3x on both rollout channels at half the step budget; blessed from the round-2 winner on maintainer instruction without the pre-declared 4-seed confirmation fleet. Caveats: test_interp is a 2-case split; rollout RMSE is dominated by the final ~5 ms of the 30 ms horizon; the pointwise-max peak_stress QoI overshoots in both held-out cases (pred 1.738/1.481 MPa vs true 0.860/0.426 MPa) - arrival-time QoIs are the trustworthy wave quantities (all within ~1 output frame). Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values are unchanged.*
 
 ## Quickstart
 
