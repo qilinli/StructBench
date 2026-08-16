@@ -122,7 +122,13 @@ not by leading with them.
    blessed anchors.
 3. **QoIs unchanged** — the physical engineering quantities (deflection mm, cracked
    fraction, peak stress MPa) are a separate reporting axis, rendered as their own
-   group after the trajectory-error groups; neither headline nor secondary-RMSE.
+   group after the trajectory-error groups; neither headline nor secondary-RMSE. They
+   are **reported, not ranked** (maintainer, 2026-08-16): StructBench's primary audience
+   is surrogate-modelling *algorithm developers*, for whom field accuracy (relative L2)
+   is the comparison metric that ranks the leaderboard; the engineering-outcome axis is
+   what the *downstream user* focuses on, so the QoIs stay a reported group rather than
+   the ranking target. A future benchmark may still elect to co-headline a specific QoI
+   if its scientific point demands it — that is a per-benchmark call, not the default.
 4. **The blessing gate metric is per-source and orthogonal to the leaderboard
    headline.** The DeformingPlate MGN gate stays *pooled position RMSE* (ADR-0043) —
    there is no published MGN-DP relative-L2 number to validate blessing against. The
