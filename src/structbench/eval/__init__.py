@@ -22,7 +22,6 @@ from .rollout import (
     RolloutResult,
     one_step_aux_rmse,
     one_step_position_rmse,
-    one_step_rel_l2,
     rollout,
     time_conditioned_rollout,
 )
@@ -49,5 +48,4 @@ __all__ = [
     "time_conditioned_rollout",
     "one_step_position_rmse",
     "one_step_aux_rmse",
-    "one_step_rel_l2",
 ]

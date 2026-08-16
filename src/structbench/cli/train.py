@@ -67,7 +67,6 @@ from ..datasets import (
 from ..eval import (
     one_step_aux_rmse,
     one_step_position_rmse,
-    one_step_rel_l2,
     rollout,
     time_conditioned_rollout,
 )
@@ -2549,12 +2548,6 @@ def evaluate(
             mesh_sim.reset_rollout()
         one_step: np.ndarray | None
         one_step_aux: np.ndarray | None
-        # Relative-L2 companions of the one-step RMSEs (ADR-0055); null for the
-        # time-conditioned scheme, exactly like one_step / one_step_aux. Pooled
-        # space+time scalars (ADR-0055 follow-up, 2026-08-16), not per-frame
-        # arrays, so each is a single float.
-        one_step_rel_disp: float | None
-        one_step_rel_aux: float | None
         if tc:
             # Time-conditioned: independent per-frame query, no accumulation and
             # no teacher-forced one-step sweep (ADR-0054). one_step_* is undefined.
@@ -2578,8 +2571,6 @@ def evaluate(
             )
             one_step = None
             one_step_aux = None
-            one_step_rel_disp = None
-            one_step_rel_aux = None
         else:
             result = rollout(
                 simulator,
@@ -2608,16 +2599,6 @@ def evaluate(
                 device,
                 kinematic_types=spec.kinematic_types,
             )
-            if mesh_sim is not None:
-                mesh_sim.reset_rollout()
-            # One sweep yields both relative-L2 companions (ADR-0055).
-            one_step_rel_disp, one_step_rel_aux = one_step_rel_l2(
-                simulator,
-                trajectory,
-                model_cfg.input_frames,
-                device,
-                kinematic_types=spec.kinematic_types,
-            )
         # One-step aggregates cover the same scored span as the rollout means
         # (ADR-0035 parity, ADR-0039 horizon); per-frame arrays stay full.
         n_scored = (
@@ -2634,19 +2615,13 @@ def evaluate(
             "one_step_aux_rmse": (
                 None if one_step_aux is None else float(one_step_aux[:n_scored].mean())
             ),
-            # Relative-L2 companions (ADR-0055). One-step is the pooled headline
-            # scalar (ADR-0055 follow-up, 2026-08-16); null one-step for a
-            # time-conditioned run.
-            "one_step_rel_l2_displacement": (
-                None if one_step_rel_disp is None else float(one_step_rel_disp)
-            ),
-            "one_step_rel_l2_aux": (
-                None if one_step_rel_aux is None else float(one_step_rel_aux)
-            ),
             "rollout_position_rmse": result.mean_position_rmse,
             "rollout_aux_rmse": result.mean_aux_rmse,
             # Rollout relative L2: the pooled space+time headline (ADR-0055
-            # follow-up amendment) plus the per-frame-mean secondary.
+            # follow-up amendment) plus the per-frame-mean secondary. Relative L2
+            # is a rollout-only metric — the one-step diagnostic stays RMSE, the
+            # form the GNS/MeshGraphNets lineage reports (no one-step relative L2
+            # exists in that literature; verified 2026-08-16).
             "rollout_rel_l2_displacement": result.mean_rel_l2_displacement,
             "rollout_rel_l2_aux": result.mean_rel_l2_aux,
             "rollout_rel_l2_displacement_perframe": (
@@ -2729,10 +2704,6 @@ def evaluate(
         "mean": {
             "one_step_position_rmse": _mean_over_cases("one_step_position_rmse"),
             "one_step_aux_rmse": _mean_over_cases("one_step_aux_rmse"),
-            "one_step_rel_l2_displacement": _mean_over_cases(
-                "one_step_rel_l2_displacement"
-            ),
-            "one_step_rel_l2_aux": _mean_over_cases("one_step_rel_l2_aux"),
             "rollout_position_rmse": _mean_over_cases("rollout_position_rmse"),
             "rollout_aux_rmse": _mean_over_cases("rollout_aux_rmse"),
             "rollout_rel_l2_displacement": _mean_over_cases(
@@ -2905,15 +2876,12 @@ def _print_split_report(metrics: dict[str, Any]) -> None:
         f" | rollout position RMSE {_fmt(mean['rollout_position_rmse'])} mm"
         f" | {aux_rmse_str}"
     )
-    # Relative-L2 companions (ADR-0055), dimensionless; .get() tolerates a
-    # metrics dict predating this metric (older re-printed records). The rollout
-    # headline is pooled space+time (ADR-0055 follow-up); the per-frame-mean is
-    # printed beneath it as the retained secondary.
+    # Rollout relative-L2 (ADR-0055), dimensionless and rollout-only; .get()
+    # tolerates a metrics dict predating this metric (older re-printed records).
+    # The headline is pooled space+time (ADR-0055 follow-up); the per-frame-mean
+    # is printed beneath it as the retained secondary.
     print(
-        f"[{split}] one-step rel-L2 disp "
-        f"{_fmt(mean.get('one_step_rel_l2_displacement'))}"
-        f" | one-step rel-L2 {aux_field} {_fmt(mean.get('one_step_rel_l2_aux'))}"
-        f" | rollout rel-L2 disp (pooled) "
+        f"[{split}] rollout rel-L2 disp (pooled) "
         f"{_fmt(mean.get('rollout_rel_l2_displacement'))}"
         f" | rollout rel-L2 {aux_field} (pooled) "
         f"{_fmt(mean.get('rollout_rel_l2_aux'))}"
