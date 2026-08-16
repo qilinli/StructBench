@@ -455,6 +455,31 @@ def _stress_derivation_line(c: BenchmarkCard) -> str:
     )
 
 
+def _references(spec: BenchmarkSpec) -> list[str]:
+    """A ``## References`` section citing each method's paper.
+
+    Collects the ``reference`` string from each result (ADR-0033), de-duplicated
+    by citation — methods that share a paper are listed once under both labels —
+    in declaration order. Returns ``[]`` (section omitted) when no result carries
+    a reference, so benchmarks without cited baselines render unchanged.
+    """
+    by_ref: dict[str, list[str]] = {}
+    order: list[str] = []
+    for r in spec.results:
+        ref = r.reference.strip()
+        if not ref:
+            continue
+        if ref not in by_ref:
+            by_ref[ref] = []
+            order.append(ref)
+        by_ref[ref].append(r.label)
+    if not order:
+        return []
+    lines = ["## References", ""]
+    lines += [f"- **{' / '.join(by_ref[ref])}** — {ref}" for ref in order]
+    return lines
+
+
 def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
     """A standalone README for the hosted dataset archive.
 
@@ -512,6 +537,9 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         "Consume with `structbench.datasets.load_case_trajectory` or any "
         "HDF5 reader (layout per ADR-0013).",
     ]
+    refs = _references(spec)
+    if refs:
+        lines += ["", *refs]
     return "\n".join(lines) + "\n"
 
 
@@ -619,6 +647,9 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
         "[docs/benchmarks.md](../benchmarks.md); machine-readable card "
         "metadata ships as `card.json` with the data archive.",
     ]
+    refs = _references(spec)
+    if refs:
+        lines += ["", *refs]
     return "\n".join(lines) + "\n"
 
 

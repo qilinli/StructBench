@@ -33,6 +33,12 @@ RESULTS: tuple[BaselineResult, ...] = (
         family="cgn",
         label="CGN",
         scheme="autoregressive",
+        reference=(
+            "Li, Q., Wang, Z., Li, L., Hao, H., Chen, W., & Shao, Y. (2023). "
+            "Machine learning prediction of structural dynamic responses using "
+            "graph neural networks. *Computers & Structures*, 289, 107188. "
+            "https://doi.org/10.1016/j.compstruc.2023.107188"
+        ),
         run_commit="48046ea",
         run_date="2026-07-10",
         metrics={

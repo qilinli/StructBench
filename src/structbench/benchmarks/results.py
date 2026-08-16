@@ -76,6 +76,7 @@ class BaselineResult:
     notes: str = ""
     provisional: bool = False
     scheme: str = ""
+    reference: str = ""
 
     def __post_init__(self) -> None:
         for name in ("family", "label", "run_commit", "run_date"):

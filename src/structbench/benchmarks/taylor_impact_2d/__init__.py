@@ -30,6 +30,12 @@ RESULTS: tuple[BaselineResult, ...] = (
         family="cgn",
         label="CGN",
         scheme="autoregressive",
+        reference=(
+            "Li, Q., Wang, Z., Li, L., Hao, H., Chen, W., & Shao, Y. (2023). "
+            "Machine learning prediction of structural dynamic responses using "
+            "graph neural networks. *Computers & Structures*, 289, 107188. "
+            "https://doi.org/10.1016/j.compstruc.2023.107188"
+        ),
         run_commit="7be9d4b",
         run_date="2026-07-08",
         metrics={
@@ -81,6 +87,11 @@ RESULTS: tuple[BaselineResult, ...] = (
         family="transolver",
         label="Transolver",
         scheme="time-conditioned",
+        reference=(
+            "Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: "
+            "A Fast Transformer Solver for PDEs on General Geometries. *ICML*. "
+            "https://arxiv.org/abs/2402.02366"
+        ),
         provisional=True,
         run_commit="59d5786",
         run_date="2026-08-16",
@@ -125,6 +136,11 @@ RESULTS: tuple[BaselineResult, ...] = (
         family="mgn",
         label="MGN",
         scheme="autoregressive",
+        reference=(
+            "Pfaff, T., Fortunato, M., Sanchez-Gonzalez, A., & Battaglia, P. W. "
+            "(2021). Learning Mesh-Based Simulation with Graph Networks. *ICLR*. "
+            "https://arxiv.org/abs/2010.03409"
+        ),
         provisional=True,
         run_commit="d838606",
         run_date="2026-08-16",

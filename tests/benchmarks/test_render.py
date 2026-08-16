@@ -663,3 +663,21 @@ def test_archive_readme_quickstart_family_selection_is_output_neutral():
         text = render_archive_readme(spec, name)
         assert f"configs/{name}/{old_family}.toml" in text
         assert f"runs/{name}-{old_family}" in text
+
+
+def test_references_section_lists_each_method():
+    # ADR-0033: the landing page ends with a de-duplicated, method-tagged
+    # citation list built from each result's ``reference`` field.
+    text = render_benchmark_page(get_benchmark("taylor_impact_2d"), "taylor_impact_2d")
+    assert "## References" in text
+    assert "**CGN** — Li, Q." in text
+    assert "**Transolver** — Wu, H." in text
+    assert "**MGN** — Pfaff, T." in text
+    # it is the final section (after the Quickstart)
+    assert text.index("## References") > text.index("## Quickstart")
+
+
+def test_references_omitted_without_citations():
+    # notch-bend has no results, hence no References section.
+    spec = get_benchmark("notch_beam_2d_bend")
+    assert "## References" not in render_benchmark_page(spec, "notch_beam_2d_bend")
