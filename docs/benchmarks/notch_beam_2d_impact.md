@@ -47,7 +47,7 @@ Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 input velocitie
 
 ## Leaderboard
 
-Methods ranked by the headline metric (pooled relative L2, ↓ lower is better). The Scheme column is the prediction scheme; *(provisional)* marks a native baseline whose fidelity is not validated against published numbers (ADR-0044/0045).
+The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. RMSE and quantities of interest are shown for the in-distribution `test_interp` split.
 
 _Headline — pooled relative L2 (↓ better)_
 
@@ -57,15 +57,15 @@ _Headline — pooled relative L2 (↓ better)_
 
 _Trajectory error — RMSE_
 
-| Method | Scheme | interp·pos_mm | interp·strain | interp·1s·pos_mm | interp·1s·strain | probe·pos_mm | probe·strain | probe·1s·pos_mm | probe·1s·strain |
-|---|---|---|---|---|---|---|---|---|---|
-| CGN | autoregressive | 0.2497 | 0.01697 | 0.0006992 | 0.0006181 | 0.3951 | 0.01931 | 0.0006437 | 0.0009397 |
+| Method | Scheme | interp·pos (mm) | interp·strain |
+|---|---|---|---|
+| CGN | autoregressive | 0.2497 | 0.01697 |
 
 _Quantities of interest (MAE)_
 
-| Method | Scheme | interp·midspan_deflection_peak_mm | interp·cracked_fraction | probe·midspan_deflection_peak_mm | probe·cracked_fraction |
-|---|---|---|---|---|---|
-| CGN | autoregressive | 0.5843 | 0.1892 | 1.337 | 0.186 |
+| Method | Scheme | interp·midspan_deflection_peak (mm) | interp·cracked_fraction |
+|---|---|---|---|
+| CGN | autoregressive | 0.5843 | 0.1892 |
 
 ## Baseline details
 

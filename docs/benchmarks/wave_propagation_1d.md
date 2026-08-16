@@ -81,7 +81,7 @@ input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS 
 
 ## Leaderboard
 
-Methods ranked by the headline metric (pooled relative L2, ↓ lower is better). The Scheme column is the prediction scheme; *(provisional)* marks a native baseline whose fidelity is not validated against published numbers (ADR-0044/0045).
+The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. RMSE and quantities of interest are shown for the in-distribution `test_interp` split.
 
 _Headline — pooled relative L2 (↓ better)_
 
@@ -91,13 +91,13 @@ _Headline — pooled relative L2 (↓ better)_
 
 _Trajectory error — RMSE_
 
-| Method | Scheme | interp·pos_mm | interp·axial_mpa | interp·1s·pos_mm | interp·1s·axial_mpa |
-|---|---|---|---|---|---|
-| CGN | autoregressive | 0.875 | 0.1676 | 0.004882 | 0.01547 |
+| Method | Scheme | interp·pos (mm) | interp·axial (MPa) |
+|---|---|---|---|
+| CGN | autoregressive | 0.875 | 0.1676 |
 
 _Quantities of interest (MAE)_
 
-| Method | Scheme | interp·arrival_time_25_ms | interp·arrival_time_50_ms | interp·arrival_time_75_ms | interp·peak_stress_mpa |
+| Method | Scheme | interp·arrival_time_25 (ms) | interp·arrival_time_50 (ms) | interp·arrival_time_75 (ms) | interp·peak_stress (MPa) |
 |---|---|---|---|---|---|
 | CGN | autoregressive | 0.1007 | 0.05045 | 0.1006 | 0.9665 |
 
