@@ -33,17 +33,13 @@ interpolation and degrades honestly at 200 m/s; the numbers are below.
 
 ## Figures
 
-![Side-by-side animation of ground-truth and CGN-predicted copper-bar impact at 150 m/s.](../../assets/taylor_rollout.gif)
+![Four-panel animation: ground truth and CGN, Transolver, MGN predictions of copper-bar von Mises stress.](../../assets/taylor_rollout_methods.gif)
 
-*Ground truth (left) vs CGN prediction (right) at 150 m/s (in-distribution), a 20x80 mm copper bar coloured by von Mises stress. The surrogate tracks the mushroom head, bar shortening, and impact-face stress band frame by frame over the 300 us rollout.*
+*Ground truth vs the three baselines (CGN, Transolver, MGN) on T-20-80-170 (test_interp, 170 m/s), a 20x80 mm copper bar coloured by von Mises stress over the scored rollout. Transolver (time-conditioned) tracks the mushroom-head stress band most closely; CGN is slightly diffuse in the interior; MGN smears and fragments the field and its particles penetrate the rigid wall. Transolver and MGN are provisional native baselines (ADR-0044/0045).*
 
-![Prediction-vs-truth von Mises snapshots at 170 m/s, in-distribution.](../../assets/taylor_vms_interp_170.png)
+![Grid of von Mises snapshots: ground truth and CGN, Transolver, MGN predictions at five times.](../../assets/taylor_vms_methods_170.png)
 
-*In-distribution (test_interp, 170 m/s): ground truth (top) vs CGN prediction (bottom), von Mises stress at 12 / 108 / 204 / 300 us. The prediction reproduces the mushroom head, bar shortening, and the impact-face high-stress band; its stress field is slightly smoother and more diffuse than ground truth but structurally faithful (rollout position RMSE 1.4 mm).*
-
-![Line charts of rollout position and von Mises error over time.](../../assets/taylor_rollout_error_vs_time.png)
-
-*Rollout error vs time for the CGN baseline (seed s1): position RMSE (top) and von Mises RMSE (bottom), case-averaged across val / interp / extrap. Position error accumulates monotonically; the von Mises error spikes at first wall contact (~20-40 us) then re-grows. Extrapolation to 200 m/s is where it blows up.*
+*In-distribution von Mises stress (T-20-80-170, test_interp, 170 m/s): ground truth vs the three baselines at 12 / 84 / 156 / 228 / 300 us. Transolver tracks the mushroom-head stress band most closely (rollout von Mises RMSE 30 MPa); CGN is slightly diffuse (49.5 MPa); MGN smears and fragments the field (62.4 MPa) - the ranking the leaderboard reports. Transolver and MGN are provisional (ADR-0044/0045).*
 
 ## Data at a glance
 
