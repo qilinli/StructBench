@@ -11,7 +11,14 @@ import torch
 from numpy.typing import NDArray
 
 from ..datasets.canonical import CaseTrajectory
-from .metrics import QoiFn, QoiInputs, field_rmse, position_rmse, relative_l2
+from .metrics import (
+    QoiFn,
+    QoiInputs,
+    field_rmse,
+    position_rmse,
+    relative_l2,
+    relative_l2_pooled,
+)
 
 
 class _SimulatorLike(Protocol):
@@ -58,12 +65,21 @@ class RolloutResult:
     aux_rmse: NDArray[np.float64]  # (nsteps,)
     mean_position_rmse: float = float("nan")
     mean_aux_rmse: float = float("nan")
-    # Relative-L2 companions of the two RMSE means (ADR-0055), reported
-    # alongside them for cross-paper comparability. Displacement relative L2 is
-    # on u = pos - pos[0] (frame-0 reference, decision A); aux relative L2 is on
-    # the raw aux field. Same scored horizon and kinematic mask as the RMSEs.
+    # Relative-L2 companions of the two RMSE means (ADR-0055). The HEADLINE
+    # aggregation is pooled space+time per trajectory (ADR-0055 follow-up
+    # amendment, 2026-08-16): the whole scored rollout of the quantity flattened
+    # into one vector, ‖pred−gt‖₂/‖gt‖₂ — robust to near-zero frames, matching
+    # the Transolver family's test_l2_full. Displacement relative L2 is on
+    # u = pos - pos[0] (frame-0 reference, decision A); aux relative L2 is on the
+    # raw aux field. Same scored horizon and kinematic mask as the RMSEs.
     mean_rel_l2_displacement: float = float("nan")
     mean_rel_l2_aux: float = float("nan")
+    # Per-frame-mean relative L2 (mean over scored frames of the per-frame
+    # ‖err‖/‖gt‖), retained as a SECONDARY metric for comparability with the
+    # GeoFLARE / PhysicsNeMo crash line (per-timestep error). Never the headline:
+    # it is the unguarded quantity that blows up on zero-start fields.
+    mean_rel_l2_displacement_perframe: float = float("nan")
+    mean_rel_l2_aux_perframe: float = float("nan")
     qoi_pred: dict[str, float] = field(default_factory=dict)
     qoi_true: dict[str, float] = field(default_factory=dict)
     qoi_error: dict[str, float] = field(default_factory=dict)
@@ -245,13 +261,12 @@ def _finalize_rollout(
     # as the RMSEs. Displacement is referenced to the GT frame-0 initial
     # positions for BOTH predicted and ground truth (decision A: frame-0 is the
     # shared seeded prefix, and relative L2 must be on displacement, not on
-    # origin-dominated absolute coordinates).
+    # origin-dominated absolute coordinates). The per-frame arrays feed the
+    # SECONDARY per-frame-mean metric; the POOLED headline is computed below.
     ref0 = trajectory.positions[0]  # (P, dim) GT frame-0 geometry
-    rel_l2_disp = relative_l2(
-        pred_pos[input_frames:] - ref0,
-        trajectory.positions[input_frames:] - ref0,
-        mask=keep,
-    )
+    disp_pred_all = pred_pos[input_frames:] - ref0
+    disp_gt_all = trajectory.positions[input_frames:] - ref0
+    rel_l2_disp = relative_l2(disp_pred_all, disp_gt_all, mask=keep)
     rel_l2_aux = relative_l2(
         pred_aux[input_frames:], trajectory.aux[input_frames:], mask=keep
     )
@@ -260,6 +275,19 @@ def _finalize_rollout(
     # clamped so short (e.g. fixture) trajectories keep their full span.
     scored_end = n_frames if scored_frames is None else min(scored_frames, n_frames)
     n_scored = scored_end - input_frames
+
+    # Pooled space+time headline (ADR-0055 follow-up, 2026-08-16): flatten each
+    # quantity's SCORED rollout into one vector, ‖pred−gt‖₂/‖gt‖₂. Robust to the
+    # near-zero early frames that make the per-frame mean explode. Quantities stay
+    # separate (mm vs aux unit are incommensurable).
+    pooled_disp = relative_l2_pooled(
+        disp_pred_all[:n_scored], disp_gt_all[:n_scored], mask=keep
+    )
+    pooled_aux = relative_l2_pooled(
+        pred_aux[input_frames:][:n_scored],
+        trajectory.aux[input_frames:][:n_scored],
+        mask=keep,
+    )
 
     pred_inputs = QoiInputs(
         time=trajectory.time[:scored_end],
@@ -284,8 +312,10 @@ def _finalize_rollout(
         aux_rmse=aux_rmse,
         mean_position_rmse=float(pos_rmse[:n_scored].mean()),
         mean_aux_rmse=float(aux_rmse[:n_scored].mean()),
-        mean_rel_l2_displacement=float(rel_l2_disp[:n_scored].mean()),
-        mean_rel_l2_aux=float(rel_l2_aux[:n_scored].mean()),
+        mean_rel_l2_displacement=pooled_disp,
+        mean_rel_l2_aux=pooled_aux,
+        mean_rel_l2_displacement_perframe=float(rel_l2_disp[:n_scored].mean()),
+        mean_rel_l2_aux_perframe=float(rel_l2_aux[:n_scored].mean()),
         qoi_pred=qoi_pred,
         qoi_true=qoi_true,
         qoi_error={name: qoi_pred[name] - qoi_true[name] for name in qoi_pred},
@@ -531,8 +561,8 @@ def one_step_rel_l2(
     input_frames: int,
     device: str = "cpu",
     kinematic_types: tuple[int, ...] = (),
-) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """Teacher-forced next-step relative L2 per predicted frame (ADR-0055).
+) -> tuple[float, float]:
+    """Teacher-forced next-step pooled relative L2 (ADR-0055).
 
     The relative-L2 companion of :func:`one_step_position_rmse` /
     :func:`one_step_aux_rmse`: the same teacher-forced sweep — every frame from
@@ -547,6 +577,14 @@ def one_step_rel_l2(
     decision A): relative L2 on absolute coordinates is origin-dominated, so it
     must be taken on displacement.
 
+    Aggregation is **pooled** space+time (ADR-0055 follow-up amendment,
+    2026-08-16): the one-step predictions across all teacher-forced frames are
+    flattened into one vector per quantity, ``‖pred−gt‖₂/‖gt‖₂`` — one headline
+    scalar each, not a per-frame array. Per-frame-mean one-step would explode on
+    the same near-zero early aux frames as the rollout headline (von Mises stress
+    is ~0 before impact), so one-step pools too. There is no per-frame one-step
+    secondary.
+
     Parameters
     ----------
     simulator, trajectory, input_frames, device, kinematic_types:
@@ -554,9 +592,8 @@ def one_step_rel_l2(
 
     Returns
     -------
-    tuple of numpy.ndarray
-        ``(rel_l2_displacement, rel_l2_aux)``, each shape
-        ``(T - input_frames,)`` and dimensionless.
+    tuple of float
+        ``(rel_l2_displacement, rel_l2_aux)``, each a dimensionless pooled scalar.
     """
     pos = torch.from_numpy(trajectory.positions).to(device)
     n_frames, n_particles, _ = pos.shape
@@ -591,8 +628,8 @@ def one_step_rel_l2(
     pred_pos = torch.stack(pred_pos_frames, dim=0).cpu().numpy().astype(np.float32)
     pred_aux = torch.stack(pred_aux_frames, dim=0).cpu().numpy().astype(np.float32)
     ref0 = trajectory.positions[0]  # (P, dim) GT frame-0 geometry
-    rel_l2_disp = relative_l2(
+    pooled_disp = relative_l2_pooled(
         pred_pos - ref0, trajectory.positions[input_frames:] - ref0, mask=keep
     )
-    rel_l2_aux = relative_l2(pred_aux, trajectory.aux[input_frames:], mask=keep)
-    return rel_l2_disp, rel_l2_aux
+    pooled_aux = relative_l2_pooled(pred_aux, trajectory.aux[input_frames:], mask=keep)
+    return pooled_disp, pooled_aux

@@ -106,28 +106,37 @@ def _eval_lines(c: BenchmarkCard, *, fold_rationale: bool = False) -> list[str]:
     return lines
 
 
-def _partition_metrics(names: list[str]) -> tuple[list[str], list[str], list[str]]:
-    """Split metric keys into ``(relative_l2, rmse, qoi)`` groups, each
+def _partition_metrics(
+    names: list[str],
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Split metric keys into ``(rel_pooled, rel_pf, rmse, qoi)`` groups, each
     preserving the caller's first-seen order.
 
-    ADR-0055 (amended 2026-08-15): relative L2 is the headline metric, so its
-    keys lead; physical-unit RMSE is the retained secondary group; ``qoi_*``
+    ADR-0055 (amended 2026-08-15; pooled follow-up 2026-08-16): relative L2 is
+    the headline metric, and its POOLED space+time form is the headline while the
+    per-frame-mean form (``*_perframe`` keys) is a retained secondary. So the
+    relative-L2 keys split further into a pooled headline group and a per-frame
+    secondary group; physical-unit RMSE is the next secondary group; ``qoi_*``
     keys are the separate engineering axis. A key is relative-L2 iff it contains
     ``rel_l2`` (covers ``rollout_rel_l2_displacement`` and any unit-suffixed
-    registry variant); QoI iff it starts ``qoi_``; RMSE otherwise.
+    registry variant), per-frame iff it also contains ``perframe``; QoI iff it
+    starts ``qoi_``; RMSE otherwise.
     """
-    rel = [m for m in names if "rel_l2" in m]
+    rel_pooled = [m for m in names if "rel_l2" in m and "perframe" not in m]
+    rel_pf = [m for m in names if "rel_l2" in m and "perframe" in m]
     qoi = [m for m in names if m.startswith("qoi_")]
     rmse = [m for m in names if "rel_l2" not in m and not m.startswith("qoi_")]
-    return rel, rmse, qoi
+    return rel_pooled, rel_pf, rmse, qoi
 
 
 def _headline_metric(metrics: Mapping[str, float]) -> str:
-    """The metric key quoted first in the docs-index one-liner: the rollout
-    relative-L2 displacement if present (ADR-0055 headline), else any
-    relative-L2 key, else the first metric (pre-amendment behaviour, and the
-    fallback for runs whose relative-L2 keys are not yet populated)."""
-    rel_keys = [m for m in metrics if "rel_l2" in m]
+    """The metric key quoted first in the docs-index one-liner: the pooled
+    rollout relative-L2 displacement if present (ADR-0055 headline), else any
+    pooled relative-L2 key, else the first metric (pre-amendment behaviour, and
+    the fallback for runs whose relative-L2 keys are not yet populated). The
+    per-frame-mean secondary (``*_perframe``, ADR-0055 follow-up) is never the
+    quoted headline."""
+    rel_keys = [m for m in metrics if "rel_l2" in m and "perframe" not in m]
     if rel_keys:
         rollout_disp = (m for m in rel_keys if "rollout" in m and "disp" in m)
         return next(rollout_disp, rel_keys[0])
@@ -237,12 +246,15 @@ def _numbers_to_beat(spec: BenchmarkSpec) -> list[str]:
             for metric in r.metrics.get(split, {}):
                 if metric not in metric_names:
                     metric_names.append(metric)
-        rel, rmse, qoi = _partition_metrics(metric_names)
-        # ADR-0055 (amended): relative-L2 headline group leads, RMSE secondary,
-        # QoI last. Empty groups are dropped; a lone group renders unlabelled
-        # (pre-amendment single-table behaviour, incl. runs without rel-L2 yet).
+        rel_pooled, rel_pf, rmse, qoi = _partition_metrics(metric_names)
+        # ADR-0055 (amended; pooled follow-up 2026-08-16): pooled relative-L2
+        # headline group leads, then per-frame-mean relative L2 (crash-line
+        # secondary), then RMSE secondary, then QoI last. Empty groups are
+        # dropped; a lone group renders unlabelled (pre-amendment single-table
+        # behaviour, incl. runs without rel-L2 yet).
         candidates = [
-            ("Trajectory error — relative L2 (headline)", rel),
+            ("Trajectory error — relative L2 (headline)", rel_pooled),
+            ("Relative L2 — per-frame mean (crash-line)", rel_pf),
             ("Trajectory error (RMSE)", rmse),
             ("Quantities of interest (MAE)", qoi),
         ]
@@ -270,8 +282,9 @@ def _method_comparison(spec: BenchmarkSpec) -> list[str]:
     carries it; its metric columns are the global first-seen order (results
     in declaration order, each result's splits in card order) filtered to
     keys present in any entry for that split, then stable-partitioned into
-    relative-L2 headline keys, RMSE keys, then ``qoi_`` keys (ADR-0055,
-    amended 2026-08-15). Missing cells render ``—``. A footnote is
+    pooled relative-L2 headline keys, per-frame-mean relative-L2 keys, RMSE
+    keys, then ``qoi_`` keys (ADR-0055, amended 2026-08-15; pooled follow-up
+    2026-08-16). Missing cells render ``—``. A footnote is
     appended whenever any column is provisional (honest-not-silent,
     ADR-0033). Called by both :func:`render_benchmark_page` and
     :func:`render_archive_readme`, immediately before ``## Numbers to beat``.
@@ -309,9 +322,10 @@ def _method_comparison(spec: BenchmarkSpec) -> list[str]:
         ]
         if not present:
             continue
-        # ADR-0055 (amended): relative-L2 headline rows first, then RMSE, then QoI.
-        rel, rmse, qoi = _partition_metrics(present)
-        for metric in rel + rmse + qoi:
+        # ADR-0055 (amended; pooled follow-up): pooled relative-L2 headline rows
+        # first, then per-frame-mean relative L2, then RMSE, then QoI.
+        rel_pooled, rel_pf, rmse, qoi = _partition_metrics(present)
+        for metric in rel_pooled + rel_pf + rmse + qoi:
             cells = []
             for r in spec.results:
                 values = r.metrics.get(split, {})

@@ -14,6 +14,7 @@ from .metrics import (
     peak_stress,
     position_rmse,
     relative_l2,
+    relative_l2_pooled,
     t_peak_mean_aux,
     terminal_peak_displacement,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "position_rmse",
     "field_rmse",
     "relative_l2",
+    "relative_l2_pooled",
     "final_length",
     "mushroom_width",
     "arrival_time",

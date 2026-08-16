@@ -100,6 +100,8 @@ What becomes easier, harder, or constrained as a result.
 | 0049 | Taylor native recipe repair: noise rescale, velocity history, MGN stretch gate | Durable | Accepted |
 | 0050 | Prediction-scheme axis: unified k-frames-per-call (autoregressive ↔ bundled ↔ one-shot) | Durable | Superseded by 0051 |
 | 0051 | k-frames-per-call implementation (Transolver): resolved decisions, neural-CFL, pushforward | Durable | Accepted |
+| 0054 | Transolver time-conditioning: the native non-autoregressive prediction scheme | Durable | Accepted |
+| 0055 | Relative-L2 as the headline metric (amended: headline, RMSE retained secondary) | Durable | Accepted |
 
 ---
 

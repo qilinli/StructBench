@@ -299,6 +299,57 @@ def test_numbers_to_beat_leads_with_relative_l2_group():
     assert "rollout_pos_rmse_mm" in rmse_section
 
 
+def _pooled_and_perframe_result():
+    """A result carrying BOTH a pooled headline rel-L2 key and its per-frame
+    secondary (``*_perframe``), the shape a re-eval writes under the ADR-0055
+    pooled follow-up amendment (2026-08-16)."""
+    return BaselineResult(
+        family="transolver",
+        label="Transolver-TC",
+        run_commit="abc1234",
+        run_date="2026-08-16",
+        provisional=True,
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.033,
+                "rollout_rel_l2_disp_perframe": 1234.0,
+                "rollout_pos_rmse_mm": 1.5,
+            },
+        },
+    )
+
+
+def test_numbers_to_beat_pooled_group_precedes_perframe_group():
+    # ADR-0055 pooled follow-up: the pooled headline group renders before the
+    # per-frame-mean secondary group, which renders before RMSE.
+    spec = replace(
+        get_benchmark("taylor_impact_2d"), results=(_pooled_and_perframe_result(),)
+    )
+    text = render_archive_readme(spec, "taylor_impact_2d")
+    pooled_title = "_Trajectory error — relative L2 (headline)_"
+    pf_title = "_Relative L2 — per-frame mean (crash-line)_"
+    rmse_title = "_Trajectory error (RMSE)_"
+    assert pooled_title in text and pf_title in text and rmse_title in text
+    assert text.index(pooled_title) < text.index(pf_title) < text.index(rmse_title)
+    # the pooled key sits under the headline heading, not the per-frame one
+    pooled_section = text.split(pooled_title, 1)[1].split(pf_title, 1)[0]
+    assert "rollout_rel_l2_disp |" in pooled_section
+    assert "perframe" not in pooled_section
+    pf_section = text.split(pf_title, 1)[1].split(rmse_title, 1)[0]
+    assert "rollout_rel_l2_disp_perframe" in pf_section
+
+
+def test_baseline_line_quotes_pooled_not_perframe_key():
+    # _baseline_line's headline is the pooled (non-perframe) rel-L2 key even
+    # when a per-frame key is also present.
+    spec = replace(
+        get_benchmark("taylor_impact_2d"), results=(_pooled_and_perframe_result(),)
+    )
+    line = _baseline_line(spec)
+    assert "rollout_rel_l2_disp " in line  # pooled key + its value
+    assert "perframe" not in line
+
+
 def test_method_comparison_orders_rel_l2_before_rmse_before_qoi():
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_rel_l2_result(),))
     lines = _method_comparison(spec)

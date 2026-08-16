@@ -2550,9 +2550,11 @@ def evaluate(
         one_step: np.ndarray | None
         one_step_aux: np.ndarray | None
         # Relative-L2 companions of the one-step RMSEs (ADR-0055); null for the
-        # time-conditioned scheme, exactly like one_step / one_step_aux.
-        one_step_rel_disp: np.ndarray | None
-        one_step_rel_aux: np.ndarray | None
+        # time-conditioned scheme, exactly like one_step / one_step_aux. Pooled
+        # space+time scalars (ADR-0055 follow-up, 2026-08-16), not per-frame
+        # arrays, so each is a single float.
+        one_step_rel_disp: float | None
+        one_step_rel_aux: float | None
         if tc:
             # Time-conditioned: independent per-frame query, no accumulation and
             # no teacher-forced one-step sweep (ADR-0054). one_step_* is undefined.
@@ -2632,22 +2634,25 @@ def evaluate(
             "one_step_aux_rmse": (
                 None if one_step_aux is None else float(one_step_aux[:n_scored].mean())
             ),
-            # Relative-L2 companions (ADR-0055), same scored span/mask as the
-            # RMSEs; null one-step for a time-conditioned run.
+            # Relative-L2 companions (ADR-0055). One-step is the pooled headline
+            # scalar (ADR-0055 follow-up, 2026-08-16); null one-step for a
+            # time-conditioned run.
             "one_step_rel_l2_displacement": (
-                None
-                if one_step_rel_disp is None
-                else float(one_step_rel_disp[:n_scored].mean())
+                None if one_step_rel_disp is None else float(one_step_rel_disp)
             ),
             "one_step_rel_l2_aux": (
-                None
-                if one_step_rel_aux is None
-                else float(one_step_rel_aux[:n_scored].mean())
+                None if one_step_rel_aux is None else float(one_step_rel_aux)
             ),
             "rollout_position_rmse": result.mean_position_rmse,
             "rollout_aux_rmse": result.mean_aux_rmse,
+            # Rollout relative L2: the pooled space+time headline (ADR-0055
+            # follow-up amendment) plus the per-frame-mean secondary.
             "rollout_rel_l2_displacement": result.mean_rel_l2_displacement,
             "rollout_rel_l2_aux": result.mean_rel_l2_aux,
+            "rollout_rel_l2_displacement_perframe": (
+                result.mean_rel_l2_displacement_perframe
+            ),
+            "rollout_rel_l2_aux_perframe": result.mean_rel_l2_aux_perframe,
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
             # frame to trajectory end. Non-leaderboard; equals the scored value
             # when the benchmark pins no horizon. Field name matches the
@@ -2734,6 +2739,12 @@ def evaluate(
                 "rollout_rel_l2_displacement"
             ),
             "rollout_rel_l2_aux": _mean_over_cases("rollout_rel_l2_aux"),
+            "rollout_rel_l2_displacement_perframe": _mean_over_cases(
+                "rollout_rel_l2_displacement_perframe"
+            ),
+            "rollout_rel_l2_aux_perframe": _mean_over_cases(
+                "rollout_rel_l2_aux_perframe"
+            ),
             "rollout_position_rmse_full": _mean_over_cases(
                 "rollout_position_rmse_full"
             ),
@@ -2895,13 +2906,23 @@ def _print_split_report(metrics: dict[str, Any]) -> None:
         f" | {aux_rmse_str}"
     )
     # Relative-L2 companions (ADR-0055), dimensionless; .get() tolerates a
-    # metrics dict predating this metric (older re-printed records).
+    # metrics dict predating this metric (older re-printed records). The rollout
+    # headline is pooled space+time (ADR-0055 follow-up); the per-frame-mean is
+    # printed beneath it as the retained secondary.
     print(
         f"[{split}] one-step rel-L2 disp "
         f"{_fmt(mean.get('one_step_rel_l2_displacement'))}"
         f" | one-step rel-L2 {aux_field} {_fmt(mean.get('one_step_rel_l2_aux'))}"
-        f" | rollout rel-L2 disp {_fmt(mean.get('rollout_rel_l2_displacement'))}"
-        f" | rollout rel-L2 {aux_field} {_fmt(mean.get('rollout_rel_l2_aux'))}"
+        f" | rollout rel-L2 disp (pooled) "
+        f"{_fmt(mean.get('rollout_rel_l2_displacement'))}"
+        f" | rollout rel-L2 {aux_field} (pooled) "
+        f"{_fmt(mean.get('rollout_rel_l2_aux'))}"
+    )
+    print(
+        f"[{split}] rollout rel-L2 disp (per-frame) "
+        f"{_fmt(mean.get('rollout_rel_l2_displacement_perframe'))}"
+        f" | rollout rel-L2 {aux_field} (per-frame) "
+        f"{_fmt(mean.get('rollout_rel_l2_aux_perframe'))}"
     )
     qoi = ", ".join(
         f"{name} {value:.4f}" for name, value in mean["qoi_abs_error"].items()

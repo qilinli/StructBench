@@ -13,6 +13,7 @@ from structbench.eval.metrics import (
     peak_stress,
     position_rmse,
     relative_l2,
+    relative_l2_pooled,
     terminal_peak_displacement,
 )
 
@@ -76,6 +77,49 @@ def test_relative_l2_zero_gt_frame_does_not_divide_by_zero():
     assert np.all(np.isfinite(out))
     # frame 0: 1e-3 / 1e-8 = 1e5; frame 1: 0 / 1e-8 = 0
     np.testing.assert_allclose(out, [1e5, 0.0])
+
+
+def test_relative_l2_pooled_vector_field_analytic():
+    """Pooled = ‖err‖₂/‖gt‖₂ over ALL masked axes for a vector field (ADR-0055)."""
+    gt = np.zeros((2, 2, 2))
+    gt[0, 0] = [3.0, 4.0]  # contributes 25 to Σgt²
+    gt[1, 1] = [0.0, 12.0]  # contributes 144 -> ‖gt‖ = sqrt(169) = 13
+    pred = gt.copy()
+    pred[0, 0] = [0.0, 0.0]  # err = [-3, -4] -> Σerr² = 25 -> ‖err‖ = 5
+    # single pooled ratio over frames × particles × components: 5 / 13
+    assert relative_l2_pooled(pred, gt) == pytest.approx(5.0 / 13.0)
+
+
+def test_relative_l2_pooled_mask_excludes_kinematic_rows():
+    """The particle mask drops kinematic rows from both pooled norms (ADR-0026)."""
+    gt = np.array([[3.0, 4.0, 0.0], [0.0, 0.0, 0.0]])
+    pred = np.array([[0.0, 0.0, 99.0], [0.0, 0.0, 42.0]])  # particle 2 wild
+    mask = np.array([True, True, False])
+    # Kept particles {0,1}: ‖err‖=5, ‖gt‖=5 -> 1.0; the 99/42 never leak in.
+    assert relative_l2_pooled(pred, gt, mask) == pytest.approx(1.0)
+
+
+def test_relative_l2_pooled_robust_where_perframe_explodes():
+    """Zero first scored frame: per-frame mean blows up, pooled stays O(1).
+
+    A field that is exactly 0 at the first scored frame and O(1) afterwards is
+    the von-Mises-before-impact pathology the ADR-0055 follow-up fixes: the
+    per-frame mean divides a real error by a ~0 single-frame reference and
+    explodes, while the pooled ratio (whole-trajectory field energy in the
+    denominator) is finite and O(1).
+    """
+    gt = np.zeros((4, 5))
+    gt[1:] = 2.0  # frame 0 exactly zero, O(1) thereafter
+    pred = gt + 0.2  # a modest, uniform O(1)-scale error everywhere
+
+    perframe = relative_l2(pred, gt).mean()
+    pooled = relative_l2_pooled(pred, gt)
+
+    # frame 0 has ‖gt‖=0 -> err/eps is astronomically large -> the mean is huge
+    assert perframe > 1e6
+    # pooled divides by the whole-field energy, so it is finite and O(0.1-1)
+    assert np.isfinite(pooled)
+    assert 0.05 < pooled < 1.0
 
 
 def test_qois_use_last_frame_extents():

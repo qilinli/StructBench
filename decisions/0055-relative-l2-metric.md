@@ -141,6 +141,46 @@ blessed number, no frozen split, and no blessing gate moves. The registry/card r
 and degrades gracefully for runs whose relative-L2 keys are not yet populated (they
 render RMSE-first until the pending re-eval fills the new keys).
 
+## Follow-up amendment (2026-08-16): pooled space+time aggregation for the headline
+
+*Maintainer-approved in-session after a code-grounded literature review of the
+Transolver family (deep-research, 2026-08-16, 23/25 claims verified against primary
+sources).* Decision **B above (per-frame-mean) is superseded for the headline.** The
+first re-eval exposed the flaw: per-frame-mean divides a real error by a near-zero
+single-frame reference norm, so it blows up on any field that starts at zero — Taylor
+`rollout_rel_l2_aux = 5.7×10⁸` on every case, because von Mises stress is ~0 before
+impact. The fix is the aggregation the Transolver family actually uses.
+
+**What the Transolver family does (verified in code, not prose).** thuml's
+`TestLoss.rel` (`utils/testloss.py`) flattens each sample with `reshape(N, -1)` —
+folding space, channels, and **time** into one vector — then `‖pred−gt‖₂/‖gt‖₂`, mean
+over the batch, **no epsilon**. For the time-dependent Plasticity/Navier–Stokes
+benchmarks (`exp_plas.py`, `exp_ns.py`) the reported rollout number is `test_l2_full`:
+the whole concatenated trajectory flattened to `[B, -1]` (pooled space+time per
+sample), `/ntest`. The maintained Neural-Solver-Library reports only this pooled
+number; GeoTransolver states it explicitly (`ε_L2 = Σⱼ‖x̃ⱼ−xⱼ‖₂ / Σⱼ‖xⱼ‖₂` over the
+predicted *spatiotemporal* response). The crash sub-line (GeoFLARE, NVIDIA
+PhysicsNeMo) **diverges** to a per-timestep error curve — which is why per-frame-mean
+is retained as a secondary, not discarded.
+
+**Revised decision B — the headline is pooled per trajectory, per quantity.**
+`rollout_rel_l2_displacement` and `rollout_rel_l2_aux` are each computed by flattening
+the *scored* rollout of that quantity — scored frames × scored particles × the
+quantity's commensurate vector components — into one vector, `‖pred−gt‖₂/‖gt‖₂`, one
+ratio per trajectory, then **mean over the split's trajectories** (= thuml's
+batch-mean `/ntest`). The two quantities are **not merged**: displacement (mm) and aux
+(MPa / strain) are incommensurable, so each is its own pooled ratio — pooling mm with
+MPa would let the larger-magnitude field swamp the other. Within displacement the
+`{x,y[,z]}` components *are* pooled (same unit). Same kinematic mask, scored horizon,
+and frame-0 displacement reference as before. `eps = 1e-12` is a pure exact-zero guard
+(degenerate fixtures only), **not** a scale knob — the pooled denominator is the whole
+trajectory's field energy and cannot be driven near zero by an early ~0 frame.
+
+**Per-frame-mean retained as a SECONDARY metric** (`rollout_rel_l2_*_perframe`) for
+comparability with the GeoFLARE / PhysicsNeMo crash line (per-timestep error). It is
+never the headline — it is the unguarded quantity that blows up on zero-start fields.
+One-step rel-L2 is likewise pooled (headline), N/A for the time-conditioned scheme.
+
 ## Status / next
 
 Accepted + amended. Implemented (2026-08-15) on `feat/native-baselines`:
