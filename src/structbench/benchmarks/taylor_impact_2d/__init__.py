@@ -29,6 +29,7 @@ RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
         family="cgn",
         label="CGN baseline",
+        scheme="autoregressive",
         run_commit="7be9d4b",
         run_date="2026-07-08",
         metrics={

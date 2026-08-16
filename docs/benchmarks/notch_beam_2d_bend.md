@@ -21,7 +21,7 @@ autoregressive transition (ADR-0026). Auxiliary target: `max_principal_strain` (
 ## Evaluation criteria
 
 - Protocol (benchmark-owned, ADR-0032, ADR-0035): 6 input frames, horizon full, scored at native output times.
-- Metrics: one-step and full-rollout position RMSE (mm); max_principal_strain RMSE (-).
+- Metrics: headline is the pooled space+time relative L2 (displacement + max_principal_strain); also reported are position/max_principal_strain RMSE (physical units) and one-step RMSE, plus the quantities of interest below.
 - Quantities of interest: midspan_deflection_peak, cracked_fraction.
 
 <details>
@@ -31,11 +31,11 @@ Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities (input_fra
 
 </details>
 
-## Method comparison
+## Leaderboard
 
 *No results yet — method entries land here as runs are recorded (blessed or provisional).*
 
-## Numbers to beat
+## Baseline details
 
 *No official baseline yet — the reference run's metrics land here.*
 

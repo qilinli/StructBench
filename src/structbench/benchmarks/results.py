@@ -45,6 +45,11 @@ class BaselineResult:
         making the pointer verifiable. Requires ``checkpoint``.
     notes : str
         Free-text caveats (hardware, walltime, deviations).
+    scheme : str
+        Prediction scheme this result was produced under, e.g.
+        ``"autoregressive"``, ``"time-conditioned"``, ``"one-shot"``. Surfaced
+        as the leaderboard's Scheme column; ``""`` (default, unknown) renders
+        ``"—"``. Purely descriptive — no validation.
     provisional : bool
         ``False`` (default) = blessed — validated against its published
         anchor or protocol gate. ``True`` = best-effort implementation
@@ -70,6 +75,7 @@ class BaselineResult:
     checkpoint_sha256: str | None = None
     notes: str = ""
     provisional: bool = False
+    scheme: str = ""
 
     def __post_init__(self) -> None:
         for name in ("family", "label", "run_commit", "run_date"):

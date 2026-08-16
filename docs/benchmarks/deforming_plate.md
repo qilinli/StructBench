@@ -21,7 +21,7 @@ quasi-static load-stepping autoregressive rollout (ADR-0043). Auxiliary target: 
 ## Evaluation criteria
 
 - Protocol (benchmark-owned, ADR-0032, ADR-0035): 2 input frames, horizon full, scored at native output times.
-- Metrics: one-step and full-rollout position RMSE (mm); von_mises_stress RMSE (MPa).
+- Metrics: headline is the pooled space+time relative L2 (displacement + von_mises_stress); also reported are position/von_mises_stress RMSE (physical units) and one-step RMSE, plus the quantities of interest below.
 - Quantities of interest: peak_vm_stress, terminal_peak_deflection.
 
 <details>
@@ -31,11 +31,11 @@ input_frames=2 is the floor (a velocity needs two frames) and the faithful value
 
 </details>
 
-## Method comparison
+## Leaderboard
 
 *No results yet — method entries land here as runs are recorded (blessed or provisional).*
 
-## Numbers to beat
+## Baseline details
 
 *No official baseline yet — the reference run's metrics land here.*
 

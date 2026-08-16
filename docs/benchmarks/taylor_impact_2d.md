@@ -64,7 +64,7 @@ autoregressive transition (ADR-0019). Auxiliary target: `von_mises_stress` (MPa)
 ## Evaluation criteria
 
 - Protocol (benchmark-owned, ADR-0032, ADR-0035): 6 input frames, horizon full, scored at native output times.
-- Metrics: one-step and full-rollout position RMSE (mm); von_mises_stress RMSE (MPa).
+- Metrics: headline is the pooled space+time relative L2 (displacement + von_mises_stress); also reported are position/von_mises_stress RMSE (physical units) and one-step RMSE, plus the quantities of interest below.
 - Quantities of interest: final_length, mushroom_width, peak_von_mises, t_peak_von_mises.
 
 <details>
@@ -74,55 +74,31 @@ input_frames = 6 gives the model C = 5 input velocities (input_frames - 1), the 
 
 </details>
 
-## Method comparison
+## Leaderboard
 
-| Metric | **cgn** |
-|---|---|
-| test_interp · rollout_rel_l2_disp | 0.1299 |
-| test_interp · rollout_rel_l2_aux | 0.3223 |
-| test_interp · rollout_pos_rmse_mm | 1.274 |
-| test_interp · rollout_vm_rmse_mpa | 52.57 |
-| test_interp · one_step_pos_rmse_mm | 0.003244 |
-| test_interp · one_step_vm_rmse_mpa | 36.09 |
-| test_interp · qoi_final_length_mae_mm | 3.083 |
-| test_interp · qoi_mushroom_width_mae_mm | 4.754 |
-| test_interp · qoi_peak_vm_mae_mpa | 2.865 |
-| test_interp · qoi_t_peak_vm_mae_ms | 0.003993 |
-| test_extrap · rollout_rel_l2_disp | 0.5547 |
-| test_extrap · rollout_rel_l2_aux | 0.4531 |
-| test_extrap · rollout_pos_rmse_mm | 7.645 |
-| test_extrap · rollout_vm_rmse_mpa | 79.46 |
-| test_extrap · one_step_pos_rmse_mm | 0.004649 |
-| test_extrap · one_step_vm_rmse_mpa | 40.43 |
-| test_extrap · qoi_final_length_mae_mm | 3.198 |
-| test_extrap · qoi_mushroom_width_mae_mm | 11.59 |
-| test_extrap · qoi_peak_vm_mae_mpa | 19.21 |
-| test_extrap · qoi_t_peak_vm_mae_ms | 0.2293 |
+Methods ranked by the headline metric (pooled relative L2, ↓ lower is better). The Scheme column is the prediction scheme; *(provisional)* marks a native baseline whose fidelity is not validated against published numbers (ADR-0044/0045).
 
-## Numbers to beat
+_Headline — pooled relative L2 (↓ better)_
 
-**CGN baseline** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)
+| Method | Scheme | interp·disp | interp·aux | extrap·disp | extrap·aux |
+|---|---|---|---|---|---|
+| CGN baseline | autoregressive | 0.1299 | 0.3223 | 0.5547 | 0.4531 |
 
-_Trajectory error — relative L2 (headline)_
+_Trajectory error — RMSE_
 
-| split | rollout_rel_l2_disp | rollout_rel_l2_aux |
-|---|---|---|
-| test_interp | 0.1299 | 0.3223 |
-| test_extrap | 0.5547 | 0.4531 |
-
-_Trajectory error (RMSE)_
-
-| split | rollout_pos_rmse_mm | rollout_vm_rmse_mpa | one_step_pos_rmse_mm | one_step_vm_rmse_mpa |
-|---|---|---|---|---|
-| test_interp | 1.274 | 52.57 | 0.003244 | 36.09 |
-| test_extrap | 7.645 | 79.46 | 0.004649 | 40.43 |
+| Method | Scheme | interp·pos_mm | interp·vm_mpa | interp·1s·pos_mm | interp·1s·vm_mpa | extrap·pos_mm | extrap·vm_mpa | extrap·1s·pos_mm | extrap·1s·vm_mpa |
+|---|---|---|---|---|---|---|---|---|---|
+| CGN baseline | autoregressive | 1.274 | 52.57 | 0.003244 | 36.09 | 7.645 | 79.46 | 0.004649 | 40.43 |
 
 _Quantities of interest (MAE)_
 
-| split | qoi_final_length_mae_mm | qoi_mushroom_width_mae_mm | qoi_peak_vm_mae_mpa | qoi_t_peak_vm_mae_ms |
-|---|---|---|---|---|
-| test_interp | 3.083 | 4.754 | 2.865 | 0.003993 |
-| test_extrap | 3.198 | 11.59 | 19.21 | 0.2293 |
+| Method | Scheme | interp·final_length_mm | interp·mushroom_width_mm | interp·peak_vm_mpa | interp·t_peak_vm_ms | extrap·final_length_mm | extrap·mushroom_width_mm | extrap·peak_vm_mpa | extrap·t_peak_vm_ms |
+|---|---|---|---|---|---|---|---|---|---|
+| CGN baseline | autoregressive | 3.083 | 4.754 | 2.865 | 0.003993 | 3.198 | 11.59 | 19.21 | 0.2293 |
+
+## Baseline details
+
+**CGN baseline** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)
 
 *Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp. Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values above are unchanged.*
 

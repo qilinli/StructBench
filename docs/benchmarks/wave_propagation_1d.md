@@ -69,7 +69,7 @@ autoregressive transition (ADR-0025). Auxiliary target: `axial_stress` (MPa). Mo
 ## Evaluation criteria
 
 - Protocol (benchmark-owned, ADR-0032, ADR-0035): 6 input frames, horizon full, scored at native output times.
-- Metrics: one-step and full-rollout position RMSE (mm); axial_stress RMSE (MPa).
+- Metrics: headline is the pooled space+time relative L2 (displacement + axial_stress); also reported are position/axial_stress RMSE (physical units) and one-step RMSE, plus the quantities of interest below.
 - Quantities of interest: arrival_time_25, arrival_time_50, arrival_time_75, peak_stress.
 
 <details>
@@ -79,42 +79,31 @@ input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS 
 
 </details>
 
-## Method comparison
+## Leaderboard
 
-| Metric | **cgn** |
-|---|---|
-| test_interp · rollout_rel_l2_disp | 0.3507 |
-| test_interp · rollout_rel_l2_aux | 0.9025 |
-| test_interp · rollout_pos_rmse_mm | 0.875 |
-| test_interp · rollout_axial_rmse_mpa | 0.1676 |
-| test_interp · one_step_pos_rmse_mm | 0.004882 |
-| test_interp · one_step_axial_rmse_mpa | 0.01547 |
-| test_interp · qoi_arrival_time_25_mae_ms | 0.1007 |
-| test_interp · qoi_arrival_time_50_mae_ms | 0.05045 |
-| test_interp · qoi_arrival_time_75_mae_ms | 0.1006 |
-| test_interp · qoi_peak_stress_mae_mpa | 0.9665 |
+Methods ranked by the headline metric (pooled relative L2, ↓ lower is better). The Scheme column is the prediction scheme; *(provisional)* marks a native baseline whose fidelity is not validated against published numbers (ADR-0044/0045).
 
-## Numbers to beat
+_Headline — pooled relative L2 (↓ better)_
 
-**CGN baseline** (cgn, 2026-07-10, commit `48046ea`, checkpoint: `models/wave_propagation_1d/cgn-48046ea/model-best-050000.pt` — private archive; publication parked)
+| Method | Scheme | interp·disp | interp·aux |
+|---|---|---|---|
+| CGN baseline | autoregressive | 0.3507 | 0.9025 |
 
-_Trajectory error — relative L2 (headline)_
+_Trajectory error — RMSE_
 
-| split | rollout_rel_l2_disp | rollout_rel_l2_aux |
-|---|---|---|
-| test_interp | 0.3507 | 0.9025 |
-
-_Trajectory error (RMSE)_
-
-| split | rollout_pos_rmse_mm | rollout_axial_rmse_mpa | one_step_pos_rmse_mm | one_step_axial_rmse_mpa |
-|---|---|---|---|---|
-| test_interp | 0.875 | 0.1676 | 0.004882 | 0.01547 |
+| Method | Scheme | interp·pos_mm | interp·axial_mpa | interp·1s·pos_mm | interp·1s·axial_mpa |
+|---|---|---|---|---|---|
+| CGN baseline | autoregressive | 0.875 | 0.1676 | 0.004882 | 0.01547 |
 
 _Quantities of interest (MAE)_
 
-| split | qoi_arrival_time_25_mae_ms | qoi_arrival_time_50_mae_ms | qoi_arrival_time_75_mae_ms | qoi_peak_stress_mae_mpa |
-|---|---|---|---|---|
-| test_interp | 0.1007 | 0.05045 | 0.1006 | 0.9665 |
+| Method | Scheme | interp·arrival_time_25_ms | interp·arrival_time_50_ms | interp·arrival_time_75_ms | interp·peak_stress_mpa |
+|---|---|---|---|---|---|
+| CGN baseline | autoregressive | 0.1007 | 0.05045 | 0.1006 | 0.9665 |
+
+## Baseline details
+
+**CGN baseline** (cgn, 2026-07-10, commit `48046ea`, checkpoint: `models/wave_propagation_1d/cgn-48046ea/model-best-050000.pt` — private archive; publication parked)
 
 *Single-scale CGN (ADR-0034) on the round-2 capacity recipe (hidden 128 / 10 MP steps / 2-layer node MLP, noise_std 0.06) at 50k steps, batch 32; seed 1 of the X1 arm (seeds 1-2) of the 2026-07-10 17-run recipe fleet, val-selected checkpoint model-best-050000.pt (50k), one A100-80GB, ~3.9 h. The winning arm beats the shipped-config control (64/5/1, noise 0.02) by ~2-3x on both rollout channels at half the step budget; blessed from the round-2 winner on maintainer instruction without the pre-declared 4-seed confirmation fleet. Caveats: test_interp is a 2-case split; rollout RMSE is dominated by the final ~5 ms of the 30 ms horizon; the pointwise-max peak_stress QoI overshoots in both held-out cases (pred 1.738/1.481 MPa vs true 0.860/0.426 MPa) - arrival-time QoIs are the trustworthy wave quantities (all within ~1 output frame). Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values are unchanged.*
 
