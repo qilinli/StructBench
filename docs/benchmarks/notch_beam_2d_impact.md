@@ -4,17 +4,13 @@
 
 ## Figures
 
-![Stacked animation of ground-truth and CGN-predicted strain fringes on a notched concrete beam under drop-weight impact.](../../assets/notch_impact_rollout.gif)
+![Stacked animation of ground-truth, CGN, and Transolver strain fringes on a notched concrete beam under drop-weight impact.](../../assets/notch_rollout_methods.gif)
 
-*Ground truth (top) vs CGN prediction (bottom) on held-out NB-I-640-Sphere-c-120 (test_interp): a 640 mm span beam under 120 m/s sphere impact, coloured by max principal strain (fringe capped at 0.05, 5x the 1% crack threshold). The surrogate tracks the impact wedge and beam deflection through the 250 µs scored window; the marked frames beyond it are the unscored long-horizon diagnostic, where the prediction visibly degrades.*
+*Ground truth vs the baselines (CGN, Transolver) on held-out NB-I-640-Sphere-c-120 (test_interp): a 640 mm span beam under 120 m/s sphere impact, coloured by max principal strain (fringe capped at 0.05, 5x the 1% crack threshold) over the 250 µs scored window. Transolver (time-conditioned) tracks the central shear wedge and the discrete flexural cracks most closely (rollout strain RMSE 0.004); CGN diffuses them into streaky bands (0.013). MGN is still training (a pending placeholder on the leaderboard).*
 
-![Grid of strain fringe snapshots comparing ground truth and CGN prediction at five times.](../../assets/notch_impact_strain_interp_640_c_120.png)
+![Grid of strain fringe snapshots comparing ground truth, CGN, and Transolver at five times.](../../assets/notch_strain_methods_640_c_120.png)
 
-*In-distribution snapshots (test_interp, 640 mm span, sphere at 120 m/s): ground truth (top) vs CGN baseline (bottom) at four scored-window times plus the beyond-horizon diagnostic frame. The model follows the central shear wedge and the deflection but diffuses the discrete flexural cracks into streaky bands and over-counts cracked fraction (0.39 vs 0.29 at 250 µs) — the damage field, not the kinematics, is the open gap.*
-
-![Line plot of rollout position error versus time for twelve test cases with the scored horizon marked at 250 microseconds.](../../assets/notch_impact_rollout_error_vs_time.png)
-
-*Per-frame rollout position RMSE for the 12 test_interp cases (gray) and their mean (blue). Error grows smoothly to ~0.7 mm at the 250 µs scored horizon (dashed) and keeps growing to ~2.3 mm over the full 502-frame record — the ballistic-separation and ringing tail the ADR-0039 horizon deliberately excludes from scoring.*
+*In-distribution max-principal-strain snapshots (test_interp, 640 mm span, sphere at 120 m/s) at 12 / 72 / 132 / 192 / 249 µs across the scored window: ground truth vs CGN vs Transolver. Transolver (rollout strain RMSE 0.004) reproduces the shear wedge and the discrete flexural cracks closely, while CGN (0.013) smears them into diffuse streaky bands — the damage field, not the kinematics, is the open gap. Transolver is a provisional native baseline (ADR-0044/0045); MGN is pending.*
 
 ## Data at a glance
 
