@@ -705,3 +705,20 @@ def test_references_omitted_without_citations():
     # notch-bend has no results, hence no References section.
     spec = get_benchmark("notch_beam_2d_bend")
     assert "## References" not in render_benchmark_page(spec, "notch_beam_2d_bend")
+
+
+def test_pending_baseline_renders_training_placeholder_row():
+    # A pending entry (still-training baseline, empty metrics) renders a
+    # leaderboard row of "—" tagged (training), with a note; it never raises.
+    pending = BaselineResult(
+        family="mgn", label="MGN", scheme="autoregressive",
+        provisional=True, pending=True, run_commit="abc1234",
+        run_date="2026-08-16", metrics={}, notes="run in progress",
+    )
+    real = _rel_l2_result()
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(pending, real))
+    lines = _leaderboard(spec)
+    # pending row first (declaration order), all metric cells "—"
+    row = next(ln for ln in lines if ln.startswith("| MGN *(training)*"))
+    assert set(c.strip() for c in row.split("|")[3:-1]) == {"—"}
+    assert any("still in progress" in ln for ln in lines)

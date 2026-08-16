@@ -39,6 +39,27 @@ __all__ = [
 #: metrics use the ADR-0039 horizon (frames [6, 250) of 502).
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
+        family="mgn",
+        label="MGN",
+        scheme="autoregressive",
+        reference=(
+            "Pfaff, T., Fortunato, M., Sanchez-Gonzalez, A., & Battaglia, P. W. "
+            "(2021). Learning Mesh-Based Simulation with Graph Networks. *ICLR*. "
+            "https://arxiv.org/abs/2010.03409"
+        ),
+        provisional=True,
+        pending=True,
+        run_commit="59d5786",
+        run_date="2026-08-16",
+        metrics={},
+        notes=(
+            "Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair), "
+            "autoregressive next-step. PLACEHOLDER: the notch-mgn-base run is "
+            "still training (~230k/250k steps); its pooled numbers land here on "
+            "completion. PROVISIONAL (ADR-0044/0045)."
+        ),
+    ),
+    BaselineResult(
         family="cgn",
         label="CGN",
         scheme="autoregressive",
@@ -99,6 +120,50 @@ RESULTS: tuple[BaselineResult, ...] = (
             "headline (ADR-0055), added 2026-08-16 from a re-eval on this "
             "checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values "
             "are unchanged."
+        ),
+    ),
+    BaselineResult(
+        family="transolver",
+        label="Transolver",
+        scheme="time-conditioned",
+        reference=(
+            "Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: "
+            "A Fast Transformer Solver for PDEs on General Geometries. *ICML*. "
+            "https://arxiv.org/abs/2402.02366"
+        ),
+        provisional=True,
+        run_commit="59d5786",
+        run_date="2026-08-16",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.03517,
+                "rollout_rel_l2_aux": 0.2294,
+                "rollout_pos_rmse_mm": 0.03365,
+                "rollout_strain_rmse": 0.006467,
+                "qoi_midspan_deflection_peak_mae_mm": 0.04067,
+                "qoi_cracked_fraction_mae": 0.0212,
+            },
+            "probe": {
+                "rollout_rel_l2_disp": 1.047,
+                "rollout_rel_l2_aux": 1.236,
+                "rollout_pos_rmse_mm": 0.6319,
+                "rollout_strain_rmse": 0.02965,
+                "qoi_midspan_deflection_peak_mae_mm": 3.405,
+                "qoi_cracked_fraction_mae": 0.04823,
+            },
+        },
+        notes=(
+            "Native time-conditioned Transolver (ADR-0054): history-free "
+            "independent-time-query, no rollout accumulation, so one-step is "
+            "N/A. Seed 2 of the s1-s2 pair, val-selected model-best-230000.pt, "
+            "run notch-transolver-tc-s2. PROVISIONAL (ADR-0044/0045). On "
+            "test_interp it is the strongest baseline (~8x lower displacement "
+            "relative L2 than CGN); on the PROBE it fails hard (relative L2 > 1) "
+            "- the off-centre triple-OOD case (ADR-0026 amendment) where the "
+            "global-attention operator mis-localises the response to the learned "
+            "midspan prior, while CGN's relative-position message passing "
+            "degrades more gracefully (probe disp 0.59 vs 1.05). Pooled "
+            "relative L2 headline (ADR-0055) from the 2026-08-16 re-eval."
         ),
     ),
 )

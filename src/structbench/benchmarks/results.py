@@ -77,6 +77,7 @@ class BaselineResult:
     provisional: bool = False
     scheme: str = ""
     reference: str = ""
+    pending: bool = False
 
     def __post_init__(self) -> None:
         for name in ("family", "label", "run_commit", "run_date"):
@@ -87,7 +88,11 @@ class BaselineResult:
                 raise ValueError("checkpoint_sha256 requires checkpoint")
             if not re.fullmatch(r"[0-9a-f]{64}", self.checkpoint_sha256):
                 raise ValueError("checkpoint_sha256 must be 64 lowercase hex chars")
-        if not self.metrics:
+        # A ``pending`` entry is a placeholder for a still-training baseline
+        # (its run hasn't produced numbers yet), so empty metrics are allowed;
+        # the leaderboard renders its row as "—". Every other entry must carry
+        # metrics.
+        if not self.metrics and not self.pending:
             raise ValueError("metrics must record at least one split")
         for split, values in self.metrics.items():
             if not values:

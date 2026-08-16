@@ -289,13 +289,20 @@ def _leaderboard(spec: BenchmarkSpec) -> list[str]:
         lines.append("| " + " | ".join(header) + " |")
         lines.append("|---|" + "---|" * (len(header) - 1))
         for r in spec.results:
-            cells = [r.label, r.scheme or "—"]
+            label = r.label + (" *(training)*" if r.pending else "")
+            cells = [label, r.scheme or "—"]
             for split, key in columns:
                 vals = r.metrics.get(split, {})
                 cells.append(_fmt_value(vals[key]) if key in vals else "—")
             lines.append("| " + " | ".join(cells) + " |")
         lines.append("")
     lines.pop()  # drop the trailing blank left by the last tier
+    if any(r.pending for r in spec.results):
+        lines += [
+            "",
+            "_Rows marked (training) are baselines whose run is still in "
+            "progress; their numbers land when it completes._",
+        ]
     return lines
 
 
