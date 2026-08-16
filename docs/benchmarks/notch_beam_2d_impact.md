@@ -2,6 +2,39 @@
 
 # NotchBeam2D-Impact — StructBench benchmark
 
+## The problem
+
+A steel weight drops onto a **notched concrete beam** and the beam cracks: a
+shear wedge punches down under the impactor while flexural cracks open from the
+notch and race up through the section. Concrete under high-rate impact is a
+brutal surrogate target — a quasi-brittle material that softens as it damages,
+discrete cracks that localise strain, and a fracture pattern that *is* the
+scientific quantity of interest rather than a by-product of the motion.
+
+StructBench ships the 2D SPH version: an LS-DYNA `*MAT_CONCRETE_DAMAGE_REL3`
+(K&C) notched beam, 80 mm deep and 320 / 480 / 640 mm span, struck at midspan by
+a drop weight (Bullet / Rectangular / Sphere) at 40–160 m/s, with no element
+erosion. The task is an **autoregressive next-step surrogate** — from a short
+ground-truth prefix the model advances the SPH particle state one output step at
+a time, predicting both position and the per-particle **max principal strain**,
+the field that carries the crack pattern.
+
+## Interpolation vs. the off-centre probe
+
+`test_interp` holds out interior combinations of span, impactor shape, notch
+position and velocity — every factor level still appears in training, so it
+measures ordinary interpolation. The separate **probe** set is deliberately
+harder: it is out-of-distribution on *three* axes at once — a new span, an
+out-of-range velocity, and, decisively, an **off-centre impact** (every
+in-distribution case is struck exactly at midspan). It measures graceful failure
+on a genuinely new loading mode, not interpolation — and it is where the method
+ordering flips (a global-attention operator that wins in-distribution
+mis-localises the response there, while relative-position message passing
+degrades more gracefully). Everything is scored over the 250 µs window (ADR-0039)
+in physical units — position RMSE in mm, strain RMSE — plus two quantities of
+interest: peak mid-span deflection and the end-state cracked fraction. The
+numbers, and the cross-method comparison, are below.
+
 ## Figures
 
 ![Stacked animation of ground-truth, CGN, and Transolver strain fringes on a notched concrete beam under drop-weight impact.](../../assets/notch_rollout_methods.gif)
