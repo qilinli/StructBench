@@ -179,7 +179,18 @@ trajectory's field energy and cannot be driven near zero by an early ~0 frame.
 **Per-frame-mean retained as a SECONDARY metric** (`rollout_rel_l2_*_perframe`) for
 comparability with the GeoFLARE / PhysicsNeMo crash line (per-timestep error). It is
 never the headline — it is the unguarded quantity that blows up on zero-start fields.
-One-step rel-L2 is likewise pooled (headline), N/A for the time-conditioned scheme.
+
+**Relative L2 is a ROLLOUT-only metric; one-step stays RMSE.** A second code-grounded
+literature review (deep-research, 2026-08-16) established that the one-step
+(teacher-forced) error is a standard reported diagnostic *only* in the
+GNS/MeshGraphNets autoregressive lineage — where it is an MSE/RMSE (GNS
+`one_step_position_mse`; MeshGraphNets "RMSE 1-step") — and that **no** published work
+reports a one-step *relative* L2 (the neural operators report no one-step error at all,
+only a whole-output field relative L2). A one-step relative L2 therefore has no
+cross-paper comparability target and is N/A for the time-conditioned / one-shot schemes,
+so it is **not computed**. One-step is reported as RMSE (`one_step_position_rmse`,
+`one_step_aux_rmse`, matching the GNS/MGN convention); relative L2 is reported for the
+rollout only.
 
 ## Status / next
 
