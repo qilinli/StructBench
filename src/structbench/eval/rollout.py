@@ -16,7 +16,6 @@ from .metrics import (
     QoiInputs,
     field_rmse,
     position_rmse,
-    relative_l2,
     relative_l2_pooled,
 )
 
@@ -74,12 +73,6 @@ class RolloutResult:
     # raw aux field. Same scored horizon and kinematic mask as the RMSEs.
     mean_rel_l2_displacement: float = float("nan")
     mean_rel_l2_aux: float = float("nan")
-    # Per-frame-mean relative L2 (mean over scored frames of the per-frame
-    # ‖err‖/‖gt‖), retained as a SECONDARY metric for comparability with the
-    # GeoFLARE / PhysicsNeMo crash line (per-timestep error). Never the headline:
-    # it is the unguarded quantity that blows up on zero-start fields.
-    mean_rel_l2_displacement_perframe: float = float("nan")
-    mean_rel_l2_aux_perframe: float = float("nan")
     qoi_pred: dict[str, float] = field(default_factory=dict)
     qoi_true: dict[str, float] = field(default_factory=dict)
     qoi_error: dict[str, float] = field(default_factory=dict)
@@ -257,19 +250,14 @@ def _finalize_rollout(
     aux_rmse = field_rmse(
         pred_aux[input_frames:], trajectory.aux[input_frames:], keep=keep
     )
-    # Relative-L2 companions (ADR-0055), same predicted span and kinematic mask
-    # as the RMSEs. Displacement is referenced to the GT frame-0 initial
-    # positions for BOTH predicted and ground truth (decision A: frame-0 is the
-    # shared seeded prefix, and relative L2 must be on displacement, not on
-    # origin-dominated absolute coordinates). The per-frame arrays feed the
-    # SECONDARY per-frame-mean metric; the POOLED headline is computed below.
+    # Relative-L2 (ADR-0055), same predicted span and kinematic mask as the
+    # RMSEs. Displacement is referenced to the GT frame-0 initial positions for
+    # BOTH predicted and ground truth (decision A: frame-0 is the shared seeded
+    # prefix, and relative L2 must be on displacement, not on origin-dominated
+    # absolute coordinates). Computed below as the pooled space+time headline.
     ref0 = trajectory.positions[0]  # (P, dim) GT frame-0 geometry
     disp_pred_all = pred_pos[input_frames:] - ref0
     disp_gt_all = trajectory.positions[input_frames:] - ref0
-    rel_l2_disp = relative_l2(disp_pred_all, disp_gt_all, mask=keep)
-    rel_l2_aux = relative_l2(
-        pred_aux[input_frames:], trajectory.aux[input_frames:], mask=keep
-    )
 
     # Scored span (ADR-0039): scored_frames mirrors T as an exclusive bound,
     # clamped so short (e.g. fixture) trajectories keep their full span.
@@ -314,8 +302,6 @@ def _finalize_rollout(
         mean_aux_rmse=float(aux_rmse[:n_scored].mean()),
         mean_rel_l2_displacement=pooled_disp,
         mean_rel_l2_aux=pooled_aux,
-        mean_rel_l2_displacement_perframe=float(rel_l2_disp[:n_scored].mean()),
-        mean_rel_l2_aux_perframe=float(rel_l2_aux[:n_scored].mean()),
         qoi_pred=qoi_pred,
         qoi_true=qoi_true,
         qoi_error={name: qoi_pred[name] - qoi_true[name] for name in qoi_pred},

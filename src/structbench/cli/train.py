@@ -2618,16 +2618,14 @@ def evaluate(
             "rollout_position_rmse": result.mean_position_rmse,
             "rollout_aux_rmse": result.mean_aux_rmse,
             # Rollout relative L2: the pooled space+time headline (ADR-0055
-            # follow-up amendment) plus the per-frame-mean secondary. Relative L2
-            # is a rollout-only metric — the one-step diagnostic stays RMSE, the
-            # form the GNS/MeshGraphNets lineage reports (no one-step relative L2
-            # exists in that literature; verified 2026-08-16).
+            # follow-up amendment). Rollout-only and pooled-only — the one-step
+            # diagnostic stays RMSE (the form the GNS/MeshGraphNets lineage
+            # reports), and the per-frame-mean variant was dropped (2026-08-16):
+            # it blew up on zero-start aux fields and matched no reported
+            # convention (the crash line uses per-timestep RMSE, served by the
+            # per-frame position-RMSE diagnostic).
             "rollout_rel_l2_displacement": result.mean_rel_l2_displacement,
             "rollout_rel_l2_aux": result.mean_rel_l2_aux,
-            "rollout_rel_l2_displacement_perframe": (
-                result.mean_rel_l2_displacement_perframe
-            ),
-            "rollout_rel_l2_aux_perframe": result.mean_rel_l2_aux_perframe,
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
             # frame to trajectory end. Non-leaderboard; equals the scored value
             # when the benchmark pins no horizon. Field name matches the
@@ -2710,12 +2708,6 @@ def evaluate(
                 "rollout_rel_l2_displacement"
             ),
             "rollout_rel_l2_aux": _mean_over_cases("rollout_rel_l2_aux"),
-            "rollout_rel_l2_displacement_perframe": _mean_over_cases(
-                "rollout_rel_l2_displacement_perframe"
-            ),
-            "rollout_rel_l2_aux_perframe": _mean_over_cases(
-                "rollout_rel_l2_aux_perframe"
-            ),
             "rollout_position_rmse_full": _mean_over_cases(
                 "rollout_position_rmse_full"
             ),
@@ -2878,19 +2870,12 @@ def _print_split_report(metrics: dict[str, Any]) -> None:
     )
     # Rollout relative-L2 (ADR-0055), dimensionless and rollout-only; .get()
     # tolerates a metrics dict predating this metric (older re-printed records).
-    # The headline is pooled space+time (ADR-0055 follow-up); the per-frame-mean
-    # is printed beneath it as the retained secondary.
+    # The headline is pooled space+time (ADR-0055 follow-up).
     print(
         f"[{split}] rollout rel-L2 disp (pooled) "
         f"{_fmt(mean.get('rollout_rel_l2_displacement'))}"
         f" | rollout rel-L2 {aux_field} (pooled) "
         f"{_fmt(mean.get('rollout_rel_l2_aux'))}"
-    )
-    print(
-        f"[{split}] rollout rel-L2 disp (per-frame) "
-        f"{_fmt(mean.get('rollout_rel_l2_displacement_perframe'))}"
-        f" | rollout rel-L2 {aux_field} (per-frame) "
-        f"{_fmt(mean.get('rollout_rel_l2_aux_perframe'))}"
     )
     qoi = ", ".join(
         f"{name} {value:.4f}" for name, value in mean["qoi_abs_error"].items()

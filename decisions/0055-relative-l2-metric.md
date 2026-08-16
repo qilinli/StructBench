@@ -166,8 +166,8 @@ the whole concatenated trajectory flattened to `[B, -1]` (pooled space+time per
 sample), `/ntest`. The maintained Neural-Solver-Library reports only this pooled
 number; GeoTransolver states it explicitly (`ε_L2 = Σⱼ‖x̃ⱼ−xⱼ‖₂ / Σⱼ‖xⱼ‖₂` over the
 predicted *spatiotemporal* response). The crash sub-line (GeoFLARE, NVIDIA
-PhysicsNeMo) **diverges** to a per-timestep error curve — which is why per-frame-mean
-is retained as a secondary, not discarded.
+PhysicsNeMo) **diverges** to a per-timestep error curve — but reports it as per-step
+*RMSE*, not a per-step relative L2 (see the per-frame-mean note below).
 
 **Revised decision B — the headline is pooled per trajectory, per quantity.**
 `rollout_rel_l2_displacement` and `rollout_rel_l2_aux` are each computed by flattening
@@ -182,9 +182,17 @@ and frame-0 displacement reference as before. `eps = 1e-12` is a pure exact-zero
 (degenerate fixtures only), **not** a scale knob — the pooled denominator is the whole
 trajectory's field energy and cannot be driven near zero by an early ~0 frame.
 
-**Per-frame-mean retained as a SECONDARY metric** (`rollout_rel_l2_*_perframe`) for
-comparability with the GeoFLARE / PhysicsNeMo crash line (per-timestep error). It is
-never the headline — it is the unguarded quantity that blows up on zero-start fields.
+**A per-frame-mean secondary was briefly added, then dropped (2026-08-16).** It was
+meant for crash-line comparability, but (a) it blew up empirically — the first pooled
+re-eval gave `rollout_rel_l2_aux_perframe = 5.7×10⁸` on Taylor (von Mises ~0 pre-impact),
+because per-frame-mean divides each frame by its own near-zero reference norm; and (b)
+its comparability rationale did not hold — the crash line (GeoFLARE Eq.18-20, PhysicsNeMo
+`compute_l2_error.py`) reports per-timestep *RMSE*, not a per-timestep relative L2, and
+StructBench already serves that per-step view with the per-frame **position RMSE**
+diagnostic (the error-vs-time figure). So relative L2 is **pooled-only**: one robust
+headline number per quantity, nothing that can blow up. (The per-frame `relative_l2`
+function is kept as a reference utility + a metrics test, purely to document the
+fragility that motivates pooling.)
 
 **Relative L2 is a ROLLOUT-only metric; one-step stays RMSE.** A second code-grounded
 literature review (deep-research, 2026-08-16) established that the one-step

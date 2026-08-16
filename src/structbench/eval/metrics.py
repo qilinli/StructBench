@@ -99,12 +99,15 @@ def relative_l2(
 ) -> NDArray[np.float64]:
     """Per-frame relative L2 error of a per-particle field (ADR-0055).
 
-    Relative L2 is ``‖û − u‖₂ / max(‖u‖₂, ε)`` over the scored particles — the
-    metric the neural-operator literature reports almost universally (Wu et al.
-    Transolver, Li et al. FNO/Geo-FNO, GNOT, the crash-operator papers). It is
-    reported **alongside** the physical-unit RMSEs for cross-paper
-    comparability, never as a replacement (ADR-0055): the RMSEs remain
-    StructBench's engineering headline and blessed/gate anchors.
+    Relative L2 is ``‖û − u‖₂ / max(‖u‖₂, ε)`` over the scored particles, one
+    value per frame. This **per-frame** form is a reference utility, NOT a
+    reported metric: the reported relative L2 is the pooled space+time
+    :func:`relative_l2_pooled` (ADR-0055 pooled follow-up, 2026-08-16). The
+    per-frame form is retained because it makes the fragility that motivates
+    pooling explicit — dividing each frame by its own reference norm blows up on
+    a field that starts at ~0 (e.g. von Mises stress before impact), which the
+    pooled denominator (the whole-trajectory norm) avoids. See the metrics test
+    contrasting the two.
 
     Parameters
     ----------
@@ -126,9 +129,7 @@ def relative_l2(
     Returns
     -------
     numpy.ndarray
-        Shape ``(T,)``, dimensionless — one relative L2 value per frame, the
-        per-frame form mirroring :func:`position_rmse` so the caller can mean
-        it over the scored horizon (ADR-0055 decision B).
+        Shape ``(T,)``, dimensionless — one relative L2 value per frame.
     """
     pred = np.asarray(pred_field, float)
     gt = np.asarray(gt_field, float)
