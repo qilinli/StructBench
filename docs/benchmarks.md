@@ -8,7 +8,6 @@ Note: `sph/stress` and `sph/strain` are full 6-component Voigt tensors; each ben
 | Benchmark | Solver | Discretisation | Erosion | Loading | Cases | Particles | Frames | Aux target |
 |---|---|---|---|---|---|---|---|---|
 | DeformingPlate | COMSOL | FEM | no | Scripted rigid actuator (OBSTACLE nodes, kinematic); HANDLE nodes fixed | 1200 | 672-2189 | 400 | von_mises_stress (MPa) |
-| NotchBeam2D-Bend | LS-DYNA | SPH | no | constant-velocity pin, 3-point bend, 8-20 mm/s | 111 | 2394-8280 | 502 | max_principal_strain (-) |
 | NotchBeam2D-Impact | LS-DYNA | SPH | no | drop-weight impact, initial velocity 40-160 m/s, impactor shapes Bullet/Rectangular/Sphere | 110 | 4264-12966 | 502 | max_principal_strain (-) |
 | Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4800-8000 | 152 | von_mises_stress (MPa) |
 | Wave1D-Propagation | LS-DYNA | SPH | no | initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (4-11 traversals per trajectory, by bar length) | 16 | 500-1250 | 302 | axial_stress (MPa) |
@@ -28,22 +27,6 @@ Quasi-static deformation of a hyperelastic 3D plate pressed by a scripted rigid 
 - **Provenance**: MeshGraphNets dataset (Pfaff et al., ICLR 2021; COMSOL ground truth), downloaded from the DeepMind source bucket and converted locally to canonical HDF5 (ADR-0042; not redistributed).
 - **License**: None stated by the source; downloaded from source, not redistributed (ADR-0042)
 - **Full page**: [docs/benchmarks/deforming_plate.md](benchmarks/deforming_plate.md)
-
-## NotchBeam2D-Bend (v0.1)
-
-Autoregressive next-step surrogate of a 2D SPH notched concrete beam under constant-velocity three-point bending (ADR-0026). Covers 3 spans, 9 load-notch combinations, and 4 pin velocities.
-
-- **Task**: autoregressive transition (ADR-0026)
-- **Materials**: *MAT_CONCRETE_DAMAGE_REL3 (K&C; density 2.4e-6 kg/mm3), *MAT_PLASTIC_KINEMATIC
-- **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units kg-mm-ms
-- **Splits**: train 88, val 8, test_interp 12, probe 3
-- **Protocol** (ADR-0032, ADR-0035): 6 input frames, horizon full, scored at native output times. *Rationale*: Provisional (ADR-0035): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length; the mandatory GT timeline analysis has not yet run for this dataset (ingested data lives on the ingestion machine), so 6 is not yet confirmed to sit before the onset of non-rigid motion. Confirm before the first trained baseline. The cracked_fraction QoI threshold 0.01 is a declared protocol definition (ADR-0029, amended 2026-08-06): the SPH source model has no erosion or crack criterion, and a 221-case sweep shows no empirical knee — the GT fraction shifts ~0.03 mean per case across the factor-2 band [0.005, 0.02].
-- **QoIs**: midspan_deflection_peak, cracked_fraction
-- **Baseline**: *no official baseline yet*
-- **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
-- **Provenance**: LS-DYNA parametric sweep (3 spans x 9 load-notch combos x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
-- **License**: CC BY 4.0
-- **Full page**: [docs/benchmarks/notch_beam_2d_bend.md](benchmarks/notch_beam_2d_bend.md)
 
 ## NotchBeam2D-Impact (v0.1)
 

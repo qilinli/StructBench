@@ -4,7 +4,6 @@ Each benchmark has its own env var, pointing at its canonical archive
 directory (ADR-0031 layout: <data>/StructBench/canonical/<benchmark>/):
   STRUCTBENCH_DATA_ROOT              — taylor_impact_2d
   STRUCTBENCH_WAVE1D_DATA_ROOT       — wave_propagation_1d
-  STRUCTBENCH_NOTCH_BEND_DATA_ROOT   — notch_beam_2d_bend
   STRUCTBENCH_NOTCH_IMPACT_DATA_ROOT — notch_beam_2d_impact
   STRUCTBENCH_DEFORMING_PLATE_DATA_ROOT — deforming_plate
 
@@ -20,7 +19,6 @@ from structbench.benchmarks import get_benchmark
 from structbench.core.io import read_case
 
 _BENCHMARK_ROOTS = {
-    "notch_beam_2d_bend": os.environ.get("STRUCTBENCH_NOTCH_BEND_DATA_ROOT"),
     "notch_beam_2d_impact": os.environ.get("STRUCTBENCH_NOTCH_IMPACT_DATA_ROOT"),
     "taylor_impact_2d": os.environ.get("STRUCTBENCH_DATA_ROOT"),
     "wave_propagation_1d": os.environ.get("STRUCTBENCH_WAVE1D_DATA_ROOT"),

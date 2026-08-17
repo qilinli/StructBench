@@ -103,6 +103,7 @@ What becomes easier, harder, or constrained as a result.
 | 0053 | Decouple model history (`history_frames`) from the `input_frames` seed / scored-span protocol | Durable | Accepted |
 | 0054 | Transolver time-conditioning: the native non-autoregressive prediction scheme | Durable | Accepted |
 | 0055 | Relative-L2 as the headline metric (amended: headline, RMSE retained secondary) | Durable | Accepted |
+| 0056 | Descope notch-bend: the notch-beam benchmark narrows to notch-impact (redundant with impact; amends 0024/0026) | Durable | Proposed |
 
 ---
 

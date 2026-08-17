@@ -8,7 +8,6 @@ from structbench.benchmarks import get_benchmark
 @pytest.mark.parametrize(
     ("name", "interior", "n_probes"),
     [
-        ("notch_beam_2d_bend", {"12", "16"}, 3),
         ("notch_beam_2d_impact", {"80", "120"}, 2),
     ],
 )
