@@ -247,13 +247,6 @@ def _leaderboard(spec: BenchmarkSpec) -> list[str]:
             "recorded (blessed or provisional).*"
         )
         return lines
-    lines += [
-        "The headline metric is the pooled space+time relative L2 (↓ lower is "
-        "better); the Scheme column is the prediction scheme. RMSE and "
-        "quantities of interest are shown for the in-distribution "
-        "`test_interp` split.",
-        "",
-    ]
     # Global first-seen metric order: results in declaration order, each
     # result's splits in card order (mirrors _baseline_line's per-result rule).
     metric_order: list[str] = []
@@ -264,9 +257,22 @@ def _leaderboard(spec: BenchmarkSpec) -> list[str]:
                     metric_order.append(metric)
     rel_l2, rmse, qoi = _partition_metrics(metric_order)
     # Trim (2026-08-16): headline spans all splits; RMSE and QoI show
-    # test_interp only, and RMSE drops the one-step diagnostic columns.
+    # the in-distribution split only, and RMSE drops the one-step diagnostics.
     rmse = [k for k in rmse if "one_step" not in k]
-    interp = ["test_interp"] if "test_interp" in spec.splits else list(spec.splits)[:1]
+    # The trimmed tiers show the in-distribution scored split: prefer
+    # ``test_interp`` where the benchmark splits it out, else the first split
+    # that actually carries metrics (e.g. a single ``test`` split on
+    # DeformingPlate) - never ``train``/``val``, which are unscored.
+    scored = [s for s in spec.splits if any(s in r.metrics for r in spec.results)]
+    interp = ["test_interp"] if "test_interp" in scored else scored[:1]
+    trimmed = f"`{interp[0]}`" if interp else "the in-distribution"
+    lines += [
+        "The headline metric is the pooled space+time relative L2 (↓ lower is "
+        "better); the Scheme column is the prediction scheme. RMSE and "
+        f"quantities of interest are shown for the in-distribution {trimmed} "
+        "split.",
+        "",
+    ]
     tiers = (
         (_LEADERBOARD_TIERS[0], rel_l2, list(spec.splits)),
         (_LEADERBOARD_TIERS[1], rmse, interp),

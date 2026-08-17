@@ -2,6 +2,50 @@
 
 # DeformingPlate — StructBench benchmark
 
+## The problem
+
+A rigid actuator presses into a soft hyperelastic plate, indenting it and
+wrapping the sheet around the tool while a stress field builds through the
+material. **DeformingPlate** is the 3D quasi-static benchmark from
+MeshGraphNets (Pfaff et al. 2021): a tetrahedral plate held along one edge
+(HANDLE nodes) and pushed by a scripted rigid obstacle, solved to static
+equilibrium at each load step in COMSOL. It is StructBench's first 3D
+benchmark and its first with an irregular, per-case mesh (672-2189 nodes) - a
+test of whether a surrogate can cope with genuine 3D geometry, contact with a
+moving tool, and a ragged node count, not just a fixed 2D lattice.
+
+The task is an **autoregressive load-stepping rollout**: from a two-frame
+prefix the model advances the mesh one pseudo-time step at a time to the end
+of the trajectory (400 steps), predicting both the nodal displacement and the
+per-node von Mises stress. Time here is a load-step index, not milliseconds -
+the source solve is quasi-static (dt = 0 in the data).
+
+## Cross-method comparison
+
+DeformingPlate is where StructBench's headline is **method against method**.
+MeshGraphNets is the *blessed* reference: its rollout reproduces the published
+number (pooled position RMSE inside the reported band, ADR-0043), anchoring the
+benchmark to a result the field already trusts. Against it run two provisional
+native operators - **Transolver** (Physics-Attention) and **GeoFLARE**
+(geometry-aware attention with a low-rank routing engine) - both adapted here
+to autoregressive rollout (ADR-0044/0045). Everything is scored in physical
+units - displacement RMSE in mm, the von Mises field in MPa - with two
+quantities of interest reading the engineering outcome: peak von Mises stress
+and terminal peak deflection. On this smooth, quasi-static task the operators'
+freedom from a fixed mesh graph tells: both outrun the mesh-based reference on
+displacement (Transolver by ~3x on relative L2), while MGN's stress field
+degrades under rollout. The leaderboard is below.
+
+## Figures
+
+![Four-panel animation: ground truth and MGN, Transolver, GeoFLARE predictions of the deforming plate's von Mises stress.](../../assets/deforming_plate_rollout_methods.gif)
+
+*Ground truth vs the three baselines (MGN, Transolver, GeoFLARE) on test_0028, the deformable plate coloured by von Mises stress over the press-release rollout — the rigid actuator indents the sheet to ~65 mm and then retracts. Transolver tracks the stress concentration and the bowl geometry most closely; GeoFLARE captures the shape but diffuses the stress; MGN's von Mises saturates far above ground truth and its mesh distorts. Transolver and GeoFLARE are provisional native baselines (ADR-0044/0045).*
+
+![Grid of von Mises snapshots: ground truth and MGN, Transolver, GeoFLARE predictions of the deforming plate at peak deflection.](../../assets/deforming_plate_vm_methods.png)
+
+*von Mises stress at peak deflection (test_0028, step 360/400): ground truth vs MGN, Transolver, GeoFLARE. Transolver reproduces the fold-line stress concentration most faithfully (rollout displacement relative L2 0.27, von Mises 0.24); GeoFLARE under-concentrates the stress (0.57 / 0.35); MGN over-predicts the field almost everywhere — von Mises relative L2 4.21, worse than a zero baseline on 96 of 100 cases — and tears the mesh, even though its pooled position error stays inside the blessed band. This is the ranking the leaderboard reports.*
+
 ## Data at a glance
 
 - Solver: COMSOL (FEM; erosion: no)
@@ -33,11 +77,45 @@ input_frames=2 is the floor (a velocity needs two frames) and the faithful value
 
 ## Leaderboard
 
-*No results yet — method entries land here as runs are recorded (blessed or provisional).*
+The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. RMSE and quantities of interest are shown for the in-distribution `test` split.
+
+_Headline — pooled relative L2 (↓ better)_
+
+| Method | Scheme | test·disp | test·aux |
+|---|---|---|---|
+| MGN | autoregressive | 0.8092 | 4.209 |
+| Transolver | autoregressive | 0.2681 | 0.24 |
+| GeoFLARE | autoregressive | 0.5729 | 0.3513 |
+
+_Trajectory error — RMSE_
+
+| Method | Scheme | test·pos (mm) | test·vm (MPa) |
+|---|---|---|---|
+| MGN | autoregressive | 11.25 | 0.1168 |
+| Transolver | autoregressive | 2.929 | 0.009137 |
+| GeoFLARE | autoregressive | 4.876 | 0.0136 |
+
+_Quantities of interest (MAE)_
+
+| Method | Scheme | test·peak_vm (MPa) | test·terminal_deflection (mm) |
+|---|---|---|---|
+| MGN | autoregressive | 2.94 | 47.39 |
+| Transolver | autoregressive | 0.01915 | 6.172 |
+| GeoFLARE | autoregressive | 0.03846 | 10.26 |
 
 ## Baseline details
 
-*No official baseline yet — the reference run's metrics land here.*
+**MGN** (mgn, 2026-08-15, commit `0f103b5`, checkpoint: `models/deforming_plate/mgn-0f103b5/model-best-2200000.pt` — private archive; publication parked)
+
+*Native MeshGraphNets (ADR-0042/0043): autoregressive next-step on the 3D tetrahedral mesh with world edges (activation-checkpointed, commit 0f103b5). BLESSED: its pooled test position RMSE, 11.25 mm (x10^-3 dataset-native length units), falls inside the published band 15.1 +/- 4.0 that four later papers corroborate (ADR-0043), so it reproduces the reference deformation result the field trusts - at the optimistic edge of the band. The 10M-step blessing budget was cut at the val-selected 2.2M checkpoint (model-best-2200000.pt), in-band and plateaued (ADR-0043 dated note). Position is strong, but the von Mises FIELD collapses under rollout: relative L2 4.21 (worse than a zero baseline on 96 of 100 cases) and rollout von Mises RMSE 0.117 MPa, ~13x the operators - a pure autoregressive-accumulation artifact (one-step von Mises RMSE 0.0081 MPa is fine). The published DeformingPlate result gates on position only; stress is a StructBench secondary. Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
+
+**Transolver** (transolver, 2026-08-11, commit `84df162`)
+
+*Native Transolver (Physics-Attention), provisional autoregressive adaptation on the DeformingPlate rollout (ADR-0044): a best-effort native implementation, not validated against a published Transolver-DeformingPlate number. Val-selected model-best-4000000.pt. It is the strongest baseline on this benchmark by a wide margin - ~3x lower displacement relative L2 than the blessed MGN (0.268 vs 0.809) and ~4x lower position RMSE (2.93 vs 11.25 mm) - because its global attention is not tied to a fixed mesh graph and it accumulates little rollout error on smooth quasi-static deformation (von Mises relative L2 0.240 vs MGN 4.21). Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
+
+**GeoFLARE** (geoflare, 2026-08-14, commit `84df162`)
+
+*Native GeoFLARE - GeoTransolver with the FLARE low-rank attention backend (attention_type GALE_FA) - provisional autoregressive adaptation on the DeformingPlate rollout (ADR-0045): a best-effort native implementation, not validated against a published number. Val-selected model-best-6600000.pt. It sits between Transolver and MGN: displacement relative L2 0.573 (vs Transolver 0.268, MGN 0.809) and position RMSE 4.88 mm - clearly beating the blessed reference but trailing the plain Physics-Attention operator on this task. Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
 
 ## Quickstart
 
@@ -47,4 +125,12 @@ structbench-train --mode train --config configs/deforming_plate/mgn.toml \
     --data-root /path/to/deforming_plate --out runs/deforming_plate-mgn
 ```
 
+This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
+
 Dataset access: the canonical archive is maintainer-held on institutional storage and shared on request (ADR-0040) — contact the maintainer, or ingest your own LS-DYNA output via the adapter; see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
+
+## References
+
+- **MGN** — Pfaff, T., Fortunato, M., Sanchez-Gonzalez, A., & Battaglia, P. W. (2021). Learning Mesh-Based Simulation with Graph Networks. *ICLR*. https://arxiv.org/abs/2010.03409
+- **Transolver** — Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: A Fast Transformer Solver for PDEs on General Geometries. *ICML*. https://arxiv.org/abs/2402.02366
+- **GeoFLARE** — Adams, R., et al. (NVIDIA). GeoTransolver. arXiv:2512.20399; with Puri, R., et al. FLARE: Fast Low-rank Attention Routing Engine. arXiv:2508.12594. GeoFLARE is GeoTransolver with the FLARE attention backend (attention_type GALE_FA; ADR-0045).
