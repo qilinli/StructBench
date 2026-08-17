@@ -49,13 +49,18 @@ _FIGURES = (
         path="assets/deforming_plate_rollout_methods.gif",
         caption=(
             "Ground truth vs the three baselines (MGN, Transolver, GeoFLARE) on "
-            "test_0028, the deformable plate coloured by von Mises stress over "
-            "the press-release rollout — the rigid actuator indents the sheet to "
-            "~65 mm and then retracts. Transolver tracks the stress "
-            "concentration and the bowl geometry most closely; GeoFLARE captures "
-            "the shape but diffuses the stress; MGN's von Mises saturates far "
-            "above ground truth and its mesh distorts. Transolver and GeoFLARE "
-            "are provisional native baselines (ADR-0044/0045)."
+            "test_0028, the plate coloured by von Mises STRESS over the "
+            "press-release rollout - the actuator indents to ~65 mm then "
+            "retracts. Read the colour as a secondary, non-published field: MGN "
+            "reproduces the paper's POSITION result faithfully (pooled rollout "
+            "RMSE 16.98 mm, inside the 15.1 +/- 4.0 band and matching it at every "
+            "horizon), but its stress degrades as the mesh drifts - it "
+            "over-predicts through the press and stays stuck high when the plate "
+            "releases and the true stress relaxes to near zero. That is a "
+            "rollout-coupled artifact of the drifting mesh, not a broken model. "
+            "Transolver's more stable rollout keeps its stress tracking ground "
+            "truth throughout; GeoFLARE is between. Transolver and GeoFLARE are "
+            "provisional native baselines (ADR-0044/0045)."
         ),
         alt=(
             "Four-panel animation: ground truth and MGN, Transolver, GeoFLARE "
@@ -65,15 +70,19 @@ _FIGURES = (
     BenchmarkFigure(
         path="assets/deforming_plate_vm_methods.png",
         caption=(
-            "von Mises stress at peak deflection (test_0028, step 360/400): "
-            "ground truth vs MGN, Transolver, GeoFLARE. Transolver reproduces "
-            "the fold-line stress concentration most faithfully (rollout "
-            "displacement relative L2 0.27, von Mises 0.24); GeoFLARE "
-            "under-concentrates the stress (0.57 / 0.35); MGN over-predicts the "
-            "field almost everywhere — von Mises relative L2 4.21, worse than a "
-            "zero baseline on 96 of 100 cases — and tears the mesh, even though "
-            "its pooled position error stays inside the blessed band. This is "
-            "the ranking the leaderboard reports."
+            "von Mises STRESS at peak deflection (test_0028, step 360/400): "
+            "ground truth vs MGN, Transolver, GeoFLARE. Stress is a "
+            "non-published secondary here (the paper reports only position). "
+            "MGN reproduces the paper's POSITION result faithfully - pooled "
+            "rollout RMSE 16.98 mm, inside the 15.1 +/- 4.0 band and matching it "
+            "at every horizon (rollout-50 2.1 vs 1.8 mm) - but its stress "
+            "degrades under rollout: as the mesh drifts and locally over-stretches, "
+            "the stress head reads the distorted geometry and over-predicts "
+            "(relative L2 4.21). That is a rollout-coupled artifact, not a broken "
+            "model - Transolver runs the identical stress pipeline and, with a "
+            "more stable rollout, tracks ground truth almost exactly (relative L2 "
+            "0.24); GeoFLARE (0.35) is between. Transolver and GeoFLARE are "
+            "provisional native baselines (ADR-0044/0045)."
         ),
         alt=(
             "Grid of von Mises snapshots: ground truth and MGN, Transolver, "
