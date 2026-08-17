@@ -90,14 +90,17 @@ def test_checkpoint_pointer_with_digest_constructs():
     assert result.checkpoint_sha256 == "0" * 64
 
 
-def test_taylor_wave_and_notch_impact_are_the_blessed_benchmarks():
-    # blessed_results excludes provisional entries; today every RESULTS
-    # tuple is entirely blessed, so this must name the same set as before.
+def test_every_benchmark_carries_a_blessed_baseline():
+    # blessed_results excludes provisional entries. Every benchmark now carries
+    # exactly one blessed reference (CGN on taylor/wave/notch, MGN on the
+    # DeformingPlate cross-method benchmark, ADR-0043); the provisional native
+    # operators (ADR-0044/0045) sit alongside them.
     blessed = {n for n in available_benchmarks() if get_benchmark(n).blessed_results}
     assert blessed == {
         "taylor_impact_2d",
         "wave_propagation_1d",
         "notch_beam_2d_impact",
+        "deforming_plate",
     }
 
 
@@ -135,7 +138,12 @@ def test_blessed_entries_point_at_the_models_archive():
     # ADR-0037: blessed entries carry an archive-relative pointer + digest.
     # Provisional native baselines (ADR-0044/0045) are local runs, not archived,
     # so they are exempt — only the blessed entries must point at the archive.
-    for name in ("taylor_impact_2d", "wave_propagation_1d", "notch_beam_2d_impact"):
+    for name in (
+        "taylor_impact_2d",
+        "wave_propagation_1d",
+        "notch_beam_2d_impact",
+        "deforming_plate",
+    ):
         blessed = [r for r in get_benchmark(name).results if not r.provisional]
         assert blessed, name
         for result in blessed:
