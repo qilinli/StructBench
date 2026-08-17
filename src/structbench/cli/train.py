@@ -2625,6 +2625,13 @@ def evaluate(
             "one_step_aux_rmse": (
                 None if one_step_aux is None else float(one_step_aux[:n_scored].mean())
             ),
+            # NB: this is the StructBench leaderboard's MEAN-OF-PER-STEP RMSE
+            # (ADR-0019 SS5), NOT the paper's pooled space+time RMSE. For any
+            # benchmark with a published pooled anchor (e.g. DeformingPlate's
+            # 15.1+/-4.0, ADR-0043), gate/register against the pooled statistic
+            # from tools/blessing_pooled_rmse.py instead - the two differ and
+            # conflating them destroys comparability (the DP registry pins the
+            # pooled convention for exactly this reason).
             "rollout_position_rmse": result.mean_position_rmse,
             "rollout_aux_rmse": result.mean_aux_rmse,
             # Rollout relative L2: the pooled space+time headline (ADR-0055
