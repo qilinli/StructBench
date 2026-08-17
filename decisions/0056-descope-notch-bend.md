@@ -1,6 +1,6 @@
 # 0056 — Descope notch-bend: the notch-beam benchmark narrows to notch-impact
 
-**Status**: Proposed (agent draft; maintainer finalises)
+**Status**: Accepted (maintainer approved in-session, 2026-08-17)
 **Type**: Durable
 **Date**: 2026-08-17
 

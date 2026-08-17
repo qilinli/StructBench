@@ -29,8 +29,11 @@ for the full problem, data, and numbers to beat.*
 
 Full cards (solver, materials, splits, QoIs): [docs/benchmarks.md](docs/benchmarks.md).
 Every benchmark fixes its task, split, and evaluation protocol in an ADR —
-changing any of them is a new benchmark version — and all metrics are
-reported in physical units (mm, MPa), never dimensionless scores.
+changing any of them is a new benchmark version. The headline metric is a
+pooled space+time **relative L2** — the convention the neural-operator
+literature reports, so StructBench numbers read directly against published
+tables — with physical-unit RMSE (mm, MPa) and engineering quantities of
+interest retained alongside it (ADR-0055).
 
 ## Why
 
