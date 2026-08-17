@@ -17,7 +17,7 @@
                                             # (~109k steps/h at ~1.3k nodes) puts taylor's
                                             # ~8.2k nodes at ~17k steps/h -> ~6 h for 100k;
                                             # 2 d covers a large misestimate.
-#SBATCH --output=logs/slurm-taylor-transolver-%j.out    # logs/ must exist BEFORE sbatch
+#SBATCH --output=scratch/logs/slurm-taylor-transolver-%j.out    # scratch/logs/ must exist BEFORE sbatch
 
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"

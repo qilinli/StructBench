@@ -27,7 +27,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=12:00:00
-#SBATCH --output=logs/slurm-ablate-%x-%j.out   # job stdout in logs/ (gitignored), not the repo root
+#SBATCH --output=scratch/logs/slurm-ablate-%x-%j.out   # job stdout in scratch/logs/ (gitignored), not the repo root
 
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"

@@ -27,7 +27,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=2-00:00:00
-#SBATCH --output=logs/slurm-%x-%j.out       # logs/ must exist BEFORE sbatch
+#SBATCH --output=scratch/logs/slurm-%x-%j.out       # scratch/logs/ must exist BEFORE sbatch
 
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"

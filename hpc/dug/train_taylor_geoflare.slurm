@@ -17,7 +17,7 @@
                                             # (~66k steps/h at ~1.3k nodes) puts taylor's
                                             # ~8.2k nodes at ~10k steps/h -> ~10 h for 100k;
                                             # 2 d covers a large misestimate.
-#SBATCH --output=logs/slurm-taylor-geoflare-%j.out    # logs/ must exist BEFORE sbatch
+#SBATCH --output=scratch/logs/slurm-taylor-geoflare-%j.out    # scratch/logs/ must exist BEFORE sbatch
 
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"

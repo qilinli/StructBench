@@ -32,3 +32,6 @@ PY
 echo
 echo "Env ready. 'available False' HERE is expected -- login nodes usually have"
 echo "no GPU. It will be True inside the SLURM GPU job (train_taylor.slurm)."
+
+# SLURM --output dir (gitignored, under scratch/); must exist before sbatch
+mkdir -p scratch/logs

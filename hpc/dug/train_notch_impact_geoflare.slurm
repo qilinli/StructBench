@@ -17,7 +17,7 @@
 #SBATCH --time=2-00:00:00                   # ceiling. The taylor GeoFLARE arm measured ~17.5k
                                             # steps/h at ~8.2k nodes -> ~14-20 h for 250k;
                                             # 2 d is a generous ceiling.
-#SBATCH --output=logs/slurm-notch-geoflare-%j.out    # logs/ must exist BEFORE sbatch
+#SBATCH --output=scratch/logs/slurm-notch-geoflare-%j.out    # scratch/logs/ must exist BEFORE sbatch
 
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"

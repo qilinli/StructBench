@@ -18,7 +18,7 @@
                                             # at ~8.2k nodes; notch cases are 4.3-8.4k nodes
                                             # -> ~250k steps in roughly 1.5-2.5 d; 4 d covers
                                             # the val-rollout overhead (8 cases x 244 steps).
-#SBATCH --output=logs/slurm-notch-mgn-%j.out    # logs/ must exist BEFORE sbatch
+#SBATCH --output=scratch/logs/slurm-notch-mgn-%j.out    # scratch/logs/ must exist BEFORE sbatch
 
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
