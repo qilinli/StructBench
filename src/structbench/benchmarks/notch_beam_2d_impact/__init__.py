@@ -48,15 +48,41 @@ RESULTS: tuple[BaselineResult, ...] = (
             "https://arxiv.org/abs/2010.03409"
         ),
         provisional=True,
-        pending=True,
         run_commit="59d5786",
-        run_date="2026-08-16",
-        metrics={},
+        run_date="2026-08-17",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.2245,
+                "rollout_rel_l2_aux": 0.6988,
+                "rollout_pos_rmse_mm": 0.1984,
+                "rollout_strain_rmse": 0.01997,
+                "one_step_pos_rmse_mm": 0.001448,
+                "one_step_strain_rmse": 0.0009101,
+                "qoi_midspan_deflection_peak_mae_mm": 0.5842,
+                "qoi_cracked_fraction_mae": 0.1081,
+            },
+            "probe": {
+                "rollout_rel_l2_disp": 0.7672,
+                "rollout_rel_l2_aux": 1.255,
+                "rollout_pos_rmse_mm": 0.2834,
+                "rollout_strain_rmse": 0.02077,
+                "one_step_pos_rmse_mm": 0.002156,
+                "one_step_strain_rmse": 0.001003,
+                "qoi_midspan_deflection_peak_mae_mm": 0.7027,
+                "qoi_cracked_fraction_mae": 0.2225,
+            },
+        },
         notes=(
-            "Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair), "
-            "autoregressive next-step. PLACEHOLDER: the notch-mgn-base run is "
-            "still training (~230k/250k steps); its pooled numbers land here on "
-            "completion. PROVISIONAL (ADR-0044/0045)."
+            "Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): "
+            "autoregressive next-step on the SPH particle set as a mesh, "
+            "val-selected model-best-212000.pt, seed 2 of the s1-s2 pair, run "
+            "notch-mgn-base-s2. PROVISIONAL (ADR-0044/0045). On test_interp it "
+            "roughly matches CGN (displacement relative L2 0.22 vs 0.28) and "
+            "both trail Transolver ~6x; on the off-centre triple-OOD PROBE the "
+            "relative-position message passing degrades more gracefully than the "
+            "global-attention operator (disp 0.77 vs Transolver 1.05), though "
+            "CGN is best there (0.59). Pooled relative L2 headline (ADR-0055) "
+            "from the 2026-08-17 re-eval."
         ),
     ),
     BaselineResult(

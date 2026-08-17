@@ -147,19 +147,19 @@ CARD = BenchmarkCard(
         BenchmarkFigure(
             path="assets/notch_rollout_methods.gif",
             caption=(
-                "Ground truth vs the baselines (CGN, Transolver) on held-out "
-                "NB-I-640-Sphere-c-120 (test_interp): a 640 mm span beam under "
-                "120 m/s sphere impact, coloured by max principal strain "
-                "(fringe capped at 0.05, 5x the 1% crack threshold) over the "
-                "250 µs scored window. Transolver (time-conditioned) tracks the "
-                "central shear wedge and the discrete flexural cracks most "
+                "Ground truth vs the three baselines (MGN, CGN, Transolver) on "
+                "held-out NB-I-640-Sphere-c-120 (test_interp): a 640 mm span "
+                "beam under 120 m/s sphere impact, coloured by max principal "
+                "strain (fringe capped at 0.05, 5x the 1% crack threshold) over "
+                "the 250 µs scored window. Transolver (time-conditioned) tracks "
+                "the central shear wedge and the discrete flexural cracks most "
                 "closely (rollout strain RMSE 0.004); CGN diffuses them into "
-                "streaky bands (0.013). MGN is still training (a pending "
-                "placeholder on the leaderboard)."
+                "streaky bands (0.013); MGN is the diffusest (0.020)."
             ),
             alt=(
-                "Stacked animation of ground-truth, CGN, and Transolver strain "
-                "fringes on a notched concrete beam under drop-weight impact."
+                "Stacked animation of ground-truth, MGN, CGN, and Transolver "
+                "strain fringes on a notched concrete beam under drop-weight "
+                "impact."
             ),
         ),
         BenchmarkFigure(
@@ -167,17 +167,17 @@ CARD = BenchmarkCard(
             caption=(
                 "In-distribution max-principal-strain snapshots (test_interp, "
                 "640 mm span, sphere at 120 m/s) at 12 / 72 / 132 / 192 / "
-                "249 µs across the scored window: ground truth vs CGN vs "
+                "249 µs across the scored window: ground truth vs MGN vs CGN vs "
                 "Transolver. Transolver (rollout strain RMSE 0.004) reproduces "
-                "the shear wedge and the discrete flexural cracks closely, "
-                "while CGN (0.013) smears them into diffuse streaky bands — the "
-                "damage field, not the kinematics, is the open gap. Transolver "
-                "is a provisional native baseline (ADR-0044/0045); MGN is "
-                "pending."
+                "the shear wedge and the discrete flexural cracks closely, while "
+                "CGN (0.013) and MGN (0.020) smear them into diffuse streaky "
+                "bands — the damage field, not the kinematics, is the open gap. "
+                "MGN and Transolver are provisional native baselines "
+                "(ADR-0044/0045)."
             ),
             alt=(
-                "Grid of strain fringe snapshots comparing ground truth, CGN, "
-                "and Transolver at five times."
+                "Grid of strain fringe snapshots comparing ground truth, MGN, "
+                "CGN, and Transolver at five times."
             ),
         ),
     ),

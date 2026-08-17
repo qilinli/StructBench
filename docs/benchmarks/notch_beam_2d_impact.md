@@ -37,13 +37,13 @@ numbers, and the cross-method comparison, are below.
 
 ## Figures
 
-![Stacked animation of ground-truth, CGN, and Transolver strain fringes on a notched concrete beam under drop-weight impact.](../../assets/notch_rollout_methods.gif)
+![Stacked animation of ground-truth, MGN, CGN, and Transolver strain fringes on a notched concrete beam under drop-weight impact.](../../assets/notch_rollout_methods.gif)
 
-*Ground truth vs the baselines (CGN, Transolver) on held-out NB-I-640-Sphere-c-120 (test_interp): a 640 mm span beam under 120 m/s sphere impact, coloured by max principal strain (fringe capped at 0.05, 5x the 1% crack threshold) over the 250 µs scored window. Transolver (time-conditioned) tracks the central shear wedge and the discrete flexural cracks most closely (rollout strain RMSE 0.004); CGN diffuses them into streaky bands (0.013). MGN is still training (a pending placeholder on the leaderboard).*
+*Ground truth vs the three baselines (MGN, CGN, Transolver) on held-out NB-I-640-Sphere-c-120 (test_interp): a 640 mm span beam under 120 m/s sphere impact, coloured by max principal strain (fringe capped at 0.05, 5x the 1% crack threshold) over the 250 µs scored window. Transolver (time-conditioned) tracks the central shear wedge and the discrete flexural cracks most closely (rollout strain RMSE 0.004); CGN diffuses them into streaky bands (0.013); MGN is the diffusest (0.020).*
 
-![Grid of strain fringe snapshots comparing ground truth, CGN, and Transolver at five times.](../../assets/notch_strain_methods_640_c_120.png)
+![Grid of strain fringe snapshots comparing ground truth, MGN, CGN, and Transolver at five times.](../../assets/notch_strain_methods_640_c_120.png)
 
-*In-distribution max-principal-strain snapshots (test_interp, 640 mm span, sphere at 120 m/s) at 12 / 72 / 132 / 192 / 249 µs across the scored window: ground truth vs CGN vs Transolver. Transolver (rollout strain RMSE 0.004) reproduces the shear wedge and the discrete flexural cracks closely, while CGN (0.013) smears them into diffuse streaky bands — the damage field, not the kinematics, is the open gap. Transolver is a provisional native baseline (ADR-0044/0045); MGN is pending.*
+*In-distribution max-principal-strain snapshots (test_interp, 640 mm span, sphere at 120 m/s) at 12 / 72 / 132 / 192 / 249 µs across the scored window: ground truth vs MGN vs CGN vs Transolver. Transolver (rollout strain RMSE 0.004) reproduces the shear wedge and the discrete flexural cracks closely, while CGN (0.013) and MGN (0.020) smear them into diffuse streaky bands — the damage field, not the kinematics, is the open gap. MGN and Transolver are provisional native baselines (ADR-0044/0045).*
 
 ## Data at a glance
 
@@ -82,7 +82,7 @@ _Headline — pooled relative L2 (↓ better)_
 
 | Method | Scheme | interp·disp | interp·aux | probe·disp | probe·aux |
 |---|---|---|---|---|---|
-| MGN *(training)* | autoregressive | — | — | — | — |
+| MGN | autoregressive | 0.2245 | 0.6988 | 0.7672 | 1.255 |
 | CGN | autoregressive | 0.2827 | 0.5876 | 0.5905 | 0.8535 |
 | Transolver | time-conditioned | 0.03517 | 0.2294 | 1.047 | 1.236 |
 
@@ -90,7 +90,7 @@ _Trajectory error — RMSE_
 
 | Method | Scheme | interp·pos (mm) | interp·strain |
 |---|---|---|---|
-| MGN *(training)* | autoregressive | — | — |
+| MGN | autoregressive | 0.1984 | 0.01997 |
 | CGN | autoregressive | 0.2497 | 0.01697 |
 | Transolver | time-conditioned | 0.03365 | 0.006467 |
 
@@ -98,17 +98,15 @@ _Quantities of interest (MAE)_
 
 | Method | Scheme | interp·midspan_deflection_peak (mm) | interp·cracked_fraction |
 |---|---|---|---|
-| MGN *(training)* | autoregressive | — | — |
+| MGN | autoregressive | 0.5842 | 0.1081 |
 | CGN | autoregressive | 0.5843 | 0.1892 |
 | Transolver | time-conditioned | 0.04067 | 0.0212 |
 
-_Rows marked (training) are baselines whose run is still in progress; their numbers land when it completes._
-
 ## Baseline details
 
-**MGN** (mgn, 2026-08-16, commit `59d5786`)
+**MGN** (mgn, 2026-08-17, commit `59d5786`)
 
-*Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair), autoregressive next-step. PLACEHOLDER: the notch-mgn-base run is still training (~230k/250k steps); its pooled numbers land here on completion. PROVISIONAL (ADR-0044/0045).*
+*Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): autoregressive next-step on the SPH particle set as a mesh, val-selected model-best-212000.pt, seed 2 of the s1-s2 pair, run notch-mgn-base-s2. PROVISIONAL (ADR-0044/0045). On test_interp it roughly matches CGN (displacement relative L2 0.22 vs 0.28) and both trail Transolver ~6x; on the off-centre triple-OOD PROBE the relative-position message passing degrades more gracefully than the global-attention operator (disp 0.77 vs Transolver 1.05), though CGN is best there (0.59). Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
 
 **CGN** (cgn, 2026-07-24, commit `5956d81`, checkpoint: `models/notch_beam_2d_impact/cgn-5956d81/model-best-186000.pt` — private archive; publication parked)
 
