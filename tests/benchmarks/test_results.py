@@ -102,11 +102,14 @@ def test_taylor_wave_and_notch_impact_are_the_blessed_benchmarks():
 
 
 def test_taylor_baseline_is_the_cgn_reference_run():
-    (result,) = get_benchmark("taylor_impact_2d").results
-    assert result.family == "cgn"
-    assert result.run_commit == "7be9d4b"
+    # Taylor now carries provisional native baselines (Transolver-TC, MGN)
+    # alongside the blessed CGN reference; pick out the blessed one.
+    results = get_benchmark("taylor_impact_2d").results
+    cgn = next(r for r in results if r.family == "cgn")
+    assert not cgn.provisional
+    assert cgn.run_commit == "7be9d4b"
     # val selects the checkpoint, so only the held-out splits are numbers to beat.
-    assert set(result.metrics) == {"test_interp", "test_extrap"}
+    assert set(cgn.metrics) == {"test_interp", "test_extrap"}
 
 
 def test_wave_baseline_is_the_cgn_reference_run():
@@ -118,20 +121,29 @@ def test_wave_baseline_is_the_cgn_reference_run():
 
 
 def test_notch_impact_baseline_is_the_cgn_reference_run():
-    (result,) = get_benchmark("notch_beam_2d_impact").results
-    assert result.family == "cgn"
-    assert result.run_commit == "5956d81"
+    # notch now carries provisional native baselines (a pending MGN placeholder
+    # and Transolver) alongside the blessed CGN reference; pick out the blessed.
+    results = get_benchmark("notch_beam_2d_impact").results
+    cgn = next(r for r in results if r.family == "cgn")
+    assert not cgn.provisional
+    assert cgn.run_commit == "5956d81"
     # val selects the checkpoint; test_interp and probe are the held-out splits.
-    assert set(result.metrics) == {"test_interp", "probe"}
+    assert set(cgn.metrics) == {"test_interp", "probe"}
 
 
 def test_blessed_entries_point_at_the_models_archive():
     # ADR-0037: blessed entries carry an archive-relative pointer + digest.
+    # Provisional native baselines (ADR-0044/0045) are local runs, not archived,
+    # so they are exempt — only the blessed entries must point at the archive.
     for name in ("taylor_impact_2d", "wave_propagation_1d", "notch_beam_2d_impact"):
-        (result,) = get_benchmark(name).results
-        assert result.checkpoint is not None
-        assert result.checkpoint.startswith(f"models/{name}/cgn-{result.run_commit}/")
-        assert result.checkpoint_sha256 is not None
+        blessed = [r for r in get_benchmark(name).results if not r.provisional]
+        assert blessed, name
+        for result in blessed:
+            assert result.checkpoint is not None
+            assert result.checkpoint.startswith(
+                f"models/{name}/{result.family}-{result.run_commit}/"
+            )
+            assert result.checkpoint_sha256 is not None
 
 
 def test_spec_rejects_result_with_unknown_split():

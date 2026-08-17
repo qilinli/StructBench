@@ -130,3 +130,38 @@ maintainer trained GNS separately per family in the prior work.
 - The kinematic loader differs between the two benchmarks (32-particle
   pin vs 112-particle impactor in three shapes); each module documents
   its own role tables, one more reason the contracts stay separate.
+
+## Amendment (2026-08-15): the Impact probe set is triple-OOD
+
+*Draft by Claude Code; maintainer finalises.* Decision point 5 framed the two
+`S_*` Impact probe cases as testing "new geometry and out-of-range velocity."
+Direct inspection of the frozen splits (2026-08-15) adds a third, decisive
+out-of-distribution axis and sharpens how probe scores should be read.
+
+- **All 108 in-distribution Impact cases (88 train + 8 val + 12 test_interp) are
+  struck exactly at midspan** — impact offset 0.0 mm, verified across every notch
+  variant (a/b/c) and every span. The two `S_*` probe cases are the **only**
+  off-centre impacts (e.g. `S_80_400_V140`: +25 mm ≈ +6.3% off-centre; the beam
+  is centred at x=0 with the impactor above it at x=+25).
+
+So the Impact probe is OOD on **three axes at once**: span (400/800 mm ∉
+{320,480,640}), impactor velocity (∉ {40,80,120,160} m/s), **and an off-centre
+impact — a loading configuration absent from training entirely.** The off-centre
+axis is qualitatively different from the other two: it is not interpolation off a
+grid but a genuinely *new loading mode*.
+
+**Consequence for interpretation.** Probe metrics measure *graceful failure on an
+unseen loading mode*, not ordinary generalisation. Confirmed on the native-scheme
+baselines (2026-08-15): global-attention operators (Transolver time-conditioned,
+GeoFLARE) **mis-localise the whole response to the learned midspan prior** — the
+predicted deformation sits at midspan while the ground truth deforms under the
+off-centre impactor (peak strain and max deflection at x ≈ +21…+26, prediction at
+x ≈ 0). This drives the deflection over-prediction (~10 vs 6.1 mm; midspan is the
+max-leverage point) and the symmetry mismatch. It is why relative-position
+message-passing baselines (MGN, CGN) score *better* on the probe (~0.27–0.40 mm)
+than the operators (~0.6–0.8 mm) despite losing to them 5–8× in-distribution. This
+is verified model behaviour, **not a pipeline bug**: the kinematic impactor is
+prescribed identically to ground truth (kinematic rows GT == prediction to
+0.0000 mm; mask from the case's own `particle_type`, overridden with the case's own
+GT). Recorded in the benchmark card `protocol_rationale`; changes neither the
+scored protocol nor the frozen split lists — only their documented interpretation.

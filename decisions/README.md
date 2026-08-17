@@ -101,6 +101,8 @@ What becomes easier, harder, or constrained as a result.
 | 0050 | Prediction-scheme axis: unified k-frames-per-call (autoregressive ↔ bundled ↔ one-shot) | Durable | Superseded by 0051 (source corrections 2026-08-15) |
 | 0051 | k-frames-per-call implementation (Transolver): resolved decisions, neural-CFL, pushforward | Durable | Accepted (amended 2026-08-15: one-shot impact-velocity conditioning; time-query scheme recorded) |
 | 0053 | Decouple model history (`history_frames`) from the `input_frames` seed / scored-span protocol | Durable | Accepted |
+| 0054 | Transolver time-conditioning: the native non-autoregressive prediction scheme | Durable | Accepted |
+| 0055 | Relative-L2 as the headline metric (amended: headline, RMSE retained secondary) | Durable | Accepted |
 
 ---
 

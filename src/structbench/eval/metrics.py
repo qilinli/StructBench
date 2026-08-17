@@ -91,6 +91,123 @@ def field_rmse(
     return np.sqrt(d.mean(axis=1))
 
 
+def relative_l2(
+    pred_field: NDArray,
+    gt_field: NDArray,
+    mask: NDArray[np.bool_] | None = None,
+    eps: float = 1e-8,
+) -> NDArray[np.float64]:
+    """Per-frame relative L2 error of a per-particle field (ADR-0055).
+
+    Relative L2 is ``‖û − u‖₂ / max(‖u‖₂, ε)`` over the scored particles, one
+    value per frame. This **per-frame** form is a reference utility, NOT a
+    reported metric: the reported relative L2 is the pooled space+time
+    :func:`relative_l2_pooled` (ADR-0055 pooled follow-up, 2026-08-16). The
+    per-frame form is retained because it makes the fragility that motivates
+    pooling explicit — dividing each frame by its own reference norm blows up on
+    a field that starts at ~0 (e.g. von Mises stress before impact), which the
+    pooled denominator (the whole-trajectory norm) avoids. See the metrics test
+    contrasting the two.
+
+    Parameters
+    ----------
+    pred_field, gt_field:
+        Arrays of shape ``(T, P)`` (a scalar field, e.g. the aux field) or
+        ``(T, P, dim)`` (a vector field, e.g. displacement). The L2 norms run
+        over every non-time axis, so a vector field is normed over particles
+        and components jointly.
+    mask:
+        Optional boolean particle mask ``(P,)`` (``True`` keeps the particle);
+        when given, both norms run over kept particles only — the same
+        kinematic/scripted exclusion the RMSE metrics apply (ADR-0026), so the
+        two read over an identical particle set.
+    eps:
+        Floor on the reference norm ``‖u‖₂`` (default ``1e-8``); guards a
+        near-static frame (e.g. displacement ~0 just after seeding) against
+        division by zero (ADR-0055 §4).
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T,)``, dimensionless — one relative L2 value per frame.
+    """
+    pred = np.asarray(pred_field, float)
+    gt = np.asarray(gt_field, float)
+    if mask is not None:
+        pred = pred[:, mask]
+        gt = gt[:, mask]
+    axes = tuple(range(1, gt.ndim))  # all but the time axis
+    err = np.sqrt(((pred - gt) ** 2).sum(axis=axes))
+    ref = np.sqrt((gt**2).sum(axis=axes))
+    return err / np.maximum(ref, eps)
+
+
+def relative_l2_pooled(
+    pred_field: NDArray,
+    gt_field: NDArray,
+    mask: NDArray[np.bool_] | None = None,
+    eps: float = 1e-12,
+) -> float:
+    """Pooled space+time relative L2 of a field over one trajectory (ADR-0055).
+
+    One scalar ratio per trajectory per quantity: the *whole scored rollout* of
+    the quantity is flattened into a single vector — pooling frames × particles ×
+    (the quantity's commensurate vector components) — and
+
+        ``‖pred − gt‖₂ / max(‖gt‖₂, eps)``
+
+    is taken over that pooled vector. This is the aggregation the Transolver
+    family actually reports (thuml ``TestLoss.rel`` and, for time-dependent
+    benchmarks, ``exp_plas.py`` / ``exp_ns.py`` ``test_l2_full`` — the whole
+    concatenated trajectory flattened per sample, ``/ntest``; GeoTransolver's
+    ``ε_L2`` over the predicted spatiotemporal response). It is the **headline**
+    relative-L2 aggregation (ADR-0055 follow-up amendment, 2026-08-16),
+    superseding the per-frame mean of :func:`relative_l2`.
+
+    Unlike the per-frame form, this is **robust to near-zero frames**: the
+    denominator is the whole trajectory's field energy, so a field that starts at
+    ~0 (e.g. von Mises stress before impact) cannot drive the reference norm to
+    zero the way a single early frame does. The per-frame mean divides a real
+    single-frame error by a near-zero single-frame reference and explodes (Taylor
+    ``rollout_rel_l2_aux`` came out ~5.7×10⁸); pooling removes that pathology,
+    which is why the per-frame form is retained only as a secondary metric.
+
+    Quantities are **not** merged: displacement (mm) and aux (MPa / strain) are
+    incommensurable, so each is its own pooled ratio (pooling mm with MPa would
+    let the larger-magnitude field swamp the other). Within displacement the
+    ``{x, y[, z]}`` components share a unit and *are* pooled.
+
+    Parameters
+    ----------
+    pred_field, gt_field:
+        Arrays of shape ``(T, P)`` (a scalar field, e.g. the aux field) or
+        ``(T, P, dim)`` (a vector field, e.g. displacement). The L2 norms run
+        over *every* axis (time, particles, and any components jointly).
+    mask:
+        Optional boolean particle mask ``(P,)`` (``True`` keeps the particle);
+        when given, both norms run over kept particles only — the same
+        kinematic/scripted exclusion the RMSE metrics apply (ADR-0026).
+    eps:
+        Pure exact-zero guard on the pooled reference norm (default ``1e-12``);
+        it prevents division by zero on a degenerate all-zero fixture only and is
+        **not** a scale knob (the pooled denominator is the whole trajectory's
+        field energy and cannot be driven near zero by an early ~0 frame).
+
+    Returns
+    -------
+    float
+        One dimensionless pooled relative-L2 ratio for the trajectory.
+    """
+    pred = np.asarray(pred_field, float)
+    gt = np.asarray(gt_field, float)
+    if mask is not None:
+        pred = pred[:, mask]
+        gt = gt[:, mask]
+    err = float(np.sqrt(((pred - gt) ** 2).sum()))
+    ref = float(np.sqrt((gt**2).sum()))
+    return err / max(ref, eps)
+
+
 def final_length(inputs: QoiInputs) -> float:
     """x-extent of the final frame (ADR-0019 QoI; value unchanged).
 

@@ -4,11 +4,13 @@ Reference math: Eqs (1)-(4) and pre-LN block Eq (6) of arXiv:2402.02366;
 implementation details follow thuml/Transolver's irregular-mesh variant.
 """
 
+import pytest
 import torch
 
 from structbench.models.transolver.network import (
     PhysicsAttentionIrregularMesh,
     TransolverNet,
+    timestep_embedding,
 )
 
 
@@ -226,3 +228,132 @@ def test_trunc_normal_init_applied() -> None:
     for mod in net.modules():  # secondary: LayerNorm resets
         if isinstance(mod, torch.nn.LayerNorm):
             assert torch.all(mod.weight == 1.0) and torch.all(mod.bias == 0.0)
+
+
+# --- ADR-0053 time-conditioning (thuml Time_Input scheme) ---
+
+
+def test_timestep_embedding_shape_and_parity() -> None:
+    # thuml sinusoidal embedding: (B, dim), cos|sin halves; odd dim gets a
+    # trailing zero column.
+    emb = timestep_embedding(torch.tensor([0.0, 0.5, 1.0]), 16)
+    assert emb.shape == (3, 16)
+    odd = timestep_embedding(torch.tensor([0.5]), 15)
+    assert odd.shape == (1, 15)
+    assert float(odd[0, -1]) == 0.0
+    # distinct times -> distinct embeddings (else time cannot condition)
+    assert not torch.allclose(emb[0], emb[2])
+
+
+def test_time_conditioned_false_is_byte_identical() -> None:
+    # Same seed, same params (no time_fc), and identical forward output: the
+    # default network is unchanged by the ADR-0053 addition.
+    torch.manual_seed(0)
+    a = TransolverNet(
+        node_in=7, out_size=4, hidden_dim=16, n_layers=2, n_heads=2, slice_num=4
+    )
+    torch.manual_seed(0)
+    b = TransolverNet(
+        node_in=7,
+        out_size=4,
+        hidden_dim=16,
+        n_layers=2,
+        n_heads=2,
+        slice_num=4,
+        time_conditioned=False,
+    )
+    assert set(a.state_dict()) == set(b.state_dict())
+    assert not any("time_fc" in k for k in a.state_dict())
+    x = torch.randn(11, 7)
+    assert torch.allclose(a(x, None), b(x, None))
+
+
+def test_time_conditioned_registers_time_fc() -> None:
+    net = TransolverNet(
+        node_in=7,
+        out_size=4,
+        hidden_dim=16,
+        n_layers=2,
+        n_heads=2,
+        slice_num=4,
+        time_conditioned=True,
+    )
+    assert any("time_fc" in k for k in net.state_dict())
+
+
+def test_time_conditioned_requires_t() -> None:
+    net = TransolverNet(
+        node_in=7,
+        out_size=4,
+        hidden_dim=16,
+        n_layers=2,
+        n_heads=2,
+        slice_num=4,
+        time_conditioned=True,
+    )
+    with pytest.raises(ValueError, match="time_conditioned=True"):
+        net(torch.randn(5, 7), None)  # t missing
+
+
+def test_time_conditioned_grad_flows_to_time_fc() -> None:
+    net = TransolverNet(
+        node_in=7,
+        out_size=4,
+        hidden_dim=16,
+        n_layers=2,
+        n_heads=2,
+        slice_num=4,
+        time_conditioned=True,
+    )
+    net.train()
+    out = net(torch.randn(11, 7), None, t=torch.tensor([[0.3]]))
+    assert torch.isfinite(out).all()
+    out.pow(2).mean().backward()
+    g = net.time_fc[0].weight.grad
+    assert g is not None and float(g.abs().sum()) > 0.0
+
+
+def test_two_different_t_produce_different_outputs() -> None:
+    net = TransolverNet(
+        node_in=7,
+        out_size=4,
+        hidden_dim=16,
+        n_layers=2,
+        n_heads=2,
+        slice_num=4,
+        time_conditioned=True,
+    )
+    net.eval()
+    x = torch.randn(11, 7)
+    with torch.no_grad():
+        o1 = net(x, None, t=torch.tensor([[0.1]]))
+        o2 = net(x, None, t=torch.tensor([[0.9]]))
+    assert not torch.allclose(o1, o2)
+
+
+def test_time_conditioned_batched_time_broadcast() -> None:
+    # Two ragged examples get per-example time embeddings; the batched forward
+    # matches running each example alone with its own scalar t.
+    torch.manual_seed(0)
+    net = TransolverNet(
+        node_in=7,
+        out_size=4,
+        hidden_dim=16,
+        n_layers=2,
+        n_heads=2,
+        slice_num=4,
+        time_conditioned=True,
+    )
+    net.eval()
+    a, b = torch.randn(11, 7), torch.randn(5, 7)
+    with torch.no_grad():
+        batched = net(
+            torch.cat([a, b]), torch.tensor([11, 5]), t=torch.tensor([[0.2], [0.8]])
+        )
+        singles = torch.cat(
+            [
+                net(a, None, t=torch.tensor([[0.2]])),
+                net(b, None, t=torch.tensor([[0.8]])),
+            ]
+        )
+    assert torch.allclose(batched, singles, atol=1e-5)

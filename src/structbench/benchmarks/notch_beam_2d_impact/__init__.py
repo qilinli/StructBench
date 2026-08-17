@@ -39,12 +39,68 @@ __all__ = [
 #: metrics use the ADR-0039 horizon (frames [6, 250) of 502).
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
+        family="mgn",
+        label="MGN",
+        scheme="autoregressive",
+        reference=(
+            "Pfaff, T., Fortunato, M., Sanchez-Gonzalez, A., & Battaglia, P. W. "
+            "(2021). Learning Mesh-Based Simulation with Graph Networks. *ICLR*. "
+            "https://arxiv.org/abs/2010.03409"
+        ),
+        provisional=True,
+        run_commit="59d5786",
+        run_date="2026-08-17",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.2245,
+                "rollout_rel_l2_aux": 0.6988,
+                "rollout_pos_rmse_mm": 0.1984,
+                "rollout_strain_rmse": 0.01997,
+                "one_step_pos_rmse_mm": 0.001448,
+                "one_step_strain_rmse": 0.0009101,
+                "qoi_midspan_deflection_peak_mae_mm": 0.5842,
+                "qoi_cracked_fraction_mae": 0.1081,
+            },
+            "probe": {
+                "rollout_rel_l2_disp": 0.7672,
+                "rollout_rel_l2_aux": 1.255,
+                "rollout_pos_rmse_mm": 0.2834,
+                "rollout_strain_rmse": 0.02077,
+                "one_step_pos_rmse_mm": 0.002156,
+                "one_step_strain_rmse": 0.001003,
+                "qoi_midspan_deflection_peak_mae_mm": 0.7027,
+                "qoi_cracked_fraction_mae": 0.2225,
+            },
+        },
+        notes=(
+            "Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): "
+            "autoregressive next-step on the SPH particle set as a mesh, "
+            "val-selected model-best-212000.pt, seed 2 of the s1-s2 pair, run "
+            "notch-mgn-base-s2. PROVISIONAL (ADR-0044/0045). On test_interp it "
+            "roughly matches CGN (displacement relative L2 0.22 vs 0.28) and "
+            "both trail Transolver ~6x; on the off-centre triple-OOD PROBE the "
+            "relative-position message passing degrades more gracefully than the "
+            "global-attention operator (disp 0.77 vs Transolver 1.05), though "
+            "CGN is best there (0.59). Pooled relative L2 headline (ADR-0055) "
+            "from the 2026-08-17 re-eval."
+        ),
+    ),
+    BaselineResult(
         family="cgn",
-        label="CGN baseline",
+        label="CGN",
+        scheme="autoregressive",
+        reference=(
+            "Li, Q., Wang, Z., Li, L., Hao, H., Chen, W., & Shao, Y. (2023). "
+            "Machine learning prediction of structural dynamic responses using "
+            "graph neural networks. *Computers & Structures*, 289, 107188. "
+            "https://doi.org/10.1016/j.compstruc.2023.107188"
+        ),
         run_commit="5956d81",
         run_date="2026-07-24",
         metrics={
             "test_interp": {
+                "rollout_rel_l2_disp": 0.2827,
+                "rollout_rel_l2_aux": 0.5876,
                 "rollout_pos_rmse_mm": 0.2497,
                 "rollout_strain_rmse": 0.01697,
                 "one_step_pos_rmse_mm": 0.0006992,
@@ -53,6 +109,8 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_cracked_fraction_mae": 0.1892,
             },
             "probe": {
+                "rollout_rel_l2_disp": 0.5905,
+                "rollout_rel_l2_aux": 0.8535,
                 "rollout_pos_rmse_mm": 0.3951,
                 "rollout_strain_rmse": 0.01931,
                 "one_step_pos_rmse_mm": 0.0006437,
@@ -83,7 +141,55 @@ RESULTS: tuple[BaselineResult, ...] = (
             "0.40 for s2); predictions break the mirror symmetry of "
             "centered-notch cases while the ground truth stays symmetric "
             "(2026-07-24 finding); full-horizon (502-frame) rollout position "
-            "RMSE is 0.87 mm on test_interp - diagnostic only, not scored."
+            "RMSE is 0.87 mm on test_interp - diagnostic only, not scored. "
+            "Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time "
+            "headline (ADR-0055), added 2026-08-16 from a re-eval on this "
+            "checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values "
+            "are unchanged."
+        ),
+    ),
+    BaselineResult(
+        family="transolver",
+        label="Transolver",
+        scheme="time-conditioned",
+        reference=(
+            "Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: "
+            "A Fast Transformer Solver for PDEs on General Geometries. *ICML*. "
+            "https://arxiv.org/abs/2402.02366"
+        ),
+        provisional=True,
+        run_commit="59d5786",
+        run_date="2026-08-16",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.03517,
+                "rollout_rel_l2_aux": 0.2294,
+                "rollout_pos_rmse_mm": 0.03365,
+                "rollout_strain_rmse": 0.006467,
+                "qoi_midspan_deflection_peak_mae_mm": 0.04067,
+                "qoi_cracked_fraction_mae": 0.0212,
+            },
+            "probe": {
+                "rollout_rel_l2_disp": 1.047,
+                "rollout_rel_l2_aux": 1.236,
+                "rollout_pos_rmse_mm": 0.6319,
+                "rollout_strain_rmse": 0.02965,
+                "qoi_midspan_deflection_peak_mae_mm": 3.405,
+                "qoi_cracked_fraction_mae": 0.04823,
+            },
+        },
+        notes=(
+            "Native time-conditioned Transolver (ADR-0054): history-free "
+            "independent-time-query, no rollout accumulation, so one-step is "
+            "N/A. Seed 2 of the s1-s2 pair, val-selected model-best-230000.pt, "
+            "run notch-transolver-tc-s2. PROVISIONAL (ADR-0044/0045). On "
+            "test_interp it is the strongest baseline (~8x lower displacement "
+            "relative L2 than CGN); on the PROBE it fails hard (relative L2 > 1) "
+            "- the off-centre triple-OOD case (ADR-0026 amendment) where the "
+            "global-attention operator mis-localises the response to the learned "
+            "midspan prior, while CGN's relative-position message passing "
+            "degrades more gracefully (probe disp 0.59 vs 1.05). Pooled "
+            "relative L2 headline (ADR-0055) from the 2026-08-16 re-eval."
         ),
     ),
 )

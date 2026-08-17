@@ -257,6 +257,18 @@ class TransolverConfig:
         single most-recent frame, so it cannot infer the impact speed without
         this scalar. A per-node initial-velocity *field* (rather than a global
         scalar) is the natural refinement for spatially-structured loading.
+    time_conditioned : bool
+        Use the faithful thuml time-conditioned (``Time_Input``) prediction
+        scheme (ADR-0054): the model maps ``(static geometry, node types,
+        scalar impact velocity?, prescribed boundary state at t, query time t)
+        -> absolute state at t``, history-free and non-autoregressive. This is
+        Transolver's *native structural* scheme (the Plasticity template), as
+        opposed to the fluid (Navier-Stokes) autoregressive + velocity-history
+        convention. ``False`` (default) is byte-identical to the pre-0053
+        recipe. Mutually exclusive with a nonzero ``history_frames`` window and
+        the ``k>1`` bundling axis: requires ``history_frames=0`` and
+        ``frames_per_call=1`` (enforced at config load and simulator
+        construction); composes with ``impact_velocity_feature``.
     """
 
     input_frames: int = 2
@@ -275,6 +287,7 @@ class TransolverConfig:
     history_frames: int = 0
     frames_per_call: int = 1
     impact_velocity_feature: bool = False
+    time_conditioned: bool = False
 
 
 @dataclass
@@ -702,6 +715,23 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             f"(0 = Markovian; k appends the last k window velocities, ADR-0053); "
             f"got {history_frames} with input_frames={model.input_frames}"
         )
+
+    # ADR-0054: the time-conditioned scheme is history-free and
+    # non-autoregressive, so it is mutually exclusive with a nonzero history
+    # window (ADR-0053) and the k-frames-per-call bundling axis. Reject the
+    # combination at load rather than deep in simulator construction.
+    if getattr(model, "time_conditioned", False):
+        if history_frames:
+            raise ConfigError(
+                "[model] time_conditioned=true requires history_frames=0 "
+                "(the time-conditioned scheme is history-free; ADR-0054)"
+            )
+        if frames_per_call != 1:
+            raise ConfigError(
+                "[model] time_conditioned=true requires frames_per_call=1 "
+                f"(got {frames_per_call}); the time-conditioned and "
+                "k-frames-per-call schemes are mutually exclusive (ADR-0054)"
+            )
 
     return ResolvedRunConfig(
         family=family,

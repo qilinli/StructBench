@@ -256,6 +256,7 @@ max_grad_norm = 0.1
 history_frames = 0
 frames_per_call = 1
 impact_velocity_feature = false
+time_conditioned = false
 
 [train]
 batch_size = 8
@@ -304,6 +305,36 @@ def test_load_run_config_transolver_impact_velocity_feature_roundtrips(tmp_path)
         "impact_velocity_feature = false", "impact_velocity_feature = true"
     )
     assert load_run_config(_write(tmp_path, on)).model.impact_velocity_feature is True
+
+
+def test_load_run_config_time_conditioned_roundtrips(tmp_path):
+    # ADR-0053: default off; explicit on round-trips (with the required guards
+    # already satisfied by the default frames_per_call=1 / velocity_history=false).
+    assert (
+        load_run_config(_write(tmp_path, VALID_TRANSOLVER)).model.time_conditioned
+        is False
+    )
+    on = VALID_TRANSOLVER.replace("time_conditioned = false", "time_conditioned = true")
+    assert load_run_config(_write(tmp_path, on)).model.time_conditioned is True
+
+
+def test_load_run_config_rejects_time_conditioned_with_history(tmp_path):
+    # ADR-0054 (on the ADR-0053 history_frames schema): the time-conditioned
+    # scheme is history-free, so a nonzero history_frames is rejected.
+    bad = VALID_TRANSOLVER.replace(
+        "history_frames = 0", "history_frames = 1"
+    ).replace("time_conditioned = false", "time_conditioned = true")
+    with pytest.raises(ConfigError, match="requires history_frames=0"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_rejects_time_conditioned_with_kframes(tmp_path):
+    # ADR-0053: time-conditioning and k-frames-per-call are mutually exclusive.
+    bad = VALID_TRANSOLVER.replace(
+        "frames_per_call = 1", "frames_per_call = 4"
+    ).replace("time_conditioned = false", "time_conditioned = true")
+    with pytest.raises(ConfigError, match="requires frames_per_call=1"):
+        load_run_config(_write(tmp_path, bad))
 
 
 def test_load_run_config_rejects_negative_frames_per_call(tmp_path):

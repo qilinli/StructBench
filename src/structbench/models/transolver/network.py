@@ -35,8 +35,52 @@ test_batched_forward_matches_per_example``).
 
 from __future__ import annotations
 
+import math
+
 import torch
 from torch import Tensor, nn
+
+
+def timestep_embedding(timesteps: Tensor, dim: int, max_period: int = 10000) -> Tensor:
+    """Sinusoidal timestep embedding (thuml Transolver ``Time_Input`` variant).
+
+    Ported verbatim from ``thuml/Transolver``'s
+    ``Transolver_Structured_Mesh_2D.py`` (itself the diffusion-model
+    ``timestep_embedding``): map each scalar query time to a ``dim``-wide
+    sinusoidal feature, low frequencies first. Combined with the learned
+    ``time_fc`` MLP inside :class:`TransolverNet`, this is the exact additive
+    time injection the official structural (Plasticity) scheme uses
+    (ADR-0054). The function is parameter-free — its gradient flows straight
+    into ``time_fc`` and whatever produced ``timesteps``.
+
+    Parameters
+    ----------
+    timesteps:
+        ``(B,)`` (or any 1-D) tensor of normalized query times ``t ∈ [0, 1]``
+        (frame index over the scored horizon; ADR-0054).
+    dim:
+        Embedding width (``hidden_dim`` of the network so the result adds
+        directly to the preprocessed node features).
+    max_period:
+        Controls the lowest frequency of the embedding (thuml default 10000).
+
+    Returns
+    -------
+    Tensor
+        ``(B, dim)`` sinusoidal embedding; ``cos`` then ``sin`` halves, with a
+        trailing zero column when ``dim`` is odd (thuml's parity handling).
+    """
+    half = dim // 2
+    freqs = torch.exp(
+        -math.log(max_period)
+        * torch.arange(0, half, dtype=torch.float32, device=timesteps.device)
+        / half
+    )
+    args = timesteps.reshape(-1, 1).float() * freqs.reshape(1, -1)
+    embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+    if dim % 2:
+        embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
+    return embedding
 
 
 def build_mlp_2layer(in_size: int, hidden: int, out_size: int) -> nn.Sequential:
@@ -341,6 +385,13 @@ class TransolverNet(nn.Module):
         FFN hidden-width multiplier inside each block.
     dropout:
         Dropout probability, forwarded to every block.
+    time_conditioned:
+        Enable the faithful thuml ``Time_Input`` scheme (ADR-0054): a
+        sinusoidal :func:`timestep_embedding` of the per-example query time,
+        passed through a learned ``time_fc`` MLP (``Linear→SiLU→Linear``) and
+        ADDED to the preprocessed node features before the Physics-Attention
+        blocks. ``False`` (default) creates no extra parameters and leaves
+        :meth:`forward` byte-identical to the pre-0053 network.
     """
 
     def __init__(
@@ -353,8 +404,21 @@ class TransolverNet(nn.Module):
         slice_num: int = 64,
         mlp_ratio: int = 1,
         dropout: float = 0.0,
+        time_conditioned: bool = False,
     ) -> None:
         super().__init__()
+        self._hidden_dim = hidden_dim
+        self.time_conditioned = time_conditioned
+        # thuml Time_Input MLP (Linear -> SiLU -> Linear), created ONLY when
+        # time-conditioned so the default network registers no new parameters
+        # and stays byte-identical (ADR-0054). Built before _initialize_weights
+        # so its Linear layers get the same trunc_normal_ init as every other.
+        if time_conditioned:
+            self.time_fc = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.SiLU(),
+                nn.Linear(hidden_dim, hidden_dim),
+            )
         self.preprocess = build_mlp_2layer(node_in, hidden_dim * 2, hidden_dim)
         # thuml Irregular_Mesh: added UNCONDITIONALLY (unlike the Structured
         # variants, where it is nested inside an `if fx is None` branch and
@@ -377,7 +441,10 @@ class TransolverNet(nn.Module):
         self._initialize_weights()
 
     def forward(
-        self, node_feats: Tensor, n_particles_per_example: Tensor | None
+        self,
+        node_feats: Tensor,
+        n_particles_per_example: Tensor | None,
+        t: Tensor | None = None,
     ) -> Tensor:
         """Run the full forward pass.
 
@@ -389,6 +456,11 @@ class TransolverNet(nn.Module):
         n_particles_per_example:
             ``(B,)`` particle counts per example, in concatenation order, or
             ``None`` for a single example.
+        t:
+            Per-example normalized query time (ADR-0054), shape ``(B,)`` or
+            ``(B, 1)`` (``(1,)``/``(1, 1)`` for a single example). Required
+            when the network was built with ``time_conditioned=True`` and
+            ignored otherwise; ``None`` (default) keeps the pre-0053 forward.
 
         Returns
         -------
@@ -400,6 +472,20 @@ class TransolverNet(nn.Module):
         # here rather than once per block (n_layers=8 at reference depth).
         segments = _segments(node_feats.shape[0], n_particles_per_example)
         fx = self.preprocess(node_feats) + self.placeholder
+        if self.time_conditioned:
+            if t is None:
+                raise ValueError(
+                    "TransolverNet was built with time_conditioned=True but "
+                    "forward() received t=None (ADR-0054)"
+                )
+            # thuml additive time injection: sinusoidal embedding -> time_fc,
+            # broadcast to each example's points, ADDED before the blocks.
+            time_emb = self.time_fc(timestep_embedding(t, self._hidden_dim))  # (B, H)
+            if n_particles_per_example is None:
+                # Single example: (1, H) broadcasts over the (P, H) features.
+                fx = fx + time_emb
+            else:
+                fx = fx + time_emb.repeat_interleave(n_particles_per_example, dim=0)
         for block in self.blocks:
             fx = block(fx, segments)
         return fx

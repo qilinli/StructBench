@@ -33,17 +33,13 @@ interpolation and degrades honestly at 200 m/s; the numbers are below.
 
 ## Figures
 
-![Side-by-side animation of ground-truth and CGN-predicted copper-bar impact at 150 m/s.](../../assets/taylor_rollout.gif)
+![Four-panel animation: ground truth and CGN, Transolver, MGN predictions of copper-bar von Mises stress.](../../assets/taylor_rollout_methods.gif)
 
-*Ground truth (left) vs CGN prediction (right) at 150 m/s (in-distribution), a 20x80 mm copper bar coloured by von Mises stress. The surrogate tracks the mushroom head, bar shortening, and impact-face stress band frame by frame over the 300 us rollout.*
+*Ground truth vs the three baselines (CGN, Transolver, MGN) on T-20-80-170 (test_interp, 170 m/s), a 20x80 mm copper bar coloured by von Mises stress over the scored rollout. Transolver (time-conditioned) tracks the mushroom-head stress band most closely; CGN is slightly diffuse in the interior; MGN smears and fragments the field and its particles penetrate the rigid wall. Transolver and MGN are provisional native baselines (ADR-0044/0045).*
 
-![Prediction-vs-truth von Mises snapshots at 170 m/s, in-distribution.](../../assets/taylor_vms_interp_170.png)
+![Grid of von Mises snapshots: ground truth and CGN, Transolver, MGN predictions at five times.](../../assets/taylor_vms_methods_170.png)
 
-*In-distribution (test_interp, 170 m/s): ground truth (top) vs CGN prediction (bottom), von Mises stress at 12 / 108 / 204 / 300 us. The prediction reproduces the mushroom head, bar shortening, and the impact-face high-stress band; its stress field is slightly smoother and more diffuse than ground truth but structurally faithful (rollout position RMSE 1.4 mm).*
-
-![Line charts of rollout position and von Mises error over time.](../../assets/taylor_rollout_error_vs_time.png)
-
-*Rollout error vs time for the CGN baseline (seed s1): position RMSE (top) and von Mises RMSE (bottom), case-averaged across val / interp / extrap. Position error accumulates monotonically; the von Mises error spikes at first wall contact (~20-40 us) then re-grows. Extrapolation to 200 m/s is where it blows up.*
+*In-distribution von Mises stress (T-20-80-170, test_interp, 170 m/s): ground truth vs the three baselines at 12 / 84 / 156 / 228 / 300 us. Transolver tracks the mushroom-head stress band most closely (rollout von Mises RMSE 30 MPa); CGN is slightly diffuse (49.5 MPa); MGN smears and fragments the field (62.4 MPa) - the ranking the leaderboard reports. Transolver and MGN are provisional (ADR-0044/0045).*
 
 ## Data at a glance
 
@@ -64,7 +60,7 @@ autoregressive transition (ADR-0019). Auxiliary target: `von_mises_stress` (MPa)
 ## Evaluation criteria
 
 - Protocol (benchmark-owned, ADR-0032, ADR-0035): 6 input frames, horizon full, scored at native output times.
-- Metrics: one-step and full-rollout position RMSE (mm); von_mises_stress RMSE (MPa).
+- Metrics: headline is the pooled space+time relative L2 (displacement + von_mises_stress); also reported are position/von_mises_stress RMSE (physical units) and one-step RMSE, plus the quantities of interest below.
 - Quantities of interest: final_length, mushroom_width, peak_von_mises, t_peak_von_mises.
 
 <details>
@@ -74,46 +70,47 @@ input_frames = 6 gives the model C = 5 input velocities (input_frames - 1), the 
 
 </details>
 
-## Method comparison
+## Leaderboard
 
-| Metric | **cgn** |
-|---|---|
-| test_interp · rollout_pos_rmse_mm | 1.274 |
-| test_interp · rollout_vm_rmse_mpa | 52.57 |
-| test_interp · one_step_pos_rmse_mm | 0.003244 |
-| test_interp · one_step_vm_rmse_mpa | 36.09 |
-| test_interp · qoi_final_length_mae_mm | 3.083 |
-| test_interp · qoi_mushroom_width_mae_mm | 4.754 |
-| test_interp · qoi_peak_vm_mae_mpa | 2.865 |
-| test_interp · qoi_t_peak_vm_mae_ms | 0.003993 |
-| test_extrap · rollout_pos_rmse_mm | 7.645 |
-| test_extrap · rollout_vm_rmse_mpa | 79.46 |
-| test_extrap · one_step_pos_rmse_mm | 0.004649 |
-| test_extrap · one_step_vm_rmse_mpa | 40.43 |
-| test_extrap · qoi_final_length_mae_mm | 3.198 |
-| test_extrap · qoi_mushroom_width_mae_mm | 11.59 |
-| test_extrap · qoi_peak_vm_mae_mpa | 19.21 |
-| test_extrap · qoi_t_peak_vm_mae_ms | 0.2293 |
+The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. RMSE and quantities of interest are shown for the in-distribution `test_interp` split.
 
-## Numbers to beat
+_Headline — pooled relative L2 (↓ better)_
 
-**CGN baseline** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)
+| Method | Scheme | interp·disp | interp·aux | extrap·disp | extrap·aux |
+|---|---|---|---|---|---|
+| MGN | autoregressive | 0.2157 | 0.3456 | 0.3233 | 0.4327 |
+| CGN | autoregressive | 0.1299 | 0.3223 | 0.5547 | 0.4531 |
+| Transolver | time-conditioned | 0.009383 | 0.1749 | 0.01637 | 0.1982 |
 
-_Trajectory error (RMSE)_
+_Trajectory error — RMSE_
 
-| split | rollout_pos_rmse_mm | rollout_vm_rmse_mpa | one_step_pos_rmse_mm | one_step_vm_rmse_mpa |
-|---|---|---|---|---|
-| test_interp | 1.274 | 52.57 | 0.003244 | 36.09 |
-| test_extrap | 7.645 | 79.46 | 0.004649 | 40.43 |
+| Method | Scheme | interp·pos (mm) | interp·vm (MPa) |
+|---|---|---|---|
+| MGN | autoregressive | 2.272 | 55.79 |
+| CGN | autoregressive | 1.274 | 52.57 |
+| Transolver | time-conditioned | 0.1043 | 28.56 |
 
 _Quantities of interest (MAE)_
 
-| split | qoi_final_length_mae_mm | qoi_mushroom_width_mae_mm | qoi_peak_vm_mae_mpa | qoi_t_peak_vm_mae_ms |
-|---|---|---|---|---|
-| test_interp | 3.083 | 4.754 | 2.865 | 0.003993 |
-| test_extrap | 3.198 | 11.59 | 19.21 | 0.2293 |
+| Method | Scheme | interp·final_length (mm) | interp·mushroom_width (mm) | interp·peak_vm (MPa) | interp·t_peak_vm (ms) |
+|---|---|---|---|---|---|
+| MGN | autoregressive | 9.108 | 6.097 | 3.639 | 0.001335 |
+| CGN | autoregressive | 3.083 | 4.754 | 2.865 | 0.003993 |
+| Transolver | time-conditioned | 0.5557 | 0.3532 | 2.164 | 0.001986 |
 
-*Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp.*
+## Baseline details
+
+**MGN** (mgn, 2026-08-16, commit `d838606`)
+
+*Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): autoregressive next-step on the SPH particle set as a mesh, val-selected model-best-066000.pt, seed 1 of the s1-s2 pair, run taylor-mgn-base-s1. PROVISIONAL (ADR-0044/0045): not validated against a published Taylor-MGN number. On Taylor it TRAILS the CGN baseline (rollout position 2.27 vs 1.27 mm on test_interp; displacement relative L2 0.22 vs 0.13) - the known MGN-on-Taylor difficulty (large mesh stretch, noise-scale sensitivity; ADR-0047). Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval.*
+
+**CGN** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)
+
+*Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp. Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values above are unchanged.*
+
+**Transolver** (transolver, 2026-08-16, commit `59d5786`)
+
+*Native time-conditioned Transolver (ADR-0054): each frame is predicted independently from the reference geometry + normalized query time + impact-velocity scalar, history-free with no rollout accumulation, so one-step is N/A (the faithful thuml structural scheme, not autoregressive). Seed 2 of the s1-s2 pair, val-selected model-best-100000.pt, run taylor-transolver-tc-s2. PROVISIONAL (ADR-0044/0045): a best-effort native implementation, not validated against a published Taylor-Transolver number. On Taylor it is the strongest baseline by a wide margin (~14x lower displacement relative L2 than CGN on test_interp) because avoiding rollout accumulation dominates on this smooth-kinematics task. Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval.*
 
 ## Quickstart
 
@@ -126,3 +123,9 @@ structbench-train --mode train --config configs/taylor_impact_2d/cgn.toml \
 This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
 
 Dataset access: the canonical archive is maintainer-held on institutional storage and shared on request (ADR-0040) — contact the maintainer, or ingest your own LS-DYNA output via the adapter; see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
+
+## References
+
+- **MGN** — Pfaff, T., Fortunato, M., Sanchez-Gonzalez, A., & Battaglia, P. W. (2021). Learning Mesh-Based Simulation with Graph Networks. *ICLR*. https://arxiv.org/abs/2010.03409
+- **CGN** — Li, Q., Wang, Z., Li, L., Hao, H., Chen, W., & Shao, Y. (2023). Machine learning prediction of structural dynamic responses using graph neural networks. *Computers & Structures*, 289, 107188. https://doi.org/10.1016/j.compstruc.2023.107188
+- **Transolver** — Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: A Fast Transformer Solver for PDEs on General Geometries. *ICML*. https://arxiv.org/abs/2402.02366

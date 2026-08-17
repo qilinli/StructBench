@@ -7,7 +7,8 @@ from pathlib import Path
 from structbench.benchmarks import available_benchmarks, get_benchmark
 from structbench.benchmarks.render import (
     _baseline_line,
-    _method_comparison,
+    _col_label,
+    _leaderboard,
     _quickstart_family,
     card_json,
     render_archive_readme,
@@ -76,7 +77,8 @@ def test_archive_readme_carries_task_eval_and_usage_sections():
     text = render_archive_readme(spec, "taylor_impact_2d")
     assert "## Task" in text
     assert "## Evaluation criteria" in text
-    assert "## Numbers to beat" in text
+    assert "## Leaderboard" in text
+    assert "## Baseline details" in text
     assert "## Using this archive" in text
     # protocol values + rationale from the card (ADR-0032, ADR-0035)
     assert f"{spec.card.input_frames} input frames" in text
@@ -93,15 +95,17 @@ def test_archive_readme_without_results_carries_placeholder():
     assert "No official baseline yet" in text
 
 
-def test_archive_readme_renders_result_table():
+def test_archive_readme_renders_leaderboard_row():
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
     text = render_archive_readme(spec, "taylor_impact_2d")
     assert "No official baseline yet" not in text
     assert "CGN baseline" in text
     assert "abc1234" in text
-    # split rows in card order, metric columns in first-seen order
-    assert "| test_interp | 1.5 | 0.004 |" in text
-    assert "| test_extrap | 2.1 |" in text
+    # one leaderboard row: scheme unknown -> "—". The RMSE tier is trimmed to
+    # test_interp and drops the one_step diagnostic columns, so the row carries
+    # a single value under the one surviving column, `interp·pos (mm)`.
+    assert "| CGN baseline | — | 1.5 |" in text
+    # notes render in the provenance block, not a metric table
     assert "single A100, 100k steps" in text
 
 
@@ -154,9 +158,10 @@ def test_benchmark_page_embeds_overview_numbers_and_figures():
     for fig in spec.card.figures:
         assert f"(../../{fig.path})" in text
         assert fig.caption in text
-    # the blessed baseline table + quickstart are present
-    assert "## Numbers to beat" in text
-    assert "CGN baseline" in text
+    # the blessed baseline leaderboard + details + quickstart are present
+    assert "## Leaderboard" in text
+    assert "## Baseline details" in text
+    assert "| CGN |" in text  # the blessed method row in the leaderboard
     assert "## Quickstart" in text
     assert "configs/taylor_impact_2d/cgn.toml" in text
 
@@ -204,19 +209,22 @@ def test_card_figure_paths_exist():
             assert (REPO_ROOT / fig.path).is_file(), f"{name}: missing {fig.path}"
 
 
-def test_numbers_to_beat_splits_qoi_into_its_own_table():
-    # A result with both RMSE and QoI metrics renders two narrower tables.
+def test_leaderboard_splits_metrics_into_three_tiers():
+    # The blessed Taylor result carries rel-L2, RMSE, and QoI keys: three tiers,
+    # in headline -> RMSE -> QoI order, each a separate labelled table.
     text = render_archive_readme(get_benchmark("taylor_impact_2d"), "taylor_impact_2d")
-    assert "_Trajectory error (RMSE)_" in text
-    assert "_Quantities of interest (MAE)_" in text
-    # the QoI columns sit under the QoI subheading, not the RMSE one
-    qoi_section = text.split("_Quantities of interest (MAE)_", 1)[1]
-    assert "qoi_final_length_mae_mm" in qoi_section
-    rmse_section = text.split("_Trajectory error (RMSE)_", 1)[1].split(
-        "_Quantities of interest (MAE)_", 1
-    )[0]
-    assert "qoi_" not in rmse_section
-    assert "rollout_pos_rmse_mm" in rmse_section
+    head = "_Headline — pooled relative L2 (↓ better)_"
+    rmse = "_Trajectory error — RMSE_"
+    qoi = "_Quantities of interest (MAE)_"
+    assert head in text and rmse in text and qoi in text
+    assert text.index(head) < text.index(rmse) < text.index(qoi)
+    # QoI column labels sit under the QoI tier, not the RMSE one; units ride
+    # in the parenthesised header suffix (mm/MPa/ms).
+    qoi_section = text.split(qoi, 1)[1]
+    assert "interp·final_length (mm)" in qoi_section
+    rmse_section = text.split(rmse, 1)[1].split(qoi, 1)[0]
+    assert "final_length" not in rmse_section
+    assert "interp·pos (mm)" in rmse_section
 
 
 def test_private_checkpoint_pointer_renders_with_marker():
@@ -242,8 +250,9 @@ def test_private_checkpoint_pointer_renders_with_marker():
     assert "publication parked" not in text
 
 
-def test_single_metric_group_stays_one_unlabelled_table():
-    # No qoi_ metrics -> one table, no subheadings (unchanged behaviour).
+def test_single_metric_group_renders_only_its_tier():
+    # Only RMSE metrics -> only the RMSE tier renders (still titled; the
+    # leaderboard always names its tiers, no unlabelled fallback).
     result = BaselineResult(
         family="cgn",
         label="CGN baseline",
@@ -253,8 +262,90 @@ def test_single_metric_group_stays_one_unlabelled_table():
     )
     spec = replace(get_benchmark("taylor_impact_2d"), results=(result,))
     text = render_archive_readme(spec, "taylor_impact_2d")
-    assert "_Trajectory error (RMSE)_" not in text
-    assert "| test_interp | 1.5 |" in text
+    assert "_Trajectory error — RMSE_" in text
+    assert "_Headline — pooled relative L2 (↓ better)_" not in text
+    assert "_Quantities of interest (MAE)_" not in text
+    assert "| CGN baseline | — | 1.5 |" in text
+
+
+# --- ADR-0055 (amended 2026-08-15): relative L2 is the headline metric ---
+
+
+def _rel_l2_result():
+    """A result carrying relative-L2 headline keys, RMSE, and a QoI — the shape
+    a registry entry takes once the ADR-0055 amendment's re-eval populates the
+    new keys (rel-L2 keys first, as the headline group)."""
+    return BaselineResult(
+        family="transolver",
+        label="Transolver-TC",
+        run_commit="abc1234",
+        run_date="2026-08-15",
+        provisional=True,
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.033,
+                "rollout_rel_l2_aux": 0.211,
+                "rollout_pos_rmse_mm": 1.5,
+                "one_step_pos_rmse_mm": 0.004,
+                "qoi_final_length_mae_mm": 0.2,
+            },
+        },
+    )
+
+
+def test_leaderboard_leads_with_relative_l2_tier():
+    # Headline rel-L2 tier first, RMSE second, QoI last; rel-L2 columns sit
+    # under their own heading, not lumped with the RMSE tier.
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_rel_l2_result(),))
+    text = render_archive_readme(spec, "taylor_impact_2d")
+    head = "_Headline — pooled relative L2 (↓ better)_"
+    rmse = "_Trajectory error — RMSE_"
+    qoi = "_Quantities of interest (MAE)_"
+    assert head in text and rmse in text and qoi in text
+    assert text.index(head) < text.index(rmse) < text.index(qoi)
+    head_section = text.split(head, 1)[1].split(rmse, 1)[0]
+    assert "interp·disp" in head_section
+    rmse_section = text.split(rmse, 1)[1].split(qoi, 1)[0]
+    assert "·disp" not in rmse_section
+    assert "interp·pos (mm)" in rmse_section
+
+
+def test_leaderboard_orders_rel_l2_before_rmse_before_qoi():
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_rel_l2_result(),))
+    lines = _leaderboard(spec)
+
+    def tier(title: str) -> int:
+        return next(i for i, ln in enumerate(lines) if ln == f"_{title}_")
+
+    assert tier("Headline — pooled relative L2 (↓ better)") < tier(
+        "Trajectory error — RMSE"
+    )
+    assert tier("Trajectory error — RMSE") < tier("Quantities of interest (MAE)")
+
+
+def test_col_label_strips_prefixes_and_suffixes():
+    # rel-L2 keys stay dimensionless; physical-unit keys gain a parenthesised
+    # unit suffix (mm/MPa/ms) instead of the bare ``_mm``/``_mpa``/``_ms`` tail.
+    assert _col_label("test_interp", "rollout_rel_l2_disp") == "interp·disp"
+    assert _col_label("test_interp", "rollout_rel_l2_aux") == "interp·aux"
+    assert _col_label("test_interp", "rollout_pos_rmse_mm") == "interp·pos (mm)"
+    assert _col_label("test_interp", "rollout_vm_rmse_mpa") == "interp·vm (MPa)"
+    assert _col_label("test_extrap", "one_step_pos_rmse_mm") == "extrap·1s·pos (mm)"
+    assert (
+        _col_label("test_interp", "qoi_final_length_mae_mm")
+        == "interp·final_length (mm)"
+    )
+    assert _col_label("test_interp", "qoi_t_peak_vm_mae_ms") == "interp·t_peak_vm (ms)"
+    # a non-``test_`` split keeps its name (notch's off-grid probe)
+    assert _col_label("probe", "rollout_rel_l2_disp") == "probe·disp"
+
+
+def test_baseline_line_headline_is_relative_l2_when_present():
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_rel_l2_result(),))
+    line = _baseline_line(spec)
+    assert "rollout_rel_l2_disp" in line
+    # the physical-unit RMSE is retained elsewhere but is NOT the quoted headline
+    assert "rollout_pos_rmse_mm" not in line
 
 
 def test_landing_page_folds_protocol_rationale_but_index_does_not():
@@ -271,31 +362,34 @@ def test_landing_page_folds_protocol_rationale_but_index_does_not():
     assert "<details>" not in archive
 
 
-# --- method comparison + provisional-aware Quickstart selection (ADR-0046) ---
-# _method_comparison is unit-tested directly below, then its wiring into both
-# renderers (immediately before "## Numbers to beat") is covered further down
+# --- leaderboard + provisional-aware Quickstart selection (ADR-0046, ADR-0055) ---
+# _leaderboard is unit-tested directly below, then its wiring into both
+# renderers (immediately before "## Baseline details") is covered further down
 # by the section-ordering and config-path-exists regression tests (Task 3).
 
 
-def test_method_comparison_empty_state_is_verbatim():
+def test_leaderboard_empty_state_is_verbatim():
     spec = get_benchmark("notch_beam_2d_bend")
     assert spec.results == ()
-    lines = _method_comparison(spec)
+    lines = _leaderboard(spec)
     assert lines == [
-        "## Method comparison",
+        "## Leaderboard",
         "",
         "*No results yet — method entries land here as runs are "
         "recorded (blessed or provisional).*",
     ]
 
 
-def test_method_comparison_multi_family_table_and_footnote():
-    # (iii): one blessed + two provisional, three families, ragged metrics.
-    # test_interp is shared by all three but mgn/transolver miss keys cgn
-    # carries there; transolver also misses test_extrap entirely.
+def test_leaderboard_multi_family_rows_in_declaration_order():
+    # one blessed + two provisional, three families, ragged metrics.
+    # Rows follow registry declaration order (CGN, MGN, Transolver); no
+    # provisional tag and no footnote appear. The RMSE tier is trimmed to
+    # test_interp and drops the one_step columns (so a single value column),
+    # ragged cells render "—".
     blessed = _result(
         family="cgn",
         label="CGN baseline",
+        scheme="autoregressive",
         metrics={
             "test_interp": {
                 "rollout_pos_rmse_mm": 1.5,
@@ -324,103 +418,182 @@ def test_method_comparison_multi_family_table_and_footnote():
         get_benchmark("taylor_impact_2d"),
         results=(blessed, prov_mgn, prov_transolver),
     )
-    lines = _method_comparison(spec)
-
-    assert lines[0] == "## Method comparison"
-    assert (
-        "| Metric | **cgn** | **mgn** (provisional) | **transolver** (provisional) |"
-        in lines
-    )
-    # first-seen order within the shared split (rmse before qoi); missing
-    # cells (a key one method lacks that another carries) render "—"
-    assert "| test_interp · rollout_pos_rmse_mm | 1.5 | 1.8 | 1.9 |" in lines
-    assert "| test_interp · one_step_pos_rmse_mm | 0.004 | — | — |" in lines
-    assert "| test_interp · qoi_final_length_mae_mm | 0.2 | — | — |" in lines
-    # transolver has no test_extrap entry at all -> a whole-split "—"
-    assert "| test_extrap · rollout_pos_rmse_mm | 2.1 | 2.3 | — |" in lines
-    # footnote is the ONLY guard on this string — pinned verbatim
-    assert (
-        "*Provisional entries are best-effort implementations whose "
-        "fidelity is not validated against published numbers "
-        "(ADR-0044/0045) — never read them as blessed baselines.*"
-    ) in lines
-
-
-def test_method_comparison_no_footnote_or_tag_when_all_blessed():
-    spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
-    lines = _method_comparison(spec)
+    lines = _leaderboard(spec)
     text = "\n".join(lines)
-    assert "| Metric | **cgn** |" in lines
-    assert "(provisional)" not in text
+
+    assert lines[0] == "## Leaderboard"
+    # RMSE tier: header + one row per method in declaration order; the one_step
+    # and test_extrap columns are trimmed to a single `interp·pos (mm)` column.
+    assert "_Trajectory error — RMSE_" in lines
+    assert "| Method | Scheme | interp·pos (mm) |" in lines
+    assert "| CGN baseline | autoregressive | 1.5 |" in lines
+    assert "| MGN candidate | — | 1.8 |" in lines
+    assert "| Transolver candidate | — | 1.9 |" in lines
+    # rows appear in registry declaration order (CGN, then MGN, then Transolver)
+    assert (
+        text.index("| CGN baseline | autoregressive | 1.5 |")
+        < text.index("| MGN candidate | — | 1.8 |")
+        < text.index("| Transolver candidate | — | 1.9 |")
+    )
+    # QoI tier: only cgn carries the QoI; the others render "—"
+    assert "_Quantities of interest (MAE)_" in lines
+    assert "| CGN baseline | autoregressive | 0.2 |" in lines
+    # no provisional marker or footnote anywhere in the leaderboard
+    assert "*(provisional)*" not in text
+    assert "Provisional entries are best-effort" not in text
+
+
+def test_leaderboard_rows_follow_declaration_order_not_metric():
+    # Rows are NOT ranked (ranking is gone): registry declaration order wins
+    # even when the first-declared method has the worse headline number.
+    worse = _result(
+        family="mgn",
+        label="MGN",
+        provisional=True,
+        metrics={"test_interp": {"rollout_rel_l2_disp": 0.9}},
+    )
+    better = _result(
+        family="transolver",
+        label="Transolver",
+        provisional=True,
+        metrics={"test_interp": {"rollout_rel_l2_disp": 0.1}},
+    )
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(worse, better))
+    lines = _leaderboard(spec)
+    rows = [ln for ln in lines if ln.startswith(("| MGN", "| Transolver"))]
+    assert rows[0].startswith("| MGN")  # declared first, despite worse 0.9
+    assert rows[1].startswith("| Transolver")  # declared second, despite 0.1
+
+
+def test_leaderboard_declaration_order_holds_with_ragged_metrics():
+    # The single declaration order drives every tier: a headline-less entry
+    # declared first still renders first in the RMSE tier (no reordering).
+    without = _result(
+        family="mgn",
+        label="MGN",
+        provisional=True,
+        metrics={"test_interp": {"rollout_pos_rmse_mm": 0.1}},
+    )
+    with_rel = _result(
+        family="transolver",
+        label="Transolver",
+        provisional=True,
+        metrics={
+            "test_interp": {"rollout_rel_l2_disp": 0.5, "rollout_pos_rmse_mm": 1.0}
+        },
+    )
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(without, with_rel))
+    lines = _leaderboard(spec)
+    start = lines.index("_Trajectory error — RMSE_")
+    rows = [ln for ln in lines[start:] if ln.startswith(("| MGN", "| Transolver"))]
+    assert rows[0].startswith("| MGN")  # declared first
+    assert rows[1].startswith("| Transolver")  # declared second
+
+
+def test_leaderboard_no_footnote_or_tag_when_all_blessed():
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
+    lines = _leaderboard(spec)
+    # the method row carries no provisional tag (the intro paragraph mentions
+    # "*(provisional)*" for the legend, so guard the row line specifically)
+    assert "| CGN baseline | — |" in "\n".join(lines)
+    assert not any(
+        ln.startswith("| CGN baseline") and "*(provisional)*" in ln for ln in lines
+    )
+    # no provisional footnote when every entry is blessed
+    assert not any("Provisional entries are best-effort" in ln for ln in lines)
+
+
+def test_leaderboard_all_provisional_carries_no_tag_or_footnote():
+    # Even when every entry is provisional, rows carry no *(provisional)* tag
+    # and no footnote is appended (the provisional field still exists, it is
+    # just no longer surfaced in the leaderboard).
+    a = _result(family="transolver", label="Transolver", provisional=True)
+    b = _result(family="geoflare", label="GeoFLARE", provisional=True)
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(a, b))
+    lines = _leaderboard(spec)
+    text = "\n".join(lines)
+    assert "| Transolver | — | 1.5 |" in lines
+    assert "| GeoFLARE | — | 1.5 |" in lines
+    # declaration order preserved
+    assert text.index("| Transolver | — | 1.5 |") < text.index("| GeoFLARE | — | 1.5 |")
+    assert "*(provisional)*" not in text
     assert "Provisional entries" not in text
 
 
-def test_method_comparison_provisional_only_tags_every_column():
-    a = _result(family="transolver", provisional=True)
-    b = _result(family="geoflare", provisional=True)
-    spec = replace(get_benchmark("taylor_impact_2d"), results=(a, b))
-    lines = _method_comparison(spec)
-    assert (
-        "| Metric | **transolver** (provisional) | **geoflare** (provisional) |"
-        in lines
+def test_baseline_details_has_notes_but_no_metric_table():
+    # The provenance block keeps the notes but no per-split metric table —
+    # every number now lives in the leaderboard above it.
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
+    text = render_archive_readme(spec, "taylor_impact_2d")
+    details = text.split("## Baseline details", 1)[1]
+    assert "single A100, 100k steps" in details
+    assert "| split |" not in details
+    assert "| test_interp |" not in details
+
+
+def test_benchmark_page_leaderboard_appears_before_baseline_details():
+    # Multi-result fixture: rows render in declaration order with no provisional
+    # tag and no footnote; the section precedes "## Baseline details".
+    prov_mgn = replace(
+        _fake_result(), family="mgn", label="MGN candidate", provisional=True
     )
-    assert any("Provisional entries" in line for line in lines)
-
-
-def test_benchmark_page_method_comparison_appears_before_numbers_to_beat():
-    # Multi-result fixture: table + footnote render, section precedes
-    # "## Numbers to beat" (ADR-0046 wiring).
-    prov_mgn = replace(_fake_result(), family="mgn", provisional=True)
     spec = replace(
         get_benchmark("taylor_impact_2d"), results=(_fake_result(), prov_mgn)
     )
     text = render_benchmark_page(spec, "taylor_impact_2d")
-    assert "## Method comparison" in text
-    assert text.index("## Method comparison") < text.index("## Numbers to beat")
-    assert "| Metric | **cgn** | **mgn** (provisional) |" in text
-    assert "Provisional entries are best-effort implementations" in text
-    # Numbers-to-beat detail blocks: both entries still render (per-split
-    # tables + checkpoint pointer matter for provisional runs too), but only
-    # the provisional heading carries the tag (final whole-branch review,
-    # 2026-08-09). Exact-line match, not substring: an untagged heading is a
-    # prefix of a tagged one, so `in text` alone wouldn't catch a regression
-    # where the blessed heading got wrongly tagged too.
+    assert "## Leaderboard" in text
+    assert text.index("## Leaderboard") < text.index("## Baseline details")
+    # RMSE tier trimmed to a single test_interp column; rows in declaration
+    # order (blessed CGN first, provisional MGN second), neither tagged.
+    assert "| CGN baseline | — | 1.5 |" in text
+    assert "| MGN candidate | — | 1.5 |" in text
+    assert text.index("| CGN baseline | — | 1.5 |") < text.index(
+        "| MGN candidate | — | 1.5 |"
+    )
+    assert "*(provisional)*" not in text
+    assert "Provisional entries are best-effort implementations" not in text
+    # Baseline-details headings: both render, neither tagged. Exact-line match.
     lines = text.splitlines()
     assert "**CGN baseline** (cgn, 2026-07-05, commit `abc1234`)" in lines
-    assert "**CGN baseline** (mgn, 2026-07-05, commit `abc1234`) (provisional)" in lines
+    assert "**MGN candidate** (mgn, 2026-07-05, commit `abc1234`)" in lines
 
     # Empty fixture: the empty-state line, same ordering.
     empty_spec = get_benchmark("notch_beam_2d_bend")
     text = render_benchmark_page(empty_spec, "notch_beam_2d_bend")
-    assert "## Method comparison" in text
-    assert text.index("## Method comparison") < text.index("## Numbers to beat")
+    assert "## Leaderboard" in text
+    assert text.index("## Leaderboard") < text.index("## Baseline details")
     assert (
         "*No results yet — method entries land here as runs are "
         "recorded (blessed or provisional).*"
     ) in text
 
 
-def test_archive_readme_method_comparison_appears_before_numbers_to_beat():
-    prov_mgn = replace(_fake_result(), family="mgn", provisional=True)
+def test_archive_readme_leaderboard_appears_before_baseline_details():
+    prov_mgn = replace(
+        _fake_result(), family="mgn", label="MGN candidate", provisional=True
+    )
     spec = replace(
         get_benchmark("taylor_impact_2d"), results=(_fake_result(), prov_mgn)
     )
     text = render_archive_readme(spec, "taylor_impact_2d")
-    assert "## Method comparison" in text
-    assert text.index("## Method comparison") < text.index("## Numbers to beat")
-    assert "| Metric | **cgn** | **mgn** (provisional) |" in text
-    assert "Provisional entries are best-effort implementations" in text
-    # Same tagging rule as the landing page: both detail blocks render, only
-    # the provisional heading is tagged (final whole-branch review, 2026-08-09).
-    # Exact-line match, not substring — see the landing-page test for why.
+    assert "## Leaderboard" in text
+    assert text.index("## Leaderboard") < text.index("## Baseline details")
+    assert "| CGN baseline | — | 1.5 |" in text
+    assert "| MGN candidate | — | 1.5 |" in text
+    assert text.index("| CGN baseline | — | 1.5 |") < text.index(
+        "| MGN candidate | — | 1.5 |"
+    )
+    assert "*(provisional)*" not in text
+    assert "Provisional entries are best-effort implementations" not in text
+    # Both detail blocks render, neither tagged. Exact-line match.
     lines = text.splitlines()
     assert "**CGN baseline** (cgn, 2026-07-05, commit `abc1234`)" in lines
-    assert "**CGN baseline** (mgn, 2026-07-05, commit `abc1234`) (provisional)" in lines
+    assert "**MGN candidate** (mgn, 2026-07-05, commit `abc1234`)" in lines
 
     empty_spec = get_benchmark("notch_beam_2d_bend")
     text = render_archive_readme(empty_spec, "notch_beam_2d_bend")
-    assert "## Method comparison" in text
-    assert text.index("## Method comparison") < text.index("## Numbers to beat")
+    assert "## Leaderboard" in text
+    assert text.index("## Leaderboard") < text.index("## Baseline details")
     assert (
         "*No results yet — method entries land here as runs are "
         "recorded (blessed or provisional).*"
@@ -498,21 +671,54 @@ def test_baseline_line_tags_provisional_entries():
     assert "MGN candidate" in parts[1]
 
 
-def test_archive_readme_quickstart_family_selection_is_output_neutral():
-    # _quickstart_family replaces the old hardcoded
-    # `spec.results[0].family if spec.results else "cgn"`; every existing
-    # benchmark must resolve to the identical family EXCEPT deforming_plate,
-    # whose quickstart_family default flips cgn -> mgn in this same task
-    # (Task 3): configs/deforming_plate/cgn.toml never existed on disk, so
-    # the old hardcoded fallback was the exact bug the config-path-exists
-    # regression guard now catches. Every other benchmark (no provisional
-    # entries committed yet) stays byte-for-byte the same as before this task.
+def test_archive_readme_quickstart_family_follows_blessed_first():
+    # The Quickstart config path follows _quickstart_family's selection
+    # (ADR-0046: first BLESSED family in declaration order, else the first
+    # provisional entry, else the spec default) — NOT raw declaration order.
+    # Taylor now declares MGN (provisional) first, but the CGN blessed baseline
+    # must still anchor the quickstart; the render must thread the same choice.
     for name in available_benchmarks():
         spec = get_benchmark(name)
-        if name == "deforming_plate":
-            old_family = "mgn"
-        else:
-            old_family = spec.results[0].family if spec.results else "cgn"
+        family, _ = _quickstart_family(spec)
         text = render_archive_readme(spec, name)
-        assert f"configs/{name}/{old_family}.toml" in text
-        assert f"runs/{name}-{old_family}" in text
+        assert f"configs/{name}/{family}.toml" in text
+        assert f"runs/{name}-{family}" in text
+    # Regression pin: taylor's provisional-first registry still resolves to cgn.
+    taylor = get_benchmark("taylor_impact_2d")
+    assert taylor.results[0].family == "mgn"  # provisional, declared first
+    assert _quickstart_family(taylor)[0] == "cgn"  # blessed still wins
+
+
+def test_references_section_lists_each_method():
+    # ADR-0033: the landing page ends with a de-duplicated, method-tagged
+    # citation list built from each result's ``reference`` field.
+    text = render_benchmark_page(get_benchmark("taylor_impact_2d"), "taylor_impact_2d")
+    assert "## References" in text
+    assert "**CGN** — Li, Q." in text
+    assert "**Transolver** — Wu, H." in text
+    assert "**MGN** — Pfaff, T." in text
+    # it is the final section (after the Quickstart)
+    assert text.index("## References") > text.index("## Quickstart")
+
+
+def test_references_omitted_without_citations():
+    # notch-bend has no results, hence no References section.
+    spec = get_benchmark("notch_beam_2d_bend")
+    assert "## References" not in render_benchmark_page(spec, "notch_beam_2d_bend")
+
+
+def test_pending_baseline_renders_training_placeholder_row():
+    # A pending entry (still-training baseline, empty metrics) renders a
+    # leaderboard row of "—" tagged (training), with a note; it never raises.
+    pending = BaselineResult(
+        family="mgn", label="MGN", scheme="autoregressive",
+        provisional=True, pending=True, run_commit="abc1234",
+        run_date="2026-08-16", metrics={}, notes="run in progress",
+    )
+    real = _rel_l2_result()
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(pending, real))
+    lines = _leaderboard(spec)
+    # pending row first (declaration order), all metric cells "—"
+    row = next(ln for ln in lines if ln.startswith("| MGN *(training)*"))
+    assert set(c.strip() for c in row.split("|")[3:-1]) == {"—"}
+    assert any("still in progress" in ln for ln in lines)

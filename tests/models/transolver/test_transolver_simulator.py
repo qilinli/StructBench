@@ -350,3 +350,88 @@ def test_impact_velocity_feature_predicts_with_bound_scalar():
         gt[0:2].permute(1, 0, 2).contiguous(), torch.tensor([P]), types
     )
     assert nxt.shape == (P, 3) and aux.shape == (P, 1)
+
+
+# --- ADR-0053 time-conditioned scheme ---
+
+
+def test_time_conditioned_node_in_and_property():
+    off = _tiny_sim(time_conditioned=False)
+    on = _tiny_sim(time_conditioned=True)
+    on_iv = _tiny_sim(time_conditioned=True, impact_velocity_feature=True)
+    # TC drops the current-position channel and adds only the scripted-BC
+    # channel: node_in = node_type_size + 2*dim (+1 for impact velocity).
+    assert on._net.preprocess[0].in_features == off._node_type_size + 2 * 3
+    assert on_iv._net.preprocess[0].in_features == off._node_type_size + 2 * 3 + 1
+    assert on.time_conditioned is True and off.time_conditioned is False
+
+
+def test_time_conditioned_requires_frames_per_call_one_and_no_history():
+    with pytest.raises(ValueError, match="frames_per_call=1"):
+        _tiny_sim(time_conditioned=True, frames_per_call=2)
+    with pytest.raises(ValueError, match="history_velocities=0"):
+        _tiny_sim(time_conditioned=True, history_velocities=5)
+
+
+def test_forward_train_tc_shapes_and_grad():
+    torch.manual_seed(0)
+    sim = _tiny_sim(time_conditioned=True, kinematic_types=(1, 3), scripted_types=(1,))
+    P = 6
+    ptype = torch.tensor([0, 0, 1, 3, 0, 0], dtype=torch.int64)
+    ref = torch.rand(P, 3)
+    gt = torch.rand(P, 3) + ref
+    aux = torch.rand(P)
+    sim.train()
+    pred, target = sim.forward_train_tc(
+        gt, aux, ptype, ref, torch.tensor([P]), torch.tensor([0.4]), accumulate=True
+    )
+    assert pred.shape == (P, 4) and target.shape == (P, 4)
+    loss = (pred - target).pow(2).mean()
+    loss.backward()
+    assert torch.isfinite(loss)
+    assert float(sim._net.time_fc[0].weight.grad.abs().sum()) > 0.0
+
+
+def test_predict_state_at_overrides_kinematic_rows():
+    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
+    sim = _tiny_sim(time_conditioned=True, kinematic_types=(1, 3), scripted_types=(1,))
+    P, T = 5, 8
+    cells = torch.tensor([[0, 1, 2, 3], [1, 2, 3, 4]], dtype=torch.int64)
+    ref = torch.tensor(rng.random((P, 3)), dtype=torch.float32)
+    types = torch.tensor([0, 0, 1, 3, 0], dtype=torch.int64)
+    gt = torch.tensor(rng.random((T, P, 3)), dtype=torch.float32).cumsum(0)
+    sim.bind_case(cells, ref, types, gt)
+    sim.eval()
+    frame = 5
+    pos, stress = sim.predict_state_at(frame, frame / (T - 1))
+    assert pos.shape == (P, 3) and stress.shape == (P, 1)
+    kin = torch.isin(types, torch.tensor([1, 3]))
+    # kinematic rows are overridden to their ground-truth position at frame
+    torch.testing.assert_close(pos[kin], gt[frame][kin])
+    # free rows are the learned reconstruction (rest coords + displacement),
+    # not the GT (untrained net, so they differ)
+    assert not torch.allclose(pos[~kin], gt[frame][~kin])
+
+
+def test_predict_state_at_before_bind_raises():
+    sim = _tiny_sim(time_conditioned=True)
+    with pytest.raises(RuntimeError, match="bind_case"):
+        sim.predict_state_at(0, 0.0)
+
+
+def test_predict_state_at_two_different_times_differ():
+    torch.manual_seed(0)
+    rng = np.random.default_rng(1)
+    sim = _tiny_sim(time_conditioned=True, kinematic_types=(1, 3), scripted_types=(1,))
+    P, T = 5, 8
+    cells = torch.tensor([[0, 1, 2, 3], [1, 2, 3, 4]], dtype=torch.int64)
+    ref = torch.tensor(rng.random((P, 3)), dtype=torch.float32)
+    types = torch.tensor([0, 0, 1, 3, 0], dtype=torch.int64)
+    gt = torch.tensor(rng.random((T, P, 3)), dtype=torch.float32).cumsum(0)
+    sim.bind_case(cells, ref, types, gt)
+    sim.eval()
+    free = ~torch.isin(types, torch.tensor([1, 3]))
+    p1, _ = sim.predict_state_at(2, 2 / (T - 1))
+    p2, _ = sim.predict_state_at(6, 6 / (T - 1))
+    assert not torch.allclose(p1[free], p2[free])
