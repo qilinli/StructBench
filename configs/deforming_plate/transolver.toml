@@ -19,7 +19,7 @@ slice_num = 64
 mlp_ratio = 1
 dropout = 0.0
 node_type_size = 9
-noise_std = 0.003
+noise_std = 3.0    # WORKING-FRAME (mm) noise: paper 3e-3 m x length_scale 1000 (CORRECTIONS 2026-08-17 / ADR-0043 dated note; was 0.003 = 1000x too weak)
 normalizer_warmup_steps = 1000
 weight_decay = 1e-5      # AdamW, thuml reference (grounding §4.1)
 max_grad_norm = 0.1      # global-norm clip, thuml reference
@@ -34,7 +34,7 @@ batch_size = 2
 lr_init = 1e-3
 lr_decay = 0.1           # UNUSED by the transolver family (cosine anneal,
                          # ADR-0044); present because [train] is family-uniform.
-training_steps = 10_000_000
+training_steps = 2_000_000      # 3-day budget @ measured throughput (CORRECTIONS 2026-08-17)
 val_every = 50_000
 w_pos = 1.0
 w_aux = 1.0

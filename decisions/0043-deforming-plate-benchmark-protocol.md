@@ -226,3 +226,23 @@ containment is narrowed to **`notes` free-text only** — it must never be a
 `metrics` key, or it would leak into the method-comparison columns and destroy
 the comparability this ADR (§8/context) warns against. A deliberate tightening
 of the letter above, not a reversal.
+
+---
+
+**Dated note (2026-08-17, agent + maintainer) — noise-scaling bug in the
+reference recipe; DP baselines retrained.** The `[model] noise_std` value was
+expressed in the DATA-NATIVE frame, not the model's WORKING frame. DeformingPlate
+loads via `load_case_trajectory(length_scale=1000)` (positions m→mm), and the
+config correctly scaled the world-edge radius to match (0.03 m → `world_edge_radius
+= 30.0` mm) — but `noise_std = 0.003` was the paper's native `3e-3` copied
+UNSCALED, so the applied position noise (`train.py:_mesh_family_noise`, no
+`× length_scale` factor) was **0.003 mm, ~1000× weaker** than the paper's intent
+(faithful working-frame value `3.0` mm). The blessed MGN and both AR operators
+(`deforming-mgn-v03b`, `deforming-{transolver,geoflare}-v03`) trained under-noised.
+It stayed in-band on position (world edges + contact regularize enough), but the
+signature is unmistakable: one-step 4× *better* than the paper (0.059 vs 0.25 mm),
+rollout at the *high* edge (16.98 / 2.10 vs 15.1 / 1.8 mm). **Correction:** `noise_std`
+must be scaled to the working frame whenever `length_scale ≠ 1`; DP baselines are
+retrained with `noise_std = 3.0` and MGN re-blessed on the corrected recipe. See
+CORRECTIONS.md 2026-08-17. The §8 gate (pooled position RMSE in 15.1 ± 4.0) is
+unchanged — only the training recipe is corrected.

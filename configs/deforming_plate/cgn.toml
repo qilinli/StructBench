@@ -1,0 +1,44 @@
+# DeformingPlate CGN baseline (Li et al. 2023; ADR-0034) — provisional native
+# adaptation (ADR-0041 v0.3 cross-method), 2026-08-17. A GNS-style single-scale
+# radius-graph simulator applied to the 3D tet-mesh contact problem: unlike MGN
+# it has no explicit mesh/world edge split — one radius graph carries both
+# structural connectivity and actuator contact. No published CGN-DeformingPlate
+# number, so PROVISIONAL. Working frame is mm (load_case_trajectory length_scale
+# =1000), so radius and noise are the mm-frame values.
+#
+# Protocol input_frames=2 (the DP floor, ADR-0043) — CGN runs Markovian here
+# (1 velocity), which suits the memoryless quasi-static physics.
+
+[run]
+benchmark = "deforming_plate"
+seed = 1                        # avoid seed 0 (CORRECTIONS 2026-07-10)
+
+[model]
+family = "cgn"
+input_frames = 2                # DP protocol floor (ADR-0043); 1 velocity history
+dim = 3
+connectivity_radius = 30.0      # mm working frame: ~2.7x mesh node spacing (~11mm) AND the
+                                # actuator-contact scale (MGN's world_edge_radius=30); one radius
+                                # graph does both. CGN convention 2-3x spacing (CORRECTIONS 2026-07-06).
+hidden_dim = 128
+message_passing_steps = 10
+nmlp_layers = 2
+particle_type_embedding_size = 9
+noise_std = 3.0                 # WORKING-FRAME (mm) position noise: paper-analog 3e-3 m x length_scale
+                                # 1000 (CORRECTIONS 2026-08-17 / ADR-0043 dated note). DP-appropriate,
+                                # not a published CGN value.
+max_neighbors = 32              # project-wide backstop cap (CORRECTIONS 2026-07-06)
+aux_transform = "none"
+aux_transform_scale = 0.01
+
+[train]
+batch_size = 2                  # match the DP MGN/operator runs (3D radius graph, A100 memory)
+lr_init = 1e-4
+lr_decay = 0.1
+# lr_decay_steps derived by config.py: round(steps * 40000/100000) = 800_000.
+training_steps = 2_000_000      # uniform 2M-step budget across the DP fleet (maintainer 2026-08-17)
+val_every = 50_000              # full-rollout val over 100 trajectories, MGN-matched cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0
