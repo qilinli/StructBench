@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=1-00:00:00
-#SBATCH --output=logs/slurm-%x-%j.out
+#SBATCH --output=scratch/logs/slurm-%x-%j.out
 set -euo pipefail
 : "${BENCH:?set BENCH}"; : "${ARM:?set ARM}"
 declare -A DATAMAP=( [taylor_impact_2d]=taylor_impact [notch_beam_2d_impact]=notch_beam_2d_impact [deforming_plate]=deforming_plate )

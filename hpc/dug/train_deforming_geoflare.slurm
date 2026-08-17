@@ -18,7 +18,7 @@
                                              # NO RESUME — project wall-clock from the
                                              # measured steps/s early and scancel+re-budget
                                              # if unacceptable (ledger deviation; no gate).
-#SBATCH --output=logs/slurm-dp-geoflare-%j.out    # logs/ must exist BEFORE sbatch
+#SBATCH --output=scratch/logs/slurm-dp-geoflare-%j.out    # scratch/logs/ must exist BEFORE sbatch
 # #SBATCH --account=<PROJECT>                # uncomment if submission demands an account
 
 set -euo pipefail

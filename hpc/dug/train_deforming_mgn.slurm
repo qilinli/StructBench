@@ -22,7 +22,7 @@
                                              # early model-best is usable for analysis,
                                              # but a partial run is a training-ledger
                                              # deviation, not the §8 blessing recipe.
-#SBATCH --output=logs/slurm-dp-mgn-%j.out    # logs/ must exist BEFORE sbatch
+#SBATCH --output=scratch/logs/slurm-dp-mgn-%j.out    # scratch/logs/ must exist BEFORE sbatch
 # #SBATCH --account=<PROJECT>                # uncomment if submission demands an account
 
 set -euo pipefail

@@ -19,7 +19,7 @@
 #SBATCH --mem=64G                           # generous; wave's host-RAM need is modest
 #SBATCH --time=24:00:00                     # generous ceiling: 50k steps at wave capacity
                                             # should finish in a few hours — re-measure and trim.
-#SBATCH --output=logs/slurm-wave-%j.out     # job stdout in logs/ (gitignored), not the repo root
+#SBATCH --output=scratch/logs/slurm-wave-%j.out     # job stdout in scratch/logs/ (gitignored), not the repo root
 # #SBATCH --account=<PROJECT>              # uncomment if submission demands an account
 
 set -euo pipefail
