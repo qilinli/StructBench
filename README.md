@@ -7,8 +7,9 @@ baseline to beat — for structures under dynamic and extreme loading.
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 
-> **Status: v0.2.0 — four benchmarks, three blessed baselines.** What exists
-> is real and tested; what doesn't is on the [roadmap](#roadmap).
+> **Status: five benchmarks, four blessed baselines.** v0.2.0 released; the
+> v0.3 `DeformingPlate` benchmark is built on `main` (release pending). What
+> exists is real and tested; what doesn't is on the [roadmap](#roadmap).
 
 ![Taylor bar rollout: ground truth vs CGN prediction, copper bar mushrooming against a rigid wall, colored by von Mises stress](assets/taylor_rollout.gif)
 
@@ -25,6 +26,7 @@ for the full problem, data, and numbers to beat.*
 | Wave1D-Propagation | elastic wave in a bar (entry tier) | 16 |
 | NotchBeam2D-Bend | notched concrete beam, 3-point bend | 111 |
 | NotchBeam2D-Impact | notched concrete beam, drop-weight impact | 110 |
+| DeformingPlate | hyperelastic plate + rigid actuator (MeshGraphNets, 3D) | 1200 |
 
 Full cards (solver, materials, splits, QoIs): [docs/benchmarks.md](docs/benchmarks.md).
 Every benchmark fixes its task, split, and evaluation protocol in an ADR —
@@ -166,32 +168,32 @@ decisions/         # architecture decision records
 cross-method comparison on public data, not a new physics problem. Build order
 is a set of checkpoints — partial value lands if the last slips.*
 
-- [ ] **① Ingestion + `DeformingPlate` + MGN blessed.** Offline
-      `tfrecord`→canonical HDF5 conversion (throwaway env, no TF runtime dep);
-      `benchmarks/deforming_plate` module (first 3D benchmark, canonical
-      1000/100/100 split, aux = von Mises stress); `models/mgn` implemented
-      native and **blessed** by reproducing published deforming-plate numbers
-      (this reproduction certifies the whole pipeline). Confirm the dataset's
-      redistribution terms before the ingestion ADR.
-- [ ] **② Transolver provisional.** `models/transolver` (transformer-operator
-      family — new to `models/`); `datasets/` generalized to serve point-set
-      inputs alongside graph windows. Ships **provisional** (best-effort port,
-      fidelity check deferred).
-- [ ] **③ GeoFLARE provisional.** `models/geoflare`, likewise provisional.
+- [x] ~~**① Ingestion + `DeformingPlate` + MGN blessed.**~~ Done (ADR-0042
+      `tfrecord`→canonical HDF5 ingestion; ADR-0043 protocol + blessing gate):
+      the `benchmarks/deforming_plate` module ships — the first 3D benchmark,
+      canonical 1000/100/100 split, aux = von Mises stress; `models/mgn`
+      implemented native and **blessed** by reproducing the published
+      deforming-plate position result (this reproduction certifies the pipeline).
+- [x] ~~**② Transolver provisional.**~~ Done (ADR-0044): `models/transolver`
+      (transformer-operator family — new to `models/`); `datasets/` generalized
+      to serve point-set inputs alongside graph windows. Ships **provisional**
+      (best-effort native port, no published DeformingPlate number to reproduce).
+- [x] ~~**③ GeoFLARE provisional.**~~ Done (ADR-0045): `models/geoflare`
+      (GeoTransolver with the FLARE attention backend), likewise **provisional**.
 - [x] ~~Cross-method infrastructure: results registry (ADR-0033) extended to
       per-(benchmark × method) with a `provisional` flag; landing page
       (ADR-0036) renders a method-comparison table distinguishing blessed from
       provisional.~~ (2026-08-09, ADR-0046): `BaselineResult.provisional` +
-      `BenchmarkSpec.blessed_results`; the `## Method comparison` section on
-      every page; provisional-aware Quickstart selection (fixes the
-      `deforming_plate` `cgn.toml` bug). The tables await the maintainer's runs.
-- [ ] Follow-on ADRs as each lands: DeformingPlate benchmark protocol
-      (split/metrics/scored horizon/input window per ADR-0035); the `tfrecord`
-      ingestion adapter; the per-method registry schema (ADR-0046); the
-      transformer-operator family's placement in `models/`/`datasets/`
-      (may touch ARCHITECTURE.md).
-- [ ] Human, out of session: VISION's "1D/2D problems only" limitation copy
-      (forbidden-tier during coding sessions); flip once v0.3 ships 3D.
+      `BenchmarkSpec.blessed_results`; the ranked leaderboard section on every
+      page; provisional-aware Quickstart selection (fixes the `deforming_plate`
+      `cgn.toml` bug). Populated with the maintainer's runs.
+- [x] ~~Follow-on ADRs as each lands.~~ Landed: ADR-0041 (v0.3 plan), 0042
+      (`tfrecord` ingestion adapter), 0043 (benchmark protocol + blessing gate),
+      0044/0045 (Transolver/GeoFLARE adaptations), 0046 (per-method registry
+      schema).
+- [ ] Human, out of session: flip VISION's "1D/2D problems only" limitation
+      copy (forbidden-tier during coding sessions) — **v0.3 has now shipped 3D**
+      (DeformingPlate), so this is ready to action.
 
 ### Inbox — untriaged, add freely
 
