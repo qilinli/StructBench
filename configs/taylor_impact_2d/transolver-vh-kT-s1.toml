@@ -1,5 +1,5 @@
 # Taylor 2D — Transolver k-frames sweep arm (kT, seed 1); ADR-0050/0051.
-# Base recipe transolver-n02-vh (L8/M64, velocity_history); k-sweep at
+# Base recipe transolver-n02-vh (L8/M64, history_frames=5); k-sweep at
 # 60k reduced budget into runs/kframes-*. frames_per_call=0 (one-shot k=T).
 # noise_std set 0 (inert at k>1; ADR-0051).
 
@@ -23,7 +23,7 @@ normalizer_warmup_steps = 1000
 weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference
 
-velocity_history = true       # +5 window velocities; CGN random-walk window noise +
+history_frames = 5            # +5 window velocities; CGN random-walk window noise +
                               # GNS adjusted-next target (de-noise velocity, not the
                               # accumulated position offset; ADR-0049)
 frames_per_call = 0            # ADR-0050/0051 k-frames axis (one-shot sentinel)

@@ -348,12 +348,12 @@ def test_transolver_pushforward_helper_shapes_and_grad_through_bundle2():
     args = (sim, position_seq, next_position, next_aux, ptype, ref, npp, is_kin, k)
 
     # warmup branch: plain clean bundle1, (P, k, dim+1) shapes.
-    pw, tw = _transolver_pushforward(*args, velocity_history=False, warmup=True)
+    pw, tw = _transolver_pushforward(*args, history_frames=0, warmup=True)
     assert pw.shape == (P, k, dim + 1) and tw.shape == (P, k, dim + 1)
 
     # pushforward branch: same shapes, and the bundle2 prediction carries
     # gradient (the two-pass seam training backprops through the net).
-    pp, tp = _transolver_pushforward(*args, velocity_history=False, warmup=False)
+    pp, tp = _transolver_pushforward(*args, history_frames=0, warmup=False)
     assert pp.shape == (P, k, dim + 1) and tp.shape == (P, k, dim + 1)
     assert pp.requires_grad
     pp.sum().backward()

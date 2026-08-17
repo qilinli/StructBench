@@ -179,6 +179,62 @@ and unaffected; and a legacy `config.json` lacking the field rebuilds as k=1.
   *default* scheme, not a constraint on models (the metric is scheme-agnostic);
   those ADRs carry a forward-reference note to this ADR.
 
+## Amendment (2026-08-15): time-conditioned querying — a fourth scheme, recorded, not scheduled
+
+*From the 2026-08-15 time-stepping session (maintainer-approved direction).
+Source verifications are recorded on ADR-0050's same-day amendment. Nothing in
+this note is implemented or scheduled.*
+
+**The scheme.** Time-conditioned querying (TC; atlas Axis F4): predict the state
+at frame t directly from the rollout seed plus a scalar time token — per-frame
+independent decode, no feedback, no fixed-size trajectory head. It sits
+**outside the k-axis**: `frames_per_call` counts frames per call of a *stepping*
+family, while TC replaces stepping altogether. If picked up, the config
+generalises from the scalar knob to `scheme ∈ {stepper(k), time_query}`; the
+stepper branch is this ADR unchanged. Training uses clean inputs (the k=T end of
+the noise/target branch: no feedback, hence no drift to simulate) on
+`(case, t)`-pair samples.
+
+**Precedent (verified 2026-08-15).** Transolver's own structural benchmark
+(Plasticity) runs TC natively — so TC, not stacked-channel k=T, is the
+Transolver-faithful history-free mode. The NVIDIA/GM crash study
+(arXiv:2510.15201) found TC comparable to rollout-trained AR (with smaller
+standard deviation) and clearly better than one-step-trained AR on BIW crash;
+it contains no one-shot arm.
+
+**Why it earns a slot — it is the disentangling arm for three items this ADR
+left open:**
+
+- *Deferred (b), k=T sample sparsity:* TC trains on `(case, t)` pairs —
+  per-frame supervision density equal to k=1 (~T× the one-shot window count)
+  while remaining history-free. A TC arm separates "one-shot is data-starved"
+  from "history-free is wrong".
+- *Deferred (a), notch horizon divergence:* TC queries exactly the scored
+  frames; no fixed head, no AR tail beyond the scored span.
+- *The k=T memory ceiling:* per-frame decode removes the ×k activation cost
+  (the MGN-OOM-class risk never arises for TC).
+
+**Costs and predicted failure modes.** No causal state: degraded extrapolation
+beyond the trained horizon (paper-stated). Per-frame independence risks
+temporally incoherent trajectories — velocities and accelerations obtained by
+differencing independent queries are the sentinel, so the existing
+`peak_von_mises` / `t_peak_von_mises`-class QoIs discriminate again; no new
+metric. Neural CFL binds *a fortiori*: a late-t query must see the seed's whole
+domain of influence, so TC is global-mixing-only (Transolver ✓ per the audit
+table above; message-passing families are excluded even more strongly than at
+k=5).
+
+**Where the scheme axis lives (maintainer-confirmed boundary, 2026-08-15).**
+
+- **Benchmark cards stay scheme-free.** When next touched they may gain
+  *declarative physics facts only* (wave speed, frame dt — the inputs to the
+  neural-CFL audit table), so the audit becomes computable per benchmark instead
+  of hand-carried in ADRs. No card change now.
+- **The scheme is model-family config** (this ADR's knob, generalised by the
+  enum above).
+- **Results-registry entries record the scheme per run** (extends deferred (c)),
+  so cross-scheme rows are never silently compared as if same-scheme.
+
 ## Amendment (2026-08-15): input conditioning for faithful one-shot baselines (B)
 
 A literature review of how the official publications set up their prediction task

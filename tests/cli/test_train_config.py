@@ -173,7 +173,7 @@ node_type_size = 9
 world_edge_radius = 30.0
 noise_std = 0.003
 normalizer_warmup_steps = 1000
-velocity_history = false
+history_frames = 0
 mesh_edge_max_stretch = 0.0
 
 [train]
@@ -253,7 +253,7 @@ noise_std = 0.003
 normalizer_warmup_steps = 1000
 weight_decay = 1e-5
 max_grad_norm = 0.1
-velocity_history = false
+history_frames = 0
 frames_per_call = 1
 impact_velocity_feature = false
 time_conditioned = false
@@ -318,12 +318,13 @@ def test_load_run_config_time_conditioned_roundtrips(tmp_path):
     assert load_run_config(_write(tmp_path, on)).model.time_conditioned is True
 
 
-def test_load_run_config_rejects_time_conditioned_with_velocity_history(tmp_path):
-    # ADR-0053: the time-conditioned scheme is history-free.
+def test_load_run_config_rejects_time_conditioned_with_history(tmp_path):
+    # ADR-0054 (on the ADR-0053 history_frames schema): the time-conditioned
+    # scheme is history-free, so a nonzero history_frames is rejected.
     bad = VALID_TRANSOLVER.replace(
-        "velocity_history = false", "velocity_history = true"
+        "history_frames = 0", "history_frames = 1"
     ).replace("time_conditioned = false", "time_conditioned = true")
-    with pytest.raises(ConfigError, match="requires velocity_history=false"):
+    with pytest.raises(ConfigError, match="requires history_frames=0"):
         load_run_config(_write(tmp_path, bad))
 
 
@@ -341,6 +342,31 @@ def test_load_run_config_rejects_negative_frames_per_call(tmp_path):
     # one-shot sentinel; k>=1 is concrete), not deep in simulator construction.
     bad = VALID_TRANSOLVER.replace("frames_per_call = 1", "frames_per_call = -3")
     with pytest.raises(ConfigError, match="frames_per_call must be >= 0"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_transolver_history_frames_roundtrips(tmp_path):
+    # ADR-0053: history_frames is decoupled from the input_frames seed; any
+    # value in [0, input_frames-1] round-trips (dp card input_frames=2 -> {0,1}).
+    for value in (0, 1):
+        cfg = VALID_TRANSOLVER.replace(
+            "history_frames = 0", f"history_frames = {value}"
+        )
+        rc = load_run_config(_write(tmp_path, cfg))
+        assert rc.model.history_frames == value
+
+
+def test_load_run_config_rejects_history_frames_over_seed(tmp_path):
+    # history_frames > input_frames-1 is unsatisfiable (a velocity needs a
+    # preceding frame); rejected at load with a clear message (ADR-0053).
+    bad = VALID_TRANSOLVER.replace("history_frames = 0", "history_frames = 2")
+    with pytest.raises(ConfigError, match="history_frames must be in"):
+        load_run_config(_write(tmp_path, bad))
+
+
+def test_load_run_config_rejects_negative_history_frames(tmp_path):
+    bad = VALID_TRANSOLVER.replace("history_frames = 0", "history_frames = -1")
+    with pytest.raises(ConfigError, match="history_frames must be in"):
         load_run_config(_write(tmp_path, bad))
 
 
@@ -415,7 +441,7 @@ noise_std = 0.003
 normalizer_warmup_steps = 1000
 weight_decay = 1e-4
 max_grad_norm = 0.0
-velocity_history = false
+history_frames = 0
 
 [train]
 batch_size = 8

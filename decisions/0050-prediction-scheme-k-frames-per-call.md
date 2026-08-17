@@ -204,3 +204,39 @@ part most in need of design before any code.
   hypothesis-driven: signed predictions — per regime (impact-dissipative:
   larger k wins) and per metric (rollout RMSE improves, peak-stress QoIs
   degrade) — are on record before any implementation.
+
+## Amendment (2026-08-15): source corrections — Transolver's structural home mode is time-conditioned querying, not k=T
+
+*Recorded after verifying today's sources against the primary code and paper
+(maintainer-approved session, 2026-08-15). This note corrects the record this
+ADR carries; the forward-looking counterpart (the fourth scheme, its scope and
+its boundary) is an amendment on ADR-0051.*
+
+- **Correction to "k=T is its literature-home mode" (Decision section).**
+  Verified against thuml/Transolver's own code
+  (`PDE-Solving-StandardBenchmark/exp_plas.py`): its only structural-deformation
+  benchmark (Plasticity — a die forming an elastoplastic block) predicts each of
+  the 20 output frames **independently** via `model(x, fx, T=t)` — geometry-only
+  input, a scalar time token per query, no feedback, no stacked trajectory head.
+  That is **time-conditioned querying** (a direct operator `u(t) = F(IC, BC, t)`;
+  atlas Axis F4), not k=T one-shot. The stacked-channel k=T pattern is the
+  CarCrashNet / GeoTransolver-crash-wrapper form. (The same repo's Navier–Stokes
+  benchmark is k=1 autoregressive over a 10-frame history window — within one
+  architecture the scheme choice tracks the problem regime, not the method.)
+- **Correction to the 2026-08-13 session recollection** that the NVIDIA crash
+  study "found time-conditioning slightly more accurate than one-shot". Verified
+  against the paper (arXiv:2510.15201, NVIDIA + General Motors, Body-in-White
+  frontal crash on LS-DYNA data): its three arms are time-conditional (TC),
+  autoregressive with one-step training (AR-OT), and autoregressive with rollout
+  training (AR-RT) — there is **no one-shot arm**. Finding (Results Part 3,
+  Transolver backbone): AR-OT yields noticeably higher rollout L2 position error;
+  **TC achieves accuracy comparable to AR-RT with smaller standard deviation**.
+  The paper's stated TC weakness: it "fundamentally ignores causal dependencies
+  between states, and thus tends to perform poorly when extrapolating or
+  forecasting beyond the training time horizon."
+- **Why this strengthens rather than weakens the regime hypothesis:** on an
+  impact-dissipative crash problem a history-free scheme matched the best
+  *stabilised* stepper while the unstabilised stepper lost — i.e. scheme
+  comparisons are stabiliser-confounded (each scheme must carry its own
+  numerical-dissipation analogue), which is exactly the k-regime noise/target
+  branch this ADR identified as the load-bearing subtlety.

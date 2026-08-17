@@ -101,12 +101,12 @@ class MGNConfig:
     Attributes
     ----------
     input_frames : int
-        Number of consecutive position frames the model takes as input per
-        sample (history length). Under ADR-0035 this is also the rollout seed
-        count, so it must equal the benchmark card's ``input_frames``
-        (enforced at config load). The reference MGN source uses ``h=0``
-        history (ADR-0043 §3), giving the floor value 2 (a velocity needs two
-        frames).
+        The benchmark's **seed / scored-span protocol** (ADR-0035): the rollout
+        observes this many ground-truth frames and scores ``[input_frames,
+        end]``, so it must equal the benchmark card's ``input_frames`` (enforced
+        at config load) and is shared across families for a common scored span.
+        It is NOT the model's history length — that is decoupled into
+        ``history_frames`` (ADR-0053). The deforming_plate protocol pins 2.
     dim : int
         Spatial dimensionality (3 for the deforming_plate benchmark).
     hidden_dim : int
@@ -126,15 +126,18 @@ class MGNConfig:
     normalizer_warmup_steps : int
         Number of training steps over which the online feature/target
         normalizers accumulate statistics before their outputs are used.
-    velocity_history : bool
-        Append the window's ``input_frames - 1`` finite-difference velocities
-        to the node features (ADR-0049). The reference recipe is Markovian in
-        position (``False``); enabling this gives the family CGN-parity
-        momentum awareness, switches the training noise from single-frame
-        Gaussian to the CGN random-walk over the full window (so the
-        velocity features are consistently noisy), and adopts the GNS
-        adjusted-next target: the model de-noises the velocity, not the
-        accumulated position offset.
+    history_frames : int
+        The model's **history length** (ADR-0053, decoupling model history from
+        the ``input_frames`` seed protocol): how many trailing finite-difference
+        velocities from the seed window enter the node features. ``0`` (the
+        reference recipe) is Markovian in position; ``k`` appends the last ``k``
+        velocities, bounded by ``input_frames - 1``. Any ``k > 0`` gives the
+        family momentum awareness, switches the training noise from single-frame
+        Gaussian to the CGN random-walk over the window (so the velocity
+        features are consistently noisy), and adopts the GNS adjusted-next
+        target: the model de-noises the velocity, not the accumulated position
+        offset. Supersedes the ADR-0049 ``velocity_history`` boolean
+        (``False`` → ``0``, ``True`` → ``input_frames - 1``).
     mesh_edge_max_stretch : float
         Drop mesh-edge messages whose current length exceeds this multiple
         of their rest length, in training and rollout alike (ADR-0049).
@@ -153,7 +156,7 @@ class MGNConfig:
     world_edge_radius: float = 30.0  # working frame (mm); measured (ADR-0042 §2b)
     noise_std: float = 0.003
     normalizer_warmup_steps: int = 1000
-    velocity_history: bool = False
+    history_frames: int = 0
     mesh_edge_max_stretch: float = 0.0
 
 
@@ -168,11 +171,12 @@ class TransolverConfig:
     Attributes
     ----------
     input_frames : int
-        Number of consecutive position frames the model takes as input per
-        sample (history length). Under ADR-0035 this is also the rollout
-        seed count, so it must equal the benchmark card's ``input_frames``
-        (enforced at config load); the deforming_plate protocol pins 2
-        (ADR-0035/ADR-0043).
+        The benchmark's **seed / scored-span protocol** (ADR-0035): the rollout
+        observes this many ground-truth frames and scores ``[input_frames,
+        end]``, so it must equal the benchmark card's ``input_frames`` (enforced
+        at config load) and is shared across families for a common scored span.
+        It is NOT the model's history length — that is decoupled into
+        ``history_frames`` (ADR-0053). The deforming_plate protocol pins 2.
     dim : int
         Spatial dimensionality (3 for the deforming_plate benchmark).
     hidden_dim : int
@@ -212,15 +216,18 @@ class TransolverConfig:
     max_grad_norm : float
         Global-norm gradient clip of the method-native optimizer recipe
         (thuml reference value 0.1; ``0`` disables the clip).
-    velocity_history : bool
-        Append the window's ``input_frames - 1`` finite-difference velocities
-        to the node features (ADR-0049). The reference recipe is Markovian in
-        position (``False``); enabling this gives the family CGN-parity
-        momentum awareness, switches the training noise from single-frame
-        Gaussian to the CGN random-walk over the full window (so the
-        velocity features are consistently noisy), and adopts the GNS
-        adjusted-next target: the model de-noises the velocity, not the
-        accumulated position offset.
+    history_frames : int
+        The model's **history length** (ADR-0053, decoupling model history from
+        the ``input_frames`` seed protocol): how many trailing finite-difference
+        velocities from the seed window enter the node features. ``0`` (the
+        reference recipe) is Markovian in position; ``k`` appends the last ``k``
+        velocities, bounded by ``input_frames - 1``. Any ``k > 0`` gives the
+        family momentum awareness, switches the training noise from single-frame
+        Gaussian to the CGN random-walk over the window (so the velocity
+        features are consistently noisy), and adopts the GNS adjusted-next
+        target: the model de-noises the velocity, not the accumulated position
+        offset. Supersedes the ADR-0049 ``velocity_history`` boolean
+        (``False`` → ``0``, ``True`` → ``input_frames - 1``).
     frames_per_call : int
         Prediction-scheme axis (ADR-0050/0051): number of frames the decoder
         emits per forward call. ``1`` (default) is today's autoregressive
@@ -243,10 +250,10 @@ class TransolverConfig:
         (default) is byte-identical to the pre-existing recipe. This is the
         operator-learning / one-shot convention established by the official
         Transolver / GeoTransolver / CrashSolver publications — a *known scalar
-        loading parameter*, distinct from ``velocity_history`` (which is the
+        loading parameter*, distinct from ``history_frames`` (which is the
         autoregressive GNS/MeshGraphNets per-node velocity window). It matters
         for the one-shot (``frames_per_call=0``) baseline, which is otherwise
-        velocity-blind: with ``velocity_history=False`` the model sees only the
+        velocity-blind: with ``history_frames=0`` the model sees only the
         single most-recent frame, so it cannot infer the impact speed without
         this scalar. A per-node initial-velocity *field* (rather than a global
         scalar) is the natural refinement for spatially-structured loading.
@@ -258,8 +265,8 @@ class TransolverConfig:
         Transolver's *native structural* scheme (the Plasticity template), as
         opposed to the fluid (Navier-Stokes) autoregressive + velocity-history
         convention. ``False`` (default) is byte-identical to the pre-0053
-        recipe. Mutually exclusive with ``velocity_history`` and the ``k>1``
-        bundling axis: requires ``velocity_history=false`` and
+        recipe. Mutually exclusive with a nonzero ``history_frames`` window and
+        the ``k>1`` bundling axis: requires ``history_frames=0`` and
         ``frames_per_call=1`` (enforced at config load and simulator
         construction); composes with ``impact_velocity_feature``.
     """
@@ -277,7 +284,7 @@ class TransolverConfig:
     normalizer_warmup_steps: int = 1000
     weight_decay: float = 1e-5
     max_grad_norm: float = 0.1
-    velocity_history: bool = False
+    history_frames: int = 0
     frames_per_call: int = 1
     impact_velocity_feature: bool = False
     time_conditioned: bool = False
@@ -297,11 +304,12 @@ class GeoFlareConfig:
     Attributes
     ----------
     input_frames : int
-        Number of consecutive position frames the model takes as input per
-        sample (history length). Under ADR-0035 this is also the rollout
-        seed count, so it must equal the benchmark card's ``input_frames``
-        (enforced at config load); the deforming_plate protocol pins 2
-        (ADR-0035/ADR-0043).
+        The benchmark's **seed / scored-span protocol** (ADR-0035): the rollout
+        observes this many ground-truth frames and scores ``[input_frames,
+        end]``, so it must equal the benchmark card's ``input_frames`` (enforced
+        at config load) and is shared across families for a common scored span.
+        It is NOT the model's history length — that is decoupled into
+        ``history_frames`` (ADR-0053). The deforming_plate protocol pins 2.
     dim : int
         Spatial dimensionality (3 for the deforming_plate benchmark).
     n_hidden : int
@@ -364,15 +372,18 @@ class GeoFlareConfig:
         ``0.0`` disables the clip, matching the reference recipe, which
         applies no clipping. The knob is kept for family-uniformity with
         ``TransolverConfig``.
-    velocity_history : bool
-        Append the window's ``input_frames - 1`` finite-difference velocities
-        to the node features (ADR-0049). The reference recipe is Markovian in
-        position (``False``); enabling this gives the family CGN-parity
-        momentum awareness, switches the training noise from single-frame
-        Gaussian to the CGN random-walk over the full window (so the
-        velocity features are consistently noisy), and adopts the GNS
-        adjusted-next target: the model de-noises the velocity, not the
-        accumulated position offset.
+    history_frames : int
+        The model's **history length** (ADR-0053, decoupling model history from
+        the ``input_frames`` seed protocol): how many trailing finite-difference
+        velocities from the seed window enter the node features. ``0`` (the
+        reference recipe) is Markovian in position; ``k`` appends the last ``k``
+        velocities, bounded by ``input_frames - 1``. Any ``k > 0`` gives the
+        family momentum awareness, switches the training noise from single-frame
+        Gaussian to the CGN random-walk over the window (so the velocity
+        features are consistently noisy), and adopts the GNS adjusted-next
+        target: the model de-noises the velocity, not the accumulated position
+        offset. Supersedes the ADR-0049 ``velocity_history`` boolean
+        (``False`` → ``0``, ``True`` → ``input_frames - 1``).
     """
 
     input_frames: int = 2
@@ -393,7 +404,7 @@ class GeoFlareConfig:
     normalizer_warmup_steps: int = 1000
     weight_decay: float = 1e-4
     max_grad_norm: float = 0.0
-    velocity_history: bool = False
+    history_frames: int = 0
 
 
 @dataclass
@@ -691,14 +702,28 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             f"k>=1 = frames predicted per forward call); got {frames_per_call}"
         )
 
+    # ADR-0053: the model's history length is decoupled from the input_frames
+    # seed protocol. It appends the last ``history_frames`` velocities of the
+    # seed window, so it is bounded by ``input_frames - 1`` (a velocity needs a
+    # preceding frame) and non-negative (0 = Markovian, the reference recipe).
+    history_frames = getattr(model, "history_frames", None)
+    if history_frames is not None and not (
+        0 <= history_frames <= model.input_frames - 1
+    ):
+        raise ConfigError(
+            f"[model] history_frames must be in [0, input_frames-1] "
+            f"(0 = Markovian; k appends the last k window velocities, ADR-0053); "
+            f"got {history_frames} with input_frames={model.input_frames}"
+        )
+
     # ADR-0054: the time-conditioned scheme is history-free and
-    # non-autoregressive, so it is mutually exclusive with the velocity-history
-    # window and the k-frames-per-call bundling axis. Reject the combination at
-    # load rather than deep in simulator construction.
+    # non-autoregressive, so it is mutually exclusive with a nonzero history
+    # window (ADR-0053) and the k-frames-per-call bundling axis. Reject the
+    # combination at load rather than deep in simulator construction.
     if getattr(model, "time_conditioned", False):
-        if getattr(model, "velocity_history", False):
+        if history_frames:
             raise ConfigError(
-                "[model] time_conditioned=true requires velocity_history=false "
+                "[model] time_conditioned=true requires history_frames=0 "
                 "(the time-conditioned scheme is history-free; ADR-0054)"
             )
         if frames_per_call != 1:
@@ -788,6 +813,11 @@ def read_run_record(config_path: Path) -> dict[str, Any]:
       ``family = "gns"``.
     * **Records that predate ADR-0035** name the history length ``window`` (in
       ``model``, or flat in ``gns``); it is renamed to ``input_frames``.
+    * **Records that predate ADR-0053** name the mesh-family history via the
+      ``velocity_history`` boolean; it is mapped to the ``history_frames`` count
+      (``False`` → 0, ``True`` → ``input_frames - 1``) and the stale key dropped,
+      so old MGN/Transolver/GeoFLARE checkpoints rebuild the identical feature
+      width against the current dataclasses.
 
     Either way the historical input window becomes both ``model.input_frames``
     and ``protocol.input_frames`` — a legacy run seeded its rollout with its
@@ -806,6 +836,9 @@ def read_run_record(config_path: Path) -> dict[str, Any]:
         model = dict(record["model"])
         if "window" in model and "input_frames" not in model:
             model["input_frames"] = model.pop("window")
+        if "velocity_history" in model and "history_frames" not in model:
+            vh = model.pop("velocity_history")
+            model["history_frames"] = (model.get("input_frames", 1) - 1) if vh else 0
         record["model"] = model
         proto = dict(record.get("protocol") or {})
         if "init_frames" in proto and "input_frames" not in proto:
