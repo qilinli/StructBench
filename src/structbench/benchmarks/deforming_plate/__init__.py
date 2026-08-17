@@ -25,6 +25,17 @@ __all__ = [
 #: adaptations (ADR-0044/0045). Cross-method comparison is the v0.3 headline
 #: (ADR-0041): on this smooth quasi-static task the operators outrun the
 #: mesh-based reference ~3-4x on displacement relative L2.
+#:
+#: RMSE CONVENTION (ADR-0043): DeformingPlate's ``rollout_pos_rmse_mm`` /
+#: ``rollout_vm_rmse_mpa`` are the **pooled** space+time RMSE (root of the mean
+#: squared error pooled over coordinates x nodes x steps x trajectories) - the
+#: same statistic as the published DeformingPlate number, computed by
+#: ``tools/blessing_pooled_rmse.py`` for position. This is DELIBERATELY a
+#: different statistic from the mean-of-per-step-RMSE the evaluator reports as
+#: ``rollout_position_rmse`` and that the other benchmarks' leaderboards use
+#: (ADR-0019 SS5); conflating the two destroys comparability with the paper
+#: (ADR-0043 SS8), so DP pins the pooled convention to keep the MGN blessing
+#: gate honest. One-step and QoI columns are as the evaluator reports them.
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
         family="mgn",
@@ -41,8 +52,8 @@ RESULTS: tuple[BaselineResult, ...] = (
             "test": {
                 "rollout_rel_l2_disp": 0.8092,
                 "rollout_rel_l2_aux": 4.209,
-                "rollout_pos_rmse_mm": 11.25,
-                "rollout_vm_rmse_mpa": 0.1168,
+                "rollout_pos_rmse_mm": 16.98,
+                "rollout_vm_rmse_mpa": 0.1692,
                 "one_step_pos_rmse_mm": 0.05900,
                 "one_step_vm_rmse_mpa": 0.008093,
                 "qoi_peak_vm_mae_mpa": 2.940,
@@ -58,16 +69,19 @@ RESULTS: tuple[BaselineResult, ...] = (
         notes=(
             "Native MeshGraphNets (ADR-0042/0043): autoregressive next-step on "
             "the 3D tetrahedral mesh with world edges (activation-checkpointed, "
-            "commit 0f103b5). BLESSED: its pooled test position RMSE, 11.25 mm "
-            "(x10^-3 dataset-native length units), falls inside the published "
-            "band 15.1 +/- 4.0 that four later papers corroborate (ADR-0043), so "
-            "it reproduces the reference deformation result the field trusts - at "
-            "the optimistic edge of the band. The 10M-step blessing budget was "
-            "cut at the val-selected 2.2M checkpoint (model-best-2200000.pt), "
+            "commit 0f103b5). BLESSED: its POOLED test position RMSE, 16.98 mm "
+            "(x10^-3 dataset-native length units; ADR-0043 paper convention, from "
+            "tools/blessing_pooled_rmse.py), falls inside the published band "
+            "15.1 +/- 4.0 = [11.1, 19.1] that four later papers corroborate "
+            "(ADR-0043), so it reproduces the reference deformation result the "
+            "field trusts. The pooled RMSE is dominated by a handful of divergent "
+            "trajectories (per-case mean 10.2 mm, but a few cases run to 30-86 mm) "
+            "- the honest whole-dataset statistic. The 10M-step blessing budget "
+            "was cut at the val-selected 2.2M checkpoint (model-best-2200000.pt), "
             "in-band and plateaued (ADR-0043 dated note). Position is strong, but "
             "the von Mises FIELD collapses under rollout: relative L2 4.21 (worse "
-            "than a zero baseline on 96 of 100 cases) and rollout von Mises RMSE "
-            "0.117 MPa, ~13x the operators - a pure autoregressive-accumulation "
+            "than a zero baseline on 96 of 100 cases) and pooled von Mises RMSE "
+            "0.169 MPa, ~11-15x the operators - a pure autoregressive-accumulation "
             "artifact (one-step von Mises RMSE 0.0081 MPa is fine). The published "
             "DeformingPlate result gates on position only; stress is a StructBench "
             "secondary. Pooled relative L2 headline (ADR-0055) from the 2026-08-17 "
@@ -90,8 +104,8 @@ RESULTS: tuple[BaselineResult, ...] = (
             "test": {
                 "rollout_rel_l2_disp": 0.2681,
                 "rollout_rel_l2_aux": 0.2400,
-                "rollout_pos_rmse_mm": 2.929,
-                "rollout_vm_rmse_mpa": 0.009137,
+                "rollout_pos_rmse_mm": 4.282,
+                "rollout_vm_rmse_mpa": 0.01095,
                 "one_step_pos_rmse_mm": 0.01412,
                 "one_step_vm_rmse_mpa": 0.005993,
                 "qoi_peak_vm_mae_mpa": 0.01915,
@@ -105,11 +119,11 @@ RESULTS: tuple[BaselineResult, ...] = (
             "Transolver-DeformingPlate number. Val-selected model-best-4000000.pt. "
             "It is the strongest baseline on this benchmark by a wide margin - "
             "~3x lower displacement relative L2 than the blessed MGN (0.268 vs "
-            "0.809) and ~4x lower position RMSE (2.93 vs 11.25 mm) - because its "
-            "global attention is not tied to a fixed mesh graph and it accumulates "
-            "little rollout error on smooth quasi-static deformation (von Mises "
-            "relative L2 0.240 vs MGN 4.21). Pooled relative L2 headline "
-            "(ADR-0055) from the 2026-08-17 re-eval."
+            "0.809) and ~4x lower pooled position RMSE (4.28 vs 16.98 mm) - "
+            "because its global attention is not tied to a fixed mesh graph and "
+            "it accumulates little rollout error on smooth quasi-static "
+            "deformation (von Mises relative L2 0.240 vs MGN 4.21). Pooled "
+            "relative L2 headline (ADR-0055) from the 2026-08-17 re-eval."
         ),
     ),
     BaselineResult(
@@ -129,8 +143,8 @@ RESULTS: tuple[BaselineResult, ...] = (
             "test": {
                 "rollout_rel_l2_disp": 0.5729,
                 "rollout_rel_l2_aux": 0.3513,
-                "rollout_pos_rmse_mm": 4.876,
-                "rollout_vm_rmse_mpa": 0.01360,
+                "rollout_pos_rmse_mm": 5.144,
+                "rollout_vm_rmse_mpa": 0.01493,
                 "one_step_pos_rmse_mm": 0.02778,
                 "one_step_vm_rmse_mpa": 0.01054,
                 "qoi_peak_vm_mae_mpa": 0.03846,
@@ -144,9 +158,10 @@ RESULTS: tuple[BaselineResult, ...] = (
             "native implementation, not validated against a published number. "
             "Val-selected model-best-6600000.pt. It sits between Transolver and "
             "MGN: displacement relative L2 0.573 (vs Transolver 0.268, MGN 0.809) "
-            "and position RMSE 4.88 mm - clearly beating the blessed reference but "
-            "trailing the plain Physics-Attention operator on this task. Pooled "
-            "relative L2 headline (ADR-0055) from the 2026-08-17 re-eval."
+            "and pooled position RMSE 5.14 mm (vs MGN 16.98) - clearly beating the "
+            "blessed reference but trailing the plain Physics-Attention operator "
+            "on this task. Pooled relative L2 headline (ADR-0055) from the "
+            "2026-08-17 re-eval."
         ),
     ),
 )

@@ -29,12 +29,16 @@ benchmark to a result the field already trusts. Against it run two provisional
 native operators - **Transolver** (Physics-Attention) and **GeoFLARE**
 (geometry-aware attention with a low-rank routing engine) - both adapted here
 to autoregressive rollout (ADR-0044/0045). Everything is scored in physical
-units - displacement RMSE in mm, the von Mises field in MPa - with two
-quantities of interest reading the engineering outcome: peak von Mises stress
-and terminal peak deflection. On this smooth, quasi-static task the operators'
-freedom from a fixed mesh graph tells: both outrun the mesh-based reference on
-displacement (Transolver by ~3x on relative L2), while MGN's stress field
-degrades under rollout. The leaderboard is below.
+units - displacement RMSE in mm and the von Mises field in MPa, both **pooled
+over space and time** to match the published DeformingPlate convention
+(ADR-0043), not the mean-of-per-step RMSE used on the other benchmarks - with
+two quantities of interest reading the engineering outcome: peak von Mises
+stress and terminal peak deflection. On this smooth, quasi-static task the
+operators' freedom from a fixed mesh graph tells: both outrun the mesh-based
+reference on displacement (Transolver by ~3x on relative L2, ~4x on pooled
+position RMSE), while MGN's stress field degrades under rollout. MGN's pooled
+position RMSE (16.98 mm) still reproduces the published reference (15.1 +/-
+4.0). The leaderboard is below.
 
 ## Figures
 
@@ -91,9 +95,9 @@ _Trajectory error — RMSE_
 
 | Method | Scheme | test·pos (mm) | test·vm (MPa) |
 |---|---|---|---|
-| MGN | autoregressive | 11.25 | 0.1168 |
-| Transolver | autoregressive | 2.929 | 0.009137 |
-| GeoFLARE | autoregressive | 4.876 | 0.0136 |
+| MGN | autoregressive | 16.98 | 0.1692 |
+| Transolver | autoregressive | 4.282 | 0.01095 |
+| GeoFLARE | autoregressive | 5.144 | 0.01493 |
 
 _Quantities of interest (MAE)_
 
@@ -107,15 +111,15 @@ _Quantities of interest (MAE)_
 
 **MGN** (mgn, 2026-08-15, commit `0f103b5`, checkpoint: `models/deforming_plate/mgn-0f103b5/model-best-2200000.pt` — private archive; publication parked)
 
-*Native MeshGraphNets (ADR-0042/0043): autoregressive next-step on the 3D tetrahedral mesh with world edges (activation-checkpointed, commit 0f103b5). BLESSED: its pooled test position RMSE, 11.25 mm (x10^-3 dataset-native length units), falls inside the published band 15.1 +/- 4.0 that four later papers corroborate (ADR-0043), so it reproduces the reference deformation result the field trusts - at the optimistic edge of the band. The 10M-step blessing budget was cut at the val-selected 2.2M checkpoint (model-best-2200000.pt), in-band and plateaued (ADR-0043 dated note). Position is strong, but the von Mises FIELD collapses under rollout: relative L2 4.21 (worse than a zero baseline on 96 of 100 cases) and rollout von Mises RMSE 0.117 MPa, ~13x the operators - a pure autoregressive-accumulation artifact (one-step von Mises RMSE 0.0081 MPa is fine). The published DeformingPlate result gates on position only; stress is a StructBench secondary. Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
+*Native MeshGraphNets (ADR-0042/0043): autoregressive next-step on the 3D tetrahedral mesh with world edges (activation-checkpointed, commit 0f103b5). BLESSED: its POOLED test position RMSE, 16.98 mm (x10^-3 dataset-native length units; ADR-0043 paper convention, from tools/blessing_pooled_rmse.py), falls inside the published band 15.1 +/- 4.0 = [11.1, 19.1] that four later papers corroborate (ADR-0043), so it reproduces the reference deformation result the field trusts. The pooled RMSE is dominated by a handful of divergent trajectories (per-case mean 10.2 mm, but a few cases run to 30-86 mm) - the honest whole-dataset statistic. The 10M-step blessing budget was cut at the val-selected 2.2M checkpoint (model-best-2200000.pt), in-band and plateaued (ADR-0043 dated note). Position is strong, but the von Mises FIELD collapses under rollout: relative L2 4.21 (worse than a zero baseline on 96 of 100 cases) and pooled von Mises RMSE 0.169 MPa, ~11-15x the operators - a pure autoregressive-accumulation artifact (one-step von Mises RMSE 0.0081 MPa is fine). The published DeformingPlate result gates on position only; stress is a StructBench secondary. Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
 
 **Transolver** (transolver, 2026-08-11, commit `84df162`)
 
-*Native Transolver (Physics-Attention), provisional autoregressive adaptation on the DeformingPlate rollout (ADR-0044): a best-effort native implementation, not validated against a published Transolver-DeformingPlate number. Val-selected model-best-4000000.pt. It is the strongest baseline on this benchmark by a wide margin - ~3x lower displacement relative L2 than the blessed MGN (0.268 vs 0.809) and ~4x lower position RMSE (2.93 vs 11.25 mm) - because its global attention is not tied to a fixed mesh graph and it accumulates little rollout error on smooth quasi-static deformation (von Mises relative L2 0.240 vs MGN 4.21). Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
+*Native Transolver (Physics-Attention), provisional autoregressive adaptation on the DeformingPlate rollout (ADR-0044): a best-effort native implementation, not validated against a published Transolver-DeformingPlate number. Val-selected model-best-4000000.pt. It is the strongest baseline on this benchmark by a wide margin - ~3x lower displacement relative L2 than the blessed MGN (0.268 vs 0.809) and ~4x lower pooled position RMSE (4.28 vs 16.98 mm) - because its global attention is not tied to a fixed mesh graph and it accumulates little rollout error on smooth quasi-static deformation (von Mises relative L2 0.240 vs MGN 4.21). Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
 
 **GeoFLARE** (geoflare, 2026-08-14, commit `84df162`)
 
-*Native GeoFLARE - GeoTransolver with the FLARE low-rank attention backend (attention_type GALE_FA) - provisional autoregressive adaptation on the DeformingPlate rollout (ADR-0045): a best-effort native implementation, not validated against a published number. Val-selected model-best-6600000.pt. It sits between Transolver and MGN: displacement relative L2 0.573 (vs Transolver 0.268, MGN 0.809) and position RMSE 4.88 mm - clearly beating the blessed reference but trailing the plain Physics-Attention operator on this task. Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
+*Native GeoFLARE - GeoTransolver with the FLARE low-rank attention backend (attention_type GALE_FA) - provisional autoregressive adaptation on the DeformingPlate rollout (ADR-0045): a best-effort native implementation, not validated against a published number. Val-selected model-best-6600000.pt. It sits between Transolver and MGN: displacement relative L2 0.573 (vs Transolver 0.268, MGN 0.809) and pooled position RMSE 5.14 mm (vs MGN 16.98) - clearly beating the blessed reference but trailing the plain Physics-Attention operator on this task. Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
 
 ## Quickstart
 

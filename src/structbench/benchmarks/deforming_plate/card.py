@@ -33,12 +33,16 @@ benchmark to a result the field already trusts. Against it run two provisional
 native operators - **Transolver** (Physics-Attention) and **GeoFLARE**
 (geometry-aware attention with a low-rank routing engine) - both adapted here
 to autoregressive rollout (ADR-0044/0045). Everything is scored in physical
-units - displacement RMSE in mm, the von Mises field in MPa - with two
-quantities of interest reading the engineering outcome: peak von Mises stress
-and terminal peak deflection. On this smooth, quasi-static task the operators'
-freedom from a fixed mesh graph tells: both outrun the mesh-based reference on
-displacement (Transolver by ~3x on relative L2), while MGN's stress field
-degrades under rollout. The leaderboard is below."""
+units - displacement RMSE in mm and the von Mises field in MPa, both **pooled
+over space and time** to match the published DeformingPlate convention
+(ADR-0043), not the mean-of-per-step RMSE used on the other benchmarks - with
+two quantities of interest reading the engineering outcome: peak von Mises
+stress and terminal peak deflection. On this smooth, quasi-static task the
+operators' freedom from a fixed mesh graph tells: both outrun the mesh-based
+reference on displacement (Transolver by ~3x on relative L2, ~4x on pooled
+position RMSE), while MGN's stress field degrades under rollout. MGN's pooled
+position RMSE (16.98 mm) still reproduces the published reference (15.1 +/-
+4.0). The leaderboard is below."""
 
 _FIGURES = (
     BenchmarkFigure(
