@@ -100,11 +100,18 @@ src/structbench/
   core/            # case schema, validation, HDF5 I/O, LS-DYNA adapter
   datasets/        # canonical readers, windowing, normalization
   benchmarks/      # one module per benchmark: split + protocol + QoIs
-  models/cgn/      # CGN reference baseline (Li et al. 2023; native radius_graph)
+  models/          # model families: cgn, mgn, transolver, geoflare (+ shared common/)
   eval/            # rollout driver, metrics
+  viz/             # physics-quantity figures, FEM-postprocessor style (ADR-0022)
   cli/             # structbench-train
 configs/           # grouped TOML run configs, configs/<benchmark>/<family>.toml (ADR-0032)
-decisions/         # architecture decision records
+decisions/         # architecture decision records (ADRs)
+tools/             # doc generation, the pooled-RMSE blessing aggregator, dev scripts
+data_generation/   # solver decks + offline conversion scripts (data provenance)
+hpc/               # cluster launch scripts (DUG SLURM)
+docs/              # benchmark cards, architecture, harness, corrections
+tests/             # deterministic CPU-only test suite
+assets/            # figures embedded in the docs + landing pages
 ```
 
 ## Roadmap
