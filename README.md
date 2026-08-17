@@ -7,8 +7,9 @@ baseline to beat — for structures under dynamic and extreme loading.
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 
-> **Status: v0.2.0 — four benchmarks, three blessed baselines.** What exists
-> is real and tested; what doesn't is on the [roadmap](#roadmap).
+> **Status: four benchmarks, each with a blessed baseline.** v0.2.0 released; the
+> v0.3 `DeformingPlate` benchmark is built on `main` (release pending). What
+> exists is real and tested; what doesn't is on the [roadmap](#roadmap).
 
 ![Taylor bar rollout: ground truth vs CGN prediction, copper bar mushrooming against a rigid wall, colored by von Mises stress](assets/taylor_rollout.gif)
 
@@ -23,13 +24,16 @@ for the full problem, data, and numbers to beat.*
 |---|---|---|
 | Taylor2D-Impact | copper bar impact (SPH, plasticity) | 33 |
 | Wave1D-Propagation | elastic wave in a bar (entry tier) | 16 |
-| NotchBeam2D-Bend | notched concrete beam, 3-point bend | 111 |
 | NotchBeam2D-Impact | notched concrete beam, drop-weight impact | 110 |
+| DeformingPlate | hyperelastic plate + rigid actuator (MeshGraphNets, 3D) | 1200 |
 
 Full cards (solver, materials, splits, QoIs): [docs/benchmarks.md](docs/benchmarks.md).
 Every benchmark fixes its task, split, and evaluation protocol in an ADR —
-changing any of them is a new benchmark version — and all metrics are
-reported in physical units (mm, MPa), never dimensionless scores.
+changing any of them is a new benchmark version. The headline metric is a
+pooled space+time **relative L2** — the convention the neural-operator
+literature reports, so StructBench numbers read directly against published
+tables — with physical-unit RMSE (mm, MPa) and engineering quantities of
+interest retained alongside it (ADR-0055).
 
 ## Why
 
@@ -78,9 +82,9 @@ structbench-train --mode rollout --data-root /path/to/StructBench/canonical/tayl
 ```
 
 Configs are grouped per benchmark (ADR-0032): swap
-`configs/taylor_impact_2d/cgn.toml` for `configs/wave_propagation_1d/cgn.toml`,
-`configs/notch_beam_2d_bend/cgn.toml`, or `configs/notch_beam_2d_impact/cgn.toml`
-to train against a different benchmark.
+`configs/taylor_impact_2d/cgn.toml` for `configs/wave_propagation_1d/cgn.toml`
+or `configs/notch_beam_2d_impact/cgn.toml` to train against a different
+benchmark.
 
 **Data availability:** each benchmark ships as a self-contained canonical
 archive — a `canonical/<benchmark>/` folder of `<case_id>.h5` files with a
@@ -88,36 +92,6 @@ generated `README.md`, `card.json`, and CC BY 4.0 license — and `--data-root`
 points at that folder. The archives are maintainer-held on institutional
 storage (ADR-0040): request them from the maintainer, or ingest your own
 LS-DYNA output via the adapter.
-
-## How the pieces fit
-
-```mermaid
-flowchart LR
-    A[LS-DYNA d3plot] -->|extract everything| B[(canonical HDF5<br/>strict SI)]
-    B --> C[benchmark<br/>task + split + protocol]
-    C --> D[structbench-train]
-    D --> E[run dir<br/>self-contained record]
-    E --> F[metrics JSON<br/>+ rollout artifacts]
-```
-
-The LS-DYNA adapter (built on `lasso-python`) follows an **extract-everything
-policy**: positions, velocities, full stress and strain tensors, plastic
-strain, energies, erosion state — all of it lands in the HDF5 whether or not
-the current task uses it. You never re-run post-processing because a reviewer
-asked for stress instead of displacement. The format is solver-agnostic by
-design — the canonical schema is the contract, not LS-DYNA — and it has
-already ingested a second dataset family (a concrete-beam SPH case) unchanged.
-Sibling adapters (Kratos, OpenSees, OpenRadioss, …) are the intended path for
-other solvers.
-
-**Reproducibility contract.** Every run directory is self-contained —
-`config.json` (fully resolved), `normalization_stats.npz`, `model-*.pt`
-checkpoints — and evaluation rebuilds the exact architecture from the run's
-own record, never from whatever the current code default happens to be.
-Metrics land as `metrics-<split>.json` plus per-case predicted-trajectory
-`.npz` files: a run directory is the complete, portable evidence for its
-numbers. The repo carries a deterministic CPU-only test suite, is mypy- and
-ruff-clean, and pins its environment with a `uv` lockfile.
 
 ## Repository layout
 
@@ -156,7 +130,8 @@ decisions/         # architecture decision records
       notch-beam pair with cards, grouped configs, and results registries
       (ADRs 0024–0039); CGN baselines blessed for wave-1d (x1-s1) and
       notch-impact (h250c-s1, 250 µs scored horizon); notch-bend baseline
-      parked (ADR-0024 amendment, see Later); hosting settled as
+      parked, then the benchmark descoped (ADR-0024 amendment; ADR-0056);
+      hosting settled as
       OneDrive-on-request (ADR-0040); `cracked_fraction` 0.01 declared a
       protocol definition (ADR-0029 amendment).~~
 
@@ -166,32 +141,32 @@ decisions/         # architecture decision records
 cross-method comparison on public data, not a new physics problem. Build order
 is a set of checkpoints — partial value lands if the last slips.*
 
-- [ ] **① Ingestion + `DeformingPlate` + MGN blessed.** Offline
-      `tfrecord`→canonical HDF5 conversion (throwaway env, no TF runtime dep);
-      `benchmarks/deforming_plate` module (first 3D benchmark, canonical
-      1000/100/100 split, aux = von Mises stress); `models/mgn` implemented
-      native and **blessed** by reproducing published deforming-plate numbers
-      (this reproduction certifies the whole pipeline). Confirm the dataset's
-      redistribution terms before the ingestion ADR.
-- [ ] **② Transolver provisional.** `models/transolver` (transformer-operator
-      family — new to `models/`); `datasets/` generalized to serve point-set
-      inputs alongside graph windows. Ships **provisional** (best-effort port,
-      fidelity check deferred).
-- [ ] **③ GeoFLARE provisional.** `models/geoflare`, likewise provisional.
+- [x] ~~**① Ingestion + `DeformingPlate` + MGN blessed.**~~ Done (ADR-0042
+      `tfrecord`→canonical HDF5 ingestion; ADR-0043 protocol + blessing gate):
+      the `benchmarks/deforming_plate` module ships — the first 3D benchmark,
+      canonical 1000/100/100 split, aux = von Mises stress; `models/mgn`
+      implemented native and **blessed** by reproducing the published
+      deforming-plate position result (this reproduction certifies the pipeline).
+- [x] ~~**② Transolver provisional.**~~ Done (ADR-0044): `models/transolver`
+      (transformer-operator family — new to `models/`); `datasets/` generalized
+      to serve point-set inputs alongside graph windows. Ships **provisional**
+      (best-effort native port, no published DeformingPlate number to reproduce).
+- [x] ~~**③ GeoFLARE provisional.**~~ Done (ADR-0045): `models/geoflare`
+      (GeoTransolver with the FLARE attention backend), likewise **provisional**.
 - [x] ~~Cross-method infrastructure: results registry (ADR-0033) extended to
       per-(benchmark × method) with a `provisional` flag; landing page
       (ADR-0036) renders a method-comparison table distinguishing blessed from
       provisional.~~ (2026-08-09, ADR-0046): `BaselineResult.provisional` +
-      `BenchmarkSpec.blessed_results`; the `## Method comparison` section on
-      every page; provisional-aware Quickstart selection (fixes the
-      `deforming_plate` `cgn.toml` bug). The tables await the maintainer's runs.
-- [ ] Follow-on ADRs as each lands: DeformingPlate benchmark protocol
-      (split/metrics/scored horizon/input window per ADR-0035); the `tfrecord`
-      ingestion adapter; the per-method registry schema (ADR-0046); the
-      transformer-operator family's placement in `models/`/`datasets/`
-      (may touch ARCHITECTURE.md).
-- [ ] Human, out of session: VISION's "1D/2D problems only" limitation copy
-      (forbidden-tier during coding sessions); flip once v0.3 ships 3D.
+      `BenchmarkSpec.blessed_results`; the ranked leaderboard section on every
+      page; provisional-aware Quickstart selection (fixes the `deforming_plate`
+      `cgn.toml` bug). Populated with the maintainer's runs.
+- [x] ~~Follow-on ADRs as each lands.~~ Landed: ADR-0041 (v0.3 plan), 0042
+      (`tfrecord` ingestion adapter), 0043 (benchmark protocol + blessing gate),
+      0044/0045 (Transolver/GeoFLARE adaptations), 0046 (per-method registry
+      schema).
+- [ ] Human, out of session: flip VISION's "1D/2D problems only" limitation
+      copy (forbidden-tier during coding sessions) — **v0.3 has now shipped 3D**
+      (DeformingPlate), so this is ready to action.
 
 ### Inbox — untriaged, add freely
 
@@ -251,9 +226,10 @@ is a set of checkpoints — partial value lands if the last slips.*
   v0.3): erosion, twice (numerically for the FEM data; structurally for the
   surrogate — particles vanishing mid-rollout). ADR-0024's erosion analysis is
   the gate if revived
-- Notch-bend trained CGN baseline (parked 2026-08-06, ADR-0024 amendment;
-  SNR caveat in the training ledger and the card's provisional
-  `input_frames` remain the pre-training gates if revived)
+- Notch-bend benchmark descoped from the public set (ADR-0056: redundant with
+  notch-impact); module + configs parked in-tree, re-registerable. Its trained
+  CGN baseline (SNR caveat, provisional `input_frames` gate) is a revival gate
+  if ever re-listed
 - Segmented beam benchmark (parked) · multi-scale CGN second Taylor baseline (spec
   Proposed)
 - Training: resume support (optimizer state + `--resume`) ·

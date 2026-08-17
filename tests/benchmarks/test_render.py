@@ -24,6 +24,17 @@ def _all_specs():
     return [get_benchmark(name) for name in available_benchmarks()]
 
 
+def _bare_spec():
+    """A result-less spec with no overview or figures — the empty-state fixture
+    for the render placeholder paths. Formerly the parked ``notch_beam_2d_bend``
+    benchmark; it was descoped from the registry (ADR-0056), so the empty-state
+    tests synthesize a bare spec instead of depending on a specific benchmark
+    having no results.
+    """
+    spec = get_benchmark("taylor_impact_2d")
+    return replace(spec, results=(), card=replace(spec.card, overview="", figures=()))
+
+
 def _result(**overrides):
     """A minimal valid BaselineResult, for fixtures that just need a family
     slot filled (mirrors test_results.py / test_registry.py's local helper).
@@ -89,9 +100,9 @@ def test_archive_readme_carries_task_eval_and_usage_sections():
 
 
 def test_archive_readme_without_results_carries_placeholder():
-    # Taylor and wave are blessed (ADR-0033); notch-bend covers the path.
-    spec = get_benchmark("notch_beam_2d_bend")
-    text = render_archive_readme(spec, "notch_beam_2d_bend")
+    # A result-less bare spec exercises the no-baseline placeholder path.
+    spec = _bare_spec()
+    text = render_archive_readme(spec, "taylor_impact_2d")
     assert "No official baseline yet" in text
 
 
@@ -110,7 +121,7 @@ def test_archive_readme_renders_leaderboard_row():
 
 
 def test_index_section_renders_baseline_line_both_ways():
-    bare = get_benchmark("notch_beam_2d_bend")
+    bare = _bare_spec()
     assert "no official baseline yet" in render_index([bare])
     with_result = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
     text = render_index([with_result])
@@ -167,9 +178,9 @@ def test_benchmark_page_embeds_overview_numbers_and_figures():
 
 
 def test_benchmark_page_omits_absent_optional_sections():
-    # notch-bend has neither overview nor figures nor a baseline
-    spec = get_benchmark("notch_beam_2d_bend")
-    text = render_benchmark_page(spec, "notch_beam_2d_bend")
+    # a bare spec has neither overview nor figures nor a baseline
+    spec = _bare_spec()
+    text = render_benchmark_page(spec, "taylor_impact_2d")
     assert "## Figures" not in text
     assert "## The problem" not in text
     assert "No official baseline yet" in text
@@ -369,7 +380,7 @@ def test_landing_page_folds_protocol_rationale_but_index_does_not():
 
 
 def test_leaderboard_empty_state_is_verbatim():
-    spec = get_benchmark("notch_beam_2d_bend")
+    spec = _bare_spec()
     assert spec.results == ()
     lines = _leaderboard(spec)
     assert lines == [
@@ -558,8 +569,8 @@ def test_benchmark_page_leaderboard_appears_before_baseline_details():
     assert "**MGN candidate** (mgn, 2026-07-05, commit `abc1234`)" in lines
 
     # Empty fixture: the empty-state line, same ordering.
-    empty_spec = get_benchmark("notch_beam_2d_bend")
-    text = render_benchmark_page(empty_spec, "notch_beam_2d_bend")
+    empty_spec = _bare_spec()
+    text = render_benchmark_page(empty_spec, "taylor_impact_2d")
     assert "## Leaderboard" in text
     assert text.index("## Leaderboard") < text.index("## Baseline details")
     assert (
@@ -590,8 +601,8 @@ def test_archive_readme_leaderboard_appears_before_baseline_details():
     assert "**CGN baseline** (cgn, 2026-07-05, commit `abc1234`)" in lines
     assert "**MGN candidate** (mgn, 2026-07-05, commit `abc1234`)" in lines
 
-    empty_spec = get_benchmark("notch_beam_2d_bend")
-    text = render_archive_readme(empty_spec, "notch_beam_2d_bend")
+    empty_spec = _bare_spec()
+    text = render_archive_readme(empty_spec, "taylor_impact_2d")
     assert "## Leaderboard" in text
     assert text.index("## Leaderboard") < text.index("## Baseline details")
     assert (
@@ -633,7 +644,7 @@ def test_quickstart_family_falls_back_to_first_when_all_provisional():
 
 
 def test_quickstart_family_falls_back_to_spec_default_when_empty():
-    spec = replace(get_benchmark("notch_beam_2d_bend"), quickstart_family="mgn")
+    spec = replace(_bare_spec(), quickstart_family="mgn")
     assert spec.results == ()
     assert _quickstart_family(spec) == ("mgn", "default")
 
@@ -654,8 +665,8 @@ def test_quickstart_prose_provisional_variant():
 
 
 def test_quickstart_prose_absent_when_no_results():
-    spec = get_benchmark("notch_beam_2d_bend")
-    text = render_benchmark_page(spec, "notch_beam_2d_bend")
+    spec = _bare_spec()
+    text = render_benchmark_page(spec, "taylor_impact_2d")
     assert "recipe" not in text
 
 
@@ -702,9 +713,9 @@ def test_references_section_lists_each_method():
 
 
 def test_references_omitted_without_citations():
-    # notch-bend has no results, hence no References section.
-    spec = get_benchmark("notch_beam_2d_bend")
-    assert "## References" not in render_benchmark_page(spec, "notch_beam_2d_bend")
+    # a result-less spec has no References section.
+    spec = _bare_spec()
+    assert "## References" not in render_benchmark_page(spec, "taylor_impact_2d")
 
 
 def test_pending_baseline_renders_training_placeholder_row():
