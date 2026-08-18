@@ -284,6 +284,22 @@ class TransolverConfig:
         upstream, which samples at eval too. ``False`` (default) is
         byte-identical to the pre-0057 recipe. Independent of
         ``adaptive_temperature`` (each edit is separately ablatable).
+    hybrid_mp : bool
+        Hybrid local+global backbone (ADR-0052, TC adaptation): add a gated
+        MGN-style message-passing sublayer over a REFERENCE-config radius graph
+        to ``hybrid_blocks`` middle Transolver blocks, giving the global operator
+        a local relative-position pathway (aimed at geometric concentrations —
+        notch tips / contacts — that global attention smears). ``False``
+        (default) is byte-identical. Requires ``hybrid_radius > 0``.
+    hybrid_radius : float
+        Radius cutoff (reference-coordinate units) for the local graph. Only
+        used when ``hybrid_mp``; tune to a few times the mesh spacing.
+    hybrid_max_neighbors : int
+        Per-node incoming-edge cap ``k`` for the capped radius graph (bounds
+        ``E <= P * k``; contact-safe).
+    hybrid_blocks : int
+        Number of MIDDLE blocks that carry the MP branch (never block 0 or the
+        decoder block; centered and expanded symmetrically).
     """
 
     input_frames: int = 2
@@ -305,6 +321,10 @@ class TransolverConfig:
     time_conditioned: bool = False
     adaptive_temperature: bool = False
     slice_reparam: bool = False
+    hybrid_mp: bool = False
+    hybrid_radius: float = 0.0
+    hybrid_max_neighbors: int = 32
+    hybrid_blocks: int = 1
 
 
 @dataclass

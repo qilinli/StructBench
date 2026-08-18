@@ -40,6 +40,8 @@ import math
 import torch
 from torch import Tensor, nn
 
+from ..mgn.network import build_mlp
+
 
 def timestep_embedding(timesteps: Tensor, dim: int, max_period: int = 10000) -> Tensor:
     """Sinusoidal timestep embedding (thuml Transolver ``Time_Input`` variant).
@@ -296,6 +298,69 @@ class PhysicsAttentionIrregularMesh(nn.Module):
         return self.to_out(torch.cat(outs, dim=0))
 
 
+class LocalMessagePassing(nn.Module):
+    """One MGN-style residual message-passing sublayer (local branch, ADR-0052).
+
+    Edge MLP on ``[edge_feats, fx[sender], fx[receiver]]`` -> receiver-side
+    ``index_add_`` -> node MLP on ``[fx, agg]``, reusing MGN's ``build_mlp``.
+    The aggregate is mean-normalized by in-degree (``clamp_min 1``), NOT summed,
+    so a raw degree swing (contact compaction spikes in-degree 10-100x) cannot
+    inject high variance into the frozen operator backbone when the gate opens.
+    Returns the raw update; the caller applies the gated residual.
+    """
+
+    def __init__(self, hidden_dim: int, edge_in: int, n_hidden: int = 2) -> None:
+        super().__init__()
+        self._hidden = hidden_dim
+        self.edge_mlp = build_mlp(
+            edge_in + 2 * hidden_dim, hidden_dim, n_hidden, hidden_dim, layer_norm=True
+        )
+        self.node_mlp = build_mlp(
+            2 * hidden_dim, hidden_dim, n_hidden, hidden_dim, layer_norm=True
+        )
+
+    def forward(self, fx: Tensor, edge_index: Tensor, edge_feats: Tensor) -> Tensor:
+        """``(P, C)`` node update (pre-residual, pre-gate) over a radius graph."""
+        sender, receiver = edge_index[0], edge_index[1]
+        n = fx.shape[0]
+        edge_input = torch.cat([edge_feats, fx[sender], fx[receiver]], dim=-1)
+        msg = self.edge_mlp(edge_input)  # (E, C)
+        agg = fx.new_zeros(n, self._hidden)
+        agg.index_add_(0, receiver, msg)
+        deg = fx.new_zeros(n, 1)
+        deg.index_add_(0, receiver, fx.new_ones(edge_index.shape[1], 1))
+        agg = agg / deg.clamp_min(1.0)  # mean over neighbours
+        return self.node_mlp(torch.cat([fx, agg], dim=-1))
+
+
+def hybrid_block_indices(n_layers: int, count: int) -> set[int]:
+    """Which block indices carry the local MP branch: ``count`` MIDDLE blocks.
+
+    Never block 0 (rawest features) nor the last block (it carries the
+    no-residual decoder head; the ADR-0052 wiring trap). Centered on
+    ``n_layers // 2`` and expanded outward symmetrically.
+    """
+    if count <= 0:
+        return set()
+    available = n_layers - 2
+    if count > available:
+        raise ValueError(
+            f"hybrid_blocks={count} exceeds the {available} available middle "
+            f"blocks for n_layers={n_layers} (block 0 and the last decoder "
+            "block are excluded)"
+        )
+    center = n_layers // 2
+    order = [center]
+    d = 1
+    while len(order) < count:
+        if center - d >= 1:
+            order.append(center - d)
+        if center + d <= n_layers - 2:
+            order.append(center + d)
+        d += 1
+    return set(order[:count])
+
+
 class TransolverBlock(nn.Module):
     """One pre-LN Transolver block (Eq 6): Physics-Attention + FFN, both residual.
 
@@ -340,6 +405,9 @@ class TransolverBlock(nn.Module):
         out_size: int,
         adaptive_temperature: bool = False,
         slice_reparam: bool = False,
+        hybrid_mp: bool = False,
+        hybrid_edge_in: int = 0,
+        hybrid_n_hidden: int = 2,
     ) -> None:
         super().__init__()
         self.last_layer = last_layer
@@ -354,13 +422,26 @@ class TransolverBlock(nn.Module):
             adaptive_temperature=adaptive_temperature,
             slice_reparam=slice_reparam,
         )
+        # ADR-0052 local branch: a gated MGN-style MP sublayer between attention
+        # and FFN, over a (reference-config) radius graph. Created only when on;
+        # gate init 0 so it starts as a no-op and opens during training.
+        self.hybrid_mp = hybrid_mp
+        if hybrid_mp:
+            self.ln_local = nn.LayerNorm(hidden_dim)
+            self.mp = LocalMessagePassing(hidden_dim, hybrid_edge_in, hybrid_n_hidden)
+            self.mp_gate = nn.Parameter(torch.zeros(1))
         self.ln_2 = nn.LayerNorm(hidden_dim)
         self.mlp = build_mlp_2layer(hidden_dim, hidden_dim * mlp_ratio, hidden_dim)
         if last_layer:
             self.ln_3 = nn.LayerNorm(hidden_dim)
             self.mlp2 = nn.Linear(hidden_dim, out_size)
 
-    def forward(self, fx: Tensor, segments: list[tuple[int, int]]) -> Tensor:
+    def forward(
+        self,
+        fx: Tensor,
+        segments: list[tuple[int, int]],
+        graph: tuple[Tensor, Tensor] | None = None,
+    ) -> Tensor:
         """Apply the block.
 
         Parameters
@@ -379,6 +460,13 @@ class TransolverBlock(nn.Module):
             is the last block (decoder head applied, no residual).
         """
         fx = self.attn(self.ln_1(fx), segments) + fx
+        if self.hybrid_mp:
+            if graph is None:
+                raise ValueError(
+                    "hybrid_mp block requires graph=(edge_index, edge_feats); got None"
+                )
+            edge_index, edge_feats = graph
+            fx = self.mp_gate * self.mp(self.ln_local(fx), edge_index, edge_feats) + fx
         fx = self.mlp(self.ln_2(fx)) + fx
         if self.last_layer:
             return self.mlp2(self.ln_3(fx))
@@ -457,6 +545,9 @@ class TransolverNet(nn.Module):
         time_conditioned: bool = False,
         adaptive_temperature: bool = False,
         slice_reparam: bool = False,
+        hybrid_mp: bool = False,
+        hybrid_edge_in: int = 0,
+        hybrid_blocks: int = 0,
     ) -> None:
         super().__init__()
         self._hidden_dim = hidden_dim
@@ -476,6 +567,10 @@ class TransolverNet(nn.Module):
         # variants, where it is nested inside an `if fx is None` branch and
         # so is dead code on their fx-conditioned tasks). Grounding SS3.3.
         self.placeholder = nn.Parameter((1 / hidden_dim) * torch.rand(hidden_dim))
+        self.hybrid_mp = hybrid_mp
+        hybrid_idx = (
+            hybrid_block_indices(n_layers, hybrid_blocks) if hybrid_mp else set()
+        )
         self.blocks = nn.ModuleList(
             [
                 TransolverBlock(
@@ -488,6 +583,8 @@ class TransolverNet(nn.Module):
                     out_size=out_size,
                     adaptive_temperature=adaptive_temperature,
                     slice_reparam=slice_reparam,
+                    hybrid_mp=(i in hybrid_idx),
+                    hybrid_edge_in=hybrid_edge_in,
                 )
                 for i in range(n_layers)
             ]
@@ -499,6 +596,7 @@ class TransolverNet(nn.Module):
         node_feats: Tensor,
         n_particles_per_example: Tensor | None,
         t: Tensor | None = None,
+        graph: tuple[Tensor, Tensor] | None = None,
     ) -> Tensor:
         """Run the full forward pass.
 
@@ -540,8 +638,13 @@ class TransolverNet(nn.Module):
                 fx = fx + time_emb
             else:
                 fx = fx + time_emb.repeat_interleave(n_particles_per_example, dim=0)
+        if self.hybrid_mp and graph is None:
+            raise ValueError(
+                "TransolverNet built with hybrid_mp=True requires a "
+                "graph=(edge_index, edge_feats); got None"
+            )
         for block in self.blocks:
-            fx = block(fx, segments)
+            fx = block(fx, segments, graph)
         return fx
 
     def _initialize_weights(self) -> None:

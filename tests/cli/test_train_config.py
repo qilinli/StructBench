@@ -259,6 +259,10 @@ impact_velocity_feature = false
 time_conditioned = false
 adaptive_temperature = false
 slice_reparam = false
+hybrid_mp = false
+hybrid_radius = 0.0
+hybrid_max_neighbors = 32
+hybrid_blocks = 1
 
 [train]
 batch_size = 8
@@ -339,6 +343,16 @@ def test_load_run_config_slice_reparam_roundtrips(tmp_path):
     )
     on = VALID_TRANSOLVER.replace("slice_reparam = false", "slice_reparam = true")
     assert load_run_config(_write(tmp_path, on)).model.slice_reparam is True
+
+
+def test_load_run_config_hybrid_mp_roundtrips(tmp_path):
+    # ADR-0052 hybrid local branch: default off; explicit on + radius round-trips.
+    assert load_run_config(_write(tmp_path, VALID_TRANSOLVER)).model.hybrid_mp is False
+    on = VALID_TRANSOLVER.replace("hybrid_mp = false", "hybrid_mp = true").replace(
+        "hybrid_radius = 0.0", "hybrid_radius = 7.5"
+    )
+    rc = load_run_config(_write(tmp_path, on))
+    assert rc.model.hybrid_mp is True and rc.model.hybrid_radius == 7.5
 
 
 def test_load_run_config_rejects_time_conditioned_with_history(tmp_path):

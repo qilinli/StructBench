@@ -35,6 +35,10 @@ impact_velocity_feature = true   # ADR-0051 B: scalar impact-velocity conditioni
 time_conditioned = true          # ADR-0054: faithful thuml native structural scheme
 adaptive_temperature = false     # ADR-0057 (off = byte-identical)
 slice_reparam = false            # ADR-0057 (off = byte-identical)
+hybrid_mp = false
+hybrid_radius = 0.0
+hybrid_max_neighbors = 32
+hybrid_blocks = 1
 
 [train]
 batch_size = 2                  # family reference (ADR-0044, matched to MGN)

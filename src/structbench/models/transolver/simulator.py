@@ -27,6 +27,7 @@ from torch import Tensor
 
 from ..common import CaseBoundSimulator
 from ..mgn.normalizers import OnlineNormalizer
+from .graph_ops import build_radius_graph
 from .network import TransolverNet
 
 
@@ -104,6 +105,10 @@ class TransolverSimulator(CaseBoundSimulator):
         time_conditioned: bool = False,
         adaptive_temperature: bool = False,
         slice_reparam: bool = False,
+        hybrid_mp: bool = False,
+        hybrid_radius: float = 0.0,
+        hybrid_max_neighbors: int = 32,
+        hybrid_blocks: int = 1,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -169,6 +174,19 @@ class TransolverSimulator(CaseBoundSimulator):
                 + (1 if impact_velocity_feature else 0)
             )
 
+        # ADR-0052 hybrid local branch (TC adaptation): a REFERENCE-config radius
+        # graph fed to the MP sublayers. Off by default (byte-identical).
+        # Requires a positive radius; the graph is static per case (rest coords),
+        # built once at bind_case (eval) or per-call in forward_train_tc (train).
+        if hybrid_mp and hybrid_radius <= 0.0:
+            raise ValueError(
+                f"hybrid_mp=True requires hybrid_radius > 0 (got {hybrid_radius})"
+            )
+        self._hybrid_mp = hybrid_mp
+        self._hybrid_radius = hybrid_radius
+        self._hybrid_max_neighbors = hybrid_max_neighbors
+        self._hybrid_graph: tuple[Tensor, Tensor] | None = None
+
         self._net = TransolverNet(
             node_in=node_in,
             out_size=frames_per_call * (dim + 1),
@@ -181,6 +199,9 @@ class TransolverSimulator(CaseBoundSimulator):
             time_conditioned=time_conditioned,
             adaptive_temperature=adaptive_temperature,
             slice_reparam=slice_reparam,
+            hybrid_mp=hybrid_mp,
+            hybrid_edge_in=dim + 1,
+            hybrid_blocks=hybrid_blocks,
         )
         self._node_normalizer = OnlineNormalizer(node_in)
         self._target_normalizer = OnlineNormalizer(dim + 1)
@@ -615,6 +636,29 @@ class TransolverSimulator(CaseBoundSimulator):
             parts.append(loading_feature)
         return torch.cat(parts, dim=-1)
 
+    def _reference_graph(
+        self, reference_coords: Tensor, n_per: Tensor | None
+    ) -> tuple[Tensor, Tensor] | None:
+        """Static reference-config radius graph for the hybrid MP branch (ADR-0052).
+
+        ``None`` when ``hybrid_mp`` is off. A geometric constant of the rest
+        configuration (built under ``no_grad``), reused across every hybrid
+        block. TC has no evolving state, so — unlike the autoregressive hybrid —
+        this never re-couples predicted-state drift; the graph is identical at
+        every query time.
+        """
+        if not self._hybrid_mp:
+            return None
+        with torch.no_grad():
+            return build_radius_graph(
+                reference_coords, n_per, self._hybrid_radius, self._hybrid_max_neighbors
+            )
+
+    def _on_bind_case(self, cells: Tensor) -> None:
+        """Cache the static reference graph for the bound case (TC eval path)."""
+        if self._hybrid_mp and self._reference_coords is not None:
+            self._hybrid_graph = self._reference_graph(self._reference_coords, None)
+
     def forward_train_tc(
         self,
         gt_position: Tensor,
@@ -680,7 +724,10 @@ class TransolverSimulator(CaseBoundSimulator):
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
 
-        pred_norm = self._net(node_feats, n_particles_per_example, t=t_norm)
+        graph = self._reference_graph(reference_coords, n_particles_per_example)
+        pred_norm = self._net(
+            node_feats, n_particles_per_example, t=t_norm, graph=graph
+        )
 
         target_raw = torch.cat([gt_position - reference_coords, gt_aux[:, None]], dim=1)
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
@@ -747,7 +794,7 @@ class TransolverSimulator(CaseBoundSimulator):
             dtype=reference_coords.dtype,
             device=reference_coords.device,
         )
-        out = self._net(node_feats, None, t=t)  # (P, dim+1)
+        out = self._net(node_feats, None, t=t, graph=self._hybrid_graph)  # (P, dim+1)
         out = self._target_normalizer.inverse(out)
         displacement = out[:, : self._dim]
         stress = out[:, self._dim :]
