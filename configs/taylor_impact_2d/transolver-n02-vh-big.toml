@@ -13,6 +13,8 @@ seed = 1
 
 [model]
 family = "transolver"
+adaptive_temperature = false
+slice_reparam = false
 input_frames = 6                # taylor card protocol (ADR-0035); see header
 dim = 2
 hidden_dim = 256                # 2x the ADR-0044 reference (tuning arm; see header)

@@ -5,7 +5,7 @@
 # (Plasticity) template: history-free, non-autoregressive. The model maps
 # (rest geometry + node types + prescribed obstacle/handle state at t + query
 # time t) -> absolute state at t; every scored frame is queried independently
-# (no rollout, no velocity window). frames_per_call=1 and velocity_history=false
+# (no rollout, no velocity window). frames_per_call=1 and history_frames=0
 # are REQUIRED (mutually exclusive with time-conditioning).
 #
 # impact_velocity_feature is FALSE: DeformingPlate has no scalar loading
@@ -14,9 +14,9 @@
 # prescribed handle/obstacle state at t (the kinematic-BC input channel)
 # already carries the actuator conditioning the quasi-static pull needs.
 #
-# BUDGET IS A PLACEHOLDER: training_steps set by the maintainer after a
-# throughput measurement to fit the 3-day wall-clock cap (ADR-0054 scope);
-# both DP baselines are budget-matched to the slower method's 3-day step count.
+# Budget 250k steps (maintainer-set 2026-08-18, provisional; extend if val
+# has not plateaued). ~2h/run @ measured DP throughput.
+
 
 [run]
 benchmark = "deforming_plate"
@@ -38,17 +38,19 @@ normalizer_warmup_steps = 1000
 weight_decay = 1e-5      # AdamW, thuml reference (grounding §4.1)
 max_grad_norm = 0.1      # global-norm clip, thuml reference
 
-velocity_history = false        # REQUIRED false for time-conditioning (ADR-0054)
+history_frames = 0              # REQUIRED 0 for time-conditioning (ADR-0054/0053)
 frames_per_call = 1             # REQUIRED 1 for time-conditioning (ADR-0054)
 impact_velocity_feature = false  # DP has no scalar loading param (see header)
 time_conditioned = true          # ADR-0054: faithful thuml native structural scheme
+adaptive_temperature = false     # ADR-0057 (off = byte-identical)
+slice_reparam = false            # ADR-0057 (off = byte-identical)
 
 [train]
 batch_size = 2
 lr_init = 1e-3
 lr_decay = 0.1           # UNUSED by the transolver family (cosine anneal,
                          # ADR-0044); present because [train] is family-uniform.
-training_steps = 200_000   # PLACEHOLDER — DP budget set by maintainer after
+training_steps = 250_000   # PLACEHOLDER — DP budget set by maintainer after
                            # throughput measurement, 3-day cap (ADR-0054)
 val_every = 5_000
 w_pos = 1.0

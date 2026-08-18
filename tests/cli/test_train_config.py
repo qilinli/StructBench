@@ -257,6 +257,8 @@ history_frames = 0
 frames_per_call = 1
 impact_velocity_feature = false
 time_conditioned = false
+adaptive_temperature = false
+slice_reparam = false
 
 [train]
 batch_size = 8
@@ -318,12 +320,33 @@ def test_load_run_config_time_conditioned_roundtrips(tmp_path):
     assert load_run_config(_write(tmp_path, on)).model.time_conditioned is True
 
 
+def test_load_run_config_adaptive_temperature_roundtrips(tmp_path):
+    # ADR-0057: default off; explicit on round-trips.
+    assert (
+        load_run_config(_write(tmp_path, VALID_TRANSOLVER)).model.adaptive_temperature
+        is False
+    )
+    on = VALID_TRANSOLVER.replace(
+        "adaptive_temperature = false", "adaptive_temperature = true"
+    )
+    assert load_run_config(_write(tmp_path, on)).model.adaptive_temperature is True
+
+
+def test_load_run_config_slice_reparam_roundtrips(tmp_path):
+    # ADR-0057: default off; explicit on round-trips.
+    assert (
+        load_run_config(_write(tmp_path, VALID_TRANSOLVER)).model.slice_reparam is False
+    )
+    on = VALID_TRANSOLVER.replace("slice_reparam = false", "slice_reparam = true")
+    assert load_run_config(_write(tmp_path, on)).model.slice_reparam is True
+
+
 def test_load_run_config_rejects_time_conditioned_with_history(tmp_path):
     # ADR-0054 (on the ADR-0053 history_frames schema): the time-conditioned
     # scheme is history-free, so a nonzero history_frames is rejected.
-    bad = VALID_TRANSOLVER.replace(
-        "history_frames = 0", "history_frames = 1"
-    ).replace("time_conditioned = false", "time_conditioned = true")
+    bad = VALID_TRANSOLVER.replace("history_frames = 0", "history_frames = 1").replace(
+        "time_conditioned = false", "time_conditioned = true"
+    )
     with pytest.raises(ConfigError, match="requires history_frames=0"):
         load_run_config(_write(tmp_path, bad))
 
