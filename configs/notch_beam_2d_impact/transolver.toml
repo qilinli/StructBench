@@ -13,6 +13,8 @@ seed = 1
 
 [model]
 family = "transolver"
+adaptive_temperature = false
+slice_reparam = false
 input_frames = 6                # notch card protocol (ADR-0035); see header
 dim = 2
 hidden_dim = 128                # ADR-0044 family reference

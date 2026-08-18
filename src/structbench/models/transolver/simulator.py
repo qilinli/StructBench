@@ -102,6 +102,8 @@ class TransolverSimulator(CaseBoundSimulator):
         frames_per_call: int = 1,
         impact_velocity_feature: bool = False,
         time_conditioned: bool = False,
+        adaptive_temperature: bool = False,
+        slice_reparam: bool = False,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -177,6 +179,8 @@ class TransolverSimulator(CaseBoundSimulator):
             mlp_ratio=mlp_ratio,
             dropout=dropout,
             time_conditioned=time_conditioned,
+            adaptive_temperature=adaptive_temperature,
+            slice_reparam=slice_reparam,
         )
         self._node_normalizer = OnlineNormalizer(node_in)
         self._target_normalizer = OnlineNormalizer(dim + 1)

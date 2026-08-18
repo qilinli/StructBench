@@ -10,6 +10,8 @@ seed = 1
 
 [model]
 family = "transolver"
+adaptive_temperature = false
+slice_reparam = false
 input_frames = 2
 dim = 3
 hidden_dim = 128

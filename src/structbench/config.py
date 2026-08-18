@@ -269,6 +269,21 @@ class TransolverConfig:
         the ``k>1`` bundling axis: requires ``history_frames=0`` and
         ``frames_per_call=1`` (enforced at config load and simulator
         construction); composes with ``impact_velocity_feature``.
+    adaptive_temperature : bool
+        Transolver++ eidetic-state edit #1 (ADR-0057): replace the single
+        learned per-head temperature scalar with a per-point, per-head
+        temperature from a small MLP of the head embedding plus a learned
+        per-head bias, clamped positive. Counters the slice-weight collapse to
+        average pooling measured on Taylor/notch (``scratch`` KL diagnostic).
+        ``False`` (default) is byte-identical to the pre-0057 recipe.
+    slice_reparam : bool
+        Transolver++ eidetic-state edit #2 (ADR-0057): add Gumbel(0,1) noise to
+        the slice logits before the softmax (differentiable categorical
+        sampling), sharpening slice assignment. TRAIN-ONLY here (ADR-0057
+        decision D2): inference stays deterministic — a declared deviation from
+        upstream, which samples at eval too. ``False`` (default) is
+        byte-identical to the pre-0057 recipe. Independent of
+        ``adaptive_temperature`` (each edit is separately ablatable).
     """
 
     input_frames: int = 2
@@ -288,6 +303,8 @@ class TransolverConfig:
     frames_per_call: int = 1
     impact_velocity_feature: bool = False
     time_conditioned: bool = False
+    adaptive_temperature: bool = False
+    slice_reparam: bool = False
 
 
 @dataclass
