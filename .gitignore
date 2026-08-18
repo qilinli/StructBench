@@ -54,3 +54,6 @@ Thumbs.db
 
 # Private program-level strategy: kept local-only, never tracked (2026-07-02)
 RESEARCH-PROGRAM.md
+
+# Ephemeral idea-screening configs
+configs/*/screen-*.toml
