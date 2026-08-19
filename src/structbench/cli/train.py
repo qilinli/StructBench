@@ -30,6 +30,7 @@ import functools
 import json
 import logging
 import math
+import os
 import re
 from collections.abc import Callable
 from dataclasses import replace
@@ -1778,6 +1779,76 @@ def _train_transolver(
     return best_ckpt
 
 
+def _lsq_gradient_edges(
+    coords: Tensor, k: int, eps: float = 1e-6
+) -> tuple[Tensor, Tensor]:
+    """Fixed least-squares displacement-gradient operator over rest-config kNN.
+
+    Builds, from static reference coordinates, a linear operator mapping a
+    displacement field ``u`` (P, dim) to its per-node gradient ``G`` (P, dim,
+    dim) with ``G[i, a, b] = du_a/dx_b``, by unweighted least squares over each
+    node's ``k`` nearest rest neighbours — the operator verified exact for a
+    locally linear field in the strain-from-gradient study
+    (``G^T = (dX^T dX)^-1 dX^T dU``). It depends only on ``coords`` (constant in
+    ``u``), so it is built under ``no_grad`` and applied as a differentiable
+    scatter in :func:`_apply_lsq_gradient`.
+
+    Returns ``(edge_index, coeff)``: ``edge_index`` (2, E) with row 0 the centre
+    node ``i`` and row 1 its neighbour ``j``; ``coeff`` (E, dim) with
+    ``G[i, :, b] += coeff[e, b] * (u[j] - u[i])``.
+    """
+    n, dim = coords.shape
+    kk = min(k, n - 1)
+    with torch.no_grad():
+        d = torch.cdist(coords, coords)
+        d.fill_diagonal_(float("inf"))
+        nbr = torch.topk(d, kk, largest=False).indices  # (n, kk)
+        src = torch.arange(n, device=coords.device).repeat_interleave(kk)
+        dst = nbr.reshape(-1)
+        dx = (coords[dst] - coords[src]).view(n, kk, dim)  # (n, kk, dim)
+        a = dx.transpose(1, 2) @ dx  # (n, dim, dim)
+        a = a + eps * torch.eye(dim, device=coords.device, dtype=coords.dtype)
+        # M = A^-1 dX^T : (n, dim, kk); coeff for edge (i, j_kk) is M[i, :, kk].
+        m = torch.linalg.solve(a, dx.transpose(1, 2))  # (n, dim, kk)
+        coeff = m.transpose(1, 2).reshape(n * kk, dim)  # (n*kk, dim)
+        edge_index = torch.stack([src, dst], dim=0)
+    return edge_index, coeff
+
+
+def _batch_lsq_gradient_edges(
+    reference_coords: Tensor, n_per_example: Tensor, k: int
+) -> tuple[Tensor, Tensor]:
+    """Per-example :func:`_lsq_gradient_edges`, node-offset and concatenated.
+
+    Builds the operator independently within each batched case (no edge ever
+    crosses a case's particle-row range), then offsets each case's edges by the
+    cumulative particle count so the result applies to the collated
+    ``(sum_P, dim)`` field.
+    """
+    edges: list[Tensor] = []
+    coeffs: list[Tensor] = []
+    offset = 0
+    for n in n_per_example.tolist():
+        ei, cf = _lsq_gradient_edges(reference_coords[offset : offset + n], k)
+        edges.append(ei + offset)
+        coeffs.append(cf)
+        offset += n
+    return torch.cat(edges, dim=1), torch.cat(coeffs, dim=0)
+
+
+def _apply_lsq_gradient(edge_index: Tensor, coeff: Tensor, u: Tensor) -> Tensor:
+    """Apply the :func:`_lsq_gradient_edges` operator to a field ``u`` (P, dim).
+
+    Returns the per-node gradient ``G`` (P, dim, dim), differentiable in ``u``.
+    """
+    src, dst = edge_index[0], edge_index[1]
+    du = u[dst] - u[src]  # (E, dim_a)
+    contrib = coeff.unsqueeze(1) * du.unsqueeze(2)  # (E, dim_a, dim_b)
+    grad = u.new_zeros(u.shape[0], u.shape[1], u.shape[1])
+    grad.index_add_(0, src, contrib)
+    return grad
+
+
 def _train_transolver_tc(
     spec: BenchmarkSpec,
     cfg: TransolverConfig,
@@ -1812,6 +1883,28 @@ def _train_transolver_tc(
             "time-conditioned scheme is non-autoregressive, so injected "
             "single-step noise is inert (ADR-0054). Set noise_std=0 to silence.",
             cfg.noise_std,
+        )
+
+    # H1 gradient-consistency (Sobolev) regulariser — SCREEN-ONLY, env-gated.
+    # STRUCTBENCH_H1_RATIO (default 0 = OFF = byte-identical to the reference TC
+    # loop) is the TARGET ratio of the H1 term to the position term. The raw
+    # ``||G(pred_u) - G(gt_u)||^2`` scale is deeply mesh-dependent (gradient of
+    # normalized displacement over the reference spacing), so a fixed weight is
+    # unusable across benchmarks; the effective weight is instead AUTO-CALIBRATED
+    # once, at the first post-warmup step, so ratio=0.1 means "H1 term = 10% of
+    # the position term". STRUCTBENCH_H1_NEIGHBORS sets the rest-config kNN count.
+    # Kept out of the config schema on purpose: promote to a TransolverConfig
+    # knob only if the screen earns it.
+    h1_ratio = float(os.environ.get("STRUCTBENCH_H1_RATIO", "0.0"))
+    h1_neighbors = int(os.environ.get("STRUCTBENCH_H1_NEIGHBORS", "12"))
+    h1_eff_weight: float | None = None
+    if h1_ratio > 0.0:
+        logger.info(
+            "H1 gradient-consistency regulariser ACTIVE (screen): target "
+            "ratio=%.3g of the position term, k=%d rest neighbours "
+            "(effective weight auto-calibrated after normalizer warmup)",
+            h1_ratio,
+            h1_neighbors,
         )
 
     loading_scalars: list[float] | None = None
@@ -1931,6 +2024,43 @@ def _train_transolver_tc(
                 + train_cfg.w_aux * delta_aux**2
             )
             free = ~is_kinematic
+            # Gradient-consistency (Sobolev/H^1) regulariser on the normalized
+            # displacement: match grad(pred_u) to grad(gt_u) via the fixed
+            # rest-config least-squares operator. Applied only after normalizer
+            # warmup (so the auto-calibration sees settled loss scales); kinematic
+            # rows are clamped to GT so a free node's gradient is not corrupted by
+            # their untrained displacement predictions.
+            if h1_ratio > 0.0 and not accumulate:
+                with torch.no_grad():
+                    h1_ei, h1_cf = _batch_lsq_gradient_edges(
+                        reference_coords, n_particles_per_example, h1_neighbors
+                    )
+                pred_u = torch.where(
+                    is_kinematic.unsqueeze(1), target[..., :-1], pred[..., :-1]
+                )
+                g_pred = _apply_lsq_gradient(h1_ei, h1_cf, pred_u)
+                g_gt = _apply_lsq_gradient(h1_ei, h1_cf, target[..., :-1])
+                h1_per_particle = ((g_pred - g_gt) ** 2).sum(dim=(-1, -2))
+                if h1_eff_weight is None and free.any():
+                    with torch.no_grad():
+                        wp = float(
+                            (train_cfg.w_pos * (delta_v**2).sum(dim=-1))[free]
+                            .mean()
+                            .item()
+                        )
+                        wh = float(h1_per_particle[free].mean().item())
+                    h1_eff_weight = h1_ratio * wp / max(wh, 1e-12)
+                    logger.info(
+                        "H1 calibrated @step%d: target_ratio=%.3g w_pos_term=%.4g "
+                        "raw_h1_term=%.4g -> effective w_h1=%.4g",
+                        step,
+                        h1_ratio,
+                        wp,
+                        wh,
+                        h1_eff_weight,
+                    )
+                if h1_eff_weight is not None:
+                    per_particle = per_particle + h1_eff_weight * h1_per_particle
             if free.any():
                 loss = per_particle[free].mean()
             else:
