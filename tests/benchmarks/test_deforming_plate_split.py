@@ -25,10 +25,17 @@ def test_protocol_pins():
     assert spec.aux_field == "von_mises_stress"
     assert set(spec.qois) == {"peak_vm_stress", "terminal_peak_deflection"}
     assert spec.eval_splits == ("val", "test")
-    # Three baselines (ADR-0043/0044/0045): blessed MGN + provisional
-    # Transolver and GeoFLARE, all autoregressive, scored on the single `test`
-    # split.
-    assert tuple(r.family for r in spec.results) == ("mgn", "transolver", "geoflare")
-    assert [r.provisional for r in spec.results] == [False, True, True]
+    # Four baselines (ADR-0043/0044/0045/0057): blessed MGN (autoregressive) +
+    # provisional Transolver and Transolver++ (time-conditioned, ADR-0054/0057)
+    # and GeoFLARE (autoregressive), scored on the single `test` split. The
+    # Transolver row switched from the autoregressive 2M-step run to the
+    # time-conditioned 250k run (decisively better; the faithful native scheme).
+    assert tuple(r.family for r in spec.results) == (
+        "mgn",
+        "transolver",
+        "transolver_plus",
+        "geoflare",
+    )
+    assert [r.provisional for r in spec.results] == [False, True, True, True]
     assert all(set(r.metrics) == {"test"} for r in spec.results)
     assert spec.quickstart_family == "mgn"

@@ -39,8 +39,9 @@ over space and time** to match the published DeformingPlate convention
 two quantities of interest reading the engineering outcome: peak von Mises
 stress and terminal peak deflection. On this smooth, quasi-static task the
 operators' freedom from a fixed mesh graph tells: both outrun the mesh-based
-reference on displacement (Transolver by ~3x on relative L2, ~4x on pooled
-position RMSE), while MGN's stress field degrades under rollout. MGN's pooled
+reference on displacement (the time-conditioned Transolver by ~5x on relative
+L2, ~8x on pooled position RMSE), while MGN's stress field degrades under
+rollout. MGN's pooled
 position RMSE (16.98 mm) still reproduces the published reference (15.1 +/-
 4.0). The leaderboard is below."""
 
@@ -81,7 +82,7 @@ _FIGURES = (
             "(relative L2 4.21). That is a rollout-coupled artifact, not a broken "
             "model - Transolver runs the identical stress pipeline and, with a "
             "more stable rollout, tracks ground truth almost exactly (relative L2 "
-            "0.24); GeoFLARE (0.35) is between. Transolver and GeoFLARE are "
+            "0.20); GeoFLARE (0.35) is between. Transolver and GeoFLARE are "
             "provisional native baselines (ADR-0044/0045)."
         ),
         alt=(

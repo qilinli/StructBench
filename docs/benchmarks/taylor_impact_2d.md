@@ -81,6 +81,7 @@ _Headline — pooled relative L2 (↓ better)_
 | MGN | autoregressive | 0.2157 | 0.3456 | 0.3233 | 0.4327 |
 | CGN | autoregressive | 0.1299 | 0.3223 | 0.5547 | 0.4531 |
 | Transolver | time-conditioned | 0.009383 | 0.1749 | 0.01637 | 0.1982 |
+| Transolver++ | time-conditioned | 0.00936 | 0.1733 | 0.01765 | 0.1932 |
 
 _Trajectory error — RMSE_
 
@@ -89,6 +90,7 @@ _Trajectory error — RMSE_
 | MGN | autoregressive | 2.272 | 55.79 |
 | CGN | autoregressive | 1.274 | 52.57 |
 | Transolver | time-conditioned | 0.1043 | 28.56 |
+| Transolver++ | time-conditioned | 0.1045 | 28.28 |
 
 _Quantities of interest (MAE)_
 
@@ -97,6 +99,7 @@ _Quantities of interest (MAE)_
 | MGN | autoregressive | 9.108 | 6.097 | 3.639 | 0.001335 |
 | CGN | autoregressive | 3.083 | 4.754 | 2.865 | 0.003993 |
 | Transolver | time-conditioned | 0.5557 | 0.3532 | 2.164 | 0.001986 |
+| Transolver++ | time-conditioned | 0.6428 | 0.3318 | 2.103 | 0.00132 |
 
 ## Baseline details
 
@@ -111,6 +114,10 @@ _Quantities of interest (MAE)_
 **Transolver** (transolver, 2026-08-16, commit `59d5786`)
 
 *Native time-conditioned Transolver (ADR-0054): each frame is predicted independently from the reference geometry + normalized query time + impact-velocity scalar, history-free with no rollout accumulation, so one-step is N/A (the faithful thuml structural scheme, not autoregressive). Seed 2 of the s1-s2 pair, val-selected model-best-100000.pt, run taylor-transolver-tc-s2. PROVISIONAL (ADR-0044/0045): a best-effort native implementation, not validated against a published Taylor-Transolver number. On Taylor it is the strongest baseline by a wide margin (~14x lower displacement relative L2 than CGN on test_interp) because avoiding rollout accumulation dominates on this smooth-kinematics task. Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval.*
+
+**Transolver++** (transolver_plus, 2026-08-18, commit `5b84119`)
+
+*Transolver++ (ADR-0057): the native time-conditioned Transolver with both eidetic-state knobs ON - per-point adaptive slice temperature + train-only Gumbel Rep-Slice reparameterisation. Seed 2 of the s1-s2 pair (val-selected model-best-098000.pt, run taylor-transolver-tcpp-s2), seed-matched to the plain Transolver entry above (also seed 2). PROVISIONAL method comparison (ADR-0046), not a blessed baseline. It is neutral-to-worse than plain Transolver here: test_interp displacement is a statistical tie (0.00936 vs 0.00938) with von Mises ~1% lower, but test_extrap displacement is ~8% worse (0.01765 vs 0.01637). The extrap gain seen on seed 1 flips sign on seed 2, so there is no robust out-of-distribution win. Consistent with Transolver++ being designed for million-scale geometries: its eidetic-state edits do not help these O(10^4)-particle impact meshes, which are near-saturated for operator-architecture tweaks. Pooled relative L2 headline (ADR-0055).*
 
 ## Quickstart
 
@@ -129,3 +136,4 @@ Dataset access: the canonical archive is maintainer-held on institutional storag
 - **MGN** — Pfaff, T., Fortunato, M., Sanchez-Gonzalez, A., & Battaglia, P. W. (2021). Learning Mesh-Based Simulation with Graph Networks. *ICLR*. https://arxiv.org/abs/2010.03409
 - **CGN** — Li, Q., Wang, Z., Li, L., Hao, H., Chen, W., & Shao, Y. (2023). Machine learning prediction of structural dynamic responses using graph neural networks. *Computers & Structures*, 289, 107188. https://doi.org/10.1016/j.compstruc.2023.107188
 - **Transolver** — Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: A Fast Transformer Solver for PDEs on General Geometries. *ICML*. https://arxiv.org/abs/2402.02366
+- **Transolver++** — Luo, H., Wu, H., Zhou, H., Wang, J., & Long, M. (2025). Transolver++: An Accurate Neural Solver for PDEs on Million-Scale Geometries. https://arxiv.org/abs/2502.02414. Adapted per ADR-0057 (thuml reference implementation github.com/thuml/Transolver_plus).

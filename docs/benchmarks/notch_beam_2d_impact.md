@@ -85,6 +85,7 @@ _Headline — pooled relative L2 (↓ better)_
 | MGN | autoregressive | 0.2245 | 0.6988 | 0.7672 | 1.255 |
 | CGN | autoregressive | 0.2827 | 0.5876 | 0.5905 | 0.8535 |
 | Transolver | time-conditioned | 0.03517 | 0.2294 | 1.047 | 1.236 |
+| Transolver++ | time-conditioned | 0.03699 | 0.2396 | 1.01 | 1.263 |
 
 _Trajectory error — RMSE_
 
@@ -93,6 +94,7 @@ _Trajectory error — RMSE_
 | MGN | autoregressive | 0.1984 | 0.01997 |
 | CGN | autoregressive | 0.2497 | 0.01697 |
 | Transolver | time-conditioned | 0.03365 | 0.006467 |
+| Transolver++ | time-conditioned | 0.03509 | 0.006714 |
 
 _Quantities of interest (MAE)_
 
@@ -101,6 +103,7 @@ _Quantities of interest (MAE)_
 | MGN | autoregressive | 0.5842 | 0.1081 |
 | CGN | autoregressive | 0.5843 | 0.1892 |
 | Transolver | time-conditioned | 0.04067 | 0.0212 |
+| Transolver++ | time-conditioned | 0.04696 | 0.02438 |
 
 ## Baseline details
 
@@ -115,6 +118,10 @@ _Quantities of interest (MAE)_
 **Transolver** (transolver, 2026-08-16, commit `59d5786`)
 
 *Native time-conditioned Transolver (ADR-0054): history-free independent-time-query, no rollout accumulation, so one-step is N/A. Seed 2 of the s1-s2 pair, val-selected model-best-230000.pt, run notch-transolver-tc-s2. PROVISIONAL (ADR-0044/0045). On test_interp it is the strongest baseline (~8x lower displacement relative L2 than CGN); on the PROBE it fails hard (relative L2 > 1) - the off-centre triple-OOD case (ADR-0026 amendment) where the global-attention operator mis-localises the response to the learned midspan prior, while CGN's relative-position message passing degrades more gracefully (probe disp 0.59 vs 1.05). Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval.*
+
+**Transolver++** (transolver_plus, 2026-08-18, commit `5b84119`)
+
+*Transolver++ (ADR-0057): the native time-conditioned Transolver with both eidetic-state knobs ON - per-point adaptive slice temperature + train-only Gumbel Rep-Slice reparameterisation. Seed 2 of the s1-s2 pair (val-selected model-best-250000.pt, run notch-transolver-tcpp-s2), seed-matched to the plain Transolver entry above (also seed 2). PROVISIONAL method comparison (ADR-0046), not a blessed baseline. It is neutral-to-worse than plain Transolver: test_interp displacement is ~5% worse (0.03699 vs 0.03517) and strain ~4% worse; on the off-centre triple-OOD PROBE displacement is marginally better (1.01 vs 1.05) but strain is worse (1.263 vs 1.236) and both still fail hard (relative L2 > 1). No robust generalisation gain. Consistent with Transolver++ being designed for million-scale geometries: its eidetic-state edits do not help these O(10^4)-particle impact meshes. Pooled relative L2 headline (ADR-0055).*
 
 ## Quickstart
 
@@ -133,3 +140,4 @@ Dataset access: the canonical archive is maintainer-held on institutional storag
 - **MGN** — Pfaff, T., Fortunato, M., Sanchez-Gonzalez, A., & Battaglia, P. W. (2021). Learning Mesh-Based Simulation with Graph Networks. *ICLR*. https://arxiv.org/abs/2010.03409
 - **CGN** — Li, Q., Wang, Z., Li, L., Hao, H., Chen, W., & Shao, Y. (2023). Machine learning prediction of structural dynamic responses using graph neural networks. *Computers & Structures*, 289, 107188. https://doi.org/10.1016/j.compstruc.2023.107188
 - **Transolver** — Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: A Fast Transformer Solver for PDEs on General Geometries. *ICML*. https://arxiv.org/abs/2402.02366
+- **Transolver++** — Luo, H., Wu, H., Zhou, H., Wang, J., & Long, M. (2025). Transolver++: An Accurate Neural Solver for PDEs on Million-Scale Geometries. https://arxiv.org/abs/2502.02414. Adapted per ADR-0057 (thuml reference implementation github.com/thuml/Transolver_plus).

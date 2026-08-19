@@ -192,6 +192,55 @@ RESULTS: tuple[BaselineResult, ...] = (
             "relative L2 headline (ADR-0055) from the 2026-08-16 re-eval."
         ),
     ),
+    BaselineResult(
+        family="transolver_plus",
+        label="Transolver++",
+        scheme="time-conditioned",
+        reference=(
+            "Luo, H., Wu, H., Zhou, H., Wang, J., & Long, M. (2025). "
+            "Transolver++: An Accurate Neural Solver for PDEs on Million-Scale "
+            "Geometries. https://arxiv.org/abs/2502.02414. Adapted per ADR-0057 "
+            "(thuml reference implementation github.com/thuml/Transolver_plus)."
+        ),
+        provisional=True,
+        run_commit="5b84119",
+        run_date="2026-08-18",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.03699,
+                "rollout_rel_l2_aux": 0.2396,
+                "rollout_pos_rmse_mm": 0.03509,
+                "rollout_strain_rmse": 0.006714,
+                "qoi_midspan_deflection_peak_mae_mm": 0.04696,
+                "qoi_cracked_fraction_mae": 0.02438,
+            },
+            "probe": {
+                "rollout_rel_l2_disp": 1.010,
+                "rollout_rel_l2_aux": 1.263,
+                "rollout_pos_rmse_mm": 0.6148,
+                "rollout_strain_rmse": 0.03025,
+                "qoi_midspan_deflection_peak_mae_mm": 3.329,
+                "qoi_cracked_fraction_mae": 0.04194,
+            },
+        },
+        notes=(
+            "Transolver++ (ADR-0057): the native time-conditioned Transolver "
+            "with both eidetic-state knobs ON - per-point adaptive slice "
+            "temperature + train-only Gumbel Rep-Slice reparameterisation. Seed "
+            "2 of the s1-s2 pair (val-selected model-best-250000.pt, run "
+            "notch-transolver-tcpp-s2), seed-matched to the plain Transolver "
+            "entry above (also seed 2). PROVISIONAL method comparison (ADR-0046), "
+            "not a blessed baseline. It is neutral-to-worse than plain "
+            "Transolver: test_interp displacement is ~5% worse (0.03699 vs "
+            "0.03517) and strain ~4% worse; on the off-centre triple-OOD PROBE "
+            "displacement is marginally better (1.01 vs 1.05) but strain is "
+            "worse (1.263 vs 1.236) and both still fail hard (relative L2 > 1). "
+            "No robust generalisation gain. Consistent with Transolver++ being "
+            "designed for million-scale geometries: its eidetic-state edits do "
+            "not help these O(10^4)-particle impact meshes. Pooled relative L2 "
+            "headline (ADR-0055)."
+        ),
+    ),
 )
 
 
