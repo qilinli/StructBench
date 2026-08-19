@@ -29,11 +29,12 @@ Read these files, in order, before any work begins:
 1. `CLAUDE.md` (this file).
 2. `docs/VISION.md`.
 3. `RESEARCH-PROGRAM.md` — *context-only; explains the research program StructBench serves but does not define its scope (see ADR-0014). **Local-only and untracked** (private strategy, 2026-07-02): present on the maintainer's machine but absent from clones — skip without error if missing.*
-4. `docs/HARNESS.md`.
-5. `docs/PRINCIPLES.md`.
-6. `docs/CORRECTIONS.md` — all entries marked `active`.
-7. `decisions/README.md` — the ADR index.
-8. `docs/WORKFLOW.md` — session venues and multi-machine git workflow; identify your venue before making any change.
+4. `research/FINDINGS.md` — the private findings index (banked research conclusions with confidence tiers; open the individual `research/findings/F-NNN-*.md` only when a line is relevant). Governance in `research/README.md`. **Local-only and untracked** (same as `RESEARCH-PROGRAM.md`) — skip without error if missing.
+5. `docs/HARNESS.md`.
+6. `docs/PRINCIPLES.md`.
+7. `docs/CORRECTIONS.md` — all entries marked `active`.
+8. `decisions/README.md` — the ADR index.
+9. `docs/WORKFLOW.md` — session venues and multi-machine git workflow; identify your venue before making any change.
 
 Then, conditionally based on the session's task:
 

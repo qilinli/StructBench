@@ -54,3 +54,6 @@ Thumbs.db
 
 # Private program-level strategy: kept local-only, never tracked (2026-07-02)
 RESEARCH-PROGRAM.md
+
+# Private findings store: banked research conclusions, maintainer-only (2026-08-19)
+research/
