@@ -182,6 +182,60 @@ RESULTS: tuple[BaselineResult, ...] = (
             "relative L2 headline (ADR-0055) from the 2026-08-16 re-eval."
         ),
     ),
+    BaselineResult(
+        family="transolver_plus",
+        label="Transolver++",
+        scheme="time-conditioned",
+        reference=(
+            "Luo, H., Wu, H., Zhou, H., Wang, J., & Long, M. (2025). "
+            "Transolver++: An Accurate Neural Solver for PDEs on Million-Scale "
+            "Geometries. https://arxiv.org/abs/2502.02414. Adapted per ADR-0057 "
+            "(thuml reference implementation github.com/thuml/Transolver_plus)."
+        ),
+        provisional=True,
+        run_commit="5b84119",
+        run_date="2026-08-18",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.00936,
+                "rollout_rel_l2_aux": 0.1733,
+                "rollout_pos_rmse_mm": 0.1045,
+                "rollout_vm_rmse_mpa": 28.28,
+                "qoi_final_length_mae_mm": 0.6428,
+                "qoi_mushroom_width_mae_mm": 0.3318,
+                "qoi_peak_vm_mae_mpa": 2.103,
+                "qoi_t_peak_vm_mae_ms": 0.00132,
+            },
+            "test_extrap": {
+                "rollout_rel_l2_disp": 0.01765,
+                "rollout_rel_l2_aux": 0.1932,
+                "rollout_pos_rmse_mm": 0.2521,
+                "rollout_vm_rmse_mpa": 34.37,
+                "qoi_final_length_mae_mm": 2.505,
+                "qoi_mushroom_width_mae_mm": 2.612,
+                "qoi_peak_vm_mae_mpa": 4.605,
+                "qoi_t_peak_vm_mae_ms": 0.01132,
+            },
+        },
+        notes=(
+            "Transolver++ (ADR-0057): the native time-conditioned Transolver "
+            "with both eidetic-state knobs ON - per-point adaptive slice "
+            "temperature + train-only Gumbel Rep-Slice reparameterisation. Seed "
+            "2 of the s1-s2 pair (val-selected model-best-098000.pt, run "
+            "taylor-transolver-tcpp-s2), seed-matched to the plain Transolver "
+            "entry above (also seed 2). PROVISIONAL method comparison (ADR-0046), "
+            "not a blessed baseline. It is neutral-to-worse than plain "
+            "Transolver here: test_interp displacement is a statistical tie "
+            "(0.00936 vs 0.00938) with von Mises ~1% lower, but test_extrap "
+            "displacement is ~8% worse (0.01765 vs 0.01637). The extrap gain "
+            "seen on seed 1 flips sign on seed 2, so there is no robust "
+            "out-of-distribution win. Consistent with Transolver++ being "
+            "designed for million-scale geometries: its eidetic-state edits do "
+            "not help these O(10^4)-particle impact meshes, which are "
+            "near-saturated for operator-architecture tweaks. Pooled relative "
+            "L2 headline (ADR-0055)."
+        ),
+    ),
 )
 
 
