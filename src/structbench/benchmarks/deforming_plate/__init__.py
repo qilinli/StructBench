@@ -99,41 +99,87 @@ RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
         family="transolver",
         label="Transolver",
-        scheme="autoregressive",
+        scheme="time-conditioned",
         reference=(
             "Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: "
             "A Fast Transformer Solver for PDEs on General Geometries. *ICML*. "
             "https://arxiv.org/abs/2402.02366"
         ),
         provisional=True,
-        run_commit="84df162",
-        run_date="2026-08-11",
+        run_commit="5b84119",
+        run_date="2026-08-18",
         metrics={
             "test": {
-                "rollout_rel_l2_disp": 0.2681,
-                "rollout_rel_l2_aux": 0.2400,
-                "rollout_pos_rmse_mm": 4.282,
-                "rollout_vm_rmse_mpa": 0.01095,
-                "one_step_pos_rmse_mm": 0.01412,
-                "one_step_vm_rmse_mpa": 0.005993,
-                "qoi_peak_vm_mae_mpa": 0.01915,
-                "qoi_terminal_deflection_mae_mm": 6.172,
+                "rollout_rel_l2_disp": 0.1538,
+                "rollout_rel_l2_aux": 0.1993,
+                "rollout_pos_rmse_mm": 1.996,
+                "rollout_vm_rmse_mpa": 0.007373,
+                "qoi_peak_vm_mae_mpa": 0.01388,
+                "qoi_terminal_deflection_mae_mm": 0.5615,
             },
         },
         notes=(
-            "Native Transolver (Physics-Attention), provisional autoregressive "
-            "adaptation on the DeformingPlate rollout (ADR-0044): a best-effort "
-            "native implementation, not validated against a published "
-            "Transolver-DeformingPlate number. Val-selected model-best-4000000.pt. "
-            "It is the strongest baseline on this benchmark - ~1.9x lower "
-            "displacement relative L2 than the blessed (noise-fixed) MGN (0.268 "
-            "vs 0.501) and ~3.6x lower pooled position RMSE (4.28 vs 15.45 mm) - "
-            "because its global attention is not tied to a fixed mesh graph and "
-            "it accumulates little rollout error on smooth quasi-static "
-            "deformation. On the von Mises FIELD the gap is now NARROW (relative "
-            "L2 0.240 vs the noise-fixed MGN's 0.363; before the MGN noise fix it "
-            "was 0.240 vs 4.21 - the fix closed most of the apparent stress "
-            "advantage). Pooled relative L2 headline (ADR-0055)."
+            "Native time-conditioned Transolver (ADR-0054): history-free, each "
+            "frame predicted independently from the reference mesh + normalized "
+            "query time, with no rollout accumulation, so one-step is N/A. This "
+            "REPLACES the earlier provisional autoregressive DP Transolver entry "
+            "(2M steps, run 84df162): time-conditioned is the faithful native "
+            "Transolver scheme (ADR-0054, matching Taylor/notch) and is also "
+            "decisively better here at a fraction of the budget - at 250k steps "
+            "it beats the 2M autoregressive run on every metric (displacement "
+            "relative L2 0.154 vs 0.268, pooled position RMSE 2.00 vs 4.28 mm, "
+            "terminal-deflection MAE 0.56 vs 6.17 mm), because avoiding rollout "
+            "accumulation dominates on this smooth quasi-static deformation. It "
+            "is now the strongest baseline on this benchmark by a wide margin - "
+            "~3.3x lower displacement relative L2 than the blessed (noise-fixed) "
+            "MGN (0.154 vs 0.501), ~7.7x lower pooled position RMSE (2.00 vs 15.45 "
+            "mm) - and tracks the von Mises field better (relative L2 0.199 vs MGN "
+            "0.363; the MGN noise fix closed the earlier huge stress gap, was vs "
+            "4.21). Seed 1 of the s1-s2 pair, val-selected model-best-235000.pt, "
+            "run deforming-transolver-tc-s1. PROVISIONAL (ADR-0044/0046): a "
+            "best-effort native implementation, not validated against a "
+            "published Transolver-DeformingPlate number. Pooled relative L2 "
+            "headline (ADR-0055)."
+        ),
+    ),
+    BaselineResult(
+        family="transolver_plus",
+        label="Transolver++",
+        scheme="time-conditioned",
+        reference=(
+            "Luo, H., Wu, H., Zhou, H., Wang, J., & Long, M. (2025). "
+            "Transolver++: An Accurate Neural Solver for PDEs on Million-Scale "
+            "Geometries. https://arxiv.org/abs/2502.02414. Adapted per ADR-0057 "
+            "(thuml reference implementation github.com/thuml/Transolver_plus)."
+        ),
+        provisional=True,
+        run_commit="5b84119",
+        run_date="2026-08-18",
+        metrics={
+            "test": {
+                "rollout_rel_l2_disp": 0.158,
+                "rollout_rel_l2_aux": 0.2054,
+                "rollout_pos_rmse_mm": 2.046,
+                "rollout_vm_rmse_mpa": 0.007728,
+                "qoi_peak_vm_mae_mpa": 0.01895,
+                "qoi_terminal_deflection_mae_mm": 0.8748,
+            },
+        },
+        notes=(
+            "Transolver++ (ADR-0057): the native time-conditioned Transolver "
+            "with both eidetic-state knobs ON - per-point adaptive slice "
+            "temperature + train-only Gumbel Rep-Slice reparameterisation. Seed "
+            "1 of the s1-s2 pair (val-selected model-best-215000.pt, run "
+            "deforming-transolver-tcpp-s1), seed-matched to the plain "
+            "time-conditioned Transolver entry above (also seed 1). PROVISIONAL "
+            "method comparison (ADR-0046). It is slightly WORSE than the plain "
+            "time-conditioned Transolver on every metric (displacement relative "
+            "L2 0.158 vs 0.154, von Mises 0.205 vs 0.199, terminal-deflection "
+            "MAE 0.87 vs 0.56 mm) - the same neutral-to-worse result seen on "
+            "Taylor and notch-impact, consistent with Transolver++'s "
+            "eidetic-state edits being designed for million-scale geometries "
+            "rather than this benchmark's small tetrahedral meshes. Pooled "
+            "relative L2 headline (ADR-0055)."
         ),
     ),
     BaselineResult(
@@ -166,13 +212,14 @@ RESULTS: tuple[BaselineResult, ...] = (
             "backend (attention_type GALE_FA) - provisional autoregressive "
             "adaptation on the DeformingPlate rollout (ADR-0045): a best-effort "
             "native implementation, not validated against a published number. "
-            "Val-selected model-best-6600000.pt. Its standing is now METRIC-"
-            "DEPENDENT against the noise-fixed MGN: on pooled position RMSE it "
-            "still crushes MGN (5.14 vs 15.45 mm, since MGN's pooled RMSE is "
-            "inflated by a few divergent trajectories), but on per-case-mean "
-            "displacement relative L2 it now TRAILS MGN (0.573 vs 0.501; before "
-            "the MGN noise fix it led, 0.573 vs 0.809) and stays behind Transolver "
-            "(0.268) throughout. Pooled relative L2 headline (ADR-0055)."
+            "Val-selected model-best-6600000.pt. This GeoFLARE run is "
+            "autoregressive. Its standing is now METRIC-DEPENDENT against the "
+            "noise-fixed MGN: on pooled position RMSE it still beats MGN (5.14 vs "
+            "15.45 mm, MGN's pooled RMSE inflated by a few divergent trajectories), "
+            "but on per-case-mean displacement relative L2 it now TRAILS MGN "
+            "(0.573 vs 0.501; before the MGN noise fix it led, 0.573 vs 0.809). It "
+            "stays behind the time-conditioned Transolver (0.154) throughout. "
+            "Pooled relative L2 headline (ADR-0055)."
         ),
     ),
 )

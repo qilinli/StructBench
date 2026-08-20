@@ -64,7 +64,7 @@ srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:15:00 --pty bash -lc '
 # runs/taylor-cgn-v01 and must be fresh per attempt):
 sbatch hpc/dug/train_taylor.slurm
 squeue --me                     # watch the queue
-tail -f logs/slurm-taylor-*.out # progress: val_pos (mm) / val_aux (MPa) each val_every
+tail -f scratch/logs/slurm-taylor-*.out # progress: val_pos (mm) / val_aux (MPa) each val_every
 ```
 
 The full run is 80k steps at batch 8 (ADR-0028 reference recipe, radius 1.5).
@@ -188,7 +188,7 @@ srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:10:00 --pty bash -lc '
 
 sbatch hpc/dug/train_wave.slurm   # OUT defaults to runs/wave-cgn-v02
 squeue --me
-tail -f logs/slurm-wave-*.out     # val_pos (mm) / val_aux (MPa) each val_every
+tail -f scratch/logs/slurm-wave-*.out     # val_pos (mm) / val_aux (MPa) each val_every
 ```
 
 The full run is 50k steps at batch 32 (half the Taylor budget; ADR-0028 recipe
@@ -274,7 +274,7 @@ srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:15:00 --pty bash -lc '
 mkdir -p logs
 sbatch hpc/dug/train_deforming_mgn.slurm    # OUT defaults to runs/deforming-mgn-v03
 squeue --me
-tail -f logs/slurm-dp-mgn-*.out             # val_pos (mm) / val_aux (MPa) every 50k steps
+tail -f scratch/logs/slurm-dp-mgn-*.out             # val_pos (mm) / val_aux (MPa) every 50k steps
 ```
 
 **Budget reality check (do this in the first hour):** the recipe is 10M steps

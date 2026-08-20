@@ -38,13 +38,13 @@ over space and time** to match the published DeformingPlate convention
 (ADR-0043), not the mean-of-per-step RMSE used on the other benchmarks - with
 two quantities of interest reading the engineering outcome: peak von Mises
 stress and terminal peak deflection. On this smooth, quasi-static task the
-operators' freedom from a fixed mesh graph tells on displacement: Transolver
-leads (relative L2 0.268, pooled RMSE 4.28 mm), with GeoFLARE next. MGN's pooled
-position RMSE (15.45 mm) reproduces the published reference (15.1 +/- 4.0); a
-2026-08-20 training-noise fix (noise_std corrected to the working frame, ~1000x
-stronger) repaired MGN's previously-collapsed von Mises field (relative L2
-4.21 -> 0.36), so the cross-method stress gap is now narrow. The leaderboard is
-below."""
+operators' freedom from a fixed mesh graph tells on displacement: the
+time-conditioned Transolver leads (relative L2 0.154, pooled RMSE 2.00 mm), with
+GeoFLARE next. MGN's pooled position RMSE (15.45 mm) reproduces the published
+reference (15.1 +/- 4.0); a 2026-08-20 training-noise fix (noise_std corrected to
+the working frame, ~1000x stronger) repaired MGN's previously-collapsed von Mises
+field (relative L2 4.21 -> 0.36), so the cross-method stress gap is now narrow.
+The leaderboard is below."""
 
 _FIGURES = (
     BenchmarkFigure(
@@ -61,7 +61,7 @@ _FIGURES = (
             "(stress stuck saturated as the mesh drifted, an artifact of "
             "effectively noise-free training) is gone. MGN's POSITION result stays "
             "faithful (pooled rollout RMSE 15.45 mm, in the 15.1 +/- 4.0 band). "
-            "Transolver tracks stress most closely (relative L2 0.24); GeoFLARE is "
+            "Transolver tracks stress most closely (relative L2 0.20); GeoFLARE is "
             "between. Transolver and GeoFLARE are provisional native baselines "
             "(ADR-0044/0045)."
         ),
@@ -80,11 +80,11 @@ _FIGURES = (
             "rollout RMSE 15.45 mm, inside the 15.1 +/- 4.0 band and matching it "
             "at every horizon. MGN is the noise-fixed model (2026-08-20): its "
             "stress field now tracks ground truth (relative L2 0.36, comparable to "
-            "Transolver's 0.24), with only mild local over-prediction near the "
+            "Transolver's 0.20), with only mild local over-prediction near the "
             "indent - the earlier collapse (relative L2 4.21, stress saturated as "
             "the mesh drifted) was an artifact of effectively noise-free training, "
             "repaired by correcting the training noise to the working frame. "
-            "Transolver tracks ground truth most closely (relative L2 0.24); "
+            "Transolver tracks ground truth most closely (relative L2 0.20); "
             "GeoFLARE (0.35) is between. Transolver and GeoFLARE are provisional "
             "native baselines (ADR-0044/0045)."
         ),

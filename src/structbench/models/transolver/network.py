@@ -167,6 +167,13 @@ class PhysicsAttentionIrregularMesh(nn.Module):
     dropout:
         Dropout probability applied to the token-attention weights and to
         the output projection.
+    adaptive_temperature:
+        ADR-0057 (Transolver++): use a per-point, per-head temperature (MLP of
+        the head embedding + learned per-head bias, clamped) instead of the
+        single learned per-head scalar. ``False`` (default) is byte-identical.
+    slice_reparam:
+        ADR-0057 (Transolver++): add train-only Gumbel(0, 1) noise to the slice
+        logits before the softmax. ``False`` (default) is byte-identical.
     """
 
     def __init__(
@@ -176,6 +183,8 @@ class PhysicsAttentionIrregularMesh(nn.Module):
         dim_head: int = 64,
         slice_num: int = 64,
         dropout: float = 0.0,
+        adaptive_temperature: bool = False,
+        slice_reparam: bool = False,
     ) -> None:
         super().__init__()
         self.heads = heads
@@ -193,9 +202,25 @@ class PhysicsAttentionIrregularMesh(nn.Module):
         self.to_k = nn.Linear(dim_head, dim_head, bias=False)
         self.to_v = nn.Linear(dim_head, dim_head, bias=False)
         self.to_out = nn.Sequential(nn.Linear(inner_dim, dim), nn.Dropout(dropout))
-        # Per-head, unclamped (Irregular_Mesh variant); broadcasts against
-        # the (P, H, M) slice logits.
-        self.temperature = nn.Parameter(torch.full((heads, 1), 0.5))
+        # Slice-assignment temperature. Default (Transolver): one unclamped
+        # learned scalar per head, broadcasting against the (P, H, M) logits.
+        # ADR-0057 adaptive (Transolver++): a per-point, per-head temperature
+        # from a 2-layer MLP of the head embedding plus a learned per-head bias,
+        # clamped positive (following the released code, not the paper's single
+        # Linear). Exactly one parameter set is created so each mode's
+        # state_dict stays clean and the default stays byte-identical.
+        self.adaptive_temperature = adaptive_temperature
+        self.slice_reparam = slice_reparam
+        if adaptive_temperature:
+            self.proj_temperature = nn.Sequential(
+                nn.Linear(dim_head, slice_num),
+                nn.GELU(),
+                nn.Linear(slice_num, 1),
+                nn.GELU(),
+            )
+            self.temperature_bias = nn.Parameter(torch.full((heads, 1), 0.5))
+        else:
+            self.temperature = nn.Parameter(torch.full((heads, 1), 0.5))
         self.scale = dim_head**-0.5
         self.attn_dropout = nn.Dropout(dropout)
 
@@ -218,8 +243,22 @@ class PhysicsAttentionIrregularMesh(nn.Module):
             the last (slice) axis per point per head.
         """
         x_mid = self.in_project_x(x).reshape(-1, self.heads, self.dim_head)
-        logits = self.in_project_slice(x_mid) / self.temperature
-        return torch.softmax(logits, dim=-1)
+        logits = self.in_project_slice(x_mid)  # (P, H, M)
+        if self.slice_reparam and self.training:
+            # ADR-0057 Gumbel Rep-Slice: additive Gumbel(0, 1) noise on the
+            # logits (differentiable categorical sampling) sharpens slice
+            # assignment away from the average-pooling collapse. D2: TRAIN-ONLY
+            # — eval stays deterministic (declared deviation from upstream,
+            # which samples at inference too).
+            u = torch.rand_like(logits)
+            logits = logits - torch.log(-torch.log(u + 1e-8) + 1e-8)
+        if self.adaptive_temperature:
+            temperature = torch.clamp(
+                self.proj_temperature(x_mid) + self.temperature_bias, min=0.01
+            )
+        else:
+            temperature = self.temperature
+        return torch.softmax(logits / temperature, dim=-1)
 
     def forward(self, x: Tensor, segments: list[tuple[int, int]]) -> Tensor:
         """Run Physics-Attention over a (possibly multi-example) flat point set.
@@ -284,6 +323,10 @@ class TransolverBlock(nn.Module):
     out_size:
         Output feature width of the decoder head (only used when
         ``last_layer``).
+    adaptive_temperature, slice_reparam:
+        ADR-0057 (Transolver++) slice-weight edits, forwarded unchanged to the
+        block's :class:`PhysicsAttentionIrregularMesh`. Both ``False`` (default)
+        is byte-identical.
     """
 
     def __init__(
@@ -295,6 +338,8 @@ class TransolverBlock(nn.Module):
         dropout: float,
         last_layer: bool,
         out_size: int,
+        adaptive_temperature: bool = False,
+        slice_reparam: bool = False,
     ) -> None:
         super().__init__()
         self.last_layer = last_layer
@@ -306,6 +351,8 @@ class TransolverBlock(nn.Module):
             dim_head=dim_head,
             slice_num=slice_num,
             dropout=dropout,
+            adaptive_temperature=adaptive_temperature,
+            slice_reparam=slice_reparam,
         )
         self.ln_2 = nn.LayerNorm(hidden_dim)
         self.mlp = build_mlp_2layer(hidden_dim, hidden_dim * mlp_ratio, hidden_dim)
@@ -392,6 +439,9 @@ class TransolverNet(nn.Module):
         ADDED to the preprocessed node features before the Physics-Attention
         blocks. ``False`` (default) creates no extra parameters and leaves
         :meth:`forward` byte-identical to the pre-0053 network.
+    adaptive_temperature, slice_reparam:
+        ADR-0057 (Transolver++) slice-weight edits, forwarded unchanged to
+        every block. Both ``False`` (default) is byte-identical.
     """
 
     def __init__(
@@ -405,6 +455,8 @@ class TransolverNet(nn.Module):
         mlp_ratio: int = 1,
         dropout: float = 0.0,
         time_conditioned: bool = False,
+        adaptive_temperature: bool = False,
+        slice_reparam: bool = False,
     ) -> None:
         super().__init__()
         self._hidden_dim = hidden_dim
@@ -434,6 +486,8 @@ class TransolverNet(nn.Module):
                     dropout,
                     last_layer=(i == n_layers - 1),
                     out_size=out_size,
+                    adaptive_temperature=adaptive_temperature,
+                    slice_reparam=slice_reparam,
                 )
                 for i in range(n_layers)
             ]

@@ -3,9 +3,9 @@ message: "If you use StructBench, please cite it as below."
 title: StructBench
 abstract: >-
   Standardized benchmarks for machine learning on structural simulation:
-  a task definition, a fixed split, metrics in physical units, and a
-  reference baseline to beat — for structures under dynamic and extreme
-  loading.
+  a task definition, a fixed split, a relative-L2 headline metric with
+  physical-unit errors reported alongside, and a reference baseline to
+  beat — for structures under dynamic and extreme loading.
 type: software
 authors:
   - family-names: Li

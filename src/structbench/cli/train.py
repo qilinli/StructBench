@@ -432,6 +432,8 @@ def build_transolver_simulator(
         frames_per_call=cfg.frames_per_call,
         impact_velocity_feature=cfg.impact_velocity_feature,
         time_conditioned=cfg.time_conditioned,
+        adaptive_temperature=cfg.adaptive_temperature,
+        slice_reparam=cfg.slice_reparam,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,

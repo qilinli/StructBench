@@ -47,7 +47,7 @@
 #SBATCH --time=48:00:00                        # notch cases are several times Taylor's
                                                # particle count; Taylor's 100k took ~22 h,
                                                # so give capacity arms real headroom
-#SBATCH --output=logs/slurm-ablate-%x-%j.out   # job stdout in logs/ (gitignored), not the repo root
+#SBATCH --output=scratch/logs/slurm-ablate-%x-%j.out   # job stdout in scratch/logs/ (gitignored), not the repo root
 
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"

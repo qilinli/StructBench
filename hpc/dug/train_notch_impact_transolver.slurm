@@ -17,7 +17,7 @@
 #SBATCH --time=2-00:00:00                   # ceiling. The taylor Transolver arm measured ~49k
                                             # steps/h at ~8.2k nodes -> ~5-8 h for 250k;
                                             # 2 d is a generous ceiling.
-#SBATCH --output=logs/slurm-notch-transolver-%j.out    # logs/ must exist BEFORE sbatch
+#SBATCH --output=scratch/logs/slurm-notch-transolver-%j.out    # scratch/logs/ must exist BEFORE sbatch
 
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"

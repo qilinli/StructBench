@@ -4,8 +4,9 @@ scratch/
 # Training run outputs (checkpoints, configs — not tracked)
 runs/
 
-# SLURM job stdout (kept out of the repo root; the logs/ dir is tracked via .gitkeep)
-logs/*.out
+# SLURM job stdout -> scratch/logs/ (under the already-ignored scratch/; not tracked).
+# The legacy root-level logs/ dir was removed 2026-08-17 (see CORRECTIONS).
+logs/
 
 # Python
 __pycache__/
@@ -37,6 +38,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Claude Code local project config (settings, worktree metadata)
+.claude/
+
 # IDE
 .vscode/
 .idea/
@@ -50,3 +54,6 @@ Thumbs.db
 
 # Private program-level strategy: kept local-only, never tracked (2026-07-02)
 RESEARCH-PROGRAM.md
+
+# Private findings store: banked research conclusions, maintainer-only (2026-08-19)
+research/
