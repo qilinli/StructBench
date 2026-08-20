@@ -38,11 +38,13 @@ over space and time** to match the published DeformingPlate convention
 (ADR-0043), not the mean-of-per-step RMSE used on the other benchmarks - with
 two quantities of interest reading the engineering outcome: peak von Mises
 stress and terminal peak deflection. On this smooth, quasi-static task the
-operators' freedom from a fixed mesh graph tells: both outrun the mesh-based
-reference on displacement (Transolver by ~3x on relative L2, ~4x on pooled
-position RMSE), while MGN's stress field degrades under rollout. MGN's pooled
-position RMSE (16.98 mm) still reproduces the published reference (15.1 +/-
-4.0). The leaderboard is below."""
+operators' freedom from a fixed mesh graph tells on displacement: Transolver
+leads (relative L2 0.268, pooled RMSE 4.28 mm), with GeoFLARE next. MGN's pooled
+position RMSE (15.45 mm) reproduces the published reference (15.1 +/- 4.0); a
+2026-08-20 training-noise fix (noise_std corrected to the working frame, ~1000x
+stronger) repaired MGN's previously-collapsed von Mises field (relative L2
+4.21 -> 0.36), so the cross-method stress gap is now narrow. The leaderboard is
+below."""
 
 _FIGURES = (
     BenchmarkFigure(
@@ -51,16 +53,18 @@ _FIGURES = (
             "Ground truth vs the three baselines (MGN, Transolver, GeoFLARE) on "
             "test_0028, the plate coloured by von Mises STRESS over the "
             "press-release rollout - the actuator indents to ~65 mm then "
-            "retracts. Read the colour as a secondary, non-published field: MGN "
-            "reproduces the paper's POSITION result faithfully (pooled rollout "
-            "RMSE 16.98 mm, inside the 15.1 +/- 4.0 band and matching it at every "
-            "horizon), but its stress degrades as the mesh drifts - it "
-            "over-predicts through the press and stays stuck high when the plate "
-            "releases and the true stress relaxes to near zero. That is a "
-            "rollout-coupled artifact of the drifting mesh, not a broken model. "
-            "Transolver's more stable rollout keeps its stress tracking ground "
-            "truth throughout; GeoFLARE is between. Transolver and GeoFLARE are "
-            "provisional native baselines (ADR-0044/0045)."
+            "retracts. Read the colour as a secondary, non-published field. NOTE: "
+            "the MGN panel here is the PRE-noise-fix model, which over-predicts "
+            "stress as the mesh drifts and stays stuck high when the plate "
+            "releases - a rollout-coupled artifact of effectively noise-free "
+            "training. The 2026-08-20 noise fix (noise_std to the working frame) "
+            "REPAIRS this collapse (von Mises relative L2 4.21 -> 0.36); this "
+            "figure is scheduled for regeneration from the fixed model. MGN's "
+            "POSITION result is faithful either way (pooled rollout RMSE now "
+            "15.45 mm, in the 15.1 +/- 4.0 band). Transolver's more stable rollout "
+            "keeps its stress tracking ground truth throughout; GeoFLARE is "
+            "between. Transolver and GeoFLARE are provisional native baselines "
+            "(ADR-0044/0045)."
         ),
         alt=(
             "Four-panel animation: ground truth and MGN, Transolver, GeoFLARE "
@@ -74,15 +78,16 @@ _FIGURES = (
             "ground truth vs MGN, Transolver, GeoFLARE. Stress is a "
             "non-published secondary here (the paper reports only position). "
             "MGN reproduces the paper's POSITION result faithfully - pooled "
-            "rollout RMSE 16.98 mm, inside the 15.1 +/- 4.0 band and matching it "
-            "at every horizon (rollout-50 2.1 vs 1.8 mm) - but its stress "
-            "degrades under rollout: as the mesh drifts and locally over-stretches, "
-            "the stress head reads the distorted geometry and over-predicts "
-            "(relative L2 4.21). That is a rollout-coupled artifact, not a broken "
-            "model - Transolver runs the identical stress pipeline and, with a "
-            "more stable rollout, tracks ground truth almost exactly (relative L2 "
-            "0.24); GeoFLARE (0.35) is between. Transolver and GeoFLARE are "
-            "provisional native baselines (ADR-0044/0045)."
+            "rollout RMSE now 15.45 mm, inside the 15.1 +/- 4.0 band and matching "
+            "it at every horizon. NOTE: the MGN panel here is the PRE-noise-fix "
+            "model, whose stress over-predicts as the mesh drifts (relative L2 "
+            "4.21) - a rollout-coupled artifact of effectively noise-free "
+            "training, NOT a broken model. The 2026-08-20 noise fix repairs it "
+            "(relative L2 4.21 -> 0.36, comparable to Transolver's 0.24); this "
+            "figure is scheduled for regeneration from the fixed model. Transolver "
+            "runs the identical stress pipeline and tracks ground truth almost "
+            "exactly (relative L2 0.24); GeoFLARE (0.35) is between. Transolver and "
+            "GeoFLARE are provisional native baselines (ADR-0044/0045)."
         ),
         alt=(
             "Grid of von Mises snapshots: ground truth and MGN, Transolver, "

@@ -46,54 +46,54 @@ RESULTS: tuple[BaselineResult, ...] = (
             "(2021). Learning Mesh-Based Simulation with Graph Networks. *ICLR*. "
             "https://arxiv.org/abs/2010.03409"
         ),
-        run_commit="0f103b5",
-        run_date="2026-08-15",
+        run_commit="eb39994",
+        run_date="2026-08-17",
         metrics={
             "test": {
-                "rollout_rel_l2_disp": 0.8092,
-                "rollout_rel_l2_aux": 4.209,
-                "rollout_pos_rmse_mm": 16.98,
-                "rollout_vm_rmse_mpa": 0.1692,
-                "one_step_pos_rmse_mm": 0.05900,
-                "one_step_vm_rmse_mpa": 0.008093,
-                "qoi_peak_vm_mae_mpa": 2.940,
-                "qoi_terminal_deflection_mae_mm": 47.39,
+                "rollout_rel_l2_disp": 0.5013,
+                "rollout_rel_l2_aux": 0.3630,
+                "rollout_pos_rmse_mm": 15.45,
+                "rollout_vm_rmse_mpa": 0.01505,
+                "one_step_pos_rmse_mm": 0.2593,
+                "one_step_vm_rmse_mpa": 0.005785,
+                "qoi_peak_vm_mae_mpa": 0.03978,
+                "qoi_terminal_deflection_mae_mm": 48.42,
             },
         },
         checkpoint=(
-            "models/deforming_plate/mgn-0f103b5/model-best-2200000.pt"
+            "models/deforming_plate/mgn-eb39994/model-best-1750000.pt"
         ),
         checkpoint_sha256=(
-            "89a1054af4dd6bab9aebe3fa0b508fac740203d0f43c579ebf52fccdc760133b"
+            "5309491a0595e90678eed3bf0a8063e76754d6f52a94228c7c58fb1bc700bbf7"
         ),
         notes=(
             "Native MeshGraphNets (ADR-0042/0043): autoregressive next-step on "
-            "the 3D tetrahedral mesh with world edges (activation-checkpointed, "
-            "commit 0f103b5). BLESSED: its POOLED test position RMSE, 16.98 mm "
-            "(x10^-3 dataset-native length units; ADR-0043 paper convention, from "
+            "the 3D tetrahedral mesh with world edges (activation-checkpointed). "
+            "BLESSED: its POOLED test position RMSE, 15.45 mm (x10^-3 dataset-native "
+            "length units; ADR-0043 paper convention, from "
             "tools/blessing_pooled_rmse.py), falls inside the published band "
             "15.1 +/- 4.0 = [11.1, 19.1] that four later papers corroborate "
-            "(ADR-0043), so it reproduces the reference deformation result the "
-            "field trusts. Verified faithful at EVERY rollout horizon, not just "
-            "the endpoint (rollout-50 2.10 mm vs the paper's 1.8 +/- 0.5; the "
-            "whole growth curve tracks it), on a config that matches the paper "
-            "exactly (noise 3e-3, batch 2, 128-wide / 15 message-passing, world "
-            "radius 0.03 m). The pooled RMSE is dominated by a handful of divergent "
-            "trajectories (per-case mean 10.2 mm, but a few cases run to 30-86 mm) "
-            "- the honest whole-dataset statistic. The 10M-step blessing budget "
-            "was cut at the val-selected 2.2M checkpoint (model-best-2200000.pt), "
-            "in-band and plateaued (ADR-0043 dated note). Position is faithful, "
-            "but the von Mises FIELD degrades under rollout: relative L2 4.21 "
-            "(worse than a zero baseline on 96 of 100 cases), pooled von Mises "
-            "RMSE 0.169 MPa. This is COUPLED to the rollout mesh distortion, NOT "
-            "a stress-head bug: MGN's stress tracks GT early then over-predicts "
-            "as the mesh drifts and locally over-stretches (max ~23x GT at peak, "
-            "stuck high when the plate releases and true stress relaxes), while "
-            "Transolver runs the identical aux pipeline and tracks stress almost "
-            "exactly (relative L2 0.24). One-step von Mises RMSE 0.0081 MPa is "
-            "fine. The published DeformingPlate result gates on position only and "
-            "reports no stress number; stress is a StructBench secondary. Pooled "
-            "relative L2 headline (ADR-0055) from the 2026-08-17 re-eval."
+            "(ADR-0043), reproducing the reference deformation result the field "
+            "trusts. The pooled RMSE is dominated by a handful of divergent "
+            "trajectories (per-case mean 7.38 mm) - the honest whole-dataset "
+            "statistic. NOISE-FIX RETRAIN (2026-08-20): the prior blessing trained "
+            "with noise_std 3e-3 in the WRONG frame (dataset-native x10^-3), ~1000x "
+            "too weak - effectively noise-free, which let rollout mesh distortion "
+            "run away and COLLAPSE the von Mises field (relative L2 4.21, worse than "
+            "a zero baseline on 96/100 cases; pooled vm RMSE 0.169 MPa). Correcting "
+            "the training noise to the working frame (noise_std 3.0 mm = the paper's "
+            "3e-3 m; CORRECTIONS 2026-08-17) REPAIRS it: von Mises relative L2 "
+            "4.21 -> 0.363 (-91%), pooled vm RMSE 0.169 -> 0.0151 MPa, and rollout "
+            "displacement also improves (relative L2 0.809 -> 0.501, pooled position "
+            "RMSE 16.98 -> 15.45 mm, still in-band, closer to the 15.1 centre). The "
+            "classic noise-injection trade holds - one-step position RMSE rises "
+            "(0.059 -> 0.259 mm) while rollout stability improves - so the noise is "
+            "doing its job. Val-selected model-best-1750000.pt (retrain stopped at "
+            "~1.75M steps; the mgn.toml default is now 1M for a fairer cross-method "
+            "budget, whose in-band status at 1M is not yet verified). The published "
+            "DeformingPlate result gates on position only and reports no stress "
+            "number; stress is a StructBench secondary. Pooled relative L2 headline "
+            "(ADR-0055) from the 2026-08-20 noise-fix eval."
         ),
     ),
     BaselineResult(
@@ -125,13 +125,15 @@ RESULTS: tuple[BaselineResult, ...] = (
             "adaptation on the DeformingPlate rollout (ADR-0044): a best-effort "
             "native implementation, not validated against a published "
             "Transolver-DeformingPlate number. Val-selected model-best-4000000.pt. "
-            "It is the strongest baseline on this benchmark by a wide margin - "
-            "~3x lower displacement relative L2 than the blessed MGN (0.268 vs "
-            "0.809) and ~4x lower pooled position RMSE (4.28 vs 16.98 mm) - "
+            "It is the strongest baseline on this benchmark - ~1.9x lower "
+            "displacement relative L2 than the blessed (noise-fixed) MGN (0.268 "
+            "vs 0.501) and ~3.6x lower pooled position RMSE (4.28 vs 15.45 mm) - "
             "because its global attention is not tied to a fixed mesh graph and "
             "it accumulates little rollout error on smooth quasi-static "
-            "deformation (von Mises relative L2 0.240 vs MGN 4.21). Pooled "
-            "relative L2 headline (ADR-0055) from the 2026-08-17 re-eval."
+            "deformation. On the von Mises FIELD the gap is now NARROW (relative "
+            "L2 0.240 vs the noise-fixed MGN's 0.363; before the MGN noise fix it "
+            "was 0.240 vs 4.21 - the fix closed most of the apparent stress "
+            "advantage). Pooled relative L2 headline (ADR-0055)."
         ),
     ),
     BaselineResult(
@@ -164,12 +166,13 @@ RESULTS: tuple[BaselineResult, ...] = (
             "backend (attention_type GALE_FA) - provisional autoregressive "
             "adaptation on the DeformingPlate rollout (ADR-0045): a best-effort "
             "native implementation, not validated against a published number. "
-            "Val-selected model-best-6600000.pt. It sits between Transolver and "
-            "MGN: displacement relative L2 0.573 (vs Transolver 0.268, MGN 0.809) "
-            "and pooled position RMSE 5.14 mm (vs MGN 16.98) - clearly beating the "
-            "blessed reference but trailing the plain Physics-Attention operator "
-            "on this task. Pooled relative L2 headline (ADR-0055) from the "
-            "2026-08-17 re-eval."
+            "Val-selected model-best-6600000.pt. Its standing is now METRIC-"
+            "DEPENDENT against the noise-fixed MGN: on pooled position RMSE it "
+            "still crushes MGN (5.14 vs 15.45 mm, since MGN's pooled RMSE is "
+            "inflated by a few divergent trajectories), but on per-case-mean "
+            "displacement relative L2 it now TRAILS MGN (0.573 vs 0.501; before "
+            "the MGN noise fix it led, 0.573 vs 0.809) and stays behind Transolver "
+            "(0.268) throughout. Pooled relative L2 headline (ADR-0055)."
         ),
     ),
 )

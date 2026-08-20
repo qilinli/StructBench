@@ -220,7 +220,7 @@ def test_load_deforming_plate_mgn_config():
     assert rc.model.input_frames == 2
     assert rc.model.hidden_dim == 128
     assert rc.model.message_passing_steps == 15
-    assert rc.train.training_steps == 10_000_000
+    assert rc.train.training_steps == 1_000_000
 
 
 def test_load_deforming_plate_mgn_smoke_config():
@@ -398,7 +398,7 @@ def test_load_deforming_plate_transolver_config():
     assert rc.model.input_frames == 2
     assert rc.model.hidden_dim == 128
     assert rc.model.n_layers == 8
-    assert rc.train.training_steps == 10_000_000
+    assert rc.train.training_steps == 2_000_000
 
 
 def test_load_deforming_plate_transolver_smoke_config():
@@ -496,7 +496,7 @@ def test_load_deforming_plate_geoflare_config():
     assert rc.model.input_frames == 2
     assert rc.model.n_hidden == 256
     assert rc.model.n_layers == 6
-    assert rc.train.training_steps == 10_000_000
+    assert rc.train.training_steps == 2_000_000
 
 
 def test_load_deforming_plate_geoflare_smoke_config():
