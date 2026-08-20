@@ -33,7 +33,26 @@ checkpoint. Everything is scored in physical units — position RMSE in mm, the
 von Mises field in MPa — and four quantities of interest read the engineering
 outcome directly: final bar length, mushroom width, and the peak mean von
 Mises stress with its timing. The reference CGN baseline is strong in
-interpolation and degrades honestly at 200 m/s; the numbers are below."""
+interpolation and degrades honestly at 200 m/s; the numbers are below.
+
+## The von Mises stress floor
+
+The per-particle von Mises field carries an irreducible, model-independent
+noise floor, and the aux numbers should be read with it in mind. At the
+particle scale, the raw von Mises field differs from its own 12-neighbour
+smoothed version by ~0.12 relative L2 — sub-particle jitter from the SPH
+discretisation (tensile instability, particle disorder) that no surrogate
+should be expected to reproduce. The field is also not fully converged at the
+benchmark resolution: the same case re-run at 4x finer resolution differs by
+~0.27 relative L2 (an over-estimate, since the finer field carries its own
+particle noise). The strongest baselines report von Mises relative L2 ~0.17,
+only ~0.06 above the particle-scale floor — so the achievable headroom on this
+field is small, and a von Mises relative L2 much below ~0.12 is fitting
+discretisation noise, not signal. This is a property of the DATA, not any one
+model: it is why displacement (relative L2 ~0.009) is ~20x more predictable
+than stress here, and it is why a spatially-smoothed von Mises companion metric
+(which removes the sub-particle noise) is the fairer reading of stress accuracy
+on this benchmark."""
 
 _FIGURES = (
     BenchmarkFigure(
