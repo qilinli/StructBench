@@ -43,10 +43,10 @@ batch_size = 2                  # ADR-0043 §8 reference recipe
 lr_init = 1e-4                  # ADR-0043 §8 reference recipe
 lr_decay = 0.1
 # lr_decay_steps is derived from training_steps by config.py: round(steps * 40000/100000).
-# Derived lr_decay_steps=4_000_000: schedule reaches ~1e-6 by 10M steps (depth
-# reproduced; the paper's 5M knee is a declared deviation — see the training
-# ledger at blessing time).
-training_steps = 2_000_000      # 3-day budget @ measured throughput (CORRECTIONS 2026-08-17)     # ADR-0043 §8 reference recipe
+# At 1M steps the derived lr_decay_steps=400_000 gives a FULL compressed cosine/decay
+# schedule over the 1M budget (not a truncated 2M prefix), so the recipe stays
+# self-consistent at the shorter budget.
+training_steps = 1_000_000      # fairer cross-method budget (½ of the 2M repro budget; ~1.75 days @ measured throughput). MGN must stay INSIDE the published band [11.1, 19.1] mm pooled RMSE (ADR-0043) at this budget — verify via a checkpoint-ladder eval before blessing.
 # Validation is a full rollout over all 100 val trajectories (~398 steps
 # each), not a cheap batch eval — at the 100k-step siblings' val_every=2000
 # cadence this would interleave ~3x the training compute over the 10M-step
