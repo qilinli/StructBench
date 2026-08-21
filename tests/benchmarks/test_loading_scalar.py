@@ -36,6 +36,18 @@ def test_notch_loading_scalar_rejects_unparseable_id():
         spec.loading_scalar("S_100_800_noV_here")
 
 
+def test_wave_loading_scalar_parses_every_case():
+    spec = get_benchmark("wave_propagation_1d")
+    assert spec.loading_scalar is not None
+    # spot checks: initial axial velocity (mm/ms) is the last '-' field
+    assert spec.loading_scalar("W1D-300-4") == 4.0
+    assert spec.loading_scalar("W1D-500-8") == 8.0
+    for split in ("train", "val", "test_interp"):
+        for cid in spec.splits[split]:
+            v = spec.loading_scalar(cid)
+            assert v in (1.0, 2.0, 4.0, 8.0)  # the ADR-0025 sweep values
+
+
 def test_deforming_plate_has_no_loading_scalar():
     # dp is actuator-driven, not impact-velocity: no scalar (a run requesting
     # impact_velocity_feature is rejected at train time).

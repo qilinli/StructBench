@@ -30,6 +30,7 @@ import functools
 import json
 import logging
 import math
+import os
 import re
 from collections.abc import Callable
 from dataclasses import replace
@@ -511,6 +512,50 @@ def _load_trajectories(
     ]
 
 
+#: E-X aux-target swap screens (EMI26; env-gated, TRAIN-process only): env var
+#: -> (benchmark it applies to, replacement aux_field). Both replacements are
+#: registered loader extractors, so the swap reuses the exact canonical
+#: definitions — notch's plane-strain max-eigenvalue
+#: (:func:`~structbench.datasets.canonical.max_principal_strain_from_voigt`,
+#: from ``response/element/sph/strain``) and Taylor's von Mises
+#: (:func:`~structbench.datasets.canonical.von_mises_from_voigt`, from
+#: ``response/element/sph/stress``) — with no re-implementation.
+_ENV_AUX_SWAPS: dict[str, tuple[str, str]] = {
+    "STRUCTBENCH_TAYLOR_AUX_MPSTRAIN": ("taylor_impact_2d", "max_principal_strain"),
+    "STRUCTBENCH_NOTCH_AUX_VM": ("notch_beam_2d_impact", "von_mises_stress"),
+}
+
+
+def _env_aux_field_override(benchmark: str) -> str | None:
+    """The env-gated E-X replacement ``aux_field`` for ``benchmark``, or ``None``.
+
+    Screen-only gates (EMI26 aux-target swap, the 51dce04 CONST-POT pattern):
+    read once by :func:`train` at the point where the aux channel is assembled
+    for the training/val pipeline, so the swapped target is seen by BOTH the
+    training loss and the in-training validation metric. Normalization adapts
+    automatically — the mesh families' online normalizers warm on the loaded
+    aux, and the CGN stats cache/statistics are computed from (and keyed on)
+    the effective field. Unset = ``None`` = byte-identical; :func:`evaluate`
+    and the eval CLI never call this, so public evaluation is unaffected.
+
+    Parameters
+    ----------
+    benchmark:
+        Registry name of the benchmark being trained
+        (``train_cfg.benchmark``).
+
+    Returns
+    -------
+    str or None
+        The replacement aux-field name when this benchmark's gate is set in
+        the environment (non-empty), else ``None``.
+    """
+    for env, (bench, field_name) in _ENV_AUX_SWAPS.items():
+        if benchmark == bench and os.environ.get(env):
+            return field_name
+    return None
+
+
 def _stats_to_dict(stats: NormalizationStats) -> dict[str, dict[str, Tensor]]:
     """Convert :class:`NormalizationStats` to the nested-Tensor stats dict."""
     return {
@@ -746,9 +791,26 @@ def train(
     # reproducible.
     torch.manual_seed(train_cfg.seed)
 
+    # E-X aux-target swap screens (env-gated, 51dce04 pattern): swap the aux
+    # TARGET at the single point where the aux channel enters the training/val
+    # pipeline, so the training loss and the in-training validation both see
+    # it. Off (env unset) = byte-identical; evaluate() never reads the gate.
+    aux_field = spec.aux_field
+    swapped = _env_aux_field_override(train_cfg.benchmark)
+    if swapped is not None:
+        aux_field = swapped
+        logger.info(
+            "E-X aux-target swap ACTIVE (screen, env-gated): benchmark %r "
+            "trains its aux channel on %r instead of %r; normalization "
+            "follows the swapped target automatically",
+            train_cfg.benchmark,
+            aux_field,
+            spec.aux_field,
+        )
+
     train_ids = list(spec.splits["train"])
     logger.info("loading %d TRAIN trajectories from %s", len(train_ids), data_root)
-    train_trajs = _load_trajectories(train_ids, data_root, spec.aux_field)
+    train_trajs = _load_trajectories(train_ids, data_root, aux_field)
     if train_cfg.train_frames > 0:
         # ADR-0039 §4 recipe: train only on the scored window's frames. Must
         # precede cached_compute_stats so normalization follows the truncated
@@ -771,7 +833,7 @@ def train(
             "train_frames=%d: training pool truncated (ADR-0039 recipe)",
             train_cfg.train_frames,
         )
-    val_trajs = _load_trajectories(list(spec.splits["val"]), data_root, spec.aux_field)
+    val_trajs = _load_trajectories(list(spec.splits["val"]), data_root, aux_field)
     if spec.scored_frames is not None:
         # In-training validation rolls out only the scored span (ADR-0039):
         # checkpoint selection then keys on the same window the benchmark
@@ -841,7 +903,7 @@ def train(
     stats = cached_compute_stats(
         train_trajs,
         dataset_root=data_root,
-        aux_field=spec.aux_field,
+        aux_field=aux_field,
         aux_transform=cgn.aux_transform,
         aux_transform_scale=cgn.aux_transform_scale,
     )
@@ -1780,6 +1842,76 @@ def _train_transolver(
     return best_ckpt
 
 
+def _lsq_gradient_edges(
+    coords: Tensor, k: int, eps: float = 1e-6
+) -> tuple[Tensor, Tensor]:
+    """Fixed least-squares displacement-gradient operator over rest-config kNN.
+
+    Builds, from static reference coordinates, a linear operator mapping a
+    displacement field ``u`` (P, dim) to its per-node gradient ``G`` (P, dim,
+    dim) with ``G[i, a, b] = du_a/dx_b``, by unweighted least squares over each
+    node's ``k`` nearest rest neighbours — the operator verified exact for a
+    locally linear field in the strain-from-gradient study
+    (``G^T = (dX^T dX)^-1 dX^T dU``). It depends only on ``coords`` (constant in
+    ``u``), so it is built under ``no_grad`` and applied as a differentiable
+    scatter in :func:`_apply_lsq_gradient`.
+
+    Returns ``(edge_index, coeff)``: ``edge_index`` (2, E) with row 0 the centre
+    node ``i`` and row 1 its neighbour ``j``; ``coeff`` (E, dim) with
+    ``G[i, :, b] += coeff[e, b] * (u[j] - u[i])``.
+    """
+    n, dim = coords.shape
+    kk = min(k, n - 1)
+    with torch.no_grad():
+        d = torch.cdist(coords, coords)
+        d.fill_diagonal_(float("inf"))
+        nbr = torch.topk(d, kk, largest=False).indices  # (n, kk)
+        src = torch.arange(n, device=coords.device).repeat_interleave(kk)
+        dst = nbr.reshape(-1)
+        dx = (coords[dst] - coords[src]).view(n, kk, dim)  # (n, kk, dim)
+        a = dx.transpose(1, 2) @ dx  # (n, dim, dim)
+        a = a + eps * torch.eye(dim, device=coords.device, dtype=coords.dtype)
+        # M = A^-1 dX^T : (n, dim, kk); coeff for edge (i, j_kk) is M[i, :, kk].
+        m = torch.linalg.solve(a, dx.transpose(1, 2))  # (n, dim, kk)
+        coeff = m.transpose(1, 2).reshape(n * kk, dim)  # (n*kk, dim)
+        edge_index = torch.stack([src, dst], dim=0)
+    return edge_index, coeff
+
+
+def _batch_lsq_gradient_edges(
+    reference_coords: Tensor, n_per_example: Tensor, k: int
+) -> tuple[Tensor, Tensor]:
+    """Per-example :func:`_lsq_gradient_edges`, node-offset and concatenated.
+
+    Builds the operator independently within each batched case (no edge ever
+    crosses a case's particle-row range), then offsets each case's edges by the
+    cumulative particle count so the result applies to the collated
+    ``(sum_P, dim)`` field.
+    """
+    edges: list[Tensor] = []
+    coeffs: list[Tensor] = []
+    offset = 0
+    for n in n_per_example.tolist():
+        ei, cf = _lsq_gradient_edges(reference_coords[offset : offset + n], k)
+        edges.append(ei + offset)
+        coeffs.append(cf)
+        offset += n
+    return torch.cat(edges, dim=1), torch.cat(coeffs, dim=0)
+
+
+def _apply_lsq_gradient(edge_index: Tensor, coeff: Tensor, u: Tensor) -> Tensor:
+    """Apply the :func:`_lsq_gradient_edges` operator to a field ``u`` (P, dim).
+
+    Returns the per-node gradient ``G`` (P, dim, dim), differentiable in ``u``.
+    """
+    src, dst = edge_index[0], edge_index[1]
+    du = u[dst] - u[src]  # (E, dim_a)
+    contrib = coeff.unsqueeze(1) * du.unsqueeze(2)  # (E, dim_a, dim_b)
+    grad = u.new_zeros(u.shape[0], u.shape[1], u.shape[1])
+    grad.index_add_(0, src, contrib)
+    return grad
+
+
 def _train_transolver_tc(
     spec: BenchmarkSpec,
     cfg: TransolverConfig,
@@ -1814,6 +1946,28 @@ def _train_transolver_tc(
             "time-conditioned scheme is non-autoregressive, so injected "
             "single-step noise is inert (ADR-0054). Set noise_std=0 to silence.",
             cfg.noise_std,
+        )
+
+    # H1 gradient-consistency (Sobolev) regulariser — SCREEN-ONLY, env-gated.
+    # STRUCTBENCH_H1_RATIO (default 0 = OFF = byte-identical to the reference TC
+    # loop) is the TARGET ratio of the H1 term to the position term. The raw
+    # ``||G(pred_u) - G(gt_u)||^2`` scale is deeply mesh-dependent (gradient of
+    # normalized displacement over the reference spacing), so a fixed weight is
+    # unusable across benchmarks; the effective weight is instead AUTO-CALIBRATED
+    # once, at the first post-warmup step, so ratio=0.1 means "H1 term = 10% of
+    # the position term". STRUCTBENCH_H1_NEIGHBORS sets the rest-config kNN count.
+    # Kept out of the config schema on purpose: promote to a TransolverConfig
+    # knob only if the screen earns it.
+    h1_ratio = float(os.environ.get("STRUCTBENCH_H1_RATIO", "0.0"))
+    h1_neighbors = int(os.environ.get("STRUCTBENCH_H1_NEIGHBORS", "12"))
+    h1_eff_weight: float | None = None
+    if h1_ratio > 0.0:
+        logger.info(
+            "H1 gradient-consistency regulariser ACTIVE (screen): target "
+            "ratio=%.3g of the position term, k=%d rest neighbours "
+            "(effective weight auto-calibrated after normalizer warmup)",
+            h1_ratio,
+            h1_neighbors,
         )
 
     loading_scalars: list[float] | None = None
@@ -1933,6 +2087,43 @@ def _train_transolver_tc(
                 + train_cfg.w_aux * delta_aux**2
             )
             free = ~is_kinematic
+            # Gradient-consistency (Sobolev/H^1) regulariser on the normalized
+            # displacement: match grad(pred_u) to grad(gt_u) via the fixed
+            # rest-config least-squares operator. Applied only after normalizer
+            # warmup (so the auto-calibration sees settled loss scales); kinematic
+            # rows are clamped to GT so a free node's gradient is not corrupted by
+            # their untrained displacement predictions.
+            if h1_ratio > 0.0 and not accumulate:
+                with torch.no_grad():
+                    h1_ei, h1_cf = _batch_lsq_gradient_edges(
+                        reference_coords, n_particles_per_example, h1_neighbors
+                    )
+                pred_u = torch.where(
+                    is_kinematic.unsqueeze(1), target[..., :-1], pred[..., :-1]
+                )
+                g_pred = _apply_lsq_gradient(h1_ei, h1_cf, pred_u)
+                g_gt = _apply_lsq_gradient(h1_ei, h1_cf, target[..., :-1])
+                h1_per_particle = ((g_pred - g_gt) ** 2).sum(dim=(-1, -2))
+                if h1_eff_weight is None and free.any():
+                    with torch.no_grad():
+                        wp = float(
+                            (train_cfg.w_pos * (delta_v**2).sum(dim=-1))[free]
+                            .mean()
+                            .item()
+                        )
+                        wh = float(h1_per_particle[free].mean().item())
+                    h1_eff_weight = h1_ratio * wp / max(wh, 1e-12)
+                    logger.info(
+                        "H1 calibrated @step%d: target_ratio=%.3g w_pos_term=%.4g "
+                        "raw_h1_term=%.4g -> effective w_h1=%.4g",
+                        step,
+                        h1_ratio,
+                        wp,
+                        wh,
+                        h1_eff_weight,
+                    )
+                if h1_eff_weight is not None:
+                    per_particle = per_particle + h1_eff_weight * h1_per_particle
             if free.any():
                 loss = per_particle[free].mean()
             else:
