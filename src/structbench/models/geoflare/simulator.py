@@ -127,6 +127,8 @@ class GeoFlareSimulator(CaseBoundSimulator):
         kinematic_types: tuple[int, ...] = (1, 3),
         scripted_types: tuple[int, ...] = (1,),
         history_velocities: int = 0,
+        impact_velocity_feature: bool = False,
+        time_conditioned: bool = False,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -142,7 +144,23 @@ class GeoFlareSimulator(CaseBoundSimulator):
             # this subclass's wider str | torch.device parameter.
             device=str(device),
         )
-        node_in = node_type_size + 3 * dim + history_velocities * dim
+        self._impact_velocity_feature = impact_velocity_feature
+        # ADR-0054 time-conditioning (mirrors TransolverSimulator): history-free
+        # and non-autoregressive, so mutually exclusive with the velocity-history
+        # window. Off (default) = byte-identical autoregressive GeoFLARE.
+        self._time_conditioned = time_conditioned
+        if time_conditioned and history_velocities != 0:
+            raise ValueError(
+                "time_conditioned=True requires history_velocities=0 "
+                f"(got {history_velocities}); the time-conditioned scheme is "
+                "history-free (ADR-0054)"
+            )
+        if time_conditioned:
+            # TC features: cat([one_hot, reference_coords, kinematic_bc,
+            # loading?]) — no current-position/scripted-velocity channels.
+            node_in = node_type_size + 2 * dim + (1 if impact_velocity_feature else 0)
+        else:
+            node_in = node_type_size + 3 * dim + history_velocities * dim
 
         self._net = GeoFlareNet(
             node_in=node_in,
@@ -157,6 +175,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
             radii=radii,
             neighbors=neighbors,
             dim=dim,
+            time_conditioned=time_conditioned,
         )
         self._node_normalizer = OnlineNormalizer(node_in)
         self._target_normalizer = OnlineNormalizer(dim + 1)
@@ -401,3 +420,148 @@ class GeoFlareSimulator(CaseBoundSimulator):
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
 
         return pred_norm, target_norm
+
+    # ------------------------------------------------------------------ #
+    # Time-conditioned scheme (ADR-0054), mirrored from TransolverSimulator.
+    # The one GeoFLARE difference: the network takes the raw coordinates as a
+    # separate argument for its geometry context, and the TC path passes the
+    # STATIC reference coordinates there (the model predicts the absolute state
+    # at t from the rest geometry).
+    # ------------------------------------------------------------------ #
+    @property
+    def time_conditioned(self) -> bool:
+        """Whether this simulator uses the ADR-0054 time-conditioned scheme."""
+        return self._time_conditioned
+
+    def _loading_feature(self, ref: Tensor) -> Tensor | None:
+        """Broadcast the bound case's scalar loading parameter to ``(P, 1)``;
+        ``None`` when ``impact_velocity_feature`` is off (ADR-0054)."""
+        if not self._impact_velocity_feature:
+            return None
+        if self._loading_scalar is None:
+            raise RuntimeError(
+                "impact_velocity_feature is on but bind_case() supplied no "
+                "loading_scalar for this case"
+            )
+        return torch.full(
+            (ref.shape[0], 1),
+            float(self._loading_scalar),
+            dtype=ref.dtype,
+            device=ref.device,
+        )
+
+    def _kinematic_bc(
+        self, gt_position: Tensor, reference_coords: Tensor, kin_mask: Tensor
+    ) -> Tensor:
+        """Prescribed-boundary input channel (ADR-0054): kinematic-node
+        displacement from rest at the queried time; zero on free rows."""
+        bc = torch.zeros_like(reference_coords)
+        bc[kin_mask] = gt_position[kin_mask] - reference_coords[kin_mask]
+        return bc
+
+    def _features_tc(
+        self,
+        one_hot: Tensor,
+        reference_coords: Tensor,
+        kinematic_bc: Tensor,
+        loading_feature: Tensor | None,
+    ) -> Tensor:
+        """Raw time-conditioned node features (ADR-0054): ``cat([one_hot,
+        reference_coords, kinematic_bc, loading?])`` — static geometry plus the
+        prescribed boundary displacement at the queried time. No current-position
+        or velocity channels; time enters additively inside the network."""
+        parts = [one_hot, reference_coords, kinematic_bc]
+        if self._impact_velocity_feature:
+            if loading_feature is None:
+                raise ValueError(
+                    "simulator was built with impact_velocity_feature=True but "
+                    "no loading_feature (case impact-velocity scalar) was supplied"
+                )
+            parts.append(loading_feature)
+        return torch.cat(parts, dim=-1)
+
+    def forward_train_tc(
+        self,
+        gt_position: Tensor,
+        gt_aux: Tensor,
+        particle_types: Tensor,
+        reference_coords: Tensor,
+        n_particles_per_example: Tensor,
+        t_norm: Tensor,
+        *,
+        accumulate: bool,
+        loading_feature: Tensor | None = None,
+    ) -> tuple[Tensor, Tensor]:
+        """One time-conditioned training forward pass (ADR-0054): maps (static
+        geometry, node types, scalar impact velocity?, scripted BC at t, query
+        time t) -> rest-frame displacement at t (+ aux), history-free. The
+        geometry context is built on the REST coordinates. Returns
+        ``(pred_norm, target_norm)``, each ``(P, dim + 1)``."""
+        one_hot = F.one_hot(particle_types, num_classes=self._node_type_size).to(
+            torch.float32
+        )
+        kinematic = torch.as_tensor(
+            self._kinematic_types,
+            dtype=particle_types.dtype,
+            device=particle_types.device,
+        )
+        kin_mask = torch.isin(particle_types, kinematic)
+        kinematic_bc = self._kinematic_bc(gt_position, reference_coords, kin_mask)
+
+        node_feats_raw = self._features_tc(
+            one_hot, reference_coords, kinematic_bc, loading_feature
+        )
+        node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
+
+        # coords = reference_coords: TC predicts the absolute state from the
+        # STATIC rest geometry, so the GeoFLARE context is built on rest coords.
+        pred_norm = self._net(
+            node_feats, reference_coords, n_particles_per_example, t=t_norm
+        )
+
+        target_raw = torch.cat([gt_position - reference_coords, gt_aux[:, None]], dim=1)
+        target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
+        return pred_norm, target_norm
+
+    def predict_state_at(self, frame: int, t_norm: float) -> tuple[Tensor, Tensor]:
+        """Predict the absolute state at a single scored frame (ADR-0054 eval),
+        history-free. Assembles the static TC features + rest-geometry context,
+        runs the network at ``t_norm``, reconstructs positions
+        (reference + displacement), then overrides kinematic rows with GT."""
+        reference_coords = self._reference_coords
+        node_type_onehot = self._node_type_onehot
+        kin_mask = self._kin_mask
+        gt_positions = self._gt_positions
+        if (
+            reference_coords is None
+            or node_type_onehot is None
+            or kin_mask is None
+            or gt_positions is None
+        ):
+            raise RuntimeError(
+                "GeoFlareSimulator.predict_state_at() called before "
+                "bind_case(); bind_case() must be called with the case being "
+                "evaluated before any prediction."
+            )
+
+        gt_frame = gt_positions[frame]
+        kinematic_bc = self._kinematic_bc(gt_frame, reference_coords, kin_mask)
+        loading_feature = self._loading_feature(reference_coords)
+
+        node_feats_raw = self._features_tc(
+            node_type_onehot, reference_coords, kinematic_bc, loading_feature
+        )
+        node_feats = self._node_normalizer(node_feats_raw, accumulate=False)
+
+        t = torch.tensor(
+            [[float(t_norm)]],
+            dtype=reference_coords.dtype,
+            device=reference_coords.device,
+        )
+        out = self._net(node_feats, reference_coords, None, t=t)  # (P, dim+1)
+        out = self._target_normalizer.inverse(out)
+        displacement = out[:, : self._dim]
+        stress = out[:, self._dim :]
+        positions = (reference_coords + displacement).clone()
+        positions[kin_mask] = gt_frame[kin_mask]
+        return positions, stress

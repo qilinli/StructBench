@@ -465,6 +465,9 @@ normalizer_warmup_steps = 1000
 weight_decay = 1e-4
 max_grad_norm = 0.0
 history_frames = 0
+frames_per_call = 1
+impact_velocity_feature = false
+time_conditioned = false
 
 [train]
 batch_size = 8

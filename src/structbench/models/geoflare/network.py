@@ -65,7 +65,11 @@ import torch
 from torch import Tensor, nn
 
 from structbench.models.geoflare.context import MultiScaleContext
-from structbench.models.transolver.network import _segments, build_mlp_2layer
+from structbench.models.transolver.network import (
+    _segments,
+    build_mlp_2layer,
+    timestep_embedding,
+)
 
 # Upstream ``GALE_FA``/``FLARE`` comment (grounding SS4.1 c4, quoted
 # verbatim in spirit): "recommended by the FLARE authors to use scale=1 if
@@ -369,8 +373,23 @@ class GeoFlareNet(nn.Module):
         radii: tuple[float, float] = (0.05, 0.25),
         neighbors: tuple[int, int] = (8, 32),
         dim: int = 3,
+        time_conditioned: bool = False,
     ) -> None:
         super().__init__()
+        self._n_hidden = n_hidden
+        self.time_conditioned = time_conditioned
+        # ADR-0054 time-conditioning (mirrors TransolverNet): a thuml Time_Input
+        # MLP (Linear -> SiLU -> Linear) created ONLY when time-conditioned, so
+        # the default AR network registers no new parameters and stays
+        # byte-identical. Its output is added to the n_hidden-wide preprocess
+        # token (before the local-feature concat), the GeoFLARE analog of
+        # Transolver's additive injection onto ``fx``.
+        if time_conditioned:
+            self.time_fc = nn.Sequential(
+                nn.Linear(n_hidden, n_hidden),
+                nn.SiLU(),
+                nn.Linear(n_hidden, n_hidden),
+            )
         self.preprocess = build_mlp_2layer(node_in, n_hidden * 2, n_hidden)
         self.context_builder = MultiScaleContext(
             n_hidden,
@@ -419,6 +438,7 @@ class GeoFlareNet(nn.Module):
         node_feats: Tensor,
         coords: Tensor,
         n_particles_per_example: Tensor | None,
+        t: Tensor | None = None,
     ) -> Tensor:
         """Run the full forward pass.
 
@@ -435,6 +455,11 @@ class GeoFlareNet(nn.Module):
         n_particles_per_example:
             ``(B,)`` particle counts per example, in concatenation order,
             or ``None`` for a single example.
+        t:
+            Per-example normalized query time (ADR-0054), shape ``(B,)`` or
+            ``(B, 1)`` (``(1,)`` for a single example). Required when the
+            network was built with ``time_conditioned=True`` and ignored
+            otherwise; ``None`` (default) keeps the autoregressive forward.
 
         Returns
         -------
@@ -442,10 +467,26 @@ class GeoFlareNet(nn.Module):
             ``(P, out_size)`` decoded per-node output.
         """
         segments = _segments(node_feats.shape[0], n_particles_per_example)
+        if self.time_conditioned:
+            if t is None:
+                raise ValueError(
+                    "GeoFlareNet was built with time_conditioned=True but "
+                    "forward() received t=None (ADR-0054)"
+                )
+            t_flat = t.reshape(-1)  # (B,): one query time per example/segment
         outs: list[Tensor] = []
-        for start, end in segments:
+        for i, (start, end) in enumerate(segments):
             context, local = self.context_builder(coords[start:end])
-            fx = torch.cat([self.preprocess(node_feats[start:end]), local], dim=-1)
+            pre = self.preprocess(node_feats[start:end])
+            if self.time_conditioned:
+                # thuml additive time injection: sinusoidal embedding -> time_fc,
+                # added to the n_hidden token (broadcast over the example's
+                # points) BEFORE the local-feature concat (ADR-0054).
+                time_emb = self.time_fc(
+                    timestep_embedding(t_flat[i : i + 1], self._n_hidden)
+                )  # (1, n_hidden)
+                pre = pre + time_emb
+            fx = torch.cat([pre, local], dim=-1)
             for block in self.blocks:
                 fx = block(fx, context)
             outs.append(self.decoder(fx))
