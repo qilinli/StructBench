@@ -9,6 +9,8 @@ from .benchmark import (
     TEST_INTERP,
     TRAIN,
     VAL,
+    _initial_velocity,
+    native_mesh_transform,
 )
 from .card import CARD
 
@@ -21,6 +23,7 @@ __all__ = [
     "TEST_INTERP",
     "TRAIN",
     "VAL",
+    "native_mesh_transform",
 ]
 
 #: Official baseline results (ADR-0033). Transcribed from the ``mean`` block of
@@ -95,4 +98,14 @@ SPEC = BenchmarkSpec(
     qois=dict(QOIS),
     boundary_feature_fn=None,
     dataset_id="1D-Wave-Propagation",
+    # Mesh-native wiring (the ADR-0047 mechanism, extended to wave for the
+    # ADR-0054 time-conditioned Transolver): the cgn path is untouched by all
+    # three fields. No kinematic parts exist (the arrest BC lives inside the
+    # part-1 particle set), so scripted_types must be pinned to the empty
+    # tuple — the simulators' family default (1,) would script every bar
+    # particle and fail the scripted-subset check against the empty
+    # kinematic set.
+    mesh_transform=native_mesh_transform,
+    scripted_types=(),
+    loading_scalar=_initial_velocity,
 )

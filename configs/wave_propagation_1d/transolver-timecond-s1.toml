@@ -1,0 +1,58 @@
+# wave_propagation_1d — Transolver TIME-CONDITIONED (native structural scheme) +
+# initial-velocity conditioning, seed 1 (ADR-0054 scheme; E-B extension).
+# The faithful thuml structural (Plasticity) template: history-free,
+# non-autoregressive. The model maps (rest lattice geometry + node types +
+# scalar initial axial velocity + query time t) -> absolute state at t
+# (position + axial stress); every frame of the 30 ms record is queried
+# independently (no rollout, no velocity window). Wave presents as 2D SPH
+# points on an exact 2.0 mm lattice, recovered as a triangle mesh by the wave
+# spec's mesh_transform (the ADR-0047 mechanism, cgn path untouched). The
+# conditioning scalar is the case's initial velocity (1-8 mm/ms) from the case
+# id — the one sweep parameter the static geometry cannot reveal (bar length
+# is the geometry itself). No kinematic/scripted nodes exist: the arrest BC
+# lives inside the part-1 particle set, so the scripted-BC-at-t channel
+# (ADR-0054 A) is identically zero. frames_per_call=1 and history_frames=0
+# are REQUIRED (mutually exclusive with time-conditioning). noise_std=0
+# (inert: injected single-step noise needs autoregression). Budget matches
+# the blessed wave CGN recipe (50k steps — the CGN-matched-budget principle,
+# ADR-0047 §6 precedent; batch stays the family-reference 2, as on
+# taylor/notch TC). Not yet run.
+
+[run]
+benchmark = "wave_propagation_1d"
+seed = 1
+
+[model]
+family = "transolver"
+input_frames = 6                # wave card protocol (ADR-0035); see header
+dim = 2
+hidden_dim = 128                # ADR-0044 family reference
+n_layers = 8
+n_heads = 8
+slice_num = 64
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 2              # raw ids: 1 = bar SPH (max id + 1); no wall part
+noise_std = 0.0                  # inert under time-conditioning (no rollout; ADR-0054)
+normalizer_warmup_steps = 1000
+weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
+max_grad_norm = 0.1             # global-norm clip, thuml reference
+
+history_frames = 0              # REQUIRED 0 for time-conditioning (ADR-0054/0053)
+frames_per_call = 1             # REQUIRED 1 for time-conditioning (ADR-0054)
+impact_velocity_feature = true   # ADR-0051 B: scalar initial-velocity conditioning
+time_conditioned = true          # ADR-0054: faithful thuml native structural scheme
+adaptive_temperature = false     # ADR-0057 (off = byte-identical)
+slice_reparam = false            # ADR-0057 (off = byte-identical)
+
+[train]
+batch_size = 2                  # family reference (ADR-0044, matched to MGN)
+lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
+lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
+                                # ADR-0044); present because [train] is family-uniform.
+training_steps = 50_000         # wave CGN-matched budget (blessed x1-s1 recipe)
+val_every = 2000                # wave CGN cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0
