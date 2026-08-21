@@ -30,12 +30,15 @@ def test_protocol_pins():
     # and GeoFLARE (autoregressive), scored on the single `test` split. The
     # Transolver row switched from the autoregressive 2M-step run to the
     # time-conditioned 250k run (decisively better; the faithful native scheme).
-    assert tuple(r.family for r in spec.results) == (
-        "mgn",
-        "transolver",
-        "transolver_plus",
-        "geoflare",
+    # Scheme matrix (2026-08-21): one row per (family, scheme); blessed MGN first.
+    assert tuple((r.family, r.scheme) for r in spec.results) == (
+        ("mgn", "autoregressive"),
+        ("transolver", "autoregressive"),
+        ("transolver", "time-conditioned"),
+        ("transolver_plus", "time-conditioned"),
+        ("geoflare", "autoregressive"),
+        ("geoflare", "time-conditioned"),
     )
-    assert [r.provisional for r in spec.results] == [False, True, True, True]
+    assert [r.provisional for r in spec.results] == [False] + [True] * 5
     assert all(set(r.metrics) == {"test"} for r in spec.results)
     assert spec.quickstart_family == "mgn"

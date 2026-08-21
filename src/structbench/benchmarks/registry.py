@@ -134,14 +134,19 @@ class BenchmarkSpec:
                 raise ValueError(
                     f"result {result.label!r} references unknown splits {unknown}"
                 )
-        seen_families: set[str] = set()
+        # One row per (family, scheme): a benchmark may table the same model
+        # family under several prediction schemes (the DeformingPlate scheme
+        # matrix, 2026-08-21, extending ADR-0046) but never two rows for the
+        # same family AND scheme.
+        seen_rows: set[tuple[str, str]] = set()
         for result in self.results:
-            if result.family in seen_families:
+            row = (result.family, result.scheme or "")
+            if row in seen_rows:
                 raise ValueError(
-                    f"duplicate family {result.family!r} in results for "
+                    f"duplicate (family, scheme) {row!r} in results for "
                     f"benchmark {self.card.name!r}"
                 )
-            seen_families.add(result.family)
+            seen_rows.add(row)
         if not self.quickstart_family.strip():
             raise ValueError("quickstart_family must be non-empty")
         if self.scripted_types is not None and not set(self.scripted_types) <= set(
