@@ -1,0 +1,39 @@
+[run]
+benchmark = "deforming_plate"
+seed = 0
+
+[model]
+family = "geoflare"
+input_frames = 2
+dim = 3
+n_hidden = 32
+n_layers = 2
+n_heads = 4
+slice_num = 16
+mlp_ratio = 2
+dropout = 0.0
+n_hidden_local = 8
+radius_near = 0.05
+radius_far = 0.25
+neighbors_near = 4
+neighbors_far = 8
+node_type_size = 9
+noise_std = 0.0
+normalizer_warmup_steps = 5
+weight_decay = 1e-4
+max_grad_norm = 0.0
+history_frames = 0
+frames_per_call = 1
+impact_velocity_feature = false
+time_conditioned = true
+
+[train]
+batch_size = 2
+lr_init = 1e-4
+lr_decay = 0.1
+training_steps = 15
+val_every = 10
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0

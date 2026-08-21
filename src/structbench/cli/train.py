@@ -493,6 +493,8 @@ def build_geoflare_simulator(
         neighbors=(cfg.neighbors_near, cfg.neighbors_far),
         node_type_size=cfg.node_type_size,
         history_velocities=cfg.history_frames,
+        impact_velocity_feature=cfg.impact_velocity_feature,
+        time_conditioned=cfg.time_conditioned,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         device=device,
@@ -2010,6 +2012,238 @@ def _train_transolver_tc(
     return best_ckpt
 
 
+def _train_geoflare_tc(
+    spec: BenchmarkSpec,
+    cfg: GeoFlareConfig,
+    train_cfg: TrainConfig,
+    train_trajs: list[CaseTrajectory],
+    val_trajs: list[CaseTrajectory],
+    out_dir: Path,
+    device: str,
+    data_root: Path,
+) -> Path | None:
+    """Time-conditioned GeoFLARE training (ADR-0054).
+
+    The faithful thuml structural (Plasticity) scheme: history-free and
+    non-autoregressive. Each sample is a single scored frame ``t``; the model
+    is trained to map ``(static geometry, node types, scalar impact velocity?,
+    prescribed boundary state at t, normalized query time t) -> absolute state
+    at t`` (regressed as rest-frame displacement + aux). There is no rollout
+    window, no injected noise (inert without autoregression, ADR-0054 decision
+    3), and no k-frames bundling. The optimizer recipe (AdamW + cosine LR +
+    grad-norm clip) and the online-normalizer warmup mirror
+    :func:`_train_geoflare`; validation rolls out the independent-query
+    :func:`~structbench.eval.time_conditioned_rollout` per case and selects on
+    its mean position RMSE.
+
+    The normalized query time is ``t = frame / (time_ref_frames - 1)``, with
+    ``time_ref_frames`` fixed via :func:`_tc_time_ref_frames` so train and eval
+    agree on what each ``t`` means.
+    """
+    if cfg.noise_std:
+        logger.warning(
+            "noise_std=%.4g is IGNORED for time_conditioned=true: the "
+            "time-conditioned scheme is non-autoregressive, so injected "
+            "single-step noise is inert (ADR-0054). Set noise_std=0 to silence.",
+            cfg.noise_std,
+        )
+
+    loading_scalars: list[float] | None = None
+    if cfg.impact_velocity_feature:
+        if spec.loading_scalar is None:
+            raise ValueError(
+                f"benchmark {spec.card.name!r} has no loading_scalar (scalar "
+                "impact-velocity parameter), but the geoflare config sets "
+                "impact_velocity_feature=True (ADR-0051 B / ADR-0054)."
+            )
+        loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
+
+    min_len = min(int(tr.positions.shape[0]) for tr in train_trajs)
+    time_ref = _tc_time_ref_frames(spec.scored_frames, train_cfg.train_frames, min_len)
+    if time_ref < 2:
+        raise ValueError(
+            f"time-conditioned time_ref_frames={time_ref} < 2 (scored_frames="
+            f"{spec.scored_frames}, train_frames={train_cfg.train_frames}, "
+            f"min train length={min_len})"
+        )
+
+    statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
+    sim = build_geoflare_simulator(
+        cfg,
+        kinematic_types=spec.kinematic_types,
+        scripted_types=spec.scripted_types,
+        device=device,
+    )
+    sim.to(device)
+
+    kinematic = torch.as_tensor(
+        list(spec.kinematic_types), dtype=torch.long, device=device
+    )
+
+    (out_dir / "config.json").write_text(
+        json.dumps(
+            resolved_config_dict(
+                "geoflare",
+                cfg,
+                train_cfg,
+                horizon=spec.card.horizon,
+                eval_times=spec.card.eval_times,
+                n_particle_types=cfg.node_type_size,
+                data_root=data_root,
+            ),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    dataset = WindowDataset(train_trajs, cfg.input_frames, target_frames=1)
+    if len(dataset) == 0:
+        raise ValueError(
+            "empty training set: no TRAIN trajectory has more than "
+            f"input_frames = {cfg.input_frames} frames, so there are no "
+            "time-conditioned query frames (check the data root or reduce "
+            "input_frames)."
+        )
+    loader = DataLoader(
+        dataset,
+        batch_size=train_cfg.batch_size,
+        shuffle=True,
+        collate_fn=functools.partial(
+            collate_mesh_samples,
+            statics=statics,
+            loading_scalars=loading_scalars,
+            include_target_frame=True,
+        ),
+    )
+    optimizer = torch.optim.AdamW(
+        sim.parameters(), lr=train_cfg.lr_init, weight_decay=cfg.weight_decay
+    )
+
+    logger.info(
+        "starting geoflare training: %d steps, batch %d, time-conditioned "
+        "(ADR-0054), time_ref_frames=%d%s",
+        train_cfg.training_steps,
+        train_cfg.batch_size,
+        time_ref,
+        " (impact-velocity conditioned)" if cfg.impact_velocity_feature else "",
+    )
+
+    step = 0
+    best_pos = float("inf")
+    best_ckpt: Path | None = None
+    sim.train()
+    while step < train_cfg.training_steps:
+        for batch in loader:
+            particle_type = batch["particle_type"].to(device)
+            next_position = batch["next_position"].to(device)  # (P, dim) GT at t
+            next_aux = batch["next_aux"].to(device)  # (P,) GT aux at t
+            reference_coords = batch["reference_coords"].to(device)
+            n_particles_per_example = batch["n_particles_per_example"].to(device)
+            target_frame = batch["target_frame"].to(device)  # (B,)
+            loading_feature = batch.get("loading_feature")
+            if loading_feature is not None:
+                loading_feature = loading_feature.to(device)
+
+            t_norm = target_frame.to(torch.float32) / (time_ref - 1)  # (B,)
+            is_kinematic = torch.isin(particle_type, kinematic)
+            accumulate = step < cfg.normalizer_warmup_steps
+            optimizer.zero_grad()
+            pred, target = sim.forward_train_tc(
+                next_position,
+                next_aux,
+                particle_type,
+                reference_coords,
+                n_particles_per_example,
+                t_norm,
+                accumulate=accumulate,
+                loading_feature=loading_feature,
+            )
+            delta_v = pred[..., :-1] - target[..., :-1]
+            delta_aux = pred[..., -1] - target[..., -1]
+            per_particle = (
+                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
+                + train_cfg.w_aux * delta_aux**2
+            )
+            free = ~is_kinematic
+            if free.any():
+                loss = per_particle[free].mean()
+            else:
+                loss = per_particle.new_tensor(0.0, requires_grad=True)
+
+            loss.backward()
+            if cfg.max_grad_norm > 0:
+                torch.nn.utils.clip_grad_norm_(sim.parameters(), cfg.max_grad_norm)
+            optimizer.step()
+
+            lr_new = _lr_at_cosine(step, train_cfg)
+            for group in optimizer.param_groups:
+                group["lr"] = lr_new
+
+            step += 1
+
+            if step % train_cfg.val_every == 0:
+                sim.eval()
+                pos_losses: list[float] = []
+                with torch.no_grad():
+                    for tr in val_trajs:
+                        sim.bind_case(
+                            torch.from_numpy(tr.cells).to(device),
+                            torch.from_numpy(tr.reference_coords).to(device),
+                            torch.from_numpy(tr.particle_type).to(device),
+                            torch.from_numpy(tr.positions).to(device),
+                            loading_scalar=(
+                                spec.loading_scalar(tr.case_id)
+                                if cfg.impact_velocity_feature and spec.loading_scalar
+                                else None
+                            ),
+                        )
+                        val_time_ref = _tc_time_ref_frames(
+                            spec.scored_frames,
+                            train_cfg.train_frames,
+                            int(tr.positions.shape[0]),
+                        )
+                        result = time_conditioned_rollout(
+                            sim,
+                            tr,
+                            cfg.input_frames,
+                            val_time_ref,
+                            device,
+                            kinematic_types=spec.kinematic_types,
+                            scored_frames=spec.scored_frames,
+                        )
+                        pos_losses.append(float(result.position_rmse.mean()))
+                val_pos = (
+                    sum(pos_losses) / len(pos_losses) if pos_losses else float("inf")
+                )
+                logger.info(
+                    "step %d: train_loss %.6f val_pos %.4f mm (best_pos %.4f)",
+                    step,
+                    loss.item(),
+                    val_pos,
+                    best_pos,
+                )
+                if val_pos < best_pos:
+                    best_pos = val_pos
+                    best_ckpt = out_dir / f"model-best-{step:06d}.pt"
+                    sim.save(str(best_ckpt))
+                    logger.info("saved improved checkpoint: %s", best_ckpt)
+                sim.train()
+
+            if step % PERIODIC_CKPT_EVERY == 0:
+                periodic_ckpt = out_dir / f"ckpt-{step:06d}.pt"
+                sim.save(str(periodic_ckpt))
+                logger.info("saved periodic checkpoint: %s", periodic_ckpt)
+
+            if step >= train_cfg.training_steps:
+                break
+
+    if best_ckpt is None:
+        best_ckpt = out_dir / f"model-final-{step:06d}.pt"
+        sim.save(str(best_ckpt))
+        logger.info("no validation improvement; saved final checkpoint: %s", best_ckpt)
+    return best_ckpt
+
+
 def _train_geoflare(
     spec: BenchmarkSpec,
     cfg: GeoFlareConfig,
@@ -2108,6 +2342,14 @@ def _train_geoflare(
                 "(cells/reference_coords); geoflare training requires a "
                 "mesh benchmark"
             )
+
+    # ADR-0054: the time-conditioned scheme is a distinct, history-free,
+    # non-autoregressive path — a dedicated loop, not the AR machinery below
+    # (mirrors _train_transolver's dispatch).
+    if cfg.time_conditioned:
+        return _train_geoflare_tc(
+            spec, cfg, train_cfg, train_trajs, val_trajs, out_dir, device, data_root
+        )
 
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
     sim = build_geoflare_simulator(
@@ -2563,9 +2805,9 @@ def evaluate(
         if tc:
             # Time-conditioned: independent per-frame query, no accumulation and
             # no teacher-forced one-step sweep (ADR-0054). one_step_* is undefined.
-            # tc is only ever set for a transolver run (the only family exposing
-            # predict_state_at); assert so mypy narrows the union.
-            assert isinstance(simulator, TransolverSimulator)
+            # tc is set only for the Transolver / GeoFLARE families (the two
+            # exposing predict_state_at); assert so mypy narrows the union.
+            assert isinstance(simulator, (TransolverSimulator, GeoFlareSimulator))
             time_ref = _tc_time_ref_frames(
                 spec.scored_frames,
                 record["train"].get("train_frames", 0),

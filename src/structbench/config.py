@@ -422,6 +422,14 @@ class GeoFlareConfig:
     weight_decay: float = 1e-4
     max_grad_norm: float = 0.0
     history_frames: int = 0
+    # ADR-0054 time-conditioning, mirrored from the Transolver family. Off
+    # (default) = byte-identical autoregressive GeoFLARE. frames_per_call is
+    # present so the generic TC validation (requires frames_per_call=1) applies;
+    # impact_velocity_feature composes with TC for benchmarks with a loading
+    # scalar (DP has none, so its TC config sets it false).
+    frames_per_call: int = 1
+    impact_velocity_feature: bool = False
+    time_conditioned: bool = False
 
 
 @dataclass

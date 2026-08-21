@@ -1,0 +1,51 @@
+[run]
+benchmark = "deforming_plate"
+seed = 2
+
+# DeformingPlate — GeoFLARE TIME-CONDITIONED (native structural scheme), seed 2.
+# The GeoFLARE analog of transolver-timecond (ADR-0054): history-free,
+# non-autoregressive. The model maps (rest geometry + node types + prescribed
+# obstacle/handle state at t + query time t) -> absolute state at t; every scored
+# frame is queried independently (no rollout, no velocity window).
+# frames_per_call=1 and history_frames=0 are REQUIRED (mutually exclusive with TC).
+# impact_velocity_feature is FALSE: DeformingPlate has no scalar loading parameter.
+# Family knobs (n_hidden/radii/...) match geoflare.toml (ADR-0045); only the
+# prediction scheme (AR -> TC) and budget (2M -> 250k) change. TC beats AR at a
+# fraction of the budget on this smooth quasi-static task (cf. Transolver, F-006).
+
+[model]
+family = "geoflare"
+input_frames = 2
+dim = 3
+n_hidden = 256
+n_layers = 6
+n_heads = 8
+slice_num = 128
+mlp_ratio = 4
+dropout = 0.0
+n_hidden_local = 32
+radius_near = 0.05
+radius_far = 0.25
+neighbors_near = 8
+neighbors_far = 32
+node_type_size = 9
+noise_std = 0.0          # inert under time-conditioning (no rollout; ADR-0054)
+normalizer_warmup_steps = 1000
+weight_decay = 1e-4      # reference AdamW-arm value (ADR-0045)
+max_grad_norm = 0.0      # OFF — geoflare reference has no gradient clipping
+
+history_frames = 0              # REQUIRED 0 for time-conditioning (ADR-0054/0053)
+frames_per_call = 1             # REQUIRED 1 for time-conditioning (ADR-0054)
+impact_velocity_feature = false  # DP has no scalar loading param
+time_conditioned = true          # ADR-0054: native structural scheme
+
+[train]
+batch_size = 2
+lr_init = 1e-4
+lr_decay = 0.1           # UNUSED by the geoflare family (cosine anneal, ADR-0045)
+training_steps = 250_000  # matches the DP Transolver-TC budget (F-006: TC beats 2M AR)
+val_every = 5_000
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0
