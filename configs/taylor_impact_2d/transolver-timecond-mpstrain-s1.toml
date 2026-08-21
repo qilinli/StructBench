@@ -1,0 +1,53 @@
+# taylor_impact_2d — E-X aux-target swap screen, seed 1: Transolver TC (ADR-0054)
+# trained with the aux channel swapped von Mises -> MAX PRINCIPAL STRAIN (the
+# notch plane-strain max-eigenvalue definition, computed from the canonical
+# response/element/sph/strain Voigt tensor by the registered loader extractor).
+#
+# REQUIRES the env gate at submission: STRUCTBENCH_TAYLOR_AUX_MPSTRAIN=1
+# (read by train() only; without it this config trains the reference vm target
+# byte-identically to transolver-timecond-iv-s1). Aux normalization is computed
+# from data (online normalizer warmup), so it follows the swapped target.
+# Public evaluation (structbench-train --mode valid/rollout) never reads the
+# gate and keeps scoring the protocol vm aux — the swapped-target screen is
+# scored offline. Everything below is an exact copy of the registry TC recipe
+# (transolver-timecond-iv-s1: 100k budget, run taylor-transolver-tc-s1).
+# Not yet run.
+
+[run]
+benchmark = "taylor_impact_2d"
+seed = 1
+
+[model]
+family = "transolver"
+input_frames = 6                # taylor card protocol (ADR-0035); see header
+dim = 2
+hidden_dim = 128                # ADR-0044 family reference
+n_layers = 8
+n_heads = 8
+slice_num = 64
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
+noise_std = 0.0                  # inert under time-conditioning (no rollout; ADR-0054)
+normalizer_warmup_steps = 1000
+weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
+max_grad_norm = 0.1             # global-norm clip, thuml reference
+
+history_frames = 0              # REQUIRED 0 for time-conditioning (ADR-0054/0053)
+frames_per_call = 1             # REQUIRED 1 for time-conditioning (ADR-0054)
+impact_velocity_feature = true   # ADR-0051 B: scalar impact-velocity conditioning
+time_conditioned = true          # ADR-0054: faithful thuml native structural scheme
+adaptive_temperature = false     # ADR-0057 (off = byte-identical)
+slice_reparam = false            # ADR-0057 (off = byte-identical)
+
+[train]
+batch_size = 2                  # family reference (ADR-0044, matched to MGN)
+lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
+lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
+                                # ADR-0044); present because [train] is family-uniform.
+training_steps = 100_000        # registry TC budget (taylor-transolver-tc-s{1,2})
+val_every = 2000                # CGN taylor cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0

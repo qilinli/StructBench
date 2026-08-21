@@ -30,6 +30,7 @@ import functools
 import json
 import logging
 import math
+import os
 import re
 from collections.abc import Callable
 from dataclasses import replace
@@ -509,6 +510,50 @@ def _load_trajectories(
     ]
 
 
+#: E-X aux-target swap screens (EMI26; env-gated, TRAIN-process only): env var
+#: -> (benchmark it applies to, replacement aux_field). Both replacements are
+#: registered loader extractors, so the swap reuses the exact canonical
+#: definitions — notch's plane-strain max-eigenvalue
+#: (:func:`~structbench.datasets.canonical.max_principal_strain_from_voigt`,
+#: from ``response/element/sph/strain``) and Taylor's von Mises
+#: (:func:`~structbench.datasets.canonical.von_mises_from_voigt`, from
+#: ``response/element/sph/stress``) — with no re-implementation.
+_ENV_AUX_SWAPS: dict[str, tuple[str, str]] = {
+    "STRUCTBENCH_TAYLOR_AUX_MPSTRAIN": ("taylor_impact_2d", "max_principal_strain"),
+    "STRUCTBENCH_NOTCH_AUX_VM": ("notch_beam_2d_impact", "von_mises_stress"),
+}
+
+
+def _env_aux_field_override(benchmark: str) -> str | None:
+    """The env-gated E-X replacement ``aux_field`` for ``benchmark``, or ``None``.
+
+    Screen-only gates (EMI26 aux-target swap, the 51dce04 CONST-POT pattern):
+    read once by :func:`train` at the point where the aux channel is assembled
+    for the training/val pipeline, so the swapped target is seen by BOTH the
+    training loss and the in-training validation metric. Normalization adapts
+    automatically — the mesh families' online normalizers warm on the loaded
+    aux, and the CGN stats cache/statistics are computed from (and keyed on)
+    the effective field. Unset = ``None`` = byte-identical; :func:`evaluate`
+    and the eval CLI never call this, so public evaluation is unaffected.
+
+    Parameters
+    ----------
+    benchmark:
+        Registry name of the benchmark being trained
+        (``train_cfg.benchmark``).
+
+    Returns
+    -------
+    str or None
+        The replacement aux-field name when this benchmark's gate is set in
+        the environment (non-empty), else ``None``.
+    """
+    for env, (bench, field_name) in _ENV_AUX_SWAPS.items():
+        if benchmark == bench and os.environ.get(env):
+            return field_name
+    return None
+
+
 def _stats_to_dict(stats: NormalizationStats) -> dict[str, dict[str, Tensor]]:
     """Convert :class:`NormalizationStats` to the nested-Tensor stats dict."""
     return {
@@ -744,9 +789,26 @@ def train(
     # reproducible.
     torch.manual_seed(train_cfg.seed)
 
+    # E-X aux-target swap screens (env-gated, 51dce04 pattern): swap the aux
+    # TARGET at the single point where the aux channel enters the training/val
+    # pipeline, so the training loss and the in-training validation both see
+    # it. Off (env unset) = byte-identical; evaluate() never reads the gate.
+    aux_field = spec.aux_field
+    swapped = _env_aux_field_override(train_cfg.benchmark)
+    if swapped is not None:
+        aux_field = swapped
+        logger.info(
+            "E-X aux-target swap ACTIVE (screen, env-gated): benchmark %r "
+            "trains its aux channel on %r instead of %r; normalization "
+            "follows the swapped target automatically",
+            train_cfg.benchmark,
+            aux_field,
+            spec.aux_field,
+        )
+
     train_ids = list(spec.splits["train"])
     logger.info("loading %d TRAIN trajectories from %s", len(train_ids), data_root)
-    train_trajs = _load_trajectories(train_ids, data_root, spec.aux_field)
+    train_trajs = _load_trajectories(train_ids, data_root, aux_field)
     if train_cfg.train_frames > 0:
         # ADR-0039 §4 recipe: train only on the scored window's frames. Must
         # precede cached_compute_stats so normalization follows the truncated
@@ -769,7 +831,7 @@ def train(
             "train_frames=%d: training pool truncated (ADR-0039 recipe)",
             train_cfg.train_frames,
         )
-    val_trajs = _load_trajectories(list(spec.splits["val"]), data_root, spec.aux_field)
+    val_trajs = _load_trajectories(list(spec.splits["val"]), data_root, aux_field)
     if spec.scored_frames is not None:
         # In-training validation rolls out only the scored span (ADR-0039):
         # checkpoint selection then keys on the same window the benchmark
@@ -839,7 +901,7 @@ def train(
     stats = cached_compute_stats(
         train_trajs,
         dataset_root=data_root,
-        aux_field=spec.aux_field,
+        aux_field=aux_field,
         aux_transform=cgn.aux_transform,
         aux_transform_scale=cgn.aux_transform_scale,
     )
