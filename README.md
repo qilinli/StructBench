@@ -7,9 +7,10 @@ baseline to beat — for structures under dynamic and extreme loading.
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 
-> **Status: four benchmarks, each with a blessed baseline.** v0.2.0 released; the
-> v0.3 `DeformingPlate` benchmark is built on `main` (release pending). What
-> exists is real and tested; what doesn't is on the [roadmap](#roadmap).
+> **Status: four benchmarks, four model families, a leaderboard on every
+> benchmark.** v0.3.0 release-ready on `main` (tag pending); v0.2.0 was the
+> last tagged release. What exists is real and tested; what doesn't is on the
+> [roadmap](#roadmap).
 
 ![Taylor bar rollout: ground truth vs CGN prediction, copper bar mushrooming against a rigid wall, colored by von Mises stress](assets/taylor_rollout.gif)
 
