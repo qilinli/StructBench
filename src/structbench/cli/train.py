@@ -512,7 +512,7 @@ def _load_trajectories(
     ]
 
 
-#: E-X aux-target swap screens (EMI26; env-gated, TRAIN-process only): env var
+#: E-X aux-target swap screens (env-gated, TRAIN-process only): env var
 #: -> (benchmark it applies to, replacement aux_field). Both replacements are
 #: registered loader extractors, so the swap reuses the exact canonical
 #: definitions — notch's plane-strain max-eigenvalue
@@ -529,7 +529,7 @@ _ENV_AUX_SWAPS: dict[str, tuple[str, str]] = {
 def _env_aux_field_override(benchmark: str) -> str | None:
     """The env-gated E-X replacement ``aux_field`` for ``benchmark``, or ``None``.
 
-    Screen-only gates (EMI26 aux-target swap, the 51dce04 CONST-POT pattern):
+    Screen-only gates (off-by-default aux-target swap screens):
     read once by :func:`train` at the point where the aux channel is assembled
     for the training/val pipeline, so the swapped target is seen by BOTH the
     training loss and the in-training validation metric. Normalization adapts
@@ -791,7 +791,7 @@ def train(
     # reproducible.
     torch.manual_seed(train_cfg.seed)
 
-    # E-X aux-target swap screens (env-gated, 51dce04 pattern): swap the aux
+    # E-X aux-target swap screens (env-gated): swap the aux
     # TARGET at the single point where the aux channel enters the training/val
     # pipeline, so the training loss and the in-training validation both see
     # it. Off (env unset) = byte-identical; evaluate() never reads the gate.

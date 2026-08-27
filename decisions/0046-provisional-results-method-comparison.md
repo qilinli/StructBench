@@ -298,3 +298,26 @@ code could disagree, **the code governs**.
   pointer note (in-place dated notes have precedent), and this ADR closes
   ADR-0041 clause 4 — the v0.3 cross-method infrastructure is delivered; the
   numbers it will hold are maintainer compute.
+
+## Amendment (2026-08-27): one row per (family × prediction scheme)
+
+*Drafted by Claude Code; accepted by the maintainer in-session, 2026-08-27.*
+Records the maintainer-approved 2026-08-21 extension that the DeformingPlate
+registry header had carried as "dated ADR note pending".
+
+- **Clause 3's duplicate-family rejection is relaxed to one row per
+  (family, prediction scheme).** Once ADR-0050/0051/0053/0054 made the
+  prediction scheme an explicit axis, a benchmark may table the same model
+  family under several schemes — but never two rows for the same family AND
+  scheme. `BenchmarkSpec.__post_init__` enforces the pair key
+  ``(result.family, result.scheme or "")``; the comparison table's column
+  identity follows it.
+- **DeformingPlate is the motivating use**: it tables autoregressive and
+  time-conditioned rows side by side because on that benchmark the scheme
+  axis is itself a v0.3 finding worth reading off the leaderboard
+  (time-conditioning wins at a fraction of the autoregressive budget). The
+  other benchmarks continue to table one row per family.
+- **Nothing else moves.** `blessed_results` (clause 2) stays per-entry;
+  the Quickstart chain (clause 4) still selects the first blessed entry in
+  declaration order; the provisional flag, footnote, and archive discipline
+  (clauses 5/8) apply per row exactly as before.

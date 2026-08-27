@@ -74,10 +74,10 @@ class BenchmarkSpec:
     results: tuple[BaselineResult, ...] = ()
     """Official baseline results (ADR-0033), rendered by the generated views;
     empty until a run is blessed. Metric split names must exist in ``splits``
-    and at most one result per model ``family`` is allowed — both validated
-    at construction. May mix blessed and provisional entries (ADR-0046); use
-    :attr:`blessed_results`, not this field directly, wherever "the blessed
-    baseline" is meant."""
+    and at most one result per ``(family, scheme)`` row is allowed (ADR-0046,
+    amended 2026-08-27) — both validated at construction. May mix blessed and
+    provisional entries (ADR-0046); use :attr:`blessed_results`, not this
+    field directly, wherever "the blessed baseline" is meant."""
     scored_frames: int | None = None
     """Exclusive upper frame bound of the scored span (ADR-0039), mirroring
     the trajectory-end bound ``T``: rollout/one-step aggregates and QoIs are

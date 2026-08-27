@@ -23,7 +23,7 @@ __all__ = [
 #: ``test`` split (``val`` only selects the checkpoint).
 #:
 #: SCHEME MATRIX (2026-08-21, maintainer-approved; extends the ADR-0046
-#: one-entry-per-family convention — dated ADR note pending): this benchmark
+#: one-entry-per-family convention — ADR-0046 amendment, 2026-08-27): this benchmark
 #: tables one row per family x prediction scheme, because the scheme axis
 #: (autoregressive vs time-conditioned, ADR-0054) is itself a v0.3 finding
 #: worth reading off the leaderboard. All autoregressive rows are the
@@ -51,8 +51,9 @@ __all__ = [
 #: earlier time-conditioned rows had been transcribed under the evaluator's
 #: mean-of-per-step statistic in violation of this header (Transolver TC
 #: 1.996 -> pooled 3.454; T++ 2.046 -> 3.322; vm analogously) and recomputed
-#: every row under the pooled convention (scratch/emi26_dp_matrix_verify.py;
-#: the MGN position value reproduced exactly, its vm value moved <0.3%).
+#: every row under the pooled convention from the runs' saved rollouts (a
+#: maintainer-local verification script; the MGN position value reproduced
+#: exactly, its vm value moved <0.3%).
 #: One-step and QoI columns are as the evaluator reports them.
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
