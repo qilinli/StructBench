@@ -120,6 +120,11 @@ class BenchmarkCard:
         ADR-0040 default (maintainer-held, shared on request). Name repo
         paths in backticks rather than relative links — the text also ships
         in ``card.json``, where page-relative links would dangle.
+    data_access_label : str
+        Optional short form of ``data_access`` for the landing page's
+        "Data at a glance" bullet (e.g. ``"public source — download +
+        convert"`` or a DOI link). Empty renders the ADR-0040 default
+        label. Same no-relative-links rule as ``data_access``.
 
     Raises
     ------
@@ -163,6 +168,7 @@ class BenchmarkCard:
     overview: str = ""
     figures: tuple[BenchmarkFigure, ...] = ()
     data_access: str = ""
+    data_access_label: str = ""
 
     def __post_init__(self) -> None:
         total = sum(self.splits.values())

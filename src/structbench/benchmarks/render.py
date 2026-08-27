@@ -592,6 +592,9 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
         f"- Fields: {', '.join(c.fields)}",
         f"- Provenance: {c.provenance}",
         f"- License: {c.data_license}",
+        # Short access pointer (card-declared, else the ADR-0040 default);
+        # the full story is the Dataset access paragraph below the Quickstart.
+        f"- Data: {c.data_access_label.strip() or 'maintainer-held, shared on request (ADR-0040)'}",
         "",
         *_task_lines(c),
         "",

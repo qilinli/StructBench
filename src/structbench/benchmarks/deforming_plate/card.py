@@ -172,4 +172,7 @@ CARD = BenchmarkCard(
         "without a VPN). The maintainer's already-converted archive is also "
         "shared on request (ADR-0040)."
     ),
+    data_access_label=(
+        "public source — download + convert (see Dataset access below)"
+    ),
 )

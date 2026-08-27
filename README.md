@@ -23,12 +23,12 @@ for the full problem, data, and numbers to beat.*
 
 ## Benchmarks
 
-| Benchmark | Problem | Cases |
-|---|---|---|
-| Wave1D-Propagation | elastic wave in a bar (entry tier) | 16 |
-| Taylor2D-Impact | copper bar impact (SPH, plasticity) | 33 |
-| NotchBeam2D-Impact | notched concrete beam, drop-weight impact | 110 |
-| DeformingPlate | hyperelastic 3D plate + rigid actuator (MeshGraphNets, quasi-static) | 1200 |
+| Benchmark | Problem | Cases | Data |
+|---|---|---|---|
+| Wave1D-Propagation | elastic wave in a bar (entry tier) | 16 | [on request](docs/benchmarks/wave_propagation_1d.md) |
+| Taylor2D-Impact | copper bar impact (SPH, plasticity) | 33 | [on request](docs/benchmarks/taylor_impact_2d.md) |
+| NotchBeam2D-Impact | notched concrete beam, drop-weight impact | 110 | [on request](docs/benchmarks/notch_beam_2d_impact.md) |
+| DeformingPlate | hyperelastic 3D plate + rigid actuator (MeshGraphNets, quasi-static) | 1200 | [public source](data_generation/meshgraphnets/deforming_plate/) |
 
 Ordered by constitutive regime: linear elastic → elastoplastic → concrete
 fracture → 3D hyperelastic contact.

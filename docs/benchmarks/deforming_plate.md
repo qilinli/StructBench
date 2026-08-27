@@ -70,6 +70,7 @@ The leaderboard is below.
 - Fields: node/displacement, node/von_mises_stress
 - Provenance: MeshGraphNets dataset (Pfaff et al., ICLR 2021; COMSOL ground truth), downloaded from the DeepMind source bucket and converted locally to canonical HDF5 (ADR-0042; not redistributed).
 - License: None stated by the source; downloaded from source, not redistributed (ADR-0042)
+- Data: public source — download + convert (see Dataset access below)
 
 ## Task
 
