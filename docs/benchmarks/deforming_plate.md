@@ -20,11 +20,12 @@ of the trajectory (400 steps), predicting both the nodal displacement and the
 per-node von Mises stress. Time here is a load-step index, not milliseconds -
 the source solve is quasi-static (dt = 0 in the data).
 
-![Schematic of the deforming plate setup: a rigid actuator indenting a metal plate, beside a tetrahedral mesh of the plate coloured by stress.](../../assets/problem_deforming_plate.png)
+![Schematic of the deforming plate setup: a rigid actuator indenting a plate cross-section, beside a deformed tetrahedral plate mesh with the spherical actuator.](../../assets/problem_deforming_plate.png)
 
 *Problem setup: a scripted rigid actuator presses into the tetrahedral
-hyperelastic plate (left: the indentation schematic; right: a deformed mesh
-coloured by von Mises stress).*
+hyperelastic plate, held along one edge (left: the indentation schematic;
+right: a deformed plate mesh with the spherical actuator). Adapted from
+Pfaff et al. (2021).*
 
 ## Cross-method comparison
 
