@@ -99,34 +99,34 @@ _Headline — pooled relative L2 (↓ better)_
 
 | Method | Scheme | test·disp | test·aux |
 |---|---|---|---|
-| MGN | autoregressive | 0.5013 | 0.363 |
-| Transolver | autoregressive | 0.1437 | 0.1777 |
-| Transolver | time-conditioned | 0.1538 | 0.1993 |
-| Transolver++ | time-conditioned | 0.158 | 0.2054 |
-| GeoFLARE | autoregressive | 0.3828 | 0.2935 |
-| GeoFLARE | time-conditioned | 0.2464 | 0.2804 |
+| MGN | autoregressive | 0.50130 | 0.36300 |
+| Transolver | autoregressive | 0.14370 | 0.17770 |
+| Transolver | time-conditioned | 0.15380 | 0.19930 |
+| Transolver++ | time-conditioned | 0.15800 | 0.20540 |
+| GeoFLARE | autoregressive | 0.38280 | 0.29350 |
+| GeoFLARE | time-conditioned | 0.24640 | 0.28040 |
 
 _Trajectory error — RMSE_
 
 | Method | Scheme | test·pos (mm) | test·vm (MPa) |
 |---|---|---|---|
-| MGN | autoregressive | 15.45 | 0.01501 |
-| Transolver | autoregressive | 3.018 | 0.008139 |
-| Transolver | time-conditioned | 3.454 | 0.008906 |
-| Transolver++ | time-conditioned | 3.322 | 0.009332 |
-| GeoFLARE | autoregressive | 4.064 | 0.01326 |
-| GeoFLARE | time-conditioned | 4.369 | 0.01219 |
+| MGN | autoregressive | 15.45000 | 0.01501 |
+| Transolver | autoregressive | 3.01800 | 0.00814 |
+| Transolver | time-conditioned | 3.45400 | 0.00891 |
+| Transolver++ | time-conditioned | 3.32200 | 0.00933 |
+| GeoFLARE | autoregressive | 4.06400 | 0.01326 |
+| GeoFLARE | time-conditioned | 4.36900 | 0.01219 |
 
 _Quantities of interest (MAE)_
 
 | Method | Scheme | test·peak_vm (MPa) | test·terminal_deflection (mm) |
 |---|---|---|---|
-| MGN | autoregressive | 0.03978 | 48.42 |
-| Transolver | autoregressive | 0.02108 | 4.244 |
-| Transolver | time-conditioned | 0.01388 | 0.5615 |
-| Transolver++ | time-conditioned | 0.01895 | 0.8748 |
-| GeoFLARE | autoregressive | 0.03595 | 6.196 |
-| GeoFLARE | time-conditioned | 0.04545 | 3.669 |
+| MGN | autoregressive | 0.03978 | 48.42000 |
+| Transolver | autoregressive | 0.02108 | 4.24400 |
+| Transolver | time-conditioned | 0.01388 | 0.56150 |
+| Transolver++ | time-conditioned | 0.01895 | 0.87480 |
+| GeoFLARE | autoregressive | 0.03595 | 6.19600 |
+| GeoFLARE | time-conditioned | 0.04545 | 3.66900 |
 
 ## Baseline details
 
@@ -169,6 +169,6 @@ Dataset access: the source data is public — download the MeshGraphNets `deform
 ## References
 
 - **MGN** — Pfaff, T., Fortunato, M., Sanchez-Gonzalez, A., & Battaglia, P. W. (2021). Learning Mesh-Based Simulation with Graph Networks. *ICLR*. https://arxiv.org/abs/2010.03409
-- **Transolver / Transolver** — Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: A Fast Transformer Solver for PDEs on General Geometries. *ICML*. https://arxiv.org/abs/2402.02366
+- **Transolver** — Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: A Fast Transformer Solver for PDEs on General Geometries. *ICML*. https://arxiv.org/abs/2402.02366
 - **Transolver++** — Luo, H., Wu, H., Zhou, H., Wang, J., & Long, M. (2025). Transolver++: An Accurate Neural Solver for PDEs on Million-Scale Geometries. https://arxiv.org/abs/2502.02414. Adapted per ADR-0057 (thuml reference implementation github.com/thuml/Transolver_plus).
-- **GeoFLARE / GeoFLARE** — Adams, R., et al. (NVIDIA). GeoTransolver. arXiv:2512.20399; with Puri, R., et al. FLARE: Fast Low-rank Attention Routing Engine. arXiv:2508.12594. GeoFLARE is GeoTransolver with the FLARE attention backend (attention_type GALE_FA; ADR-0045).
+- **GeoFLARE** — Adams, R., et al. (NVIDIA). GeoTransolver. arXiv:2512.20399; with Puri, R., et al. FLARE: Fast Low-rank Attention Routing Engine. arXiv:2508.12594. GeoFLARE is GeoTransolver with the FLARE attention backend (attention_type GALE_FA; ADR-0045).

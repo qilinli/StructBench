@@ -25,6 +25,17 @@ from .card import CARD
 #: significant figures; full precision, per-case numbers and the seed spread stay
 #: in the run directory. ``val`` selects the checkpoint, so it is not a number to
 #: beat and is omitted here.
+#:
+#: SCHEME MATRIX EXTENSION (2026-08-27, maintainer-directed in-session): like
+#: DeformingPlate, this benchmark now tables one row per family x prediction
+#: scheme where a run exists — the autoregressive Transolver row joins the
+#: time-conditioned one because the scheme axis (ADR-0054) is itself a finding.
+#: The AR run predates ADR-0055, so its relative-L2 and QoI values were
+#: recomputed from the run's saved rollout ``.npz`` files with the exact
+#: evaluator recipe (frame-0-referenced displacement, kinematic keep-mask,
+#: pooled rel-L2), validated by reproducing the time-conditioned runs' stored
+#: rel-L2 to 4 s.f.; its RMSE/one-step values are transcribed from the run's
+#: ``metrics-*.json`` as usual.
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
         family="mgn",
@@ -131,6 +142,68 @@ RESULTS: tuple[BaselineResult, ...] = (
             "pooled space+time headline (ADR-0055), added 2026-08-16 from a "
             "re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed "
             "RMSE/QoI values above are unchanged."
+        ),
+    ),
+    BaselineResult(
+        family="transolver",
+        label="Transolver",
+        scheme="autoregressive",
+        reference=(
+            "Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: "
+            "A Fast Transformer Solver for PDEs on General Geometries. *ICML*. "
+            "https://arxiv.org/abs/2402.02366"
+        ),
+        provisional=True,
+        run_commit="7ef3bf2",
+        run_date="2026-08-13",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.02133,
+                "rollout_rel_l2_aux": 0.2211,
+                "rollout_pos_rmse_mm": 0.2151,
+                "rollout_vm_rmse_mpa": 33.83,
+                "one_step_pos_rmse_mm": 0.003359,
+                "one_step_vm_rmse_mpa": 27.57,
+                "qoi_final_length_mae_mm": 0.5749,
+                "qoi_mushroom_width_mae_mm": 0.7686,
+                "qoi_peak_vm_mae_mpa": 1.110,
+                "qoi_t_peak_vm_mae_ms": 0.003666,
+            },
+            "test_extrap": {
+                "rollout_rel_l2_disp": 0.04184,
+                "rollout_rel_l2_aux": 0.1959,
+                "rollout_pos_rmse_mm": 0.5633,
+                "rollout_vm_rmse_mpa": 34.81,
+                "one_step_pos_rmse_mm": 0.005111,
+                "one_step_vm_rmse_mpa": 33.76,
+                "qoi_final_length_mae_mm": 2.156,
+                "qoi_mushroom_width_mae_mm": 3.579,
+                "qoi_peak_vm_mae_mpa": 1.908,
+                "qoi_t_peak_vm_mae_ms": 0.008655,
+            },
+        },
+        notes=(
+            "Native autoregressive Transolver under the ADR-0049 repaired "
+            "recipe (velocity history + working-frame training noise): the "
+            "hidden_dim-256 'big' arm of the ADR-0049 tuning round, run "
+            "taylor-transolver-n02-vh-big-adr0049, 100k steps - budget-matched "
+            "to the time-conditioned row - val-selected model-best-084000.pt, "
+            "single seed. Selected as the AR representative on val displacement "
+            "relative L2 (0.0103, vs 0.0129 base-vh / 0.0160 vh-250k / 0.0617 "
+            "pre-repair ADR-0047; rescored 2026-08-27). Standing: the "
+            "time-conditioned Transolver wins both FIELDS ~2x (displacement "
+            "relative L2 0.0213 vs 0.0094 interp, 0.0418 vs 0.0164 extrap; von "
+            "Mises 0.221 vs 0.175) - the reverse of DeformingPlate, where "
+            "displacement ties and AR wins the vm field - but AR wins the "
+            "peak-vm QoI ~2x (1.11 vs 2.16 MPa interp), and systematically: in "
+            "the seed-matched budget-matched paired check (base-vh arm vs "
+            "tc-s1) AR is better on 6/6 interp cases. Rollout dynamics preserve "
+            "the stress extreme that time-conditioning smooths, while TC wins "
+            "the geometric QoIs (mushroom width 0.77 vs 0.35 mm). PROVISIONAL "
+            "(ADR-0044/0046), single seed. Relative-L2/QoI values recomputed "
+            "2026-08-27 from the run's saved rollouts under the exact evaluator "
+            "recipe (see module header); pooled relative L2 headline "
+            "(ADR-0055)."
         ),
     ),
     BaselineResult(

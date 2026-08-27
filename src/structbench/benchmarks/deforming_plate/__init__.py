@@ -238,7 +238,7 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-08-18",
         metrics={
             "test": {
-                "rollout_rel_l2_disp": 0.158,
+                "rollout_rel_l2_disp": 0.1580,
                 "rollout_rel_l2_aux": 0.2054,
                 "rollout_pos_rmse_mm": 3.322,
                 "rollout_vm_rmse_mpa": 0.009332,

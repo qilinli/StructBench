@@ -103,28 +103,31 @@ _Headline — pooled relative L2 (↓ better)_
 
 | Method | Scheme | interp·disp | interp·aux | extrap·disp | extrap·aux |
 |---|---|---|---|---|---|
-| MGN | autoregressive | 0.2157 | 0.3456 | 0.3233 | 0.4327 |
-| CGN | autoregressive | 0.1299 | 0.3223 | 0.5547 | 0.4531 |
-| Transolver | time-conditioned | 0.009383 | 0.1749 | 0.01637 | 0.1982 |
-| Transolver++ | time-conditioned | 0.00936 | 0.1733 | 0.01765 | 0.1932 |
+| MGN | autoregressive | 0.21570 | 0.34560 | 0.32330 | 0.43270 |
+| CGN | autoregressive | 0.12990 | 0.32230 | 0.55470 | 0.45310 |
+| Transolver | autoregressive | 0.02133 | 0.22110 | 0.04184 | 0.19590 |
+| Transolver | time-conditioned | 0.00938 | 0.17490 | 0.01637 | 0.19820 |
+| Transolver++ | time-conditioned | 0.00936 | 0.17330 | 0.01765 | 0.19320 |
 
 _Trajectory error — RMSE_
 
 | Method | Scheme | interp·pos (mm) | interp·vm (MPa) |
 |---|---|---|---|
-| MGN | autoregressive | 2.272 | 55.79 |
-| CGN | autoregressive | 1.274 | 52.57 |
-| Transolver | time-conditioned | 0.1043 | 28.56 |
-| Transolver++ | time-conditioned | 0.1045 | 28.28 |
+| MGN | autoregressive | 2.27200 | 55.79000 |
+| CGN | autoregressive | 1.27400 | 52.57000 |
+| Transolver | autoregressive | 0.21510 | 33.83000 |
+| Transolver | time-conditioned | 0.10430 | 28.56000 |
+| Transolver++ | time-conditioned | 0.10450 | 28.28000 |
 
 _Quantities of interest (MAE)_
 
 | Method | Scheme | interp·final_length (mm) | interp·mushroom_width (mm) | interp·peak_vm (MPa) | interp·t_peak_vm (ms) |
 |---|---|---|---|---|---|
-| MGN | autoregressive | 9.108 | 6.097 | 3.639 | 0.001335 |
-| CGN | autoregressive | 3.083 | 4.754 | 2.865 | 0.003993 |
-| Transolver | time-conditioned | 0.5557 | 0.3532 | 2.164 | 0.001986 |
-| Transolver++ | time-conditioned | 0.6428 | 0.3318 | 2.103 | 0.00132 |
+| MGN | autoregressive | 9.10800 | 6.09700 | 3.63900 | 0.00134 |
+| CGN | autoregressive | 3.08300 | 4.75400 | 2.86500 | 0.00399 |
+| Transolver | autoregressive | 0.57490 | 0.76860 | 1.11000 | 0.00367 |
+| Transolver | time-conditioned | 0.55570 | 0.35320 | 2.16400 | 0.00199 |
+| Transolver++ | time-conditioned | 0.64280 | 0.33180 | 2.10300 | 0.00132 |
 
 ## Baseline details
 
@@ -135,6 +138,10 @@ _Quantities of interest (MAE)_
 **CGN** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)
 
 *Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp. Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values above are unchanged.*
+
+**Transolver** (transolver, 2026-08-13, commit `7ef3bf2`)
+
+*Native autoregressive Transolver under the ADR-0049 repaired recipe (velocity history + working-frame training noise): the hidden_dim-256 'big' arm of the ADR-0049 tuning round, run taylor-transolver-n02-vh-big-adr0049, 100k steps - budget-matched to the time-conditioned row - val-selected model-best-084000.pt, single seed. Selected as the AR representative on val displacement relative L2 (0.0103, vs 0.0129 base-vh / 0.0160 vh-250k / 0.0617 pre-repair ADR-0047; rescored 2026-08-27). Standing: the time-conditioned Transolver wins both FIELDS ~2x (displacement relative L2 0.0213 vs 0.0094 interp, 0.0418 vs 0.0164 extrap; von Mises 0.221 vs 0.175) - the reverse of DeformingPlate, where displacement ties and AR wins the vm field - but AR wins the peak-vm QoI ~2x (1.11 vs 2.16 MPa interp), and systematically: in the seed-matched budget-matched paired check (base-vh arm vs tc-s1) AR is better on 6/6 interp cases. Rollout dynamics preserve the stress extreme that time-conditioning smooths, while TC wins the geometric QoIs (mushroom width 0.77 vs 0.35 mm). PROVISIONAL (ADR-0044/0046), single seed. Relative-L2/QoI values recomputed 2026-08-27 from the run's saved rollouts under the exact evaluator recipe (see module header); pooled relative L2 headline (ADR-0055).*
 
 **Transolver** (transolver, 2026-08-16, commit `59d5786`)
 

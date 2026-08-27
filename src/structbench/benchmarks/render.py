@@ -28,7 +28,13 @@ def _yesno(flag: bool) -> str:
 
 
 def _fmt_value(value: float) -> str:
-    return f"{value:g}"
+    # Uniform 5-decimal formatting across every benchmark table (maintainer
+    # decision, 2026-08-27): the registries store values at mixed magnitudes
+    # (rel-L2 ~0.009 next to RMSE ~55), and shortest-form %g rendered them at
+    # visibly inconsistent precision. Five decimals is the coarsest uniform
+    # width that still separates the closest tabled pair (Taylor Transolver
+    # 0.00938 vs Transolver++ 0.00936 displacement rel-L2).
+    return f"{value:.5f}"
 
 
 def _registry_name(spec: BenchmarkSpec) -> str | None:
@@ -471,7 +477,10 @@ def _references(spec: BenchmarkSpec) -> list[str]:
         if ref not in by_ref:
             by_ref[ref] = []
             order.append(ref)
-        by_ref[ref].append(r.label)
+        # A family tabled under several schemes shares one label; repeat it
+        # once, not per row ("Transolver", not "Transolver / Transolver").
+        if r.label not in by_ref[ref]:
+            by_ref[ref].append(r.label)
     if not order:
         return []
     lines = ["## References", ""]

@@ -89,19 +89,19 @@ _Headline — pooled relative L2 (↓ better)_
 
 | Method | Scheme | interp·disp | interp·aux |
 |---|---|---|---|
-| CGN | autoregressive | 0.3507 | 0.9025 |
+| CGN | autoregressive | 0.35070 | 0.90250 |
 
 _Trajectory error — RMSE_
 
 | Method | Scheme | interp·pos (mm) | interp·axial (MPa) |
 |---|---|---|---|
-| CGN | autoregressive | 0.875 | 0.1676 |
+| CGN | autoregressive | 0.87500 | 0.16760 |
 
 _Quantities of interest (MAE)_
 
 | Method | Scheme | interp·arrival_time_25 (ms) | interp·arrival_time_50 (ms) | interp·arrival_time_75 (ms) | interp·peak_stress (MPa) |
 |---|---|---|---|---|---|
-| CGN | autoregressive | 0.1007 | 0.05045 | 0.1006 | 0.9665 |
+| CGN | autoregressive | 0.10070 | 0.05045 | 0.10060 | 0.96650 |
 
 ## Baseline details
 
