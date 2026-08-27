@@ -19,6 +19,11 @@ surrogate** — from a short ground-truth prefix the model advances the particle
 state one output step at a time to the end of the trajectory, predicting both
 position and the per-particle von Mises stress.
 
+![Schematic of the Taylor impact setup: a particle-discretised copper bar approaching a rigid wall, with the swept speed and length ranges.](../../assets/problem_taylor_impact.png)
+
+*Problem setup: a copper bar (D = 20 mm, L = 60 / 80 / 100 mm) fired head-on
+at a rigid wall at 100–200 m/s.*
+
 ## Interpolation vs. extrapolation
 
 The split varies **only the impact velocity** across the three fixed

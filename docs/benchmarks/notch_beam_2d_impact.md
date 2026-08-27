@@ -19,6 +19,12 @@ ground-truth prefix the model advances the SPH particle state one output step at
 a time, predicting both position and the per-particle **max principal strain**,
 the field that carries the crack pattern.
 
+![Schematic of the notch-beam impact setup: a drop weight above a simply-supported notched concrete beam, with the swept parameter ranges.](../../assets/problem_notch_beam_impact.png)
+
+*Problem setup: a drop weight (three shapes) strikes the notched concrete beam
+at midspan; beam height 80 mm, spans 320 / 480 / 640 mm, notch positions
+a / b / c.*
+
 ## Interpolation vs. the off-centre probe
 
 `test_interp` holds out interior combinations of span, impactor shape, notch
