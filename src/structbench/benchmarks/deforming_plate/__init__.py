@@ -51,8 +51,9 @@ __all__ = [
 #: earlier time-conditioned rows had been transcribed under the evaluator's
 #: mean-of-per-step statistic in violation of this header (Transolver TC
 #: 1.996 -> pooled 3.454; T++ 2.046 -> 3.322; vm analogously) and recomputed
-#: every row under the pooled convention (scratch/emi26_dp_matrix_verify.py;
-#: the MGN position value reproduced exactly, its vm value moved <0.3%).
+#: every row under the pooled convention from the runs' saved rollouts (a
+#: maintainer-local verification script; the MGN position value reproduced
+#: exactly, its vm value moved <0.3%).
 #: One-step and QoI columns are as the evaluator reports them.
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(

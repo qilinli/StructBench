@@ -1,4 +1,4 @@
-"""E-X env-gated aux-target swap screens (EMI26; the 51dce04 pattern)."""
+"""E-X env-gated aux-target swap screens (train-process only)."""
 
 from structbench.cli.train import _env_aux_field_override
 from structbench.datasets import available_aux_fields

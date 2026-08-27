@@ -11,7 +11,7 @@ seed = 2
 # impact_velocity_feature is FALSE: DeformingPlate has no scalar loading parameter.
 # Family knobs (n_hidden/radii/...) match geoflare.toml (ADR-0045); only the
 # prediction scheme (AR -> TC) and budget (2M -> 250k) change. TC beats AR at a
-# fraction of the budget on this smooth quasi-static task (cf. Transolver, F-006).
+# fraction of the budget on this smooth quasi-static task (cf. Transolver).
 
 [model]
 family = "geoflare"
@@ -43,7 +43,7 @@ time_conditioned = true          # ADR-0054: native structural scheme
 batch_size = 2
 lr_init = 1e-4
 lr_decay = 0.1           # UNUSED by the geoflare family (cosine anneal, ADR-0045)
-training_steps = 250_000  # matches the DP Transolver-TC budget (F-006: TC beats 2M AR)
+training_steps = 250_000  # matches the DP Transolver-TC budget (TC beats the 2M AR run)
 val_every = 5_000
 w_pos = 1.0
 w_aux = 1.0
