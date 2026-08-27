@@ -68,8 +68,12 @@ between gitignored `runs/` artifacts and code history.
 
 ## Publication note
 
-`RESEARCH-PROGRAM.md` (private program strategy) is untracked from
-2026-07-02 onward but exists in commits before that date. If this repository
-is ever made public directly, publish a fresh clean-cut repo from the
-release state instead of flipping this one's visibility. *(Moved from
-ROADMAP.md at its retirement, 2026-07-05.)*
+The repository is public. A full-history audit (2026-08-27, v0.3 release
+prep) confirmed no private material has ever been tracked on any ref:
+`RESEARCH-PROGRAM.md`, `research/`, `scratch/`, `runs/`, and `models/`
+appear in no commit — the earlier version of this note assumed
+`RESEARCH-PROGRAM.md` existed in pre-2026-07-02 history, but it never
+landed. All five stay local-only and gitignored; keep them that way —
+private strategy, findings, run outputs, and checkpoint archives never
+enter git. *(Original note moved from ROADMAP.md at its retirement,
+2026-07-05; rewritten after the audit, 2026-08-27.)*

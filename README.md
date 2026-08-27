@@ -35,6 +35,26 @@ literature reports, so StructBench numbers read directly against published
 tables — with physical-unit RMSE (mm, MPa) and engineering quantities of
 interest retained alongside it (ADR-0055).
 
+## Reference models
+
+Four model families, implemented natively in `src/structbench/models/` (no
+compiled graph extensions, no PhysicsNeMo runtime dependency), spanning the
+two dominant simulator paradigms — all trained and scored under one pipeline
+and one protocol:
+
+| Family | Paradigm | Status |
+|---|---|---|
+| CGN — Concrete Graph Network (ours, Li et al. 2023 lineage) | autoregressive graph network | **blessed** baseline: Taylor, wave-1D, notch-impact |
+| MeshGraphNets (Pfaff et al., 2021) | autoregressive graph network | **blessed** baseline: DeformingPlate — reproduces the published error band |
+| Transolver (Wu et al., 2024; + Transolver++ variant, off by default) | attention operator, time-conditioned (ADR-0054) | provisional on all four benchmarks |
+| GeoFLARE (NVIDIA, 2025) | attention operator, time-conditioned | provisional |
+
+*Blessed* means the result passed the benchmark's blessing gate (ADR-0043)
+and anchors the leaderboard; *provisional* marks best-effort native ports
+with no published number to reproduce (ADR-0046). Per-benchmark
+method-comparison tables live on the generated benchmark pages
+([docs/benchmarks/](docs/benchmarks/)).
+
 ## Why
 
 If you have trained ML surrogates on structural simulation data, you know the
@@ -84,7 +104,9 @@ structbench-train --mode rollout --data-root /path/to/StructBench/canonical/tayl
 Configs are grouped per benchmark (ADR-0032): swap
 `configs/taylor_impact_2d/cgn.toml` for `configs/wave_propagation_1d/cgn.toml`
 or `configs/notch_beam_2d_impact/cgn.toml` to train against a different
-benchmark.
+benchmark — or swap the model family within a benchmark, e.g.
+`configs/deforming_plate/{mgn,transolver,geoflare}.toml` for the 3D
+DeformingPlate benchmark (ADR-0044/0045).
 
 **Data availability:** each benchmark ships as a self-contained canonical
 archive — a `canonical/<benchmark>/` folder of `<case_id>.h5` files with a
@@ -122,7 +144,7 @@ assets/            # figures embedded in the docs + landing pages
      crossed-out block may be compressed to one line. Reasoning lives in
      decisions/, not here. Substrate-layer work only (ADR-0014). -->
 
-*Last revised: 2026-08-07.*
+*Last revised: 2026-08-27.*
 
 ### v0.1 — Taylor 2D substrate proof
 
@@ -171,6 +193,18 @@ is a set of checkpoints — partial value lands if the last slips.*
       (`tfrecord` ingestion adapter), 0043 (benchmark protocol + blessing gate),
       0044/0045 (Transolver/GeoFLARE adaptations), 0046 (per-method registry
       schema).
+- [x] ~~Beyond the ADR-0041 plan, also in this release (landed since v0.2.0):
+      the multi-method extension to Taylor (ADR-0047; ADR-0049 recipe repair)
+      and notch-impact (ADR-0048); the prediction-scheme axis — k-frames-per-call
+      (ADR-0051), `history_frames` decoupled from the protocol seed (ADR-0053),
+      time-conditioning as the operators' native scheme (ADR-0054); relative-L2
+      lifted to the headline metric (ADR-0055); notch-bend descoped (ADR-0056);
+      the DeformingPlate MGN noise-fix + family × scheme results matrix;
+      Transolver++ adaptation implemented off-by-default (ADR-0057, Proposed).~~
+- [ ] **Ship v0.3.0 — human, out of session**: `git tag v0.3.0` + GitHub
+      release (draft notes: `scratch/2026-08-27-v0.3.0-release-notes.md`;
+      version + CITATION already bumped to 0.3.0). After tagging, compress
+      this block to a shipped line and update CLAUDE.md's stage snapshot.
 - [ ] Human, out of session: flip VISION's "1D/2D problems only" limitation
       copy (forbidden-tier during coding sessions) — **v0.3 has now shipped 3D**
       (DeformingPlate), so this is ready to action.
