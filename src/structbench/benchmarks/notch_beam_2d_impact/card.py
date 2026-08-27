@@ -16,18 +16,23 @@ discrete cracks that localise strain, and a fracture pattern that *is* the
 scientific quantity of interest rather than a by-product of the motion.
 
 StructBench ships the 2D SPH version: an LS-DYNA `*MAT_CONCRETE_DAMAGE_REL3`
-(K&C) notched beam, 80 mm deep and 320 / 480 / 640 mm span, struck at midspan by
-a drop weight (Bullet / Rectangular / Sphere) at 40–160 m/s, with no element
-erosion. The task is an **autoregressive next-step surrogate** — from a short
-ground-truth prefix the model advances the SPH particle state one output step at
-a time, predicting both position and the per-particle **max principal strain**,
-the field that carries the crack pattern.
+(K&C) C50 notched beam, 80 mm deep and 320 / 480 / 640 mm span, discretised by
+2.5 mm SPH particles, struck at midspan by a drop weight of three cross-sections
+— plate 'P' (10 × 70 mm), disk 'D' (R = 15 mm), rod 'R' (70 × 10 mm); the
+dataset's case names call them Rectangular / Sphere / Bullet — at 40–160 m/s,
+with no element erosion. The task is an **autoregressive next-step surrogate** —
+from a short ground-truth prefix the model advances the SPH particle state one
+output step at a time, predicting both position and the per-particle **max
+principal strain**, the field that carries the crack pattern.
 
 ![Schematic of the notch-beam impact setup: a drop weight above a simply-supported notched concrete beam, with the swept parameter ranges.](../../assets/problem_notch_beam_impact.png)
 
-*Problem setup: a drop weight (three shapes) strikes the notched concrete beam
-at midspan; beam height 80 mm, spans 320 / 480 / 640 mm, notch positions
-a / b / c.*
+*Problem setup: a drop weight — plate 'P', disk 'D', or rod 'R' cross-section
+(dataset case names Rectangular / Sphere / Bullet) — strikes the C50 notched
+beam at midspan position A; beam height 80 mm, spans 320 / 480 / 640 mm, notch
+positions a / b / c. The figure shows the published three-level velocity sweep
+(80 / 120 / 160, in deck units mm/ms ≡ m/s); the benchmark grid adds a fourth
+level at 40 m/s.*
 
 ## Interpolation vs. the off-centre probe
 
@@ -63,7 +68,9 @@ CARD = BenchmarkCard(
     overview=_OVERVIEW,
     provenance=(
         "LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) "
-        "produced by Curtin collaborators; benchmark protocol per ADR-0026."
+        "produced by Curtin collaborators — extends the published 81-specimen "
+        "drop-weight study (plate/disk/rod impactors at 80/120/160 m/s) with a "
+        "40 m/s velocity level; benchmark protocol per ADR-0026."
     ),
     data_license="CC BY 4.0",
     solver="LS-DYNA",
@@ -74,8 +81,8 @@ CARD = BenchmarkCard(
     ),
     erosion=False,
     loading=(
-        "drop-weight impact, initial velocity 40-160 m/s,"
-        " impactor shapes Bullet/Rectangular/Sphere"
+        "drop-weight impact, initial velocity 40-160 m/s, impactor "
+        "cross-sections plate/disk/rod (case names Rectangular/Sphere/Bullet)"
     ),
     source_units="kg-mm-ms",
     geometry="2D SPH notched beam, H80 x span {320,480,640} mm",

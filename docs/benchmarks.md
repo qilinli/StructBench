@@ -9,7 +9,7 @@ Note: `sph/stress` and `sph/strain` are full 6-component Voigt tensors; each ben
 |---|---|---|---|---|---|---|---|---|
 | Wave1D-Propagation | LS-DYNA | SPH | no | initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (4-11 traversals per trajectory, by bar length) | 16 | 500-1250 | 302 | axial_stress (MPa) |
 | Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4800-8000 | 152 | von_mises_stress (MPa) |
-| NotchBeam2D-Impact | LS-DYNA | SPH | no | drop-weight impact, initial velocity 40-160 m/s, impactor shapes Bullet/Rectangular/Sphere | 110 | 4264-12966 | 502 | max_principal_strain (-) |
+| NotchBeam2D-Impact | LS-DYNA | SPH | no | drop-weight impact, initial velocity 40-160 m/s, impactor cross-sections plate/disk/rod (case names Rectangular/Sphere/Bullet) | 110 | 4264-12966 | 502 | max_principal_strain (-) |
 | DeformingPlate | COMSOL | FEM | no | Scripted rigid actuator (OBSTACLE nodes, kinematic); HANDLE nodes fixed | 1200 | 672-2189 | 400 | von_mises_stress (MPa) |
 
 ## Wave1D-Propagation (v0.1)
@@ -56,7 +56,7 @@ Autoregressive next-step surrogate of a 2D SPH notched concrete beam under drop-
 - **QoIs**: midspan_deflection_peak, cracked_fraction
 - **Baseline**: MGN (mgn, 2026-08-17, `59d5786`) (provisional): test_interp rollout_rel_l2_disp 0.2245; CGN (cgn, 2026-07-24, `5956d81`): test_interp rollout_rel_l2_disp 0.2827; Transolver (transolver, 2026-08-16, `59d5786`) (provisional): test_interp rollout_rel_l2_disp 0.03517; Transolver++ (transolver_plus, 2026-08-18, `5b84119`) (provisional): test_interp rollout_rel_l2_disp 0.03699
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
-- **Provenance**: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
+- **Provenance**: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators — extends the published 81-specimen drop-weight study (plate/disk/rod impactors at 80/120/160 m/s) with a 40 m/s velocity level; benchmark protocol per ADR-0026.
 - **License**: CC BY 4.0
 - **Full page**: [docs/benchmarks/notch_beam_2d_impact.md](benchmarks/notch_beam_2d_impact.md)
 
