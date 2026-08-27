@@ -4,6 +4,11 @@ scratch/
 # Training run outputs (checkpoints, configs — not tracked)
 runs/
 
+# Blessed-checkpoint archives (private, maintainer-held; paths recorded in the
+# benchmark cards, e.g. models/deforming_plate/mgn-<commit>/ + sha256).
+# Root-anchored so the tracked source package src/structbench/models/ is unaffected.
+/models/
+
 # SLURM job stdout -> scratch/logs/ (under the already-ignored scratch/; not tracked).
 # The legacy root-level logs/ dir was removed 2026-08-17 (see CORRECTIONS).
 logs/
