@@ -12,21 +12,35 @@ discrete cracks that localise strain, and a fracture pattern that *is* the
 scientific quantity of interest rather than a by-product of the motion.
 
 StructBench ships the 2D SPH version: an LS-DYNA `*MAT_CONCRETE_DAMAGE_REL3`
-(K&C) notched beam, 80 mm deep and 320 / 480 / 640 mm span, struck at midspan by
-a drop weight (Bullet / Rectangular / Sphere) at 40–160 m/s, with no element
-erosion. The task is an **autoregressive next-step surrogate** — from a short
-ground-truth prefix the model advances the SPH particle state one output step at
-a time, predicting both position and the per-particle **max principal strain**,
-the field that carries the crack pattern.
+(K&C) C50 notched beam — height H = 80 mm, width W = 320 / 480 / 640 mm —
+discretised by
+2.5 mm SPH particles, struck at midspan by a drop weight of three cross-sections
+— plate 'P' (10 × 70 mm), disk 'D' (R = 15 mm), rod 'R' (70 × 10 mm); the
+dataset's case names call them Rectangular / Sphere / Bullet — at 40–160 m/s,
+with no element erosion. The task is an **autoregressive next-step surrogate** —
+from a short ground-truth prefix the model advances the SPH particle state one
+output step at a time, predicting both position and the per-particle **max
+principal strain**, the field that carries the crack pattern.
+
+![Schematic of the notch-beam impact setup: a drop weight above a simply-supported notched concrete beam, with the swept parameter ranges.](../../assets/problem_notch_beam_impact.png)
+
+*Problem setup: a drop weight — plate 'P', disk 'D', or rod 'R' cross-section
+(dataset case names Rectangular / Sphere / Bullet) — strikes the C50 notched
+beam at midspan position A; beam height H = 80 mm, width W = 320 / 480 /
+640 mm, notch positions a / b / c. The figure shows the published three-level
+velocity sweep (80 / 120 / 160 m/s); the benchmark grid adds a fourth level at
+40 m/s.*
 
 ## Interpolation vs. the off-centre probe
 
-`test_interp` holds out interior combinations of span, impactor shape, notch
-position and velocity — every factor level still appears in training, so it
-measures ordinary interpolation. The separate **probe** set is deliberately
-harder: it is out-of-distribution on *three* axes at once — a new span, an
-out-of-range velocity, and, decisively, an **off-centre impact** (every
-in-distribution case is struck exactly at midspan). It measures graceful failure
+`test_interp` holds out interior combinations of beam width, impactor shape,
+notch position and velocity — every factor level still appears in training, so
+it measures ordinary interpolation. The separate **probe** set is deliberately
+harder: it is out-of-distribution on up to *four* axes at once — a new width
+(400 / 800 mm), a new height on the 800 mm case (H = 100 mm; every training
+beam is H = 80), an off-grid velocity (140 / 60 m/s), and, decisively, an
+**off-centre impact** (every in-distribution case is struck exactly at
+midspan). It measures graceful failure
 on a genuinely new loading mode, not interpolation — and it is where the method
 ordering flips (a global-attention operator that wins in-distribution
 mis-localises the response there, while relative-position message passing
@@ -39,22 +53,22 @@ numbers, and the cross-method comparison, are below.
 
 ![Stacked animation of ground-truth, MGN, CGN, and Transolver strain fringes on a notched concrete beam under drop-weight impact.](../../assets/notch_rollout_methods.gif)
 
-*Ground truth vs the three baselines (MGN, CGN, Transolver) on held-out NB-I-640-Sphere-c-120 (test_interp): a 640 mm span beam under 120 m/s sphere impact, coloured by max principal strain (fringe capped at 0.05, 5x the 1% crack threshold) over the 250 µs scored window. Transolver (time-conditioned) tracks the central shear wedge and the discrete flexural cracks most closely (rollout strain RMSE 0.004); CGN diffuses them into streaky bands (0.013); MGN is the diffusest (0.020).*
+*Ground truth vs the three baselines (MGN, CGN, Transolver) on held-out NB-I-640-Sphere-c-120 (test_interp): a W = 640 mm beam under 120 m/s disk ('Sphere') impact, coloured by max principal strain (fringe capped at 0.05, 5x the 1% crack threshold) over the 250 µs scored window. Transolver (time-conditioned) tracks the central shear wedge and the discrete flexural cracks most closely (rollout strain RMSE 0.004); CGN diffuses them into streaky bands (0.013); MGN is the diffusest (0.020).*
 
 ![Grid of strain fringe snapshots comparing ground truth, MGN, CGN, and Transolver at five times.](../../assets/notch_strain_methods_640_c_120.png)
 
-*In-distribution max-principal-strain snapshots (test_interp, 640 mm span, sphere at 120 m/s) at 12 / 72 / 132 / 192 / 249 µs across the scored window: ground truth vs MGN vs CGN vs Transolver. Transolver (rollout strain RMSE 0.004) reproduces the shear wedge and the discrete flexural cracks closely, while CGN (0.013) and MGN (0.020) smear them into diffuse streaky bands — the damage field, not the kinematics, is the open gap. MGN and Transolver are provisional native baselines (ADR-0044/0045).*
+*In-distribution max-principal-strain snapshots (test_interp, W = 640 mm, disk at 120 m/s) at 12 / 72 / 132 / 192 / 249 µs across the scored window: ground truth vs MGN vs CGN vs Transolver. Transolver (rollout strain RMSE 0.004) reproduces the shear wedge and the discrete flexural cracks closely, while CGN (0.013) and MGN (0.020) smear them into diffuse streaky bands — the damage field, not the kinematics, is the open gap. MGN and Transolver are provisional native baselines (ADR-0044/0045).*
 
 ## Data at a glance
 
 - Solver: LS-DYNA (SPH; erosion: no)
-- Loading: drop-weight impact, initial velocity 40-160 m/s, impactor shapes Bullet/Rectangular/Sphere
-- Geometry: 2D SPH notched beam, H80 x span {320,480,640} mm
+- Loading: drop-weight impact, initial velocity 40-160 m/s, impactor cross-sections plate/disk/rod (case names Rectangular/Sphere/Bullet)
+- Geometry: 2D SPH notched beam, H 80 x W {320,480,640} mm
 - Source units: kg-mm-ms (canonical storage is strict SI, ADR-0012)
 - Cases: 110 (train 88, val 8, test_interp 12, probe 2)
 - Particles per case: 4264-12966; 502 frames at 0.001 ms; 24.9 GB on disk
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
-- Provenance: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
+- Provenance: LS-DYNA parametric sweep (3 widths x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators — extends the published 81-specimen drop-weight study (plate/disk/rod impactors at 80/120/160 m/s) with a 40 m/s velocity level; benchmark protocol per ADR-0026.
 - License: CC BY 4.0
 
 ## Task
@@ -70,7 +84,7 @@ autoregressive transition (ADR-0026). Auxiliary target: `max_principal_strain` (
 <details>
 <summary>Protocol rationale — the ground-truth timeline analysis behind these values (ADR-0032 §5)</summary>
 
-Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length — the velocity budget is the criterion, not a rigid prefix. The timeline analysis (2026-07-20, on the DUG data copy) shows impact contact from frame 0, so the observed window takes in the first 6 us of contact; accepted. Scored horizon (ADR-0039): rollout metrics and QoIs are scored on frames [input_frames, 250) (250 µs). Internal energy reaches 99% of its final value by frame 77-213 (span-dependent); the remaining frames are ballistic separation and elastic ringing, which dominated full-horizon RMSE (half the final error accrued after frame 301 in baseline rollouts) while adding no fracture physics. The full 502-frame error curve remains a non-leaderboard long-horizon diagnostic. The cracked_fraction QoI threshold 0.01 is a declared protocol definition (ADR-0029, amended 2026-08-06): the SPH source model has no erosion or crack criterion; a 221-case sweep shows the GT fraction shifts ~0.05 mean per case across the factor-2 band [0.005, 0.02], and frame-249 vs frame-501 fractions are nearly identical (0.305 vs 0.317 mean), corroborating the 250 us horizon. Probe split (characterisation, 2026-08-15): the probe cases are out-of-distribution on THREE axes at once — span (400/800 mm) and impactor velocity both outside the training grids ({320,480,640} mm; {40,80,120,160} m/s), and, decisively, an OFF-CENTRE impact. All 108 train/val/test_interp cases are struck exactly at midspan (impact offset 0.0 mm, every notch a/b/c variant and span); the probe impacts land ~6% off-centre — a loading mode absent from training entirely. Probe scores therefore measure graceful failure on a genuinely new loading configuration, not ordinary interpolation: global-attention operators mis-localise the response to the learned midspan prior, while relative-position message-passing (MGN/CGN) degrades more gracefully.
+Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length — the velocity budget is the criterion, not a rigid prefix. The timeline analysis (2026-07-20, on the DUG data copy) shows impact contact from frame 0, so the observed window takes in the first 6 us of contact; accepted. Scored horizon (ADR-0039): rollout metrics and QoIs are scored on frames [input_frames, 250) (250 µs). Internal energy reaches 99% of its final value by frame 77-213 (width-dependent); the remaining frames are ballistic separation and elastic ringing, which dominated full-horizon RMSE (half the final error accrued after frame 301 in baseline rollouts) while adding no fracture physics. The full 502-frame error curve remains a non-leaderboard long-horizon diagnostic. The cracked_fraction QoI threshold 0.01 is a declared protocol definition (ADR-0029, amended 2026-08-06): the SPH source model has no erosion or crack criterion; a 221-case sweep shows the GT fraction shifts ~0.05 mean per case across the factor-2 band [0.005, 0.02], and frame-249 vs frame-501 fractions are nearly identical (0.305 vs 0.317 mean), corroborating the 250 us horizon. Probe split (characterisation, 2026-08-15; height axis added 2026-08-27): the probe cases are out-of-distribution on up to FOUR axes at once — beam width (400/800 mm) and impactor velocity (140/60 m/s) both off the training grids ({320,480,640} mm; {40,80,120,160} m/s), beam height H=100 mm on the 800 mm case (every grid case is H=80; verified from canonical frame-0 extents, 2026-08-27), and, decisively, an OFF-CENTRE impact. All 108 train/val/test_interp cases are struck exactly at midspan (impact offset 0.0 mm, every notch a/b/c variant and width); the probe impacts land ~6% off-centre — a loading mode absent from training entirely. Probe scores therefore measure graceful failure on a genuinely new loading configuration, not ordinary interpolation: global-attention operators mis-localise the response to the learned midspan prior, while relative-position message-passing (MGN/CGN) degrades more gracefully.
 
 </details>
 

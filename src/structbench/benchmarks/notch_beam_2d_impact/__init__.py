@@ -247,9 +247,9 @@ RESULTS: tuple[BaselineResult, ...] = (
 def _impact_velocity(case_id: str) -> float:
     """Impact speed (m/s) from a notch case id.
 
-    Two id formats coexist: the main grid ``NB-I-<span>-<proj>-<cfg>-<V>``
+    Two id formats coexist: the main grid ``NB-I-<W>-<shape>-<notch>-<V>``
     (velocity is the last ``-`` field) and the off-grid probe cases
-    ``S_<w>_<h>_V<V>_<label>`` (velocity is the ``V`` token).
+    ``S_<H>_<W>_V<V>_<label>`` (velocity is the ``V`` token).
     """
     if case_id.startswith("NB-"):
         return float(case_id.rsplit("-", 1)[1])

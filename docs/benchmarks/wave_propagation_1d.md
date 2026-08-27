@@ -22,6 +22,11 @@ particle state one output step at a time over the 30 ms record, predicting
 position and the per-particle axial stress. Axial stress is the headline
 target and position the sanity check — the reverse of Taylor 2D's emphasis.
 
+![Schematic of the wave propagation setup: a strip of elastic particles moving axially toward a fixed boundary at one end.](../../assets/problem_wave_propagation.png)
+
+*Problem setup: an elastic bar strip (length 200–500 mm) moving axially at
+1–8 mm/ms is arrested dead at one end.*
+
 ## The entry tier
 
 This is the platform's entry benchmark — 16 linear-elastic cases, 0.23 GB —

@@ -24,6 +24,12 @@ of the trajectory (400 steps), predicting both the nodal displacement and the
 per-node von Mises stress. Time here is a load-step index, not milliseconds -
 the source solve is quasi-static (dt = 0 in the data).
 
+![Schematic of the deforming plate setup: a rigid actuator indenting a metal plate, beside a tetrahedral mesh of the plate coloured by stress.](../../assets/problem_deforming_plate.png)
+
+*Problem setup: a scripted rigid actuator presses into the tetrahedral
+hyperelastic plate (left: the indentation schematic; right: a deformed mesh
+coloured by von Mises stress).*
+
 ## Cross-method comparison
 
 DeformingPlate is where StructBench's headline is **method against method**.

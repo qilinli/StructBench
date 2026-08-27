@@ -16,10 +16,10 @@ Per-dataset glue (ADR-0016 §6). It knows only this dataset's specifics:
     run dir = ``ConstantVelocity/80<span>/<Ln><v>/``.
 
   * Impact family (InitialVelocity):
-    ``NB-I-<span>-<Shape>-<n>-<v>`` where span ∈ {320, 480, 640},
+    ``NB-I-<W>-<Shape>-<n>-<v>`` where beam width W ∈ {320, 480, 640},
     Shape ∈ {Bullet, Rectangular, Sphere}, n ∈ {a, b, c},
     v ∈ {40, 80, 120, 160};
-    run dir = ``InitialVelocity/<Shape>/80<span>/A<n><v>/``.
+    run dir = ``InitialVelocity/<Shape>/80<W>/A<n><v>/`` (H 80 + width).
 
   * Probes (2DGeneralizibility):
     case-id = folder name verbatim (e.g. ``C_60_240_V22_extrapolation``);
