@@ -142,19 +142,5 @@ CARD = BenchmarkCard(
                 "bar, in-distribution."
             ),
         ),
-        BenchmarkFigure(
-            path="assets/wave_rollout_error_vs_time.png",
-            caption=(
-                "Rollout error vs time for the CGN baseline (fleet run "
-                "x1-s1): position RMSE (top) and axial-stress RMSE (bottom) "
-                "for each eval case. Error is concentrated in the final ~5 ms "
-                "of the 30 ms horizon; the held-out test_interp cases match "
-                "the val cases (no interpolation cliff)."
-            ),
-            alt=(
-                "Line charts of rollout position and axial-stress error over "
-                "time for four cases."
-            ),
-        ),
     ),
 )

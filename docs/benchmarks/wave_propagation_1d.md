@@ -46,10 +46,6 @@ numbers are below.
 
 *In-distribution (test_interp, 400 mm bar at 2 mm/ms): ground truth (top) vs CGN prediction (bottom), axial stress at t = 0.6 / 10.4 / 20.2 / 30.0 ms (y x4). The prediction reproduces the wavefront position and reflection cycles; late-horizon fields roughen and overshoot near the impact end (rollout position RMSE 0.95 mm).*
 
-![Line charts of rollout position and axial-stress error over time for four cases.](../../assets/wave_rollout_error_vs_time.png)
-
-*Rollout error vs time for the CGN baseline (fleet run x1-s1): position RMSE (top) and axial-stress RMSE (bottom) for each eval case. Error is concentrated in the final ~5 ms of the 30 ms horizon; the held-out test_interp cases match the val cases (no interpolation cliff).*
-
 ## Data at a glance
 
 - Solver: LS-DYNA (SPH; erosion: no)
