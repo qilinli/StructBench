@@ -301,9 +301,9 @@ code could disagree, **the code governs**.
 
 ## Amendment (2026-08-27): one row per (family × prediction scheme)
 
-*Draft by Claude Code; maintainer finalises.* Records the maintainer-approved
-2026-08-21 extension that the DeformingPlate registry header had carried as
-"dated ADR note pending".
+*Drafted by Claude Code; accepted by the maintainer in-session, 2026-08-27.*
+Records the maintainer-approved 2026-08-21 extension that the DeformingPlate
+registry header had carried as "dated ADR note pending".
 
 - **Clause 3's duplicate-family rejection is relaxed to one row per
   (family, prediction scheme).** Once ADR-0050/0051/0053/0054 made the
