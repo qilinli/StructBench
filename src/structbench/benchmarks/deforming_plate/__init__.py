@@ -23,7 +23,7 @@ __all__ = [
 #: ``test`` split (``val`` only selects the checkpoint).
 #:
 #: SCHEME MATRIX (2026-08-21, maintainer-approved; extends the ADR-0046
-#: one-entry-per-family convention — dated ADR note pending): this benchmark
+#: one-entry-per-family convention — ADR-0046 amendment, 2026-08-27): this benchmark
 #: tables one row per family x prediction scheme, because the scheme axis
 #: (autoregressive vs time-conditioned, ADR-0054) is itself a v0.3 finding
 #: worth reading off the leaderboard. All autoregressive rows are the
