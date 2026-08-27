@@ -173,8 +173,6 @@ assets/            # figures embedded in the docs + landing pages
 <!-- Completed inbox items are removed at each release; their record lives in
      git history and the ADRs they cite. -->
 
-- [ ] Human, out of session: publish the v0.3.0 GitHub release from
-      `scratch/2026-08-27-v0.3.0-release-notes.md` (the tag is pushed).
 - [ ] Human, out of session: update VISION.md's current-stage sentence
       ("dynamic and extreme loading" — v0.3's quasi-static 3D benchmark has
       outgrown it; drafted copy in `scratch/2026-08-27-vision-copy-draft.md`;
