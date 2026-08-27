@@ -9,10 +9,10 @@ CARD = BenchmarkCard(
     description=(
         "Autoregressive next-step surrogate of a 2D SPH notched concrete beam "
         "under constant-velocity three-point bending (ADR-0026). "
-        "Covers 3 spans, 9 load-notch combinations, and 4 pin velocities."
+        "Covers 3 beam widths, 9 load-notch combinations, and 4 pin velocities."
     ),
     provenance=(
-        "LS-DYNA parametric sweep (3 spans x 9 load-notch combos x 4 velocities) "
+        "LS-DYNA parametric sweep (3 widths x 9 load-notch combos x 4 velocities) "
         "produced by Curtin collaborators; benchmark protocol per ADR-0026."
     ),
     data_license="CC BY 4.0",
@@ -25,7 +25,7 @@ CARD = BenchmarkCard(
     erosion=False,
     loading="constant-velocity pin, 3-point bend, 8-20 m/s",
     source_units="kg-mm-ms",
-    geometry="2D SPH notched beam, H80 x span {320,480,640} mm",
+    geometry="2D SPH notched beam, H 80 x W {320,480,640} mm",
     n_cases=len(TRAIN) + len(VAL) + len(TEST_INTERP) + len(PROBE),
     splits={
         "train": len(TRAIN),

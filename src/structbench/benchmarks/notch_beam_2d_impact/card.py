@@ -16,7 +16,8 @@ discrete cracks that localise strain, and a fracture pattern that *is* the
 scientific quantity of interest rather than a by-product of the motion.
 
 StructBench ships the 2D SPH version: an LS-DYNA `*MAT_CONCRETE_DAMAGE_REL3`
-(K&C) C50 notched beam, 80 mm deep and 320 / 480 / 640 mm span, discretised by
+(K&C) C50 notched beam — height H = 80 mm, width W = 320 / 480 / 640 mm —
+discretised by
 2.5 mm SPH particles, struck at midspan by a drop weight of three cross-sections
 — plate 'P' (10 × 70 mm), disk 'D' (R = 15 mm), rod 'R' (70 × 10 mm); the
 dataset's case names call them Rectangular / Sphere / Bullet — at 40–160 m/s,
@@ -29,16 +30,17 @@ principal strain**, the field that carries the crack pattern.
 
 *Problem setup: a drop weight — plate 'P', disk 'D', or rod 'R' cross-section
 (dataset case names Rectangular / Sphere / Bullet) — strikes the C50 notched
-beam at midspan position A; beam height 80 mm, spans 320 / 480 / 640 mm, notch
-positions a / b / c. The figure shows the published three-level velocity sweep
-(80 / 120 / 160 m/s); the benchmark grid adds a fourth level at 40 m/s.*
+beam at midspan position A; beam height H = 80 mm, width W = 320 / 480 /
+640 mm, notch positions a / b / c. The figure shows the published three-level
+velocity sweep (80 / 120 / 160 m/s); the benchmark grid adds a fourth level at
+40 m/s.*
 
 ## Interpolation vs. the off-centre probe
 
-`test_interp` holds out interior combinations of span, impactor shape, notch
-position and velocity — every factor level still appears in training, so it
-measures ordinary interpolation. The separate **probe** set is deliberately
-harder: it is out-of-distribution on *three* axes at once — a new span, an
+`test_interp` holds out interior combinations of beam width, impactor shape,
+notch position and velocity — every factor level still appears in training, so
+it measures ordinary interpolation. The separate **probe** set is deliberately
+harder: it is out-of-distribution on *three* axes at once — a new width, an
 out-of-range velocity, and, decisively, an **off-centre impact** (every
 in-distribution case is struck exactly at midspan). It measures graceful failure
 on a genuinely new loading mode, not interpolation — and it is where the method
@@ -55,7 +57,8 @@ CARD = BenchmarkCard(
     description=(
         "Autoregressive next-step surrogate of a 2D SPH notched concrete beam "
         "under drop-weight impact (ADR-0026). "
-        "Covers 3 spans, 3 impactor shapes, 3 notch positions, and 4 velocities. "
+        "Covers 3 beam widths, 3 impactor shapes, 3 notch positions, and 4 "
+        "velocities. "
         "Three bodies: the K&C concrete beam (part 1) is the predicted "
         "deformable; the steel impactor (part 2) and the two support blocks "
         "(part 3) are protocol-kinematic (ADR-0026) — driven by ground truth "
@@ -66,7 +69,7 @@ CARD = BenchmarkCard(
     ),
     overview=_OVERVIEW,
     provenance=(
-        "LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) "
+        "LS-DYNA parametric sweep (3 widths x 3 shapes x 3 notches x 4 velocities) "
         "produced by Curtin collaborators — extends the published 81-specimen "
         "drop-weight study (plate/disk/rod impactors at 80/120/160 m/s) with a "
         "40 m/s velocity level; benchmark protocol per ADR-0026."
@@ -84,7 +87,7 @@ CARD = BenchmarkCard(
         "cross-sections plate/disk/rod (case names Rectangular/Sphere/Bullet)"
     ),
     source_units="kg-mm-ms",
-    geometry="2D SPH notched beam, H80 x span {320,480,640} mm",
+    geometry="2D SPH notched beam, H 80 x W {320,480,640} mm",
     n_cases=len(TRAIN) + len(VAL) + len(TEST_INTERP) + len(PROBE),
     splits={
         "train": len(TRAIN),
@@ -130,7 +133,7 @@ CARD = BenchmarkCard(
         "rollout metrics and "
         "QoIs are scored on frames [input_frames, 250) (250 µs). Internal "
         "energy reaches 99% of its final value by frame 77-213 "
-        "(span-dependent); the remaining frames are ballistic separation and "
+        "(width-dependent); the remaining frames are ballistic separation and "
         "elastic ringing, which dominated full-horizon RMSE (half the final "
         "error accrued after frame 301 in baseline rollouts) while adding no "
         "fracture physics. The full 502-frame error curve remains a "
@@ -142,11 +145,11 @@ CARD = BenchmarkCard(
         "frame-249 vs frame-501 fractions are nearly identical (0.305 vs "
         "0.317 mean), corroborating the 250 us horizon. "
         "Probe split (characterisation, 2026-08-15): the probe cases are "
-        "out-of-distribution on THREE axes at once — span (400/800 mm) and "
+        "out-of-distribution on THREE axes at once — beam width (400/800 mm) and "
         "impactor velocity both outside the training grids ({320,480,640} mm; "
         "{40,80,120,160} m/s), and, decisively, an OFF-CENTRE impact. All 108 "
         "train/val/test_interp cases are struck exactly at midspan (impact "
-        "offset 0.0 mm, every notch a/b/c variant and span); the probe impacts "
+        "offset 0.0 mm, every notch a/b/c variant and width); the probe impacts "
         "land ~6% off-centre — a loading mode absent from training entirely. "
         "Probe scores therefore measure graceful failure on a genuinely new "
         "loading configuration, not ordinary interpolation: global-attention "
@@ -160,8 +163,8 @@ CARD = BenchmarkCard(
             path="assets/notch_rollout_methods.gif",
             caption=(
                 "Ground truth vs the three baselines (MGN, CGN, Transolver) on "
-                "held-out NB-I-640-Sphere-c-120 (test_interp): a 640 mm span "
-                "beam under 120 m/s sphere impact, coloured by max principal "
+                "held-out NB-I-640-Sphere-c-120 (test_interp): a W = 640 mm "
+                "beam under 120 m/s disk ('Sphere') impact, coloured by max principal "
                 "strain (fringe capped at 0.05, 5x the 1% crack threshold) over "
                 "the 250 µs scored window. Transolver (time-conditioned) tracks "
                 "the central shear wedge and the discrete flexural cracks most "
@@ -178,7 +181,7 @@ CARD = BenchmarkCard(
             path="assets/notch_strain_methods_640_c_120.png",
             caption=(
                 "In-distribution max-principal-strain snapshots (test_interp, "
-                "640 mm span, sphere at 120 m/s) at 12 / 72 / 132 / 192 / "
+                "W = 640 mm, disk at 120 m/s) at 12 / 72 / 132 / 192 / "
                 "249 µs across the scored window: ground truth vs MGN vs CGN vs "
                 "Transolver. Transolver (rollout strain RMSE 0.004) reproduces "
                 "the shear wedge and the discrete flexural cracks closely, while "

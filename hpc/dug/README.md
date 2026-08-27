@@ -216,7 +216,7 @@ composed batch before submitting capacity arms, and avoid seed 0
 Same machine, env build (§2), result bring-back (§4), and bless flow (§5) as
 the others. The dataset is already staged and rclone-verified on DUG:
 `/data/curtin_eecms/curtin_qilin/data/notch_beam_2d_impact` (113 files,
-25 GB). Notch beams (H80 × span {320, 480, 640} mm at 2.5 mm spacing) carry
+25 GB). Notch beams (H 80 × W {320, 480, 640} mm at 2.5 mm spacing) carry
 several times Taylor's particle count, so expect Taylor-like or slower
 steps/h at the capacity cell and a small memory-bound batch — smoke-test
 memory and throughput before any fleet (30-step capacity smoke against a
