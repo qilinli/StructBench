@@ -1,0 +1,56 @@
+# wave_propagation_1d — GeoFLARE AUTOREGRESSIVE, seed 1 (2026-08-27 wave
+# multi-method fleet). The fluid-convention scheme (ADR-0045 adaptation, k=1
+# next-step + velocity history + injected noise) as the scheme-axis control for
+# the wave GeoFLARE time-conditioned pair: same architecture, same 50k budget,
+# autoregressive rollout at eval. Family knobs are the ADR-0045 references
+# (n_hidden 256 / 6 layers, GALE_FA backend; radii in standardized-coordinate
+# units, ADR-0045 gap 8), mirroring the taylor geoflare-n02-vh arm.
+# history_frames=5 appends the window's finite-difference velocities (CGN
+# random-walk window noise + GNS adjusted-next target, ADR-0049) and
+# noise_std=0.06 transfers the wave-validated CGN noise (blessed x1-s1 recipe)
+# — an untuned transfer, flagged as such (the 2026-08-21 wave Transolver-AR
+# control diverged under exactly this transfer; see the transolver-ar-n02
+# insurance arm). Not yet run.
+
+[run]
+benchmark = "wave_propagation_1d"
+seed = 1
+
+[model]
+family = "geoflare"
+input_frames = 6                # wave card protocol (ADR-0035)
+dim = 2
+n_hidden = 256                  # ADR-0045 family reference
+n_layers = 6
+n_heads = 8
+slice_num = 128
+mlp_ratio = 4
+dropout = 0.0
+n_hidden_local = 32
+radius_near = 0.05              # standardized-coordinate units (ADR-0045 gap 8)
+radius_far = 0.25
+neighbors_near = 8
+neighbors_far = 32
+node_type_size = 2              # raw ids: 1 = bar SPH (max id + 1); no wall part
+noise_std = 0.06                # blessed wave CGN value (see header)
+normalizer_warmup_steps = 1000
+weight_decay = 1e-4             # reference AdamW-arm value (ADR-0045)
+max_grad_norm = 0.0             # OFF — geoflare reference has no gradient clipping
+
+history_frames = 5              # +5 window velocities; CGN random-walk window noise +
+                                # GNS adjusted-next target (ADR-0049)
+frames_per_call = 1             # AR default (ADR-0051)
+impact_velocity_feature = false  # AR control sees the velocity window instead
+time_conditioned = false         # ADR-0054 off: this IS the scheme-axis control
+
+[train]
+batch_size = 2                  # family reference (ADR-0045, matched to MGN)
+lr_init = 1e-4                  # reference crash-example start_lr (ADR-0045)
+lr_decay = 0.1                  # UNUSED by the geoflare family (cosine anneal,
+                                # ADR-0045); present because [train] is family-uniform.
+training_steps = 50_000         # wave CGN-matched budget (blessed x1-s1 recipe)
+val_every = 2000                # wave CGN cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0

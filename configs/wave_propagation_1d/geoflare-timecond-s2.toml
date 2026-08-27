@@ -1,0 +1,57 @@
+# wave_propagation_1d — GeoFLARE TIME-CONDITIONED (native structural scheme) +
+# initial-velocity conditioning, seed 2 (ADR-0054 scheme; 2026-08-27 wave
+# multi-method fleet). The GeoFLARE analog of wave transolver-timecond:
+# history-free, non-autoregressive. The model maps (rest lattice geometry +
+# node types + scalar initial axial velocity + query time t) -> absolute state
+# at t (position + axial stress); every frame of the 30 ms record is queried
+# independently (no rollout, no velocity window). The conditioning scalar is
+# the case's initial velocity (1-8 mm/ms) via the wave spec's loading_scalar
+# (ADR-0051 B), as on the Transolver TC pair. No kinematic/scripted nodes
+# exist, so the scripted-BC-at-t channel (ADR-0054 A) is identically zero.
+# frames_per_call=1 and history_frames=0 are REQUIRED (mutually exclusive with
+# time-conditioning). noise_std=0 (inert: injected single-step noise needs
+# autoregression). Family knobs match geoflare-ar-s1 (ADR-0045); only the
+# prediction scheme differs. Budget matches the blessed wave CGN recipe (50k).
+# Not yet run.
+
+[run]
+benchmark = "wave_propagation_1d"
+seed = 2
+
+[model]
+family = "geoflare"
+input_frames = 6                # wave card protocol (ADR-0035)
+dim = 2
+n_hidden = 256                  # ADR-0045 family reference
+n_layers = 6
+n_heads = 8
+slice_num = 128
+mlp_ratio = 4
+dropout = 0.0
+n_hidden_local = 32
+radius_near = 0.05              # standardized-coordinate units (ADR-0045 gap 8)
+radius_far = 0.25
+neighbors_near = 8
+neighbors_far = 32
+node_type_size = 2              # raw ids: 1 = bar SPH (max id + 1); no wall part
+noise_std = 0.0                  # inert under time-conditioning (no rollout; ADR-0054)
+normalizer_warmup_steps = 1000
+weight_decay = 1e-4             # reference AdamW-arm value (ADR-0045)
+max_grad_norm = 0.0             # OFF — geoflare reference has no gradient clipping
+
+history_frames = 0              # REQUIRED 0 for time-conditioning (ADR-0054/0053)
+frames_per_call = 1             # REQUIRED 1 for time-conditioning (ADR-0054)
+impact_velocity_feature = true   # ADR-0051 B: scalar initial-velocity conditioning
+time_conditioned = true          # ADR-0054: native structural scheme
+
+[train]
+batch_size = 2                  # family reference (ADR-0045, matched to MGN)
+lr_init = 1e-4                  # reference crash-example start_lr (ADR-0045)
+lr_decay = 0.1                  # UNUSED by the geoflare family (cosine anneal,
+                                # ADR-0045); present because [train] is family-uniform.
+training_steps = 50_000         # wave CGN-matched budget (blessed x1-s1 recipe)
+val_every = 2000                # wave CGN cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0
