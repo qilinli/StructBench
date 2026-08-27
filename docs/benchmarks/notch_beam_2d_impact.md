@@ -70,6 +70,7 @@ numbers, and the cross-method comparison, are below.
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - Provenance: LS-DYNA parametric sweep (3 widths x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators — extends the published 81-specimen drop-weight study (plate/disk/rod impactors at 80/120/160 m/s) with a 40 m/s velocity level; benchmark protocol per ADR-0026.
 - License: CC BY 4.0
+- Data: maintainer-held, shared on request (ADR-0040)
 
 ## Task
 

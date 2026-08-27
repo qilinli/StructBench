@@ -70,6 +70,7 @@ The leaderboard is below.
 - Fields: node/displacement, node/von_mises_stress
 - Provenance: MeshGraphNets dataset (Pfaff et al., ICLR 2021; COMSOL ground truth), downloaded from the DeepMind source bucket and converted locally to canonical HDF5 (ADR-0042; not redistributed).
 - License: None stated by the source; downloaded from source, not redistributed (ADR-0042)
+- Data: public source — download + convert (see Dataset access below)
 
 ## Task
 
@@ -161,7 +162,7 @@ structbench-train --mode train --config configs/deforming_plate/mgn.toml \
 
 This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
 
-Dataset access: the canonical archive is maintainer-held on institutional storage and shared on request (ADR-0040) — contact the maintainer, or ingest your own LS-DYNA output via the adapter; see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
+Dataset access: the source data is public — download the MeshGraphNets `deforming_plate` tfrecords from the DeepMind bucket (`https://storage.googleapis.com/dm-meshgraphnets/deforming_plate/`) and convert to canonical HDF5 with the download-and-convert script in `data_generation/meshgraphnets/deforming_plate/` (ADR-0042 — the source states no data licence, so StructBench points to it rather than rehosting; note the bucket is unreachable from mainland China without a VPN). The maintainer's already-converted archive is also shared on request (ADR-0040). The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
 
 ## References
 
