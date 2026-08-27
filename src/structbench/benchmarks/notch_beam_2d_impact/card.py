@@ -40,9 +40,11 @@ velocity sweep (80 / 120 / 160 m/s); the benchmark grid adds a fourth level at
 `test_interp` holds out interior combinations of beam width, impactor shape,
 notch position and velocity — every factor level still appears in training, so
 it measures ordinary interpolation. The separate **probe** set is deliberately
-harder: it is out-of-distribution on *three* axes at once — a new width, an
-out-of-range velocity, and, decisively, an **off-centre impact** (every
-in-distribution case is struck exactly at midspan). It measures graceful failure
+harder: it is out-of-distribution on up to *four* axes at once — a new width
+(400 / 800 mm), a new height on the 800 mm case (H = 100 mm; every training
+beam is H = 80), an off-grid velocity (140 / 60 m/s), and, decisively, an
+**off-centre impact** (every in-distribution case is struck exactly at
+midspan). It measures graceful failure
 on a genuinely new loading mode, not interpolation — and it is where the method
 ordering flips (a global-attention operator that wins in-distribution
 mis-localises the response there, while relative-position message passing
@@ -144,10 +146,13 @@ CARD = BenchmarkCard(
         "mean per case across the factor-2 band [0.005, 0.02], and "
         "frame-249 vs frame-501 fractions are nearly identical (0.305 vs "
         "0.317 mean), corroborating the 250 us horizon. "
-        "Probe split (characterisation, 2026-08-15): the probe cases are "
-        "out-of-distribution on THREE axes at once — beam width (400/800 mm) and "
-        "impactor velocity both outside the training grids ({320,480,640} mm; "
-        "{40,80,120,160} m/s), and, decisively, an OFF-CENTRE impact. All 108 "
+        "Probe split (characterisation, 2026-08-15; height axis added "
+        "2026-08-27): the probe cases are out-of-distribution on up to FOUR "
+        "axes at once — beam width (400/800 mm) and impactor velocity "
+        "(140/60 m/s) both off the training grids ({320,480,640} mm; "
+        "{40,80,120,160} m/s), beam height H=100 mm on the 800 mm case "
+        "(every grid case is H=80; verified from canonical frame-0 extents, "
+        "2026-08-27), and, decisively, an OFF-CENTRE impact. All 108 "
         "train/val/test_interp cases are struck exactly at midspan (impact "
         "offset 0.0 mm, every notch a/b/c variant and width); the probe impacts "
         "land ~6% off-centre — a loading mode absent from training entirely. "
