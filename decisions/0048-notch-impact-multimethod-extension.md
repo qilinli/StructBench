@@ -35,7 +35,7 @@ Data facts (measured 2026-08-12 over all 110 cases): parts {1: beam,
 2: pin, 3: supports}; beam lattice recoverable in every case (unique sites,
 uniform 2.5 mm spacing); zero particle deletion over the 502-frame horizon;
 initial pin–beam gap 2.5–2.7 mm; case sizes 4 264–8 360 particles across the
-{320, 480, 640} mm spans.
+{320, 480, 640} mm widths.
 
 ## Decision
 

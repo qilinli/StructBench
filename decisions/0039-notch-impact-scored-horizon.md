@@ -13,7 +13,7 @@ physics is front-loaded:
 - Maximum plastic strain saturates by ~frame 10–20 — the fracture outcome is
   decided within the first ~2–4% of the trajectory.
 - Global internal energy reaches 90% of its final value by frame 22–38 and
-  **99% by frame 77–213** (span-dependent; 640 mm settles slowest).
+  **99% by frame 77–213** (width-dependent; 640 mm settles slowest).
 - Everything after is ballistic separation of the broken pieces plus elastic
   ringing: no further fracture physics.
 
@@ -47,7 +47,7 @@ this resolution), and the tail feeds the diagnostic below.
 
 Evaluation rollouts are seeded per ADR-0035 and **scored on frames
 [`input_frames`, 250]**. Rationale for 250: it covers internal-energy
-settling (99% by frame 213 in the slowest span) with margin, so every scored
+settling (99% by frame 213 in the slowest-settling width) with margin, so every scored
 frame contains physics; beyond it the trajectory is drift. All reported
 rollout metrics are computed over this window, and both QoIs are pinned to
 it: `midspan_deflection_peak` is the peak within frames [0, 250];
