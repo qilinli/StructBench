@@ -637,12 +637,17 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
             "against a published anchor or protocol gate (ADR-0044/0045); "
             "never read it as a blessed baseline.",
         ]
-    lines += [
-        "",
-        "Dataset access: the canonical archive is maintainer-held on "
+    # Per-benchmark access story from the card when declared; else the
+    # ADR-0040 default (maintainer-held, on request).
+    access = c.data_access.strip() or (
+        "the canonical archive is maintainer-held on "
         "institutional storage and shared on request (ADR-0040) — contact the "
         "maintainer, or ingest your own LS-DYNA output via the adapter; see "
-        "the repository README. The cross-benchmark index is "
+        "the repository README."
+    )
+    lines += [
+        "",
+        f"Dataset access: {access} The cross-benchmark index is "
         "[docs/benchmarks.md](../benchmarks.md); machine-readable card "
         "metadata ships as `card.json` with the data archive.",
     ]

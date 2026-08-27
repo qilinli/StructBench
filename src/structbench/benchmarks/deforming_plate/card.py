@@ -161,4 +161,15 @@ CARD = BenchmarkCard(
     size_gb=6.1,
     overview=_OVERVIEW,
     figures=_FIGURES,
+    data_access=(
+        "the source data is public — download the MeshGraphNets "
+        "`deforming_plate` tfrecords from the DeepMind bucket "
+        "(`https://storage.googleapis.com/dm-meshgraphnets/deforming_plate/`) "
+        "and convert to canonical HDF5 with the download-and-convert script "
+        "in `data_generation/meshgraphnets/deforming_plate/` (ADR-0042 — the "
+        "source states no data licence, so StructBench points to it rather "
+        "than rehosting; note the bucket is unreachable from mainland China "
+        "without a VPN). The maintainer's already-converted archive is also "
+        "shared on request (ADR-0040)."
+    ),
 )

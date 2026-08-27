@@ -113,6 +113,13 @@ class BenchmarkCard:
     figures : tuple of BenchmarkFigure
         Optional ordered figures for the landing page (ADR-0036); empty
         renders no figures section.
+    data_access : str
+        Optional one-paragraph markdown access story for this benchmark's
+        dataset (public source pointer, DOI, request path), rendered as the
+        landing page's "Dataset access" paragraph. Empty renders the
+        ADR-0040 default (maintainer-held, shared on request). Name repo
+        paths in backticks rather than relative links — the text also ships
+        in ``card.json``, where page-relative links would dangle.
 
     Raises
     ------
@@ -155,6 +162,7 @@ class BenchmarkCard:
     # landing page (ADR-0036) — non-derivable narrative + figures
     overview: str = ""
     figures: tuple[BenchmarkFigure, ...] = ()
+    data_access: str = ""
 
     def __post_init__(self) -> None:
         total = sum(self.splits.values())

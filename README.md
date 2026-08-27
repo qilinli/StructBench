@@ -116,10 +116,14 @@ DeformingPlate benchmark (ADR-0041; operator adaptations ADR-0044/0045).
 
 **Data availability:** each benchmark ships as a self-contained canonical
 archive — a `canonical/<benchmark>/` folder of `<case_id>.h5` files with a
-generated `README.md`, `card.json`, and CC BY 4.0 license — and `--data-root`
-points at that folder. The archives are maintainer-held on institutional
-storage (ADR-0040): request them from the maintainer, or ingest your own
-LS-DYNA output via the adapter.
+generated `README.md` and `card.json` — and `--data-root` points at that
+folder. The three LS-DYNA archives (CC BY 4.0) are maintainer-held on
+institutional storage (ADR-0040): request them from the maintainer, or ingest
+your own LS-DYNA output via the adapter. DeformingPlate's source data is
+public (MeshGraphNets; no data licence stated by the source): download it
+from the DeepMind bucket and convert locally with
+`data_generation/meshgraphnets/deforming_plate/` (ADR-0042 — StructBench
+points to the source rather than rehosting).
 
 ## Repository layout
 
