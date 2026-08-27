@@ -24,7 +24,8 @@ the source solve is quasi-static (dt = 0 in the data).
 
 *Problem setup: a scripted rigid actuator presses into the tetrahedral
 hyperelastic plate, held along one edge (left: the indentation schematic;
-right: a deformed plate mesh with the spherical actuator).*
+right: a deformed plate mesh with the spherical actuator). Adapted from
+Pfaff et al. (2021).*
 
 ## Cross-method comparison
 
