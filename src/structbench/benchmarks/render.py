@@ -347,13 +347,27 @@ def _baseline_details(spec: BenchmarkSpec) -> list[str]:
     return lines[:-1]
 
 
+# Presentation order for the index: the constitutive ladder (linear elastic →
+# elastoplastic → fracture → 3D hyperelastic contact), matching the root
+# README's Benchmarks table. Keyed by card name; unlisted benchmarks follow,
+# sorted by name.
+PRESENTATION_ORDER = (
+    "Wave1D-Propagation",
+    "Taylor2D-Impact",
+    "NotchBeam2D-Impact",
+    "DeformingPlate",
+)
+
+
 def render_index(specs: list[BenchmarkSpec]) -> str:
     """The full ``docs/benchmarks.md`` content for the given specs.
 
     Parameters
     ----------
     specs : list of BenchmarkSpec
-        Ordered list of benchmarks to render as a comparison table.
+        Benchmarks to render; presented in :data:`PRESENTATION_ORDER`
+        (unlisted benchmarks follow, sorted by card name), regardless of
+        input order.
 
     Returns
     -------
@@ -361,6 +375,10 @@ def render_index(specs: list[BenchmarkSpec]) -> str:
         Markdown document containing the generation marker, a 9-column
         comparison table, and one ## section per benchmark.
     """
+    rank = {name: i for i, name in enumerate(PRESENTATION_ORDER)}
+    specs = sorted(
+        specs, key=lambda s: (rank.get(s.card.name, len(PRESENTATION_ORDER)), s.card.name)
+    )
     lines = [
         _MARKER,
         "",

@@ -8,9 +8,10 @@ from quasi-static contact to impact and fracture.
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 
-> **Status: four benchmarks, four model families, a leaderboard on every
-> benchmark.** v0.3.0 release-ready on `main` (tag pending); v0.2.0 was the
-> last tagged release. What exists is real and tested; what doesn't is on the
+> **Status: four benchmarks, four model families; cross-method leaderboards
+> on Taylor, notch-impact, and DeformingPlate (wave-1D stays CGN-only).**
+> v0.3.0 release-ready on `main` (tag pending); v0.2.0 was the last tagged
+> release. What exists is real and tested; what doesn't is on the
 > [roadmap](#roadmap).
 
 ![Taylor bar rollout: ground truth vs CGN prediction, copper bar mushrooming against a rigid wall, colored by von Mises stress](assets/taylor_rollout.gif)
@@ -49,12 +50,13 @@ and one protocol:
 | Family | Paradigm | Status |
 |---|---|---|
 | CGN — Concrete Graph Network (ours, Li et al. 2023 lineage) | autoregressive graph network | **blessed** baseline: wave-1D, Taylor, notch-impact |
-| MeshGraphNets (Pfaff et al., 2021) | autoregressive graph network | **blessed** baseline: DeformingPlate — reproduces the published error band |
-| Transolver (Wu et al., 2024; + Transolver++ variant, off by default) | attention operator, time-conditioned (ADR-0054) | provisional on all four benchmarks |
-| GeoFLARE (NVIDIA, 2025) | attention operator, time-conditioned | provisional |
+| MeshGraphNets (Pfaff et al., 2021) | autoregressive graph network | **blessed**: DeformingPlate — reproduces the published error band; provisional: Taylor, notch-impact |
+| Transolver (Wu et al., 2024; + Transolver++ variant, off by default) | attention operator, time-conditioned (ADR-0054) | provisional: Taylor, notch-impact, DeformingPlate |
+| GeoFLARE (NVIDIA, 2025) | attention operator, time-conditioned | provisional: DeformingPlate |
 
-*Blessed* means the result passed the benchmark's blessing gate (ADR-0043)
-and anchors the leaderboard; *provisional* marks best-effort native ports
+*Blessed* means the result passed its benchmark's acceptance bar and anchors
+the leaderboard (results registries: ADR-0033/0046; the DeformingPlate
+published-band gate: ADR-0043); *provisional* marks best-effort native ports
 with no published number to reproduce (ADR-0046). Per-benchmark
 method-comparison tables live on the generated benchmark pages
 ([docs/benchmarks/](docs/benchmarks/)).
@@ -110,7 +112,7 @@ Configs are grouped per benchmark (ADR-0032): swap
 or `configs/notch_beam_2d_impact/cgn.toml` to train against a different
 benchmark — or swap the model family within a benchmark, e.g.
 `configs/deforming_plate/{mgn,transolver,geoflare}.toml` for the 3D
-DeformingPlate benchmark (ADR-0044/0045).
+DeformingPlate benchmark (ADR-0041; operator adaptations ADR-0044/0045).
 
 **Data availability:** each benchmark ships as a self-contained canonical
 archive — a `canonical/<benchmark>/` folder of `<case_id>.h5` files with a
@@ -155,9 +157,10 @@ assets/            # figures embedded in the docs + landing pages
 - [x] ~~**v0.1** (2026-07-09, `v0.1.0`) — substrate proof: canonical schema +
       HDF5 I/O, LS-DYNA adapter, Taylor2D-Impact + blessed CGN baseline
       (ADRs 0019/0021/0033/0034).~~
-- [x] ~~**v0.2** (2026-08-06, `v0.2.0`) — Wave1D-Propagation + notch-impact,
-      with cards, grouped configs, and results registries (ADRs 0024–0039);
-      CGN blessed on both; hosting = OneDrive-on-request (ADR-0040).~~
+- [x] ~~**v0.2** (2026-08-06, `v0.2.0`) — Wave1D-Propagation + the notch-beam
+      pair (notch-bend since descoped, ADR-0056), with cards, grouped configs,
+      and results registries (ADRs 0024–0039); CGN blessed on wave-1d and
+      notch-impact; hosting = OneDrive-on-request (ADR-0040).~~
 
 ### v0.3 — deforming-plate multi-method benchmark (release-ready)
 
@@ -206,8 +209,9 @@ assets/            # figures embedded in the docs + landing pages
 - Eval: leaderboard submission validator · per-region probe metrics ·
   convergence check · cross-benchmark utilities
 - Data & scale: checkpoint-publishing workflow · second aux target (plastic
-  strain) · data-generation autonomy · other solvers (Kratos, OpenSees,
-  OpenRadioss) · SHM expansion · deployment tools · PhysicsNeMo interop
+  strain) · data-generation autonomy · cell-list `radius_graph` when any
+  ≥10⁶-node dataset lands · other solvers (Kratos, OpenSees, OpenRadioss) ·
+  SHM expansion · deployment tools · packaging extras · PhysicsNeMo interop
 
 Rationale for every item lives in [`decisions/`](decisions/).
 
@@ -233,4 +237,4 @@ beat on a real solid-mechanics rollout task, it is.
 
 ## License
 
-[Apache 2.0](LICENSE). A citation entry will accompany the first release.
+[Apache 2.0](LICENSE). Cite via [CITATION.cff](CITATION.cff).

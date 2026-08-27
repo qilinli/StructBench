@@ -7,42 +7,26 @@ Note: `sph/stress` and `sph/strain` are full 6-component Voigt tensors; each ben
 
 | Benchmark | Solver | Discretisation | Erosion | Loading | Cases | Particles | Frames | Aux target |
 |---|---|---|---|---|---|---|---|---|
-| DeformingPlate | COMSOL | FEM | no | Scripted rigid actuator (OBSTACLE nodes, kinematic); HANDLE nodes fixed | 1200 | 672-2189 | 400 | von_mises_stress (MPa) |
-| NotchBeam2D-Impact | LS-DYNA | SPH | no | drop-weight impact, initial velocity 40-160 m/s, impactor shapes Bullet/Rectangular/Sphere | 110 | 4264-12966 | 502 | max_principal_strain (-) |
-| Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4800-8000 | 152 | von_mises_stress (MPa) |
 | Wave1D-Propagation | LS-DYNA | SPH | no | initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (4-11 traversals per trajectory, by bar length) | 16 | 500-1250 | 302 | axial_stress (MPa) |
+| Taylor2D-Impact | LS-DYNA | SPH | no | rigid-wall impact; initial velocity 100-200 m/s | 33 | 4800-8000 | 152 | von_mises_stress (MPa) |
+| NotchBeam2D-Impact | LS-DYNA | SPH | no | drop-weight impact, initial velocity 40-160 m/s, impactor shapes Bullet/Rectangular/Sphere | 110 | 4264-12966 | 502 | max_principal_strain (-) |
+| DeformingPlate | COMSOL | FEM | no | Scripted rigid actuator (OBSTACLE nodes, kinematic); HANDLE nodes fixed | 1200 | 672-2189 | 400 | von_mises_stress (MPa) |
 
-## DeformingPlate (v0.1)
+## Wave1D-Propagation (v0.1)
 
-Quasi-static deformation of a hyperelastic 3D plate pressed by a scripted rigid actuator; the MeshGraphNets deforming_plate dataset (Pfaff et al. 2021) under the ADR-0043 rollout protocol.
+Autoregressive next-step surrogate of an elastic stress wave in a 2D SPH bar strip under initial-velocity excitation (ADR-0025). Entry tier: onboarding, tutorial, and fast CI.
 
-- **Task**: quasi-static load-stepping autoregressive rollout (ADR-0043)
-- **Materials**: Hyperelastic (constants not published with the dataset)
-- **Geometry**: 3D tetrahedral mesh, ~0.5 m plate + rigid actuator; 672-2189 nodes per case (mean ~1270, ragged); source units kg-m-s (SI; measured 2026-08-08, ADR-0042 §2b)
-- **Splits**: train 1000, val 100, test 100
-- **Protocol** (ADR-0032, ADR-0035): 2 input frames, horizon full, scored at native output times. *Rationale*: input_frames=2 is the floor (a velocity needs two frames) and the faithful value: the source model uses h=0 history — node inputs are the one-hot node type only — so no window tuning question exists and no ground-truth timeline analysis can move it (ADR-0043 §3). Pseudo-time: dt=0 in the source (quasi-static); time is the frame index and output_dt_ms=1.0 is nominal, not milliseconds. Units MEASURED on the full dataset (2026-08-08, ADR-0042 §2b): positions are metres, stress is Pa — so aux_unit MPa holds and kg-m-s is the identity source convention. Two measured caveats (ADR-0043 dated note): the hosted train.tfrecord carries 1,200 trajectories — the protocol's 1,000 are the first 1,000 in file order; and HANDLE (type-3) nodes are not strictly stationary in the data (max drift ~0.02 m train / ~0.06 m valid+test) — both kinematic types are GT-prescribed and excluded from scoring either way. Scored span is [2, 400), exclusive end (ADR-0043 §6).
-- **QoIs**: peak_vm_stress, terminal_peak_deflection
-- **Baseline**: MGN (mgn, 2026-08-17, `eb39994`): test rollout_rel_l2_disp 0.5013; Transolver (transolver, 2026-08-18, `eb39994`) (provisional): test rollout_rel_l2_disp 0.1437; Transolver (transolver, 2026-08-18, `5b84119`) (provisional): test rollout_rel_l2_disp 0.1538; Transolver++ (transolver_plus, 2026-08-18, `5b84119`) (provisional): test rollout_rel_l2_disp 0.158; GeoFLARE (geoflare, 2026-08-18, `eb39994`) (provisional): test rollout_rel_l2_disp 0.3828; GeoFLARE (geoflare, 2026-08-21, `7919060`) (provisional): test rollout_rel_l2_disp 0.2464
-- **Fields**: node/displacement, node/von_mises_stress
-- **Provenance**: MeshGraphNets dataset (Pfaff et al., ICLR 2021; COMSOL ground truth), downloaded from the DeepMind source bucket and converted locally to canonical HDF5 (ADR-0042; not redistributed).
-- **License**: None stated by the source; downloaded from source, not redistributed (ADR-0042)
-- **Full page**: [docs/benchmarks/deforming_plate.md](benchmarks/deforming_plate.md)
-
-## NotchBeam2D-Impact (v0.1)
-
-Autoregressive next-step surrogate of a 2D SPH notched concrete beam under drop-weight impact (ADR-0026). Covers 3 spans, 3 impactor shapes, 3 notch positions, and 4 velocities. Three bodies: the K&C concrete beam (part 1) is the predicted deformable; the steel impactor (part 2) and the two support blocks (part 3) are protocol-kinematic (ADR-0026) — driven by ground truth during rollout (both move: the impactor decelerates from its case velocity to ~10-20% on contact, the supports displace a few mm), excluded from the training loss and from position/strain metrics, with both QoIs restricted to concrete particles.
-
-- **Task**: autoregressive transition (ADR-0026)
-- **Materials**: *MAT_CONCRETE_DAMAGE_REL3 (K&C; density 2.4e-6 kg/mm3), *MAT_PLASTIC_KINEMATIC
-- **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units kg-mm-ms
-- **Splits**: train 88, val 8, test_interp 12, probe 2
-- **Protocol** (ADR-0032, ADR-0035): 6 input frames, horizon frames [6, 250) of 502 scored (250 µs, ADR-0039); full-length diagnostic, scored at native output times. *Rationale*: Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length — the velocity budget is the criterion, not a rigid prefix. The timeline analysis (2026-07-20, on the DUG data copy) shows impact contact from frame 0, so the observed window takes in the first 6 us of contact; accepted. Scored horizon (ADR-0039): rollout metrics and QoIs are scored on frames [input_frames, 250) (250 µs). Internal energy reaches 99% of its final value by frame 77-213 (span-dependent); the remaining frames are ballistic separation and elastic ringing, which dominated full-horizon RMSE (half the final error accrued after frame 301 in baseline rollouts) while adding no fracture physics. The full 502-frame error curve remains a non-leaderboard long-horizon diagnostic. The cracked_fraction QoI threshold 0.01 is a declared protocol definition (ADR-0029, amended 2026-08-06): the SPH source model has no erosion or crack criterion; a 221-case sweep shows the GT fraction shifts ~0.05 mean per case across the factor-2 band [0.005, 0.02], and frame-249 vs frame-501 fractions are nearly identical (0.305 vs 0.317 mean), corroborating the 250 us horizon. Probe split (characterisation, 2026-08-15): the probe cases are out-of-distribution on THREE axes at once — span (400/800 mm) and impactor velocity both outside the training grids ({320,480,640} mm; {40,80,120,160} m/s), and, decisively, an OFF-CENTRE impact. All 108 train/val/test_interp cases are struck exactly at midspan (impact offset 0.0 mm, every notch a/b/c variant and span); the probe impacts land ~6% off-centre — a loading mode absent from training entirely. Probe scores therefore measure graceful failure on a genuinely new loading configuration, not ordinary interpolation: global-attention operators mis-localise the response to the learned midspan prior, while relative-position message-passing (MGN/CGN) degrades more gracefully.
-- **QoIs**: midspan_deflection_peak, cracked_fraction
-- **Baseline**: MGN (mgn, 2026-08-17, `59d5786`) (provisional): test_interp rollout_rel_l2_disp 0.2245; CGN (cgn, 2026-07-24, `5956d81`): test_interp rollout_rel_l2_disp 0.2827; Transolver (transolver, 2026-08-16, `59d5786`) (provisional): test_interp rollout_rel_l2_disp 0.03517; Transolver++ (transolver_plus, 2026-08-18, `5b84119`) (provisional): test_interp rollout_rel_l2_disp 0.03699
+- **Task**: autoregressive transition (ADR-0025)
+- **Materials**: *MAT_ELASTIC (scaled toy constants: E=0.01 GPa, rho=2e-6 kg/mm3)
+- **Geometry**: 2D strip, 5 particle rows, {200, 300, 400, 500} mm x 8 mm; source units kg-mm-ms
+- **Splits**: train 12, val 2, test_interp 2
+- **Protocol** (ADR-0032, ADR-0035): 6 input frames, horizon full, scored at native output times. *Rationale*: input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS reference history length; the model observes exactly these 6 ground-truth frames (indices 0-5) to seed the rollout, with no constant-velocity backfill. GT timeline analysis run 2026-07-06 (docs/timelines/wave_propagation_1d.md): a 6-frame observed prefix takes in 14.8% of initial KE worst-case (3.7% at 3 frames), and at the measured front speed ~70.7 mm/ms the wave reaches the first (25%) gauge about 7 frames in -- after the observed prefix -- so the arrival_time QoI is predicted, not observed. 6 is near the ceiling for this benchmark: a larger input_frames would risk seeding past first arrival.
+- **QoIs**: arrival_time_25, arrival_time_50, arrival_time_75, peak_stress
+- **Baseline**: CGN (cgn, 2026-07-10, `48046ea`): test_interp rollout_rel_l2_disp 0.3507
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
-- **Provenance**: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
+- **Provenance**: LS-DYNA parametric sweep (4 bar lengths x 4 initial velocities) produced by Curtin collaborators; benchmark protocol per ADR-0025.
 - **License**: CC BY 4.0
-- **Full page**: [docs/benchmarks/notch_beam_2d_impact.md](benchmarks/notch_beam_2d_impact.md)
+- **Full page**: [docs/benchmarks/wave_propagation_1d.md](benchmarks/wave_propagation_1d.md)
 
 ## Taylor2D-Impact (v0.1)
 
@@ -60,18 +44,34 @@ Autoregressive next-step surrogate of a 2D SPH copper bar under Taylor impact ag
 - **License**: CC BY 4.0
 - **Full page**: [docs/benchmarks/taylor_impact_2d.md](benchmarks/taylor_impact_2d.md)
 
-## Wave1D-Propagation (v0.1)
+## NotchBeam2D-Impact (v0.1)
 
-Autoregressive next-step surrogate of an elastic stress wave in a 2D SPH bar strip under initial-velocity excitation (ADR-0025). Entry tier: onboarding, tutorial, and fast CI.
+Autoregressive next-step surrogate of a 2D SPH notched concrete beam under drop-weight impact (ADR-0026). Covers 3 spans, 3 impactor shapes, 3 notch positions, and 4 velocities. Three bodies: the K&C concrete beam (part 1) is the predicted deformable; the steel impactor (part 2) and the two support blocks (part 3) are protocol-kinematic (ADR-0026) — driven by ground truth during rollout (both move: the impactor decelerates from its case velocity to ~10-20% on contact, the supports displace a few mm), excluded from the training loss and from position/strain metrics, with both QoIs restricted to concrete particles.
 
-- **Task**: autoregressive transition (ADR-0025)
-- **Materials**: *MAT_ELASTIC (scaled toy constants: E=0.01 GPa, rho=2e-6 kg/mm3)
-- **Geometry**: 2D strip, 5 particle rows, {200, 300, 400, 500} mm x 8 mm; source units kg-mm-ms
-- **Splits**: train 12, val 2, test_interp 2
-- **Protocol** (ADR-0032, ADR-0035): 6 input frames, horizon full, scored at native output times. *Rationale*: input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS reference history length; the model observes exactly these 6 ground-truth frames (indices 0-5) to seed the rollout, with no constant-velocity backfill. GT timeline analysis run 2026-07-06 (docs/timelines/wave_propagation_1d.md): a 6-frame observed prefix takes in 14.8% of initial KE worst-case (3.7% at 3 frames), and at the measured front speed ~70.7 mm/ms the wave reaches the first (25%) gauge about 7 frames in -- after the observed prefix -- so the arrival_time QoI is predicted, not observed. 6 is near the ceiling for this benchmark: a larger input_frames would risk seeding past first arrival.
-- **QoIs**: arrival_time_25, arrival_time_50, arrival_time_75, peak_stress
-- **Baseline**: CGN (cgn, 2026-07-10, `48046ea`): test_interp rollout_rel_l2_disp 0.3507
+- **Task**: autoregressive transition (ADR-0026)
+- **Materials**: *MAT_CONCRETE_DAMAGE_REL3 (K&C; density 2.4e-6 kg/mm3), *MAT_PLASTIC_KINEMATIC
+- **Geometry**: 2D SPH notched beam, H80 x span {320,480,640} mm; source units kg-mm-ms
+- **Splits**: train 88, val 8, test_interp 12, probe 2
+- **Protocol** (ADR-0032, ADR-0035): 6 input frames, horizon frames [6, 250) of 502 scored (250 µs, ADR-0039); full-length diagnostic, scored at native output times. *Rationale*: Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length — the velocity budget is the criterion, not a rigid prefix. The timeline analysis (2026-07-20, on the DUG data copy) shows impact contact from frame 0, so the observed window takes in the first 6 us of contact; accepted. Scored horizon (ADR-0039): rollout metrics and QoIs are scored on frames [input_frames, 250) (250 µs). Internal energy reaches 99% of its final value by frame 77-213 (span-dependent); the remaining frames are ballistic separation and elastic ringing, which dominated full-horizon RMSE (half the final error accrued after frame 301 in baseline rollouts) while adding no fracture physics. The full 502-frame error curve remains a non-leaderboard long-horizon diagnostic. The cracked_fraction QoI threshold 0.01 is a declared protocol definition (ADR-0029, amended 2026-08-06): the SPH source model has no erosion or crack criterion; a 221-case sweep shows the GT fraction shifts ~0.05 mean per case across the factor-2 band [0.005, 0.02], and frame-249 vs frame-501 fractions are nearly identical (0.305 vs 0.317 mean), corroborating the 250 us horizon. Probe split (characterisation, 2026-08-15): the probe cases are out-of-distribution on THREE axes at once — span (400/800 mm) and impactor velocity both outside the training grids ({320,480,640} mm; {40,80,120,160} m/s), and, decisively, an OFF-CENTRE impact. All 108 train/val/test_interp cases are struck exactly at midspan (impact offset 0.0 mm, every notch a/b/c variant and span); the probe impacts land ~6% off-centre — a loading mode absent from training entirely. Probe scores therefore measure graceful failure on a genuinely new loading configuration, not ordinary interpolation: global-attention operators mis-localise the response to the learned midspan prior, while relative-position message-passing (MGN/CGN) degrades more gracefully.
+- **QoIs**: midspan_deflection_peak, cracked_fraction
+- **Baseline**: MGN (mgn, 2026-08-17, `59d5786`) (provisional): test_interp rollout_rel_l2_disp 0.2245; CGN (cgn, 2026-07-24, `5956d81`): test_interp rollout_rel_l2_disp 0.2827; Transolver (transolver, 2026-08-16, `59d5786`) (provisional): test_interp rollout_rel_l2_disp 0.03517; Transolver++ (transolver_plus, 2026-08-18, `5b84119`) (provisional): test_interp rollout_rel_l2_disp 0.03699
 - **Fields**: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
-- **Provenance**: LS-DYNA parametric sweep (4 bar lengths x 4 initial velocities) produced by Curtin collaborators; benchmark protocol per ADR-0025.
+- **Provenance**: LS-DYNA parametric sweep (3 spans x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators; benchmark protocol per ADR-0026.
 - **License**: CC BY 4.0
-- **Full page**: [docs/benchmarks/wave_propagation_1d.md](benchmarks/wave_propagation_1d.md)
+- **Full page**: [docs/benchmarks/notch_beam_2d_impact.md](benchmarks/notch_beam_2d_impact.md)
+
+## DeformingPlate (v0.1)
+
+Quasi-static deformation of a hyperelastic 3D plate pressed by a scripted rigid actuator; the MeshGraphNets deforming_plate dataset (Pfaff et al. 2021) under the ADR-0043 rollout protocol.
+
+- **Task**: quasi-static load-stepping autoregressive rollout (ADR-0043)
+- **Materials**: Hyperelastic (constants not published with the dataset)
+- **Geometry**: 3D tetrahedral mesh, ~0.5 m plate + rigid actuator; 672-2189 nodes per case (mean ~1270, ragged); source units kg-m-s (SI; measured 2026-08-08, ADR-0042 §2b)
+- **Splits**: train 1000, val 100, test 100
+- **Protocol** (ADR-0032, ADR-0035): 2 input frames, horizon full, scored at native output times. *Rationale*: input_frames=2 is the floor (a velocity needs two frames) and the faithful value: the source model uses h=0 history — node inputs are the one-hot node type only — so no window tuning question exists and no ground-truth timeline analysis can move it (ADR-0043 §3). Pseudo-time: dt=0 in the source (quasi-static); time is the frame index and output_dt_ms=1.0 is nominal, not milliseconds. Units MEASURED on the full dataset (2026-08-08, ADR-0042 §2b): positions are metres, stress is Pa — so aux_unit MPa holds and kg-m-s is the identity source convention. Two measured caveats (ADR-0043 dated note): the hosted train.tfrecord carries 1,200 trajectories — the protocol's 1,000 are the first 1,000 in file order; and HANDLE (type-3) nodes are not strictly stationary in the data (max drift ~0.02 m train / ~0.06 m valid+test) — both kinematic types are GT-prescribed and excluded from scoring either way. Scored span is [2, 400), exclusive end (ADR-0043 §6).
+- **QoIs**: peak_vm_stress, terminal_peak_deflection
+- **Baseline**: MGN (mgn, 2026-08-17, `eb39994`): test rollout_rel_l2_disp 0.5013; Transolver (transolver, 2026-08-18, `eb39994`) (provisional): test rollout_rel_l2_disp 0.1437; Transolver (transolver, 2026-08-18, `5b84119`) (provisional): test rollout_rel_l2_disp 0.1538; Transolver++ (transolver_plus, 2026-08-18, `5b84119`) (provisional): test rollout_rel_l2_disp 0.158; GeoFLARE (geoflare, 2026-08-18, `eb39994`) (provisional): test rollout_rel_l2_disp 0.3828; GeoFLARE (geoflare, 2026-08-21, `7919060`) (provisional): test rollout_rel_l2_disp 0.2464
+- **Fields**: node/displacement, node/von_mises_stress
+- **Provenance**: MeshGraphNets dataset (Pfaff et al., ICLR 2021; COMSOL ground truth), downloaded from the DeepMind source bucket and converted locally to canonical HDF5 (ADR-0042; not redistributed).
+- **License**: None stated by the source; downloaded from source, not redistributed (ADR-0042)
+- **Full page**: [docs/benchmarks/deforming_plate.md](benchmarks/deforming_plate.md)

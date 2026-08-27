@@ -25,9 +25,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 INDEX = REPO_ROOT / "docs" / "benchmarks.md"
 PAGES_DIR = REPO_ROOT / "docs" / "benchmarks"
 
-
 def _targets() -> dict[Path, str]:
-    """Every generated markdown file mapped to its expected content."""
+    """Every generated markdown file mapped to its expected content.
+
+    The index's presentation order (the constitutive ladder) is decided by
+    ``render_index`` itself — see ``render.PRESENTATION_ORDER``.
+    """
     specs = {n: get_benchmark(n) for n in available_benchmarks()}
     out = {INDEX: render_index(list(specs.values()))}
     for name, spec in specs.items():
