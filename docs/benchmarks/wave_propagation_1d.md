@@ -15,8 +15,8 @@ stress amplitude honest over 4–11 bar traversals, depending on length.
 
 StructBench ships the 2D SPH version: an LS-DYNA `*MAT_ELASTIC` strip
 (scaled toy constants) five particle rows deep, 8 mm wide and 200 / 300 /
-400 / 500 mm long, arrested from an initial axial velocity of 1–8 mm/ms
-(wave speed ~70.7 mm/ms). The task is an **autoregressive next-step
+400 / 500 mm long, arrested from an initial axial velocity of 1–8 m/s
+(wave speed ~70.7 m/s). The task is an **autoregressive next-step
 surrogate** — from a short ground-truth prefix the model advances the
 particle state one output step at a time over the 30 ms record, predicting
 position and the per-particle axial stress. Axial stress is the headline
@@ -24,8 +24,8 @@ target and position the sanity check — the reverse of Taylor 2D's emphasis.
 
 ![Schematic of the wave propagation setup: a strip of elastic particles moving axially toward a fixed boundary at one end.](../../assets/problem_wave_propagation.png)
 
-*Problem setup: an elastic bar strip (length 200–500 mm) moving axially at
-1–8 mm/ms is arrested dead at one end.*
+*Problem setup: an elastic bar strip (length L = 200–500 mm) moving axially
+at 1–8 m/s is arrested dead at one end.*
 
 ## The entry tier
 
@@ -33,8 +33,8 @@ This is the platform's entry benchmark — 16 linear-elastic cases, 0.23 GB —
 sized for onboarding, the docs tutorial, and CI-scale runs rather than for
 separating strong methods. The split is an interior holdout on the 4-length
 × 4-velocity grid, interpolation only: every length and every velocity
-appears in training, `val` (300 mm at 2, 400 mm at 4 mm/ms) only picks each
-run's checkpoint, and `test_interp` (300 mm at 4, 400 mm at 2 mm/ms) is
+appears in training, `val` (300 mm at 2, 400 mm at 4 m/s) only picks each
+run's checkpoint, and `test_interp` (300 mm at 4, 400 mm at 2 m/s) is
 scored. Everything is reported in physical units — axial-stress RMSE in MPa,
 position RMSE in mm — and the quantities of interest read the wave directly:
 arrival time at the 25 / 50 / 75 % gauge stations and the peak stress. The
@@ -45,16 +45,16 @@ numbers are below.
 
 ![Stacked animation of ground-truth and CGN-predicted axial stress waves in a slender bar.](../../assets/wave_rollout.gif)
 
-*Ground truth (top) vs CGN prediction (bottom) on held-out W1D-300-4 (test_interp): a 300 mm bar at 4 mm/ms initial velocity, coloured by axial stress, y-axis exaggerated x4. The surrogate tracks the compression front, the free-end reflections, and the cycle timing over the 30 ms rollout; degradation concentrates in the final ~5 ms.*
+*Ground truth (top) vs CGN prediction (bottom) on held-out W1D-300-4 (test_interp): a 300 mm bar at 4 m/s initial velocity, coloured by axial stress, y-axis exaggerated x4. The surrogate tracks the compression front, the free-end reflections, and the cycle timing over the 30 ms rollout; degradation concentrates in the final ~5 ms.*
 
 ![Prediction-vs-truth axial-stress snapshots for the 400 mm bar, in-distribution.](../../assets/wave_axial_interp_400_2.png)
 
-*In-distribution (test_interp, 400 mm bar at 2 mm/ms): ground truth (top) vs CGN prediction (bottom), axial stress at t = 0.6 / 10.4 / 20.2 / 30.0 ms (y x4). The prediction reproduces the wavefront position and reflection cycles; late-horizon fields roughen and overshoot near the impact end (rollout position RMSE 0.95 mm).*
+*In-distribution (test_interp, 400 mm bar at 2 m/s): ground truth (top) vs CGN prediction (bottom), axial stress at t = 0.6 / 10.4 / 20.2 / 30.0 ms (y x4). The prediction reproduces the wavefront position and reflection cycles; late-horizon fields roughen and overshoot near the impact end (rollout position RMSE 0.95 mm).*
 
 ## Data at a glance
 
 - Solver: LS-DYNA (SPH; erosion: no)
-- Loading: initial velocity 1-8 mm/ms; elastic wave propagation; wave speed ~70.7 mm/ms (4-11 traversals per trajectory, by bar length)
+- Loading: initial velocity 1-8 m/s; elastic wave propagation; wave speed ~70.7 m/s (4-11 traversals per trajectory, by bar length)
 - Geometry: 2D strip, 5 particle rows, {200, 300, 400, 500} mm x 8 mm
 - Source units: kg-mm-ms (canonical storage is strict SI, ADR-0012)
 - Cases: 16 (train 12, val 2, test_interp 2)
@@ -76,7 +76,7 @@ autoregressive transition (ADR-0025). Auxiliary target: `axial_stress` (MPa). Mo
 <details>
 <summary>Protocol rationale — the ground-truth timeline analysis behind these values (ADR-0032 §5)</summary>
 
-input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS reference history length; the model observes exactly these 6 ground-truth frames (indices 0-5) to seed the rollout, with no constant-velocity backfill. GT timeline analysis run 2026-07-06 (docs/timelines/wave_propagation_1d.md): a 6-frame observed prefix takes in 14.8% of initial KE worst-case (3.7% at 3 frames), and at the measured front speed ~70.7 mm/ms the wave reaches the first (25%) gauge about 7 frames in -- after the observed prefix -- so the arrival_time QoI is predicted, not observed. 6 is near the ceiling for this benchmark: a larger input_frames would risk seeding past first arrival.
+input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS reference history length; the model observes exactly these 6 ground-truth frames (indices 0-5) to seed the rollout, with no constant-velocity backfill. GT timeline analysis run 2026-07-06 (docs/timelines/wave_propagation_1d.md): a 6-frame observed prefix takes in 14.8% of initial KE worst-case (3.7% at 3 frames), and at the measured front speed ~70.7 m/s the wave reaches the first (25%) gauge about 7 frames in -- after the observed prefix -- so the arrival_time QoI is predicted, not observed. 6 is near the ceiling for this benchmark: a larger input_frames would risk seeding past first arrival.
 
 </details>
 
