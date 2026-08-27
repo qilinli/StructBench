@@ -5,7 +5,8 @@ abstract: >-
   Standardized benchmarks for machine learning on structural simulation:
   a task definition, a fixed split, a relative-L2 headline metric with
   physical-unit errors reported alongside, and a reference baseline to
-  beat — for structures under dynamic and extreme loading.
+  beat — for structural response prediction across loading regimes, from
+  quasi-static contact to impact and fracture.
 type: software
 authors:
   - family-names: Li

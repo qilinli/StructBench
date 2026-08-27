@@ -2,7 +2,8 @@
 
 **Standardized benchmarks for machine learning on structural simulation.**
 A task definition, a fixed split, metrics in physical units, and a reference
-baseline to beat — for structures under dynamic and extreme loading.
+baseline to beat — for structural response prediction across loading regimes,
+from quasi-static contact to impact and fracture.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
@@ -23,11 +24,13 @@ for the full problem, data, and numbers to beat.*
 
 | Benchmark | Problem | Cases |
 |---|---|---|
-| Taylor2D-Impact | copper bar impact (SPH, plasticity) | 33 |
 | Wave1D-Propagation | elastic wave in a bar (entry tier) | 16 |
+| Taylor2D-Impact | copper bar impact (SPH, plasticity) | 33 |
 | NotchBeam2D-Impact | notched concrete beam, drop-weight impact | 110 |
-| DeformingPlate | hyperelastic plate + rigid actuator (MeshGraphNets, 3D) | 1200 |
+| DeformingPlate | hyperelastic 3D plate + rigid actuator (MeshGraphNets, quasi-static) | 1200 |
 
+Ordered by constitutive regime: linear elastic → elastoplastic → concrete
+fracture → 3D hyperelastic contact.
 Full cards (solver, materials, splits, QoIs): [docs/benchmarks.md](docs/benchmarks.md).
 Every benchmark fixes its task, split, and evaluation protocol in an ADR —
 changing any of them is a new benchmark version. The headline metric is a
@@ -45,7 +48,7 @@ and one protocol:
 
 | Family | Paradigm | Status |
 |---|---|---|
-| CGN — Concrete Graph Network (ours, Li et al. 2023 lineage) | autoregressive graph network | **blessed** baseline: Taylor, wave-1D, notch-impact |
+| CGN — Concrete Graph Network (ours, Li et al. 2023 lineage) | autoregressive graph network | **blessed** baseline: wave-1D, Taylor, notch-impact |
 | MeshGraphNets (Pfaff et al., 2021) | autoregressive graph network | **blessed** baseline: DeformingPlate — reproduces the published error band |
 | Transolver (Wu et al., 2024; + Transolver++ variant, off by default) | attention operator, time-conditioned (ADR-0054) | provisional on all four benchmarks |
 | GeoFLARE (NVIDIA, 2025) | attention operator, time-conditioned | provisional |
@@ -147,144 +150,64 @@ assets/            # figures embedded in the docs + landing pages
 
 *Last revised: 2026-08-27.*
 
-### v0.1 — Taylor 2D substrate proof
+### Shipped
 
-- [x] ~~Shipped 2026-07-09 (tag `v0.1.0`): canonical schema + HDF5 I/O, the
-      LS-DYNA adapter, the Taylor2D-Impact benchmark (ADR-0019), and the CGN
-      baseline blessed from run s1 (ADR-0033/0034). Public dataset hosting
-      deferred (now a v0.2 item); the release publishes the spec + baseline numbers.~~
+- [x] ~~**v0.1** (2026-07-09, `v0.1.0`) — substrate proof: canonical schema +
+      HDF5 I/O, LS-DYNA adapter, Taylor2D-Impact + blessed CGN baseline
+      (ADRs 0019/0021/0033/0034).~~
+- [x] ~~**v0.2** (2026-08-06, `v0.2.0`) — Wave1D-Propagation + notch-impact,
+      with cards, grouped configs, and results registries (ADRs 0024–0039);
+      CGN blessed on both; hosting = OneDrive-on-request (ADR-0040).~~
 
-### v0.2 — wave-1d + notch-beam pair
+### v0.3 — deforming-plate multi-method benchmark (release-ready)
 
-- [x] ~~Shipped 2026-08-06 (tag `v0.2.0`): Wave1D-Propagation and the
-      notch-beam pair with cards, grouped configs, and results registries
-      (ADRs 0024–0039); CGN baselines blessed for wave-1d (x1-s1) and
-      notch-impact (h250c-s1, 250 µs scored horizon); notch-bend baseline
-      parked, then the benchmark descoped (ADR-0024 amendment; ADR-0056);
-      hosting settled as
-      OneDrive-on-request (ADR-0040); `cracked_fraction` 0.01 declared a
-      protocol definition (ADR-0029 amendment).~~
+*Defined by ADR-0041: cross-method comparison on public data is the headline.*
 
-### v0.3 — deforming-plate multi-method benchmark
-
-*Defined by ADR-0041 (supersedes ADR-0024's v0.3 = RC beam). The headline is
-cross-method comparison on public data, not a new physics problem. Build order
-is a set of checkpoints — partial value lands if the last slips.*
-
-- [x] ~~**① Ingestion + `DeformingPlate` + MGN blessed.**~~ Done (ADR-0042
-      `tfrecord`→canonical HDF5 ingestion; ADR-0043 protocol + blessing gate):
-      the `benchmarks/deforming_plate` module ships — the first 3D benchmark,
-      canonical 1000/100/100 split, aux = von Mises stress; `models/mgn`
-      implemented native and **blessed** by reproducing the published
-      deforming-plate position result (this reproduction certifies the pipeline).
-- [x] ~~**② Transolver provisional.**~~ Done (ADR-0044): `models/transolver`
-      (transformer-operator family — new to `models/`); `datasets/` generalized
-      to serve point-set inputs alongside graph windows. Ships **provisional**
-      (best-effort native port, no published DeformingPlate number to reproduce).
-- [x] ~~**③ GeoFLARE provisional.**~~ Done (ADR-0045): `models/geoflare`
-      (GeoTransolver with the FLARE attention backend), likewise **provisional**.
-- [x] ~~Cross-method infrastructure: results registry (ADR-0033) extended to
-      per-(benchmark × method) with a `provisional` flag; landing page
-      (ADR-0036) renders a method-comparison table distinguishing blessed from
-      provisional.~~ (2026-08-09, ADR-0046): `BaselineResult.provisional` +
-      `BenchmarkSpec.blessed_results`; the ranked leaderboard section on every
-      page; provisional-aware Quickstart selection (fixes the `deforming_plate`
-      `cgn.toml` bug). Populated with the maintainer's runs.
-- [x] ~~Follow-on ADRs as each lands.~~ Landed: ADR-0041 (v0.3 plan), 0042
-      (`tfrecord` ingestion adapter), 0043 (benchmark protocol + blessing gate),
-      0044/0045 (Transolver/GeoFLARE adaptations), 0046 (per-method registry
-      schema).
-- [x] ~~Beyond the ADR-0041 plan, also in this release (landed since v0.2.0):
-      the multi-method extension to Taylor (ADR-0047; ADR-0049 recipe repair)
-      and notch-impact (ADR-0048); the prediction-scheme axis — k-frames-per-call
-      (ADR-0051), `history_frames` decoupled from the protocol seed (ADR-0053),
-      time-conditioning as the operators' native scheme (ADR-0054); relative-L2
-      lifted to the headline metric (ADR-0055); notch-bend descoped (ADR-0056);
-      the DeformingPlate MGN noise-fix + family × scheme results matrix;
-      Transolver++ adaptation implemented off-by-default (ADR-0057, Proposed).~~
+- [x] ~~All build checkpoints landed: `DeformingPlate` ingestion + protocol +
+      **blessed** MGN reproducing the published result (ADR-0042/0043);
+      Transolver + GeoFLARE provisional (ADR-0044/0045); per-method registries
+      + ranked leaderboards on every benchmark page (ADR-0046). Beyond the
+      plan: multi-method on Taylor and notch-impact (ADR-0047–0049), the
+      prediction-scheme axis (ADR-0051/0053/0054), relative-L2 headline metric
+      (ADR-0055), notch-bend descope (ADR-0056), Transolver++ off-by-default
+      (ADR-0057, Proposed), DP MGN noise-fix + family × scheme matrix.~~
 - [ ] **Ship v0.3.0 — human, out of session**: `git tag v0.3.0` + GitHub
       release (draft notes: `scratch/2026-08-27-v0.3.0-release-notes.md`;
-      version + CITATION already bumped to 0.3.0). After tagging, compress
-      this block to a shipped line and update CLAUDE.md's stage snapshot.
-- [ ] Human, out of session: flip VISION's "1D/2D problems only" limitation
-      copy (forbidden-tier during coding sessions) — **v0.3 has now shipped 3D**
-      (DeformingPlate), so this is ready to action.
+      version + CITATION already at 0.3.0). After tagging, move this block
+      into Shipped and update CLAUDE.md's stage snapshot.
+- [ ] Human, out of session: update VISION.md's current-stage sentence
+      ("dynamic and extreme loading" — v0.3's quasi-static 3D benchmark has
+      outgrown it; drafted copy in `scratch/2026-08-27-vision-copy-draft.md`;
+      VISION edits are forbidden-tier during coding sessions).
 
 ### Inbox — untriaged, add freely
 
-- [x] ~~per-benchmark landing pages~~ (2026-07-09, ADR-0036): one generated
-      page per benchmark at `docs/benchmarks/<name>.md`, built by
-      `render_benchmark_page` (`benchmarks/render.py`, driven by
-      `tools/gen_benchmark_docs.py` with a `--check` drift guard) from the
-      card + results registry; narrative and figures live in the card's new
-      `overview`/`figures` fields. The open questions resolved differently than
-      sketched here: venue is `docs/benchmarks/` (not top-level `benchmarks/`),
-      no `--landing` mode, no handwritten `intro.md`. Taylor page authored and
-      tuned; the other three render without narrative until authored
-- [x] ~~qualitative comparison figures in `viz/`: truth-vs-prediction von
-      Mises fringe panels at 2–3 time instants~~ (2026-07-06): per-benchmark
-      eval artifact via `python -m structbench.viz` (`compare_rollout` in
-      `viz/fringe.py`, resolving each benchmark's aux field — `9b53b19`); on
-      the Taylor page as `assets/taylor_vms_interp_170.png` (`61c3ad3`).
-      ADR-0019 review note 2026-07-05
+<!-- Completed inbox items are removed at each release; their record lives in
+     git history and the ADRs they cite. -->
+
 - [ ] deformed-contour overlay figure in `viz/`: truth-vs-prediction outlines
-      on shared axes — the second half of that ADR-0019 review-note item; not
+      on shared axes — the second half of the ADR-0019 review-note item; not
       yet built (only side-by-side panels exist)
-- [x] ~~mypy fails on numpy 2.5 stubs (`type` statement needs py3.12
-      target)~~ (resolved 2026-07-05: floor raised to Python 3.12 —
-      numpy ≥ 2.5 requires it, so the 3.11 floor was untestable; mypy
-      green again)
 - [ ] DUG remote data dir is `data/taylor_impact`; rename to
       `taylor_impact_2d` (archive name) and update `train_taylor.slurm`,
       `ablate_taylor.slurm`, and `hpc/dug/README.md` together, between job
-      fleets (still pending 2026-07-09 — all three read `.../data/taylor_impact`;
-      the 07-08 retrain fleet has run, so this is due before the next v0.2 fleet)
-- [x] ~~per-benchmark README: dataset info, evaluation criteria, and
-      baseline results~~ (2026-07-05, ADR-0033: archive README gains
-      Task/Evaluation/Numbers-to-beat/Usage sections; results live in
-      per-module registries, rendered only via generated views — blessing
-      a DUG run is now a ten-line registry entry + regeneration)
-- [x] ~~`lr_init` code default still 1e-3; ADR-0028's 1e-4 lives only in
-      the TOML~~ (resolved by ADR-0032: every config lists `lr_init`
-      explicitly under strict validation, `--config` is required in train
-      mode, and dataclass defaults are sanctioned as test-only, 2026-07-05)
-- [x] ~~confirm the Taylor deck genuinely is g-mm-ms~~ (verified against
-      `scratch/Taylor.k`: RO/G/EOS-C physical only under g-mm-ms; recorded
-      in ADR-0030, 2026-07-05)
-- [x] ~~reconcile ADR-0012's "4 Voigt components in 2D" prose
-      (CORRECTIONS.md item)~~ (2026-07-06, `8c6d364`): ADR-0012's
-      tensor-component line now records that the full 6-component Voigt layout
-      is stored verbatim for all case dimensions; CORRECTIONS entry promoted
+      fleets (pending since 2026-07-09)
 
 ### Later (each becomes an ADR/spec when picked up)
 
-- **Crash benchmark (v0.4 candidate)**: gated on public crash data existing —
-  CarCrashNet's release (6.65 TB, unreleased pending peer review), or
-  maintainer-generated LS-DYNA crash data released under an open licence — plus
-  the scale infrastructure it needs (cell-list `radius_graph` backend, TB-scale
-  hosting). Its methods (Transolver/GeoFLARE/MGN) land first in v0.3 on
-  deforming plate (ADR-0041)
-- **RC beam benchmark** (parked, no scheduled release; ADR-0041 moved it off
-  v0.3): erosion, twice (numerically for the FEM data; structurally for the
-  surrogate — particles vanishing mid-rollout). ADR-0024's erosion analysis is
-  the gate if revived
-- Notch-bend benchmark descoped from the public set (ADR-0056: redundant with
-  notch-impact); module + configs parked in-tree, re-registerable. Its trained
-  CGN baseline (SNR caveat, provisional `input_frames` gate) is a revival gate
-  if ever re-listed
-- Segmented beam benchmark (parked) · multi-scale CGN second Taylor baseline (spec
-  Proposed)
-- Training: resume support (optimizer state + `--resume`) ·
-  part-id→embedding remap · ADR-0028 Phase-2 ablations (noise_std, aux
-  head, capacity, stress-history)
-- Eval: leaderboard submission validator · cross-benchmark utilities ·
-  per-region probe metrics · convergence check
-- Checkpoint-publishing workflow · second aux target (effective plastic
-  strain)
-- Data-generation autonomy (deck templating or a Python-native solver)
-- Scale: cell-list `radius_graph` backend when a ≥10⁶-node dataset lands
-- Other solvers (Kratos, OpenSees, OpenRadioss) · SHM expansion ·
-  deployment tools · packaging extras · PhysicsNeMo interop
+- **Crash benchmark (v0.4 candidate)** — gated on public crash data existing
+  (CarCrashNet's release, or maintainer-generated open-licence LS-DYNA data)
+  plus the scale infrastructure it needs (cell-list `radius_graph`, TB-scale
+  hosting); its methods already ship in v0.3 (ADR-0041)
+- **Parked benchmarks** — RC beam (erosion is the gate, ADR-0024/0041) ·
+  notch-bend (ADR-0056; module in-tree, re-registerable) · segmented beam
+- Training: resume support · part-id→embedding remap · ADR-0028 Phase-2
+  ablations · multi-scale CGN second Taylor baseline (spec Proposed)
+- Eval: leaderboard submission validator · per-region probe metrics ·
+  convergence check · cross-benchmark utilities
+- Data & scale: checkpoint-publishing workflow · second aux target (plastic
+  strain) · data-generation autonomy · other solvers (Kratos, OpenSees,
+  OpenRadioss) · SHM expansion · deployment tools · PhysicsNeMo interop
 
 Rationale for every item lives in [`decisions/`](decisions/).
 
@@ -301,11 +224,12 @@ written down.
 ## Limitations, stated plainly
 
 Small datasets by learned-simulator standards — tens to low hundreds of cases
-per benchmark, testing protocol rigor and rollout stability, not web-scale
-generalization. 1D/2D problems only, no erosion yet (that is v0.3's open
-problem), no experimental validation data. If you need any of those today,
-this repo is not it yet; if you want a clean, reproducible number to beat on
-a real solid-mechanics rollout task, it is.
+per LS-DYNA benchmark (the public DeformingPlate set brings 1200), testing
+protocol rigor and rollout stability, not web-scale generalization. Mostly
+1D/2D with a first 3D benchmark; no erosion yet (the gate for the parked
+RC-beam benchmark); no experimental validation data. If you need any of those
+today, this repo is not it yet; if you want a clean, reproducible number to
+beat on a real solid-mechanics rollout task, it is.
 
 ## License
 
