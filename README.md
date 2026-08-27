@@ -161,34 +161,24 @@ assets/            # figures embedded in the docs + landing pages
       pair (notch-bend since descoped, ADR-0056), with cards, grouped configs,
       and results registries (ADRs 0024–0039); CGN blessed on wave-1d and
       notch-impact; hosting = OneDrive-on-request (ADR-0040).~~
-
-### v0.3 — deforming-plate multi-method benchmark (release-ready)
-
-*Defined by ADR-0041: cross-method comparison on public data is the headline.*
-
-- [x] ~~All build checkpoints landed: `DeformingPlate` ingestion + protocol +
-      **blessed** MGN reproducing the published result (ADR-0042/0043);
-      Transolver + GeoFLARE provisional (ADR-0044/0045); per-method registries
-      + ranked leaderboards on every benchmark page (ADR-0046). Beyond the
-      plan: multi-method on Taylor and notch-impact (ADR-0047–0049), the
-      prediction-scheme axis (ADR-0051/0053/0054), relative-L2 headline metric
-      (ADR-0055), notch-bend descope (ADR-0056), Transolver++ off-by-default
-      (ADR-0057, Proposed), DP MGN noise-fix + family × scheme matrix.~~
-- [ ] **Ship v0.3.0 — human, out of session**: `git tag v0.3.0` + GitHub
-      release (draft notes: `scratch/2026-08-27-v0.3.0-release-notes.md`;
-      version + CITATION already at 0.3.0). After tagging, move this block
-      into Shipped and update CLAUDE.md's stage snapshot.
-- [ ] Human, out of session: update VISION.md's current-stage sentence
-      ("dynamic and extreme loading" — v0.3's quasi-static 3D benchmark has
-      outgrown it; drafted copy in `scratch/2026-08-27-vision-copy-draft.md`;
-      VISION edits are forbidden-tier during coding sessions).
+- [x] ~~**v0.3** (2026-08-27, `v0.3.0`) — `DeformingPlate` multi-method
+      benchmark on public data (ADR-0041: cross-method comparison is the
+      headline): blessed MGN reproducing the published result, Transolver +
+      GeoFLARE (+ off-by-default Transolver++) provisional, ranked
+      cross-method leaderboards, the prediction-scheme axis, relative-L2
+      headline metric (ADRs 0041–0057).~~
 
 ### Inbox — untriaged, add freely
 
 <!-- Completed inbox items are removed at each release; their record lives in
      git history and the ADRs they cite. -->
 
-*(empty)*
+- [ ] Human, out of session: publish the v0.3.0 GitHub release from
+      `scratch/2026-08-27-v0.3.0-release-notes.md` (the tag is pushed).
+- [ ] Human, out of session: update VISION.md's current-stage sentence
+      ("dynamic and extreme loading" — v0.3's quasi-static 3D benchmark has
+      outgrown it; drafted copy in `scratch/2026-08-27-vision-copy-draft.md`;
+      VISION edits are forbidden-tier during coding sessions).
 
 ### Later (each becomes an ADR/spec when picked up)
 
