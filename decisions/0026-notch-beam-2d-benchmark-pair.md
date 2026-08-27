@@ -13,22 +13,22 @@ simulations of a notched concrete beam — K&C concrete
 **no erosion** — in two loading families, per the collaborators'
 `simulation_specification.xlsx`:
 
-- **Constant velocity** (quasi-static bend): H80 beams, span
-  {320, 480, 640} × pin velocity {8, 12, 16, 20} mm/s × loading point
-  {A, B, C} × notch position {a, b, c} = **108 cases**, 500 ms at 1 ms
-  output (500 frames).
-- **Initial-velocity impact** (drop weight): span {320, 480, 640} ×
-  impact velocity {40, 80, 120, 160} mm/s × impactor shape
+- **Constant velocity** (quasi-static bend): H80 beams, width W
+  {320, 480, 640} × pin velocity {8, 12, 16, 20} m/s × loading point
+  {A, B, C} × notch position {a, b, c} = **108 cases**, 0.5 ms at 1 µs
+  output (502 frames).
+- **Initial-velocity impact** (drop weight): width W {320, 480, 640} ×
+  impact velocity {40, 80, 120, 160} m/s × impactor shape
   {Bullet, Rectangular, Sphere} × notch position {a, b, c} = **108
   cases** (loading point fixed), same output cadence.
 
 A third folder, `2DGeneralizibility`, holds **5 purpose-built probe
-cases** from the prior study: new geometries (60×240, 80×560, 100×800)
+cases** from the prior study: new geometries (H×W 60×240, 80×560, 100×800 mm)
 and out-of-range velocities, three under constant-velocity loading
 (`C_*`) and two under sphere impact (`S_*`).
 
 The raw tree contains some runs beyond the spec sheet's enumeration
-(e.g. 72 run folders in one span directory against 36 spec'd); the spec
+(e.g. 72 run folders in one width directory against 36 spec'd); the spec
 sheet is authoritative for the benchmark. Deck unit conventions and
 per-case particle counts (spec ID tables: ~4.2k–8.3k particles across
 concrete, kinematic loader, and supports) are verified at ingestion.
@@ -68,7 +68,7 @@ maintainer trained GNS separately per family in the prior work.
 
 4. **Splits.** Per benchmark: **train 88 / val 8 / test-interpolation
    12**, constructed by a fixed stratified rule — held-out cells are
-   interior combinations chosen so that every factor level (span,
+   interior combinations chosen so that every factor level (width,
    velocity, loading point or impactor shape, notch position) still
    appears in train. The exact case-id lists are frozen in each
    benchmark module at ingestion time and are immutable thereafter
@@ -104,7 +104,7 @@ maintainer trained GNS separately per family in the prior work.
   question again — the flat `<family>_<track>` naming answers it once.
 
 - **Synthetic extrapolation splits** (holding out velocity 20 / 160 or
-  a span). Unnecessary — purpose-built probe cases exist and are
+  a width). Unnecessary — purpose-built probe cases exist and are
   stronger; the grid stays fully available for training density.
 
 - **Effective plastic strain or stress as the auxiliary field.**
@@ -140,11 +140,11 @@ out-of-distribution axis and sharpens how probe scores should be read.
 
 - **All 108 in-distribution Impact cases (88 train + 8 val + 12 test_interp) are
   struck exactly at midspan** — impact offset 0.0 mm, verified across every notch
-  variant (a/b/c) and every span. The two `S_*` probe cases are the **only**
+  variant (a/b/c) and every width. The two `S_*` probe cases are the **only**
   off-centre impacts (e.g. `S_80_400_V140`: +25 mm ≈ +6.3% off-centre; the beam
   is centred at x=0 with the impactor above it at x=+25).
 
-So the Impact probe is OOD on **three axes at once**: span (400/800 mm ∉
+So the Impact probe is OOD on **three axes at once**: width (400/800 mm ∉
 {320,480,640}), impactor velocity (∉ {40,80,120,160} m/s), **and an off-centre
 impact — a loading configuration absent from training entirely.** The off-centre
 axis is qualitatively different from the other two: it is not interpolation off a
@@ -165,3 +165,23 @@ prescribed identically to ground truth (kinematic rows GT == prediction to
 0.0000 mm; mask from the case's own `particle_type`, overridden with the case's own
 GT). Recorded in the benchmark card `protocol_rationale`; changes neither the
 scored protocol nor the frozen split lists — only their documented interpretation.
+
+## Amendment (2026-08-27): units, dimension naming, and a fourth probe axis
+
+*Draft by Claude Code; maintainer finalises.* Corrections applied in place
+above, verified against the canonical SI data and the deck material constants:
+
+- **Velocities are m/s, not mm/s.** The decks are kg-mm-ms (steel E = 200 GPa,
+  K&C f'c = 0.05 GPa with UCF 145000), where velocity is mm/ms ≡ m/s; a `-120`
+  case carries |v0| = 120.000 m/s in canonical storage. The published data
+  description's "mm/s" is the same misreading.
+- **Record length is 0.5 ms at 1 µs output (502 frames)**, not 500 ms at 1 ms
+  (500 frames) — measured on canonical bend and impact files alike.
+- **The beam dimension previously called "span" is the width W** (320/480/640
+  is the overall dimension, not the support-to-support distance), matching the
+  published H/W notation; renamed throughout, with the probe geometries noted
+  as H×W.
+- **The Impact probe is OOD on up to *four* axes**, not three: `S_100_800` is
+  also a new height (H = 100 mm vs the fixed H = 80 across all 108 grid cases,
+  verified from canonical frame-0 extents). The 2026-08-15 amendment's reading
+  of probe scores is unchanged; the height axis strengthens it.
