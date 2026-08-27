@@ -23,7 +23,7 @@ CARD = BenchmarkCard(
         "*MAT_PLASTIC_KINEMATIC",
     ),
     erosion=False,
-    loading="constant-velocity pin, 3-point bend, 8-20 mm/s",
+    loading="constant-velocity pin, 3-point bend, 8-20 m/s",
     source_units="kg-mm-ms",
     geometry="2D SPH notched beam, H80 x span {320,480,640} mm",
     n_cases=len(TRAIN) + len(VAL) + len(TEST_INTERP) + len(PROBE),

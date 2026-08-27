@@ -31,8 +31,7 @@ principal strain**, the field that carries the crack pattern.
 (dataset case names Rectangular / Sphere / Bullet) — strikes the C50 notched
 beam at midspan position A; beam height 80 mm, spans 320 / 480 / 640 mm, notch
 positions a / b / c. The figure shows the published three-level velocity sweep
-(80 / 120 / 160, in deck units mm/ms ≡ m/s); the benchmark grid adds a fourth
-level at 40 m/s.*
+(80 / 120 / 160 m/s); the benchmark grid adds a fourth level at 40 m/s.*
 
 ## Interpolation vs. the off-centre probe
 
