@@ -49,7 +49,7 @@ and one protocol:
 
 | Family | Paradigm | Status |
 |---|---|---|
-| CGN — Concrete Graph Network (ours, Li et al. 2023 lineage) | autoregressive graph network | **blessed** baseline: wave-1D, Taylor, notch-impact |
+| CGN — Concrete Graph Network (Li et al. 2023 lineage) | autoregressive graph network | **blessed** baseline: wave-1D, Taylor, notch-impact |
 | MeshGraphNets (Pfaff et al., 2021) | autoregressive graph network | **blessed**: DeformingPlate — reproduces the published error band; provisional: Taylor, notch-impact |
 | Transolver (Wu et al., 2024; + Transolver++ variant, off by default) | attention operator, time-conditioned (ADR-0054) | provisional: Taylor, notch-impact, DeformingPlate |
 | GeoFLARE (NVIDIA, 2025) | attention operator, time-conditioned | provisional: DeformingPlate |
