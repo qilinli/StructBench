@@ -188,13 +188,7 @@ assets/            # figures embedded in the docs + landing pages
 <!-- Completed inbox items are removed at each release; their record lives in
      git history and the ADRs they cite. -->
 
-- [ ] deformed-contour overlay figure in `viz/`: truth-vs-prediction outlines
-      on shared axes — the second half of the ADR-0019 review-note item; not
-      yet built (only side-by-side panels exist)
-- [ ] DUG remote data dir is `data/taylor_impact`; rename to
-      `taylor_impact_2d` (archive name) and update `train_taylor.slurm`,
-      `ablate_taylor.slurm`, and `hpc/dug/README.md` together, between job
-      fleets (pending since 2026-07-09)
+*(empty)*
 
 ### Later (each becomes an ADR/spec when picked up)
 
@@ -205,7 +199,7 @@ assets/            # figures embedded in the docs + landing pages
 - **Parked benchmarks** — RC beam (erosion is the gate, ADR-0024/0041) ·
   notch-bend (ADR-0056; module in-tree, re-registerable) · segmented beam
 - Training: resume support · part-id→embedding remap · ADR-0028 Phase-2
-  ablations · multi-scale CGN second Taylor baseline (spec Proposed)
+  ablations
 - Eval: leaderboard submission validator · per-region probe metrics ·
   convergence check · cross-benchmark utilities
 - Data & scale: checkpoint-publishing workflow · second aux target (plastic
