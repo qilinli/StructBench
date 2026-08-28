@@ -62,7 +62,7 @@ numbers are below.
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - Provenance: LS-DYNA parametric sweep (4 bar lengths x 4 initial velocities) produced by Curtin collaborators; benchmark protocol per ADR-0025.
 - License: CC BY 4.0
-- Data: maintainer-held, shared on request (ADR-0040)
+- Data: public on Hugging Face — [StructBench/wave-propagation-1d](https://huggingface.co/datasets/StructBench/wave-propagation-1d)
 
 ## Task
 
@@ -119,7 +119,7 @@ structbench-train --mode train --config configs/wave_propagation_1d/cgn.toml \
 
 This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
 
-Dataset access: the canonical archive is maintainer-held on institutional storage and shared on request (ADR-0040) — contact the maintainer, or ingest your own LS-DYNA output via the adapter; see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
+Dataset access: the canonical archive is public on Hugging Face — [StructBench/wave-propagation-1d](https://huggingface.co/datasets/StructBench/wave-propagation-1d) (CC BY 4.0): one `.h5` per case, `cases.csv` (split, loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input decks under `decks/`. Fetch one case with `hf_hub_download` or the whole archive with `snapshot_download` and point `--data-root` at it; pin `revision="v0.1.0"` for reproducible pipelines. The maintainer's OneDrive copy remains the master (ADR-0040, amended 2026-08-28). The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
 
 ## References
 

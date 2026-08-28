@@ -174,4 +174,21 @@ CARD = BenchmarkCard(
     size_gb=2.4,
     overview=_OVERVIEW,
     figures=_FIGURES,
+    data_access=(
+        "the canonical archive is public on Hugging Face — "
+        "[StructBench/taylor-impact-2d]"
+        "(https://huggingface.co/datasets/StructBench/taylor-impact-2d) "
+        "(CC BY 4.0): one `.h5` per case (the held-aside Convergence run "
+        "included, `split=held_aside` in the manifest), `cases.csv` (split, "
+        "loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input "
+        "decks under `decks/`. Fetch one case with `hf_hub_download` or the "
+        "whole archive with `snapshot_download` and point `--data-root` at "
+        'it; pin `revision="v0.1.0"` for reproducible pipelines. The '
+        "maintainer's OneDrive copy remains the master (ADR-0040, amended "
+        "2026-08-28)."
+    ),
+    data_access_label=(
+        "public on Hugging Face — [StructBench/taylor-impact-2d]"
+        "(https://huggingface.co/datasets/StructBench/taylor-impact-2d)"
+    ),
 )
