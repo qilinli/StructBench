@@ -147,7 +147,7 @@ _Quantities of interest (MAE)_
 ## Quickstart
 
 ```bash
-pip install structbench  # or: pip install -e . from the repo
+pip install git+https://github.com/qilinli/StructBench  # or: pip install -e . from a clone
 structbench-train --mode train --config configs/taylor_impact_2d/cgn.toml \
     --data-root /path/to/taylor_impact_2d --out runs/taylor_impact_2d-cgn
 ```

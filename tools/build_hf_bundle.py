@@ -297,6 +297,10 @@ def _hf_readme(spec, name: str, repo: str) -> str:
             _citation_bibtex(),
             "```",
             "",
+            "Licence: CC BY 4.0 — when redistributing or building on the data, "
+            "credit Qilin Li (Curtin University) / StructBench and link this "
+            "dataset repository.",
+            "",
         ]
     )
     # The mirror ships two things the archive itself does not (the manifest
@@ -308,9 +312,10 @@ def _hf_readme(spec, name: str, repo: str) -> str:
             "",
             "- `cases.csv` — one row per `.h5`: `case_id`, `split` "
             "(`held_aside` for files shipped outside the protocol splits), the "
-            "loading/geometry parameters parsed from the id, `n_nodes`, "
-            "`n_frames`, `file_bytes`, `sha256` (integrity manifest; also what "
-            "the Dataset Viewer shows).",
+            "loading/geometry parameters parsed from the id, `n_nodes` (rows "
+            "of `nodes/coords`, so including any boundary-shell nodes), "
+            "`n_frames` (stored frames), `file_bytes`, `sha256` (integrity "
+            "manifest; also what the Dataset Viewer shows).",
             "- `decks/<case_id>.k` — the LS-DYNA input deck of every case (also "
             "embedded verbatim in each file's `metadata/source_deck`); "
             "re-running a deck regenerates the raw output the adapter converts "
@@ -441,7 +446,8 @@ def build(args: argparse.Namespace) -> int:
                 _LOG.warning("deck missing for %s: %s", cid, deck)
         (deck_dir / "README.md").write_text(
             "LS-DYNA input decks, one per case (`<case_id>.k`), in the deck's\n"
-            "native kg-mm-ms unit system — the provenance root: re-running a\n"
+            f"native {spec.card.source_units} unit system — the provenance root: "
+            "re-running a\n"
             "deck in LS-DYNA regenerates the case's raw output, which the\n"
             "repository's adapter converts to the canonical HDF5 shipped here\n"
             "(strict SI, ADR-0012/0016).\n",

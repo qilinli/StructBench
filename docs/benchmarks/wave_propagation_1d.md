@@ -112,7 +112,7 @@ _Quantities of interest (MAE)_
 ## Quickstart
 
 ```bash
-pip install structbench  # or: pip install -e . from the repo
+pip install git+https://github.com/qilinli/StructBench  # or: pip install -e . from a clone
 structbench-train --mode train --config configs/wave_propagation_1d/cgn.toml \
     --data-root /path/to/wave_propagation_1d --out runs/wave_propagation_1d-cgn
 ```
