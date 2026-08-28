@@ -76,7 +76,7 @@ on this benchmark.
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - Provenance: LS-DYNA parametric sweep (3 bar lengths x 11 impact velocities) produced by Curtin collaborators; benchmark protocol per ADR-0019. One extra Convergence run is held aside for a mesh-resolution check.
 - License: CC BY 4.0
-- Data: maintainer-held, shared on request (ADR-0040)
+- Data: public on Hugging Face — [StructBench/taylor-impact-2d](https://huggingface.co/datasets/StructBench/taylor-impact-2d)
 
 ## Task
 
@@ -161,14 +161,14 @@ _Quantities of interest (MAE)_
 ## Quickstart
 
 ```bash
-pip install structbench  # or: pip install -e . from the repo
+pip install git+https://github.com/qilinli/StructBench # or: pip install -e .
 structbench-train --mode train --config configs/taylor_impact_2d/cgn.toml \
     --data-root /path/to/taylor_impact_2d --out runs/taylor_impact_2d-cgn
 ```
 
 This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
 
-Dataset access: the canonical archive is maintainer-held on institutional storage and shared on request (ADR-0040) — contact the maintainer, or ingest your own LS-DYNA output via the adapter; see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
+Dataset access: the canonical archive is public on Hugging Face — [StructBench/taylor-impact-2d](https://huggingface.co/datasets/StructBench/taylor-impact-2d) (CC BY 4.0): one `.h5` per case (the held-aside Convergence run included, `split=held_aside` in the manifest), `cases.csv` (split, loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input decks under `decks/`. Fetch one case with `hf_hub_download` or the whole archive with `snapshot_download` and point `--data-root` at it; pin the dataset repo's `v0.1.0` tag (`revision="v0.1.0"` — a data release, independent of the code version) for reproducible pipelines. The maintainer's OneDrive copy remains the master (ADR-0040, amended 2026-08-28). The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
 
 ## References
 

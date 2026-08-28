@@ -70,7 +70,7 @@ numbers, and the cross-method comparison, are below.
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - Provenance: LS-DYNA parametric sweep (3 widths x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators — extends the published 81-specimen drop-weight study (plate/disk/rod impactors at 80/120/160 m/s) with a 40 m/s velocity level; benchmark protocol per ADR-0026.
 - License: CC BY 4.0
-- Data: maintainer-held, shared on request (ADR-0040)
+- Data: public on Hugging Face — [StructBench/notch-beam-2d-impact](https://huggingface.co/datasets/StructBench/notch-beam-2d-impact)
 
 ## Task
 
@@ -155,14 +155,14 @@ _Quantities of interest (MAE)_
 ## Quickstart
 
 ```bash
-pip install structbench  # or: pip install -e . from the repo
+pip install git+https://github.com/qilinli/StructBench # or: pip install -e .
 structbench-train --mode train --config configs/notch_beam_2d_impact/cgn.toml \
     --data-root /path/to/notch_beam_2d_impact --out runs/notch_beam_2d_impact-cgn
 ```
 
 This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
 
-Dataset access: the canonical archive is maintainer-held on institutional storage and shared on request (ADR-0040) — contact the maintainer, or ingest your own LS-DYNA output via the adapter; see the repository README. The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
+Dataset access: the canonical archive is public on Hugging Face — [StructBench/notch-beam-2d-impact](https://huggingface.co/datasets/StructBench/notch-beam-2d-impact) (CC BY 4.0): one `.h5` per case, `cases.csv` (split, loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input decks under `decks/`. Fetch one case with `hf_hub_download` or the whole archive with `snapshot_download` (resumable) and point `--data-root` at it; pin the dataset repo's `v0.1.0` tag (`revision="v0.1.0"` — a data release, independent of the code version) for reproducible pipelines. The maintainer's OneDrive copy remains the master (ADR-0040, amended 2026-08-28). The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
 
 ## References
 

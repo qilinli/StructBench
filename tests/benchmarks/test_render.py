@@ -83,32 +83,51 @@ def test_archive_readme_is_self_describing():
     assert "g-mm-ms" in text
 
 
-def test_archive_readme_carries_task_eval_and_usage_sections():
+def test_archive_readme_is_a_dataset_page():
+    # The archive README describes the data (files, layout, loading, splits)
+    # and points at the benchmark page for protocol/baselines/leaderboard —
+    # those tables are not duplicated into the archive.
     spec = get_benchmark("taylor_impact_2d")
     text = render_archive_readme(spec, "taylor_impact_2d")
-    assert "## Task" in text
-    assert "## Evaluation criteria" in text
-    assert "## Leaderboard" in text
-    assert "## Baseline details" in text
-    assert "## Using this archive" in text
-    # protocol values + rationale from the card (ADR-0032, ADR-0035)
+    for heading in (
+        "## Dataset summary",
+        "## Files",
+        "## HDF5 layout",
+        "## Loading",
+        "## Benchmark protocol",
+    ):
+        assert heading in text
+    assert "## Leaderboard" not in text and "## Baseline details" not in text
+    assert "## Splits" not in text  # split ids live in cases.csv, counts in the summary
+    # SPH layout table + both loading paths
+    assert "`response/element/sph/{stress, strain, strain_rate}` | (T, P, 6)" in text
+    assert 'load_case_trajectory("<case_id>.h5", aux_field="von_mises_stress")' in text
+    assert "import h5py" in text
+    # protocol pointer: values from the card, the page link, the train command
     assert f"{spec.card.input_frames} input frames" in text
-    assert spec.card.protocol_rationale[:40] in text
-    # QoIs listed; runnable command names the grouped config
     assert spec.card.qois[0] in text
+    assert "docs/benchmarks/taylor_impact_2d.md" in text
     assert "configs/taylor_impact_2d/cgn.toml" in text
 
 
-def test_archive_readme_without_results_carries_placeholder():
+def test_archive_readme_mesh_variant_describes_nodal_layout():
+    text = render_archive_readme(get_benchmark("deforming_plate"), "deforming_plate")
+    assert "`nodes/reference_coords`" in text
+    assert "`response/node/von_mises_stress` | (T, N, 1)" in text
+    assert "elements/sph" not in text
+    assert "the mesh-aware loader reads it verbatim" in text
+
+
+def test_benchmark_page_without_results_carries_placeholder():
     # A result-less bare spec exercises the no-baseline placeholder path.
     spec = _bare_spec()
-    text = render_archive_readme(spec, "taylor_impact_2d")
+    text = render_benchmark_page(spec, "taylor_impact_2d")
     assert "No official baseline yet" in text
 
 
-def test_archive_readme_renders_leaderboard_row():
+def test_benchmark_page_renders_leaderboard_row():
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
-    text = render_archive_readme(spec, "taylor_impact_2d")
+    text = render_benchmark_page(spec, "taylor_impact_2d")
     assert "No official baseline yet" not in text
     assert "CGN baseline" in text
     assert "abc1234" in text
@@ -223,7 +242,7 @@ def test_card_figure_paths_exist():
 def test_leaderboard_splits_metrics_into_three_tiers():
     # The blessed Taylor result carries rel-L2, RMSE, and QoI keys: three tiers,
     # in headline -> RMSE -> QoI order, each a separate labelled table.
-    text = render_archive_readme(get_benchmark("taylor_impact_2d"), "taylor_impact_2d")
+    text = render_benchmark_page(get_benchmark("taylor_impact_2d"), "taylor_impact_2d")
     head = "_Headline — pooled relative L2 (↓ better)_"
     rmse = "_Trajectory error — RMSE_"
     qoi = "_Quantities of interest (MAE)_"
@@ -247,16 +266,13 @@ def test_private_checkpoint_pointer_renders_with_marker():
         checkpoint_sha256="0" * 64,
     )
     spec = replace(get_benchmark("taylor_impact_2d"), results=(private,))
-    for text in (
-        render_archive_readme(spec, "taylor_impact_2d"),
-        render_benchmark_page(spec, "taylor_impact_2d"),
-    ):
-        assert "checkpoint: `models/taylor_impact_2d/cgn-abc1234/" in text
-        assert "private archive; publication parked" in text
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    assert "checkpoint: `models/taylor_impact_2d/cgn-abc1234/" in text
+    assert "private archive; publication parked" in text
 
     published = replace(private, checkpoint="https://example.org/m.pt")
     spec = replace(get_benchmark("taylor_impact_2d"), results=(published,))
-    text = render_archive_readme(spec, "taylor_impact_2d")
+    text = render_benchmark_page(spec, "taylor_impact_2d")
     assert "checkpoint: `https://example.org/m.pt`" in text
     assert "publication parked" not in text
 
@@ -272,7 +288,7 @@ def test_single_metric_group_renders_only_its_tier():
         metrics={"test_interp": {"rollout_pos_rmse_mm": 1.5}},
     )
     spec = replace(get_benchmark("taylor_impact_2d"), results=(result,))
-    text = render_archive_readme(spec, "taylor_impact_2d")
+    text = render_benchmark_page(spec, "taylor_impact_2d")
     assert "_Trajectory error — RMSE_" in text
     assert "_Headline — pooled relative L2 (↓ better)_" not in text
     assert "_Quantities of interest (MAE)_" not in text
@@ -308,7 +324,7 @@ def test_leaderboard_leads_with_relative_l2_tier():
     # Headline rel-L2 tier first, RMSE second, QoI last; rel-L2 columns sit
     # under their own heading, not lumped with the RMSE tier.
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_rel_l2_result(),))
-    text = render_archive_readme(spec, "taylor_impact_2d")
+    text = render_benchmark_page(spec, "taylor_impact_2d")
     head = "_Headline — pooled relative L2 (↓ better)_"
     rmse = "_Trajectory error — RMSE_"
     qoi = "_Quantities of interest (MAE)_"
@@ -367,10 +383,12 @@ def test_landing_page_folds_protocol_rationale_but_index_does_not():
     assert "<details>" in page
     assert spec.card.protocol_rationale[:40] in page
     assert "- Protocol rationale:" not in page
-    # the archive README keeps it inline (fold is page-only)
+    # the archive README (a dataset page) carries the rationale in neither
+    # form — it points at the benchmark page for the protocol
     archive = render_archive_readme(spec, "taylor_impact_2d")
-    assert "- Protocol rationale:" in archive
+    assert "Protocol rationale" not in archive
     assert "<details>" not in archive
+    assert "docs/benchmarks/taylor_impact_2d.md" in archive
 
 
 # --- leaderboard + provisional-aware Quickstart selection (ADR-0046, ADR-0055) ---
@@ -535,7 +553,7 @@ def test_baseline_details_has_notes_but_no_metric_table():
     # The provenance block keeps the notes but no per-split metric table —
     # every number now lives in the leaderboard above it.
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
-    text = render_archive_readme(spec, "taylor_impact_2d")
+    text = render_benchmark_page(spec, "taylor_impact_2d")
     details = text.split("## Baseline details", 1)[1]
     assert "single A100, 100k steps" in details
     assert "| split |" not in details
@@ -579,36 +597,21 @@ def test_benchmark_page_leaderboard_appears_before_baseline_details():
     ) in text
 
 
-def test_archive_readme_leaderboard_appears_before_baseline_details():
+def test_archive_readme_never_renders_result_tables():
+    # Results (blessed or provisional, or none) never reach the dataset page:
+    # the leaderboard and baseline details have one home, the benchmark page.
     prov_mgn = replace(
         _fake_result(), family="mgn", label="MGN candidate", provisional=True
     )
     spec = replace(
         get_benchmark("taylor_impact_2d"), results=(_fake_result(), prov_mgn)
     )
-    text = render_archive_readme(spec, "taylor_impact_2d")
-    assert "## Leaderboard" in text
-    assert text.index("## Leaderboard") < text.index("## Baseline details")
-    assert "| CGN baseline | — | 1.50000 |" in text
-    assert "| MGN candidate | — | 1.50000 |" in text
-    assert text.index("| CGN baseline | — | 1.50000 |") < text.index(
-        "| MGN candidate | — | 1.50000 |"
-    )
-    assert "*(provisional)*" not in text
-    assert "Provisional entries are best-effort implementations" not in text
-    # Both detail blocks render, neither tagged. Exact-line match.
-    lines = text.splitlines()
-    assert "**CGN baseline** (cgn, 2026-07-05, commit `abc1234`)" in lines
-    assert "**MGN candidate** (mgn, 2026-07-05, commit `abc1234`)" in lines
-
-    empty_spec = _bare_spec()
-    text = render_archive_readme(empty_spec, "taylor_impact_2d")
-    assert "## Leaderboard" in text
-    assert text.index("## Leaderboard") < text.index("## Baseline details")
-    assert (
-        "*No results yet — method entries land here as runs are "
-        "recorded (blessed or provisional).*"
-    ) in text
+    for s in (spec, _bare_spec()):
+        text = render_archive_readme(s, "taylor_impact_2d")
+        assert "## Leaderboard" not in text
+        assert "## Baseline details" not in text
+        assert "| CGN baseline |" not in text
+        assert "No results yet" not in text
 
 
 def test_quickstart_config_path_exists_for_every_benchmark():
@@ -722,9 +725,15 @@ def test_pending_baseline_renders_training_placeholder_row():
     # A pending entry (still-training baseline, empty metrics) renders a
     # leaderboard row of "—" tagged (training), with a note; it never raises.
     pending = BaselineResult(
-        family="mgn", label="MGN", scheme="autoregressive",
-        provisional=True, pending=True, run_commit="abc1234",
-        run_date="2026-08-16", metrics={}, notes="run in progress",
+        family="mgn",
+        label="MGN",
+        scheme="autoregressive",
+        provisional=True,
+        pending=True,
+        run_commit="abc1234",
+        run_date="2026-08-16",
+        metrics={},
+        notes="run in progress",
     )
     real = _rel_l2_result()
     spec = replace(get_benchmark("taylor_impact_2d"), results=(pending, real))

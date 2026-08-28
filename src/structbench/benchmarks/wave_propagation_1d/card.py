@@ -156,4 +156,21 @@ CARD = BenchmarkCard(
             ),
         ),
     ),
+    data_access=(
+        "the canonical archive is public on Hugging Face — "
+        "[StructBench/wave-propagation-1d]"
+        "(https://huggingface.co/datasets/StructBench/wave-propagation-1d) "
+        "(CC BY 4.0): one `.h5` per case, `cases.csv` (split, loading/geometry "
+        "parameters, SHA-256 manifest) and the LS-DYNA input decks under "
+        "`decks/`. Fetch one case with `hf_hub_download` or the whole archive "
+        "with `snapshot_download` and point `--data-root` at it; pin the "
+        'dataset repo\'s `v0.1.0` tag (`revision="v0.1.0"` — a data release, '
+        "independent of the code version) for reproducible pipelines. The "
+        "maintainer's OneDrive copy remains the master (ADR-0040, amended "
+        "2026-08-28)."
+    ),
+    data_access_label=(
+        "public on Hugging Face — [StructBench/wave-propagation-1d]"
+        "(https://huggingface.co/datasets/StructBench/wave-propagation-1d)"
+    ),
 )

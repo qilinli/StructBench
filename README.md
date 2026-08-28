@@ -25,9 +25,9 @@ for the full problem, data, and numbers to beat.*
 
 | Benchmark | Problem | Cases | Data |
 |---|---|---|---|
-| Wave1D-Propagation | elastic wave in a bar (entry tier) | 16 | [on request](docs/benchmarks/wave_propagation_1d.md) |
-| Taylor2D-Impact | copper bar impact (SPH, plasticity) | 33 | [on request](docs/benchmarks/taylor_impact_2d.md) |
-| NotchBeam2D-Impact | notched concrete beam, drop-weight impact | 110 | [on request](docs/benchmarks/notch_beam_2d_impact.md) |
+| Wave1D-Propagation | elastic wave in a bar (entry tier) | 16 | [Hugging Face](https://huggingface.co/datasets/StructBench/wave-propagation-1d) |
+| Taylor2D-Impact | copper bar impact (SPH, plasticity) | 33 | [Hugging Face](https://huggingface.co/datasets/StructBench/taylor-impact-2d) |
+| NotchBeam2D-Impact | notched concrete beam, drop-weight impact | 110 | [Hugging Face](https://huggingface.co/datasets/StructBench/notch-beam-2d-impact) |
 | DeformingPlate | hyperelastic 3D plate + rigid actuator (MeshGraphNets, quasi-static) | 1200 | [public source](data_generation/meshgraphnets/deforming_plate/) |
 
 Ordered by constitutive regime: linear elastic → elastoplastic → concrete
@@ -117,9 +117,17 @@ DeformingPlate benchmark (ADR-0041; operator adaptations ADR-0044/0045).
 **Data availability:** each benchmark ships as a self-contained canonical
 archive — a `canonical/<benchmark>/` folder of `<case_id>.h5` files with a
 generated `README.md` and `card.json` — and `--data-root` points at that
-folder. The three LS-DYNA archives (CC BY 4.0) are maintainer-held on
-institutional storage (ADR-0040): request them from the maintainer, or ingest
-your own LS-DYNA output via the adapter. DeformingPlate's source data is
+folder. The three LS-DYNA archives (CC BY 4.0) are public on Hugging Face —
+[`StructBench/wave-propagation-1d`](https://huggingface.co/datasets/StructBench/wave-propagation-1d),
+[`StructBench/taylor-impact-2d`](https://huggingface.co/datasets/StructBench/taylor-impact-2d),
+[`StructBench/notch-beam-2d-impact`](https://huggingface.co/datasets/StructBench/notch-beam-2d-impact)
+— one `.h5` per case plus a `cases.csv` manifest (splits, parameters,
+SHA-256) and the LS-DYNA input decks; `snapshot_download` an archive (pin
+the dataset repo's `v0.1.0` tag — a data release, independent of the code
+version) and point `--data-root` at it, or ingest your own LS-DYNA output
+via the adapter. The maintainer's OneDrive copy stays the
+master and is still shared on request (ADR-0040, amended 2026-08-28).
+DeformingPlate's source data is
 public (MeshGraphNets; no data licence stated by the source): download it
 from the DeepMind bucket and convert locally with
 `data_generation/meshgraphnets/deforming_plate/` (ADR-0042 — StructBench

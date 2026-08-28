@@ -49,3 +49,24 @@ The current arrangement is the decision, not a stopgap (maintainer,
 - No dataset DOI exists. If one becomes necessary (e.g. for a paper), this
   Ephemeral ADR is updated in place with a dated note.
 - The 2026-07-09 CORRECTIONS.md hosting entry is resolved by this ADR.
+
+---
+
+**Amendment (2026-08-28, maintainer).** The three LS-DYNA archives are now
+*also* published on Hugging Face as public dataset repos —
+`StructBench/wave-propagation-1d`, `StructBench/taylor-impact-2d`,
+`StructBench/notch-beam-2d-impact` (CC BY 4.0; one `.h5` per case,
+`cases.csv` with splits, loading/geometry parameters and a SHA-256 manifest,
+the LS-DYNA input decks; dataset tag `v0.1.0`, versioned independently of
+the code releases). This amends clauses 2–3 without reversing clause 1: the
+maintainer's OneDrive stays the single master copy (the HF repos are a
+distribution mirror built from it by `tools/build_hf_bundle.py` and
+re-uploaded on change — procedure in that tool's docstring), on-request
+sharing continues for anyone who cannot reach HF, and HF is the *live*
+public channel. Clause 3's *dropped* Zenodo direction is reopened as
+deferred: a Zenodo record (citable DOI) is worth archiving at a dataset
+freeze, e.g. when a publication needs to cite one. DeformingPlate is
+unaffected (not rehosted,
+ADR-0042). Why now: v0.3 made StructBench a public multi-method benchmark,
+and "request the data from the maintainer" was the last non-public step in
+reproducing any leaderboard row.

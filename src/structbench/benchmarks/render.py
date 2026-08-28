@@ -383,7 +383,8 @@ def render_index(specs: list[BenchmarkSpec]) -> str:
     """
     rank = {name: i for i, name in enumerate(PRESENTATION_ORDER)}
     specs = sorted(
-        specs, key=lambda s: (rank.get(s.card.name, len(PRESENTATION_ORDER)), s.card.name)
+        specs,
+        key=lambda s: (rank.get(s.card.name, len(PRESENTATION_ORDER)), s.card.name),
     )
     lines = [
         _MARKER,
@@ -488,8 +489,206 @@ def _references(spec: BenchmarkSpec) -> list[str]:
     return lines
 
 
+#: The code repository — the archive README points here for the protocol,
+#: baselines and leaderboard, so those numbers keep a single public home.
+_REPO_URL = "https://github.com/qilinli/StructBench"
+
+
+def _aux_unit_text(c: BenchmarkCard) -> str:
+    """``aux_unit`` for prose: ``"-"`` (dimensionless) reads as a word."""
+    return c.aux_unit if c.aux_unit.strip() not in ("", "-") else "dimensionless"
+
+
+def _layout_lines(c: BenchmarkCard) -> list[str]:
+    """The ``## HDF5 layout`` section: what a consumer finds inside one file.
+
+    Shapes use N nodes, P SPH particles, E elements, T frames and
+    d = ``metadata.dimension``; every stored quantity is strict SI
+    (ADR-0012/0013). The SPH table mirrors the LS-DYNA adapter's
+    extract-everything field set (ADR-0016 §4); the mesh variant describes
+    the nodal-FE layout of schema 0.2.0 (ADR-0042/0043).
+    """
+    sph = c.discretisation == "SPH"
+    lines = [
+        "## HDF5 layout",
+        "",
+        "One HDF5 file per case, readable with `h5py` or any HDF5 tool. Every "
+        "quantity is stored in strict SI (m, s, kg, Pa, J) regardless of the "
+        f"solver's `{c.source_units}` source convention. Small scalars are "
+        "HDF5 attributes; arrays are datasets (float64 geometry and time, "
+        "float32 response, int64 ids, variable-length UTF-8 strings — h5py "
+        "returns those as `bytes`); response arrays are gzip-compressed and "
+        "chunked in blocks of frames, so slicing along the frame axis reads "
+        "only the chunks it touches. Shapes below use N nodes, P SPH "
+        "particles, E elements, T stored frames and d = `metadata.dimension`; "
+        "the exact schema version is the `schema_version` attribute "
+        "(ADR-0013 — 0.2.0 readers read 0.1.0 files unchanged, ADR-0042). "
+        "`ADR-NNNN` refers to the decision records under `decisions/` in the "
+        "code repository.",
+        "",
+        "| Path | Shape | Dtype | Content |",
+        "|---|---|---|---|",
+        "| `metadata` (attrs) | — | — | `case_id`, `dataset_id`, `dimension`, "
+        "`schema_version`, `source_units`, `units_convention` (= `SI`) |",
+        "| `metadata/provenance` (attrs) | — | — | `solver_name`, "
+        "`solver_version`, `generation_date` |",
+        "| `metadata/source_deck` | scalar | str | the complete solver input "
+        "deck, verbatim (solver-ingested cases) |",
+        "| `nodes/coords` | (N, d) | f64 | initial node coordinates [m] |",
+        "| `nodes/node_id` | (N,) | i64 | solver node ids |",
+        "| `materials/{canonical_model, source_model, source_params, "
+        "material_id}` | (M,) | str / i64 | material models; `source_params` "
+        "is the solver's material card as JSON; `canonical_model` is empty "
+        "when the source model has no canonical mapping |",
+    ]
+    if sph:
+        lines += [
+            "| `response/time/t` | (T,) | f64 | the solver's actual output "
+            f"times [s], nominally every {c.output_dt_ms} ms; frame 0 is the "
+            "initial state; the last stored frame is a terminal solver-output "
+            "artifact that the loader drops (ADR-0028) |",
+            "| `elements/sph/connectivity` | (P, 1) | i64 | particle → node "
+            "index (0-based) |",
+            "| `elements/sph/{element_id, part_id}` | (P,) | i64 | solver "
+            "element id, part id |",
+            "| `elements/<other>/…` | (E, n), (E,) | i64 | any further element "
+            "group (e.g. a single rigid-wall / boundary `shell`, whose nodes "
+            "are counted in N but are not particles) follows the same "
+            "connectivity, element_id, part_id pattern |",
+            "| `response/node/{displacement, velocity, acceleration}` | "
+            "(T, N, d) | f32 | [m], [m/s], [m/s²] |",
+            "| `response/element/sph/{stress, strain, strain_rate}` | "
+            "(T, P, 6) | f32 | Voigt (xx, yy, zz, xy, yz, zx): [Pa], [–], "
+            "[1/s] — six components even for 2D cases |",
+            "| `response/element/sph/{pressure, density, mass, "
+            "internal_energy}` | (T, P) | f32 | [Pa] (positive in "
+            "compression, = −tr σ / 3), [kg/m³], [kg], [J] |",
+            "| `response/element/sph/effective_plastic_strain` | (T, P) | f32 "
+            "| whatever the material model writes to LS-DYNA's plastic-strain "
+            "history slot: equivalent plastic strain [–] for elastoplastic "
+            "models, the K&C concrete model's scaled damage measure (0–2) for "
+            "`*MAT_CONCRETE_DAMAGE_REL3`, and an unrelated history variable "
+            "for purely elastic materials (treat as unused) |",
+            "| `response/element/sph/{radius, n_neighbors, deletion}` | (T, P) "
+            "| f32 | smoothing length [m], neighbour count, 0/1 deletion flag |",
+            "| `response/element/<other>/…` | (T, E, …) | f32 | per-element "
+            "response of any further element group |",
+            "| `response/global/{kinetic_energy, internal_energy, "
+            "total_energy}` | (T,) | f32 | [J] |",
+        ]
+    else:
+        lines += [
+            "| `response/time/t` | (T,) | f64 | output times [s] — for "
+            "quasi-static data a pseudo-time index; frame 0 is the initial "
+            "state |",
+            "| `nodes/node_type` | (N,) | i64 | per-node kinematic type "
+            "(schema 0.2.0) |",
+            "| `nodes/reference_coords` | (N, d) | f64 | material / reference "
+            "configuration [m] (schema 0.2.0) |",
+            "| `elements/<type>/connectivity` | (E, n) | i64 | element → node "
+            "indices (0-based) |",
+            "| `elements/<type>/{element_id, part_id}` | (E,) | i64 | solver "
+            "element id, part id |",
+            "| `response/node/displacement` | (T, N, d) | f32 | [m] |",
+            f"| `response/node/{c.aux_field}` | (T, N, 1) | f32 | nodal scalar "
+            "field, SI on disk |",
+        ]
+    return lines + ["", _stress_derivation_line(c)]
+
+
+def _loading_lines(c: BenchmarkCard) -> list[str]:
+    """The ``## Loading`` section: raw ``h5py`` and the StructBench loader."""
+    unit = _aux_unit_text(c)
+    lines = [
+        "## Loading",
+        "",
+        "Plain HDF5 — nothing beyond `h5py` is needed:",
+        "",
+        "```python",
+        "import h5py",
+        "",
+        'with h5py.File("<case_id>.h5") as f:',
+        '    t = f["response/time/t"][:]                # (T,) s',
+        '    x0 = f["nodes/coords"][:]                  # (N, d) m',
+        '    u = f["response/node/displacement"]        # (T, N, d) m, chunked along T',
+        "    u_last = u[-1]                             # one frame, no full read",
+    ]
+    if c.discretisation == "SPH":
+        lines.append(
+            '    sig = f["response/element/sph/stress"][:]  # (T, P, 6) Pa, Voigt'
+        )
+    else:
+        code = f'    s = f["response/node/{c.aux_field}"][:]'
+        lines.append(f"{code:<46}# (T, N, 1) SI")
+    aux_prose = (
+        f"`{c.aux_field}`, {unit}"
+        if unit == "dimensionless"
+        else f"`{c.aux_field}` in {unit}"
+    )
+    if c.discretisation == "SPH":
+        frames = "T′ = T − 1: the terminal solver-output frame is dropped (ADR-0028)"
+        p_note = "P SPH particles only (boundary-shell nodes are dropped)"
+    else:
+        frames = "T′ = T"
+        p_note = "P = N nodes"
+    lines += [
+        "```",
+        "",
+        "Or through StructBench's loader, which returns the ML working frame "
+        f"(positions in mm; {aux_prose}) with the auxiliary target derived on "
+        f"the fly — {p_note}; {frames}:",
+        "",
+        "```python",
+        "from structbench.datasets import load_case_trajectory",
+        "",
+        f'traj = load_case_trajectory("<case_id>.h5", aux_field="{c.aux_field}")',
+        "traj.positions   # (T′, P, d) float32, mm",
+        f"traj.aux         # (T′, P) float32, {unit}",
+        "traj.time        # (T′,) float64, s",
+        "```",
+    ]
+    return lines
+
+
+def _protocol_lines(spec: BenchmarkSpec, name: str) -> list[str]:
+    """The ``## Benchmark protocol`` pointer: a one-paragraph summary, the
+    link to the benchmark page (the single home of protocol, baselines and
+    leaderboard), and the train command against this archive."""
+    c = spec.card
+    # The quickstart trains the selected family (ADR-0046: blessed-first,
+    # else the first provisional entry, else spec.quickstart_family) —
+    # mirrors render_benchmark_page's config-path selection.
+    family, _ = _quickstart_family(spec)
+    return [
+        "## Benchmark protocol",
+        "",
+        f"This archive backs the **{c.name}** benchmark in StructBench. Task: "
+        f"{c.task}; auxiliary target `{c.aux_field}` ({_aux_unit_text(c)}); "
+        f"{c.input_frames} input frames, horizon {c.horizon}, scored at "
+        f"{c.eval_times} output times; quantities of interest: "
+        f"{', '.join(c.qois)}. The full evaluation protocol and its rationale, "
+        "the baseline recipes and checkpoints, and the current leaderboard "
+        "live on the benchmark page in the code repository — "
+        f"<{_REPO_URL}/blob/main/docs/benchmarks/{name}.md> — so the numbers "
+        "have a single home. To train a baseline on this archive:",
+        "",
+        "```bash",
+        "pip install git+https://github.com/qilinli/StructBench # or: pip install -e .",
+        f"structbench-train --mode train --config configs/{name}/{family}.toml \\",
+        f"    --data-root /path/to/this/folder --out runs/{name}-{family}",
+        "```",
+    ]
+
+
 def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
-    """A standalone README for the hosted dataset archive.
+    """A standalone README for the hosted dataset archive — a *dataset* page.
+
+    Describes what ships and how to read it (files, HDF5 layout, loading
+    code) and points at the benchmark page in the code
+    repository for the protocol, baselines and leaderboard, which are not
+    duplicated here so their numbers keep one public home. Shared with
+    :func:`render_benchmark_page` only through the card, so the two views
+    never drift on the facts.
 
     Parameters
     ----------
@@ -497,7 +696,7 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         The benchmark specification whose card describes the hosted dataset.
     name : str
         The registry name (archive folder name), e.g. ``"taylor_impact_2d"``
-        — used for the grouped-config path in the usage section.
+        — used for the benchmark-page link and the grouped-config path.
 
     Returns
     -------
@@ -505,45 +704,41 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         Standalone README markdown for the dataset archive.
     """
     c = spec.card
-    # The quickstart trains the selected family (ADR-0046: blessed-first,
-    # else the first provisional entry, else spec.quickstart_family) —
-    # mirrors render_benchmark_page's config-path selection.
-    family, _ = _quickstart_family(spec)
     splits_str = ", ".join(f"{k} {v}" for k, v in c.splits.items())
+    size = f"; {c.size_gb} GB on disk" if c.size_gb else ""
     lines = [
         f"# {c.name} — StructBench canonical dataset",
         "",
         c.description,
         "",
+        "## Dataset summary",
+        "",
         f"- Solver: {c.solver} ({c.discretisation}; erosion: {_yesno(c.erosion)})",
         f"- Loading: {c.loading}",
+        f"- Geometry: {c.geometry}",
+        f"- Materials: {'; '.join(c.materials)}",
         f"- Source units: {c.source_units} (files are strict SI, ADR-0012)",
         f"- Cases: {c.n_cases} ({splits_str})",
         f"- Particles per case: {c.particles_per_case}; "
-        f"{c.n_frames} frames at {c.output_dt_ms} ms",
+        f"{c.n_frames} frames at {c.output_dt_ms} ms{size}",
+        f"- Fields: {', '.join(c.fields)}",
         f"- Provenance: {c.provenance}",
         f"- License: {c.data_license}",
         "",
-        *_task_lines(c),
+        "## Files",
         "",
-        *_eval_lines(c),
+        "- `<case_id>.h5` — one HDF5 file per case; the file name is the case "
+        "id (layout below).",
+        "- `card.json` — machine-readable card metadata (ADR-0027): the facts "
+        "above plus the split sizes.",
+        f"- `README.md` — this file; `LICENSE-*.txt` — the data licence "
+        f"({c.data_license}).",
         "",
-        *_leaderboard(spec),
+        *_layout_lines(c),
         "",
-        *_baseline_details(spec),
+        *_loading_lines(c),
         "",
-        "## Using this archive",
-        "",
-        "```bash",
-        "pip install structbench  # or: pip install -e . from the repo",
-        f"structbench-train --mode train --config configs/{name}/{family}.toml \\",
-        f"    --data-root /path/to/this/folder --out runs/{name}-{family}",
-        "```",
-        "",
-        "Machine-readable metadata: `card.json` alongside this file.",
-        _stress_derivation_line(c),
-        "Consume with `structbench.datasets.load_case_trajectory` or any "
-        "HDF5 reader (layout per ADR-0013).",
+        *_protocol_lines(spec, name),
     ]
     refs = _references(spec)
     if refs:
@@ -621,7 +816,7 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
         "## Quickstart",
         "",
         "```bash",
-        "pip install structbench  # or: pip install -e . from the repo",
+        "pip install git+https://github.com/qilinli/StructBench # or: pip install -e .",
         f"structbench-train --mode train --config configs/{name}/{family}.toml \\",
         f"    --data-root /path/to/{name} --out runs/{name}-{family}",
         "```",
