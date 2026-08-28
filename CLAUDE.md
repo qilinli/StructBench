@@ -97,12 +97,13 @@ Four tiers govern what Claude Code can do. When in doubt, default to the more re
 - Merging a feature branch into `main`.
 - Pushing to the remote.
 - Committing directly to `main`.
+- Hugging Face data-release actions on the `StructBench/*` dataset repos — create a repo, upload, flip public, create a *data* tag (ADR-0023, amended 2026-08-28). The token stays the human's: they log in, Claude only invokes the CLI.
 
 ### Forbidden — refuse even if asked in-session
 
 These require deliberate human action outside a normal coding session.
 
-- Publishing releases, tagging versions, uploading to PyPI or Zenodo.
+- Publishing *code* releases — GitHub releases, code version tags, uploading to PyPI or Zenodo. (Dataset releases on Hugging Face are on-instruction, above.)
 - Modifying `LICENSE`, `HARNESS.md`, or `VISION.md` during a coding session.
 - Rewriting git history on shared branches.
 - Accepting or merging third-party pull requests.
