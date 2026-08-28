@@ -641,26 +641,6 @@ def _loading_lines(c: BenchmarkCard) -> list[str]:
     return lines
 
 
-def _splits_lines(spec: BenchmarkSpec) -> list[str]:
-    """The ``## Splits`` section: the fixed assignment, every case id listed."""
-    lines = [
-        "## Splits",
-        "",
-        "The benchmark's fixed split assignment, by case id (the file name "
-        "without `.h5`). `train` fits the model and `val` selects it; every "
-        "other split is held out for reporting — `test_interp` sits inside "
-        "the training parameter range, `test_extrap` beyond it, `probe` "
-        "cases are off-grid stress tests. Files shipped outside these splits "
-        "(`held_aside` in the manifest) are not part of the protocol.",
-        "",
-    ]
-    for split, ids in spec.splits.items():
-        lines += [
-            f"- **{split}** ({len(ids)}): " + ", ".join(f"`{cid}`" for cid in ids),
-        ]
-    return lines
-
-
 def _protocol_lines(spec: BenchmarkSpec, name: str) -> list[str]:
     """The ``## Benchmark protocol`` pointer: a one-paragraph summary, the
     link to the benchmark page (the single home of protocol, baselines and
@@ -684,7 +664,7 @@ def _protocol_lines(spec: BenchmarkSpec, name: str) -> list[str]:
         "have a single home. To train a baseline on this archive:",
         "",
         "```bash",
-        "pip install git+https://github.com/qilinli/StructBench  # or: pip install -e . from a clone",
+        "pip install git+https://github.com/qilinli/StructBench  # or: pip install -e .",
         f"structbench-train --mode train --config configs/{name}/{family}.toml \\",
         f"    --data-root /path/to/this/folder --out runs/{name}-{family}",
         "```",
@@ -695,7 +675,7 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
     """A standalone README for the hosted dataset archive — a *dataset* page.
 
     Describes what ships and how to read it (files, HDF5 layout, loading
-    code, split assignment) and points at the benchmark page in the code
+    code) and points at the benchmark page in the code
     repository for the protocol, baselines and leaderboard, which are not
     duplicated here so their numbers keep one public home. Shared with
     :func:`render_benchmark_page` only through the card, so the two views
@@ -748,8 +728,6 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         *_layout_lines(c),
         "",
         *_loading_lines(c),
-        "",
-        *_splits_lines(spec),
         "",
         *_protocol_lines(spec, name),
     ]
@@ -829,7 +807,7 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
         "## Quickstart",
         "",
         "```bash",
-        "pip install git+https://github.com/qilinli/StructBench  # or: pip install -e . from a clone",
+        "pip install git+https://github.com/qilinli/StructBench  # or: pip install -e .",
         f"structbench-train --mode train --config configs/{name}/{family}.toml \\",
         f"    --data-root /path/to/{name} --out runs/{name}-{family}",
         "```",

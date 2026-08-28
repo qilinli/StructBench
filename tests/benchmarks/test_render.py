@@ -94,21 +94,15 @@ def test_archive_readme_is_a_dataset_page():
         "## Files",
         "## HDF5 layout",
         "## Loading",
-        "## Splits",
         "## Benchmark protocol",
     ):
         assert heading in text
     assert "## Leaderboard" not in text and "## Baseline details" not in text
+    assert "## Splits" not in text  # split ids live in cases.csv, counts in the summary
     # SPH layout table + both loading paths
     assert "`response/element/sph/{stress, strain, strain_rate}` | (T, P, 6)" in text
     assert 'load_case_trajectory("<case_id>.h5", aux_field="von_mises_stress")' in text
     assert "import h5py" in text
-    # every case id of every split is listed, under its split
-    for split, ids in spec.splits.items():
-        line = next(ln for ln in text.splitlines() if ln.startswith(f"- **{split}**"))
-        assert f"({len(ids)})" in line
-        for cid in ids:
-            assert f"`{cid}`" in line
     # protocol pointer: values from the card, the page link, the train command
     assert f"{spec.card.input_frames} input frames" in text
     assert spec.card.qois[0] in text
