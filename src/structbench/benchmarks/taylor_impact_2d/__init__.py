@@ -35,7 +35,10 @@ from .card import CARD
 #: evaluator recipe (frame-0-referenced displacement, kinematic keep-mask,
 #: pooled rel-L2), validated by reproducing the time-conditioned runs' stored
 #: rel-L2 to 4 s.f.; its RMSE/one-step values are transcribed from the run's
-#: ``metrics-*.json`` as usual.
+#: ``metrics-*.json`` as usual. Extended 2026-08-28 with the GeoFLARE
+#: autoregressive row (same rescore provenance, same ADR-0049 fleet);
+#: GeoFLARE has no time-conditioned run on this benchmark yet, so its
+#: matrix cell stays empty.
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
         family="mgn",
@@ -307,6 +310,71 @@ RESULTS: tuple[BaselineResult, ...] = (
             "not help these O(10^4)-particle impact meshes, which are "
             "near-saturated for operator-architecture tweaks. Pooled relative "
             "L2 headline (ADR-0055)."
+        ),
+    ),
+    BaselineResult(
+        family="geoflare",
+        label="GeoFLARE",
+        scheme="autoregressive",
+        reference=(
+            "Adams, R., et al. (NVIDIA). GeoTransolver. arXiv:2512.20399; with "
+            "Puri, R., et al. FLARE: Fast Low-rank Attention Routing Engine. "
+            "arXiv:2508.12594. GeoFLARE is GeoTransolver with the FLARE attention "
+            "backend (attention_type GALE_FA; ADR-0045)."
+        ),
+        provisional=True,
+        run_commit="7ef3bf2",
+        run_date="2026-08-13",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.04014,
+                "rollout_rel_l2_aux": 0.2202,
+                "rollout_pos_rmse_mm": 0.4086,
+                "rollout_vm_rmse_mpa": 34.90,
+                "one_step_pos_rmse_mm": 0.003229,
+                "one_step_vm_rmse_mpa": 27.44,
+                "qoi_final_length_mae_mm": 0.9388,
+                "qoi_mushroom_width_mae_mm": 2.377,
+                "qoi_peak_vm_mae_mpa": 1.407,
+                "qoi_t_peak_vm_mae_ms": 0.007645,
+            },
+            "test_extrap": {
+                "rollout_rel_l2_disp": 0.01461,
+                "rollout_rel_l2_aux": 0.1939,
+                "rollout_pos_rmse_mm": 0.2106,
+                "rollout_vm_rmse_mpa": 34.82,
+                "one_step_pos_rmse_mm": 0.004869,
+                "one_step_vm_rmse_mpa": 32.84,
+                "qoi_final_length_mae_mm": 0.3326,
+                "qoi_mushroom_width_mae_mm": 1.966,
+                "qoi_peak_vm_mae_mpa": 3.439,
+                "qoi_t_peak_vm_mae_ms": 0.001331,
+            },
+        },
+        notes=(
+            "Native autoregressive GeoFLARE under the ADR-0049 repaired recipe "
+            "(velocity history + working-frame noise): run "
+            "taylor-geoflare-n02-vh-adr0049, 100k steps - budget-matched to "
+            "the time-conditioned Transolver row - val-selected "
+            "model-best-090000.pt, single seed. Selected as the AR "
+            "representative on val displacement relative L2 (0.0146, vs "
+            "0.0179 rad2x / 0.0201 vh-250k / 0.0351 n02 / 0.0773 pre-repair "
+            "ADR-0047; rescored 2026-08-28). Standing: behind the Transolver "
+            "rows in-distribution (test_interp displacement relative L2 "
+            "0.0401 vs 0.0213 AR / 0.0094 TC) - but it posts the BEST "
+            "test_extrap displacement on the table (0.0146 vs 0.0164 "
+            "Transolver-TC, 0.0418 Transolver-AR, 0.5547 CGN) and the best "
+            "extrap final-length (0.33 mm), uniformly across all three "
+            "200 m/s cases (0.0137/0.0144/0.0157, no outlier) - this run is "
+            "genuinely better at the velocity extrapolation than at part of "
+            "the interpolation split, an OOD-robustness note for the "
+            "geometry cross-attention. The AR extremes edge replicates: "
+            "peak-vm 1.41 MPa beats both TC rows (2.16/2.10) though not "
+            "Transolver-AR (1.11). PROVISIONAL (ADR-0045/0046), single "
+            "seed; no time-conditioned GeoFLARE run exists on Taylor yet. "
+            "Relative-L2/QoI values recomputed 2026-08-28 from the run's "
+            "saved rollouts under the exact evaluator recipe (see module "
+            "header); pooled relative L2 headline (ADR-0055)."
         ),
     ),
 )

@@ -108,6 +108,7 @@ _Headline — pooled relative L2 (↓ better)_
 | Transolver | autoregressive | 0.02133 | 0.22110 | 0.04184 | 0.19590 |
 | Transolver | time-conditioned | 0.00938 | 0.17490 | 0.01637 | 0.19820 |
 | Transolver++ | time-conditioned | 0.00936 | 0.17330 | 0.01765 | 0.19320 |
+| GeoFLARE | autoregressive | 0.04014 | 0.22020 | 0.01461 | 0.19390 |
 
 _Trajectory error — RMSE_
 
@@ -118,6 +119,7 @@ _Trajectory error — RMSE_
 | Transolver | autoregressive | 0.21510 | 33.83000 |
 | Transolver | time-conditioned | 0.10430 | 28.56000 |
 | Transolver++ | time-conditioned | 0.10450 | 28.28000 |
+| GeoFLARE | autoregressive | 0.40860 | 34.90000 |
 
 _Quantities of interest (MAE)_
 
@@ -128,6 +130,7 @@ _Quantities of interest (MAE)_
 | Transolver | autoregressive | 0.57490 | 0.76860 | 1.11000 | 0.00367 |
 | Transolver | time-conditioned | 0.55570 | 0.35320 | 2.16400 | 0.00199 |
 | Transolver++ | time-conditioned | 0.64280 | 0.33180 | 2.10300 | 0.00132 |
+| GeoFLARE | autoregressive | 0.93880 | 2.37700 | 1.40700 | 0.00764 |
 
 ## Baseline details
 
@@ -151,6 +154,10 @@ _Quantities of interest (MAE)_
 
 *Transolver++ (ADR-0057): the native time-conditioned Transolver with both eidetic-state knobs ON - per-point adaptive slice temperature + train-only Gumbel Rep-Slice reparameterisation. Seed 2 of the s1-s2 pair (val-selected model-best-098000.pt, run taylor-transolver-tcpp-s2), seed-matched to the plain Transolver entry above (also seed 2). PROVISIONAL method comparison (ADR-0046), not a blessed baseline. It is neutral-to-worse than plain Transolver here: test_interp displacement is a statistical tie (0.00936 vs 0.00938) with von Mises ~1% lower, but test_extrap displacement is ~8% worse (0.01765 vs 0.01637). The extrap gain seen on seed 1 flips sign on seed 2, so there is no robust out-of-distribution win. Consistent with Transolver++ being designed for million-scale geometries: its eidetic-state edits do not help these O(10^4)-particle impact meshes, which are near-saturated for operator-architecture tweaks. Pooled relative L2 headline (ADR-0055).*
 
+**GeoFLARE** (geoflare, 2026-08-13, commit `7ef3bf2`)
+
+*Native autoregressive GeoFLARE under the ADR-0049 repaired recipe (velocity history + working-frame noise): run taylor-geoflare-n02-vh-adr0049, 100k steps - budget-matched to the time-conditioned Transolver row - val-selected model-best-090000.pt, single seed. Selected as the AR representative on val displacement relative L2 (0.0146, vs 0.0179 rad2x / 0.0201 vh-250k / 0.0351 n02 / 0.0773 pre-repair ADR-0047; rescored 2026-08-28). Standing: behind the Transolver rows in-distribution (test_interp displacement relative L2 0.0401 vs 0.0213 AR / 0.0094 TC) - but it posts the BEST test_extrap displacement on the table (0.0146 vs 0.0164 Transolver-TC, 0.0418 Transolver-AR, 0.5547 CGN) and the best extrap final-length (0.33 mm), uniformly across all three 200 m/s cases (0.0137/0.0144/0.0157, no outlier) - this run is genuinely better at the velocity extrapolation than at part of the interpolation split, an OOD-robustness note for the geometry cross-attention. The AR extremes edge replicates: peak-vm 1.41 MPa beats both TC rows (2.16/2.10) though not Transolver-AR (1.11). PROVISIONAL (ADR-0045/0046), single seed; no time-conditioned GeoFLARE run exists on Taylor yet. Relative-L2/QoI values recomputed 2026-08-28 from the run's saved rollouts under the exact evaluator recipe (see module header); pooled relative L2 headline (ADR-0055).*
+
 ## Quickstart
 
 ```bash
@@ -169,3 +176,4 @@ Dataset access: the canonical archive is maintainer-held on institutional storag
 - **CGN** — Li, Q., Wang, Z., Li, L., Hao, H., Chen, W., & Shao, Y. (2023). Machine learning prediction of structural dynamic responses using graph neural networks. *Computers & Structures*, 289, 107188. https://doi.org/10.1016/j.compstruc.2023.107188
 - **Transolver** — Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: A Fast Transformer Solver for PDEs on General Geometries. *ICML*. https://arxiv.org/abs/2402.02366
 - **Transolver++** — Luo, H., Wu, H., Zhou, H., Wang, J., & Long, M. (2025). Transolver++: An Accurate Neural Solver for PDEs on Million-Scale Geometries. https://arxiv.org/abs/2502.02414. Adapted per ADR-0057 (thuml reference implementation github.com/thuml/Transolver_plus).
+- **GeoFLARE** — Adams, R., et al. (NVIDIA). GeoTransolver. arXiv:2512.20399; with Puri, R., et al. FLARE: Fast Low-rank Attention Routing Engine. arXiv:2508.12594. GeoFLARE is GeoTransolver with the FLARE attention backend (attention_type GALE_FA; ADR-0045).

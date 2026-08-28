@@ -47,7 +47,10 @@ __all__ = [
 #: evaluator recipe (frame-0-referenced displacement, kinematic keep-mask,
 #: ADR-0039 scored horizon, pooled rel-L2), validated by reproducing the
 #: time-conditioned runs' stored rel-L2 to 4 s.f.; its RMSE/one-step values are
-#: transcribed from the run's ``metrics-*.json`` as usual.
+#: transcribed from the run's ``metrics-*.json`` as usual. Extended 2026-08-28
+#: with the GeoFLARE autoregressive row (same rescore provenance, same
+#: ADR-0048 fleet); GeoFLARE has no time-conditioned run on this benchmark
+#: yet, so its matrix cell stays empty.
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
         family="mgn",
@@ -308,6 +311,66 @@ RESULTS: tuple[BaselineResult, ...] = (
             "No robust generalisation gain. Consistent with Transolver++ being "
             "designed for million-scale geometries: its eidetic-state edits do "
             "not help these O(10^4)-particle impact meshes. Pooled relative L2 "
+            "headline (ADR-0055)."
+        ),
+    ),
+    BaselineResult(
+        family="geoflare",
+        label="GeoFLARE",
+        scheme="autoregressive",
+        reference=(
+            "Adams, R., et al. (NVIDIA). GeoTransolver. arXiv:2512.20399; with "
+            "Puri, R., et al. FLARE: Fast Low-rank Attention Routing Engine. "
+            "arXiv:2508.12594. GeoFLARE is GeoTransolver with the FLARE attention "
+            "backend (attention_type GALE_FA; ADR-0045)."
+        ),
+        provisional=True,
+        run_commit="c042eaa",
+        run_date="2026-08-12",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.05257,
+                "rollout_rel_l2_aux": 0.2676,
+                "rollout_pos_rmse_mm": 0.04988,
+                "rollout_strain_rmse": 0.007649,
+                "one_step_pos_rmse_mm": 0.001621,
+                "one_step_strain_rmse": 0.004904,
+                "qoi_midspan_deflection_peak_mae_mm": 0.1052,
+                "qoi_cracked_fraction_mae": 0.02508,
+            },
+            "probe": {
+                "rollout_rel_l2_disp": 0.9926,
+                "rollout_rel_l2_aux": 1.478,
+                "rollout_pos_rmse_mm": 0.5769,
+                "rollout_strain_rmse": 0.03313,
+                "one_step_pos_rmse_mm": 0.004251,
+                "one_step_strain_rmse": 0.02267,
+                "qoi_midspan_deflection_peak_mae_mm": 3.487,
+                "qoi_cracked_fraction_mae": 0.07245,
+            },
+        },
+        notes=(
+            "Native autoregressive GeoFLARE (ADR-0048 multi-method extension): "
+            "next-step on the SPH particle set as a mesh, run "
+            "notch-geoflare-adr0048, 250k steps - budget-matched to the "
+            "Transolver rows - val-selected model-best-128000.pt, single "
+            "seed. This is the run behind the ADR-0048 finding that the "
+            "operators beat CGN ~5x on-grid (scored rollout position 0.050 "
+            "vs 0.250 mm - the best scored position RMSE on the table). "
+            "Standing: between the two Transolver schemes on the "
+            "in-distribution fields (displacement relative L2 0.0526 vs "
+            "0.0641 AR / 0.0352 TC) and on midspan deflection (0.105 vs "
+            "0.126 / 0.041 mm); on the fracture QoI it sits at "
+            "time-conditioned levels (cracked-fraction MAE 0.0251 vs TC's "
+            "0.0212), NOT at Transolver-AR's 0.0106 - the AR "
+            "fracture-extreme edge does not replicate on this family here. "
+            "On the off-centre triple-OOD PROBE it is nominally the best "
+            "operator row (0.993 vs 1.047-1.185) but still in the failure "
+            "regime (relative L2 ~ 1, the operator mis-localisation mode). "
+            "PROVISIONAL (ADR-0045/0046), single seed; no time-conditioned "
+            "GeoFLARE run exists on notch yet. Relative-L2/QoI values "
+            "recomputed 2026-08-28 from the run's saved rollouts under the "
+            "exact evaluator recipe (see module header); pooled relative L2 "
             "headline (ADR-0055)."
         ),
     ),
