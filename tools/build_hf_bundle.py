@@ -8,7 +8,9 @@ uploaded straight from the canonical archive, never copied):
 - ``card.json`` — machine-readable card metadata (ADR-0027);
 - ``cases.csv`` — one row per case: split, parsed loading/geometry
   parameters, node/frame counts, file size, SHA-256 (feeds the HF dataset
-  viewer and doubles as an integrity manifest);
+  viewer and doubles as an integrity manifest). Case files the archive
+  ships outside the protocol splits (e.g. Taylor's held-aside Convergence
+  run) get a row with ``split=held_aside`` and blank parameter columns;
 - ``decks/`` — the LS-DYNA input decks copied from the raw tree when
   ``--raw-root`` is given (full provenance at ~zero size cost).
 
@@ -17,7 +19,7 @@ script that imports the installed package. DeformingPlate is refused: its
 source states no data licence, so StructBench points to the DeepMind bucket
 rather than rehosting (ADR-0042).
 
-Usage (see scratch/2026-08-28-hf-upload-runbook.md for the full sequence):
+Usage (see scratch/2026-08-28-hf-upload-runbook-v2.md for the full sequence):
 
     python tools/build_hf_bundle.py --benchmark taylor_impact_2d \
         --data-root <...>/canonical/taylor_impact_2d \
@@ -34,7 +36,6 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import json
 import logging
 import shutil
 import sys
@@ -151,6 +152,7 @@ def _h5_stats(path: Path, *, hash_files: bool) -> dict[str, object]:
 
 def _hf_readme(spec, name: str, repo: str) -> str:
     """The archive README with HF front-matter + a Download section."""
+    size_category = "n<1K" if spec.card.n_cases < 1_000 else "1K<n<10K"
     front_matter = "\n".join(
         [
             "---",
@@ -163,6 +165,17 @@ def _hf_readme(spec, name: str, repo: str) -> str:
             "- lsdyna",
             "- sph",
             "- benchmark",
+            "size_categories:",
+            f"- {size_category}",
+            # Point the Dataset Viewer at the manifest only: the .h5 case
+            # files are not a viewer format, so without an explicit config the
+            # viewer would guess (or fail) over the mixed tree. One subset,
+            # one split, the CSV.
+            "configs:",
+            "- config_name: manifest",
+            "  data_files:",
+            "  - split: cases",
+            "    path: cases.csv",
             "---",
             "",
         ]
@@ -189,12 +202,16 @@ def _hf_readme(spec, name: str, repo: str) -> str:
             "parameters plus a SHA-256 manifest; pin a git revision",
             '(`revision="v0.1.0"`) for reproducible pipelines. Point',
             "`structbench-train --data-root` at the snapshot directory.",
+            "Code, benchmark protocol, and leaderboards:",
+            "<https://github.com/qilinli/StructBench>.",
             "",
         ]
     )
     readme = render_archive_readme(spec, name)
     title, _, rest = readme.partition("\n")
-    return f"{front_matter}{title}\n\n{download}{rest.lstrip()}"
+    # ``download`` ends in a single newline; the extra one keeps the archive
+    # README's first paragraph from merging into the Download section.
+    return f"{front_matter}{title}\n\n{download}\n{rest.lstrip()}"
 
 
 def build(args: argparse.Namespace) -> int:
@@ -220,25 +237,43 @@ def build(args: argparse.Namespace) -> int:
     missing = [cid for cid in expected if not (data_root / f"{cid}.h5").exists()]
     if missing:
         level = _LOG.warning if args.allow_missing else _LOG.error
-        level("%d/%d case files missing under %s (first: %s)",
-              len(missing), len(expected), data_root, missing[:3])
+        level(
+            "%d/%d case files missing under %s (first: %s)",
+            len(missing),
+            len(expected),
+            data_root,
+            missing[:3],
+        )
         if not args.allow_missing:
             return 1
-    extras = sorted(
-        p.name for p in data_root.glob("*.h5") if p.stem not in split_of
-    )
+    # Case files outside the protocol splits (e.g. Taylor's held-aside
+    # Convergence run, card provenance) ship with the archive, so they get a
+    # manifest row too (split=held_aside) — every .h5 in the repo has a SHA.
+    extras = sorted(p.stem for p in data_root.glob("*.h5") if p.stem not in split_of)
     if extras:
-        _LOG.warning("unexpected .h5 in archive (not in any split): %s", extras)
+        _LOG.info(
+            "%d .h5 outside the protocol splits, shipped as split=held_aside: %s",
+            len(extras),
+            extras,
+        )
 
     # cases.csv — first-seen column union across rows keeps benchmarks with
     # heterogeneous params (notch grid vs probe) in one flat table.
     rows: list[dict[str, object]] = []
-    for cid in expected:
+    for cid in expected + extras:
         path = data_root / f"{cid}.h5"
         if not path.exists():
             continue
-        row: dict[str, object] = {"case_id": cid, "split": split_of[cid]}
-        row.update(_case_params(args.benchmark, cid))
+        row: dict[str, object] = {
+            "case_id": cid,
+            "split": split_of.get(cid, "held_aside"),
+        }
+        try:
+            row.update(_case_params(args.benchmark, cid))
+        except (ValueError, KeyError):
+            # Held-aside ids sit outside the family's naming grid; the row
+            # keeps counts + hash with blank parameter columns.
+            pass
         row.update(_h5_stats(path, hash_files=not args.no_sha256))
         rows.append(row)
     columns: list[str] = []
@@ -277,9 +312,11 @@ def build(args: argparse.Namespace) -> int:
         )
 
     total = sum(int(r["file_bytes"]) for r in rows)
+    n_protocol = sum(r["split"] != "held_aside" for r in rows)
     print(
-        f"{args.benchmark}: staged {out} — cases.csv ({len(rows)}/{len(expected)} "
-        f"cases, {total / 1e9:.2f} GB in archive), README.md, card.json, "
+        f"{args.benchmark}: staged {out} — cases.csv ({n_protocol}/{len(expected)} "
+        f"protocol cases + {len(rows) - n_protocol} held aside, "
+        f"{total / 1e9:.2f} GB in archive), README.md, card.json, "
         f"{copied} decks. Upload the canonical dir first, this staging dir "
         f"second (see the runbook)."
     )
@@ -291,21 +328,25 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--benchmark", required=True)
     parser.add_argument(
-        "--data-root", required=True,
+        "--data-root",
+        required=True,
         help="the benchmark's canonical archive directory (<...>/canonical/<name>)",
     )
     parser.add_argument(
-        "--raw-root", default=None,
+        "--raw-root",
+        default=None,
         help="the benchmark's raw family directory (<...>/raw/<family>); "
         "when given, input decks are copied into the bundle",
     )
     parser.add_argument("--out", default="scratch/hf-upload")
     parser.add_argument(
-        "--allow-missing", action="store_true",
+        "--allow-missing",
+        action="store_true",
         help="tolerate missing case files (smoke runs on partial data)",
     )
     parser.add_argument(
-        "--no-sha256", action="store_true",
+        "--no-sha256",
+        action="store_true",
         help="skip per-file hashing (fast smoke runs)",
     )
     return build(parser.parse_args())
