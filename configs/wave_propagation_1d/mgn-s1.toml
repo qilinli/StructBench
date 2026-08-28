@@ -1,0 +1,48 @@
+# wave_propagation_1d — MGN autoregressive baseline, seed 1 (2026-08-27 wave
+# multi-method fleet). Native MeshGraphNets on the wave bar: the SPH lattice is
+# recovered as a triangle mesh by the wave spec's mesh_transform (ADR-0047
+# mechanism), exactly as for the Transolver/GeoFLARE arms. Family knobs are the
+# ADR-0043 §8 references (128 hidden / 15 MP steps), protocol and budget match
+# the blessed wave CGN recipe (input_frames 6, 50k steps). history_frames=5
+# appends the window's finite-difference velocities (CGN random-walk window
+# noise + GNS adjusted-next target, ADR-0049) and noise_std=0.06 transfers the
+# wave-validated CGN noise (blessed x1-s1: ~17% of axial velocity std) — the
+# same transfer the taylor/notch MGN arms made from their blessed CGN values.
+# world_edge_radius=1.0 sits BELOW the 2.0 mm lattice spacing: the bar contacts
+# no second body (the arrest BC lives inside the particle set), so world edges
+# fire only on unphysical interpenetration — a contact detector, not a message
+# path. The ADR-0049 stretch gate stays off (default 0.0): wave is small-strain
+# and the lattice never tears. Not yet run.
+
+[run]
+benchmark = "wave_propagation_1d"
+seed = 1
+
+[model]
+family = "mgn"
+input_frames = 6                # wave card protocol (ADR-0035)
+dim = 2
+hidden_dim = 128                # ADR-0043 §8 family reference
+message_passing_steps = 15
+nmlp_layers = 2
+node_type_size = 2              # raw ids: 1 = bar SPH (max id + 1); no wall part
+world_edge_radius = 1.0         # working frame (mm); below the 2.0 mm lattice
+                                # spacing — no second body, see header
+noise_std = 0.06                # blessed wave CGN value (see header)
+normalizer_warmup_steps = 1000
+history_frames = 5              # +5 window velocities; CGN random-walk window noise +
+                                # GNS adjusted-next target (ADR-0049)
+mesh_edge_max_stretch = 0.0     # ADR-0049 stretch gate OFF: wave is small-strain,
+                                # the lattice never tears (cf. taylor 2.0)
+
+[train]
+batch_size = 2                  # ADR-0043 §8 family reference
+lr_init = 1e-4
+lr_decay = 0.1
+# lr_decay_steps is derived from training_steps by config.py (round(steps * 40000/100000)).
+training_steps = 50_000         # wave CGN-matched budget (blessed x1-s1 recipe)
+val_every = 2000                # wave CGN cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+train_frames = 0

@@ -42,8 +42,16 @@ run's checkpoint, and `test_interp` (300 mm at 4, 400 mm at 2 m/s) is
 scored. Everything is reported in physical units — axial-stress RMSE in MPa,
 position RMSE in mm — and the quantities of interest read the wave directly:
 arrival time at the 25 / 50 / 75 % gauge stations and the peak stress. The
-reference CGN baseline nails the arrival times and overshoots the peak; the
-numbers are below."""
+reference CGN baseline nails the arrival times and overshoots the peak.
+Despite its entry-tier size, the benchmark separates prediction schemes
+sharply (2026-08-28 multi-method fleet): the time-conditioned operators
+(Transolver, GeoFLARE) beat CGN ~3x on the fields and ~10x on peak stress,
+while every mesh-native autoregressive family (MGN, Transolver, GeoFLARE)
+fails outright (relative L2 > 1) - the sustained 30 ms reverberation
+recirculates rollout errors instead of letting them decay, and only CGN's
+relative-displacement particle-graph formulation survives it. The
+autoregressive rows are kept as deliberate negative results; the numbers
+are below."""
 
 CARD = BenchmarkCard(
     name="Wave1D-Propagation",

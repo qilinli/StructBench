@@ -115,7 +115,7 @@ def test_archive_readme_renders_leaderboard_row():
     # one leaderboard row: scheme unknown -> "—". The RMSE tier is trimmed to
     # test_interp and drops the one_step diagnostic columns, so the row carries
     # a single value under the one surviving column, `interp·pos (mm)`.
-    assert "| CGN baseline | — | 1.5 |" in text
+    assert "| CGN baseline | — | 1.50000 |" in text
     # notes render in the provenance block, not a metric table
     assert "single A100, 100k steps" in text
 
@@ -276,7 +276,7 @@ def test_single_metric_group_renders_only_its_tier():
     assert "_Trajectory error — RMSE_" in text
     assert "_Headline — pooled relative L2 (↓ better)_" not in text
     assert "_Quantities of interest (MAE)_" not in text
-    assert "| CGN baseline | — | 1.5 |" in text
+    assert "| CGN baseline | — | 1.50000 |" in text
 
 
 # --- ADR-0055 (amended 2026-08-15): relative L2 is the headline metric ---
@@ -437,18 +437,18 @@ def test_leaderboard_multi_family_rows_in_declaration_order():
     # and test_extrap columns are trimmed to a single `interp·pos (mm)` column.
     assert "_Trajectory error — RMSE_" in lines
     assert "| Method | Scheme | interp·pos (mm) |" in lines
-    assert "| CGN baseline | autoregressive | 1.5 |" in lines
-    assert "| MGN candidate | — | 1.8 |" in lines
-    assert "| Transolver candidate | — | 1.9 |" in lines
+    assert "| CGN baseline | autoregressive | 1.50000 |" in lines
+    assert "| MGN candidate | — | 1.80000 |" in lines
+    assert "| Transolver candidate | — | 1.90000 |" in lines
     # rows appear in registry declaration order (CGN, then MGN, then Transolver)
     assert (
-        text.index("| CGN baseline | autoregressive | 1.5 |")
-        < text.index("| MGN candidate | — | 1.8 |")
-        < text.index("| Transolver candidate | — | 1.9 |")
+        text.index("| CGN baseline | autoregressive | 1.50000 |")
+        < text.index("| MGN candidate | — | 1.80000 |")
+        < text.index("| Transolver candidate | — | 1.90000 |")
     )
     # QoI tier: only cgn carries the QoI; the others render "—"
     assert "_Quantities of interest (MAE)_" in lines
-    assert "| CGN baseline | autoregressive | 0.2 |" in lines
+    assert "| CGN baseline | autoregressive | 0.20000 |" in lines
     # no provisional marker or footnote anywhere in the leaderboard
     assert "*(provisional)*" not in text
     assert "Provisional entries are best-effort" not in text
@@ -523,10 +523,10 @@ def test_leaderboard_all_provisional_carries_no_tag_or_footnote():
     spec = replace(get_benchmark("taylor_impact_2d"), results=(a, b))
     lines = _leaderboard(spec)
     text = "\n".join(lines)
-    assert "| Transolver | — | 1.5 |" in lines
-    assert "| GeoFLARE | — | 1.5 |" in lines
+    assert "| Transolver | — | 1.50000 |" in lines
+    assert "| GeoFLARE | — | 1.50000 |" in lines
     # declaration order preserved
-    assert text.index("| Transolver | — | 1.5 |") < text.index("| GeoFLARE | — | 1.5 |")
+    assert text.index("| Transolver | — | 1.50000 |") < text.index("| GeoFLARE | — | 1.50000 |")
     assert "*(provisional)*" not in text
     assert "Provisional entries" not in text
 
@@ -556,10 +556,10 @@ def test_benchmark_page_leaderboard_appears_before_baseline_details():
     assert text.index("## Leaderboard") < text.index("## Baseline details")
     # RMSE tier trimmed to a single test_interp column; rows in declaration
     # order (blessed CGN first, provisional MGN second), neither tagged.
-    assert "| CGN baseline | — | 1.5 |" in text
-    assert "| MGN candidate | — | 1.5 |" in text
-    assert text.index("| CGN baseline | — | 1.5 |") < text.index(
-        "| MGN candidate | — | 1.5 |"
+    assert "| CGN baseline | — | 1.50000 |" in text
+    assert "| MGN candidate | — | 1.50000 |" in text
+    assert text.index("| CGN baseline | — | 1.50000 |") < text.index(
+        "| MGN candidate | — | 1.50000 |"
     )
     assert "*(provisional)*" not in text
     assert "Provisional entries are best-effort implementations" not in text
@@ -589,10 +589,10 @@ def test_archive_readme_leaderboard_appears_before_baseline_details():
     text = render_archive_readme(spec, "taylor_impact_2d")
     assert "## Leaderboard" in text
     assert text.index("## Leaderboard") < text.index("## Baseline details")
-    assert "| CGN baseline | — | 1.5 |" in text
-    assert "| MGN candidate | — | 1.5 |" in text
-    assert text.index("| CGN baseline | — | 1.5 |") < text.index(
-        "| MGN candidate | — | 1.5 |"
+    assert "| CGN baseline | — | 1.50000 |" in text
+    assert "| MGN candidate | — | 1.50000 |" in text
+    assert text.index("| CGN baseline | — | 1.50000 |") < text.index(
+        "| MGN candidate | — | 1.50000 |"
     )
     assert "*(provisional)*" not in text
     assert "Provisional entries are best-effort implementations" not in text

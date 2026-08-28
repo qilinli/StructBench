@@ -97,28 +97,34 @@ _Headline — pooled relative L2 (↓ better)_
 
 | Method | Scheme | interp·disp | interp·aux | probe·disp | probe·aux |
 |---|---|---|---|---|---|
-| MGN | autoregressive | 0.2245 | 0.6988 | 0.7672 | 1.255 |
-| CGN | autoregressive | 0.2827 | 0.5876 | 0.5905 | 0.8535 |
-| Transolver | time-conditioned | 0.03517 | 0.2294 | 1.047 | 1.236 |
-| Transolver++ | time-conditioned | 0.03699 | 0.2396 | 1.01 | 1.263 |
+| MGN | autoregressive | 0.22450 | 0.69880 | 0.76720 | 1.25500 |
+| CGN | autoregressive | 0.28270 | 0.58760 | 0.59050 | 0.85350 |
+| Transolver | autoregressive | 0.06406 | 0.31970 | 1.18500 | 1.82900 |
+| Transolver | time-conditioned | 0.03517 | 0.22940 | 1.04700 | 1.23600 |
+| Transolver++ | time-conditioned | 0.03699 | 0.23960 | 1.01000 | 1.26300 |
+| GeoFLARE | autoregressive | 0.05257 | 0.26760 | 0.99260 | 1.47800 |
 
 _Trajectory error — RMSE_
 
 | Method | Scheme | interp·pos (mm) | interp·strain |
 |---|---|---|---|
-| MGN | autoregressive | 0.1984 | 0.01997 |
-| CGN | autoregressive | 0.2497 | 0.01697 |
-| Transolver | time-conditioned | 0.03365 | 0.006467 |
-| Transolver++ | time-conditioned | 0.03509 | 0.006714 |
+| MGN | autoregressive | 0.19840 | 0.01997 |
+| CGN | autoregressive | 0.24970 | 0.01697 |
+| Transolver | autoregressive | 0.06121 | 0.00923 |
+| Transolver | time-conditioned | 0.03365 | 0.00647 |
+| Transolver++ | time-conditioned | 0.03509 | 0.00671 |
+| GeoFLARE | autoregressive | 0.04988 | 0.00765 |
 
 _Quantities of interest (MAE)_
 
 | Method | Scheme | interp·midspan_deflection_peak (mm) | interp·cracked_fraction |
 |---|---|---|---|
-| MGN | autoregressive | 0.5842 | 0.1081 |
-| CGN | autoregressive | 0.5843 | 0.1892 |
-| Transolver | time-conditioned | 0.04067 | 0.0212 |
+| MGN | autoregressive | 0.58420 | 0.10810 |
+| CGN | autoregressive | 0.58430 | 0.18920 |
+| Transolver | autoregressive | 0.12610 | 0.01064 |
+| Transolver | time-conditioned | 0.04067 | 0.02120 |
 | Transolver++ | time-conditioned | 0.04696 | 0.02438 |
+| GeoFLARE | autoregressive | 0.10520 | 0.02508 |
 
 ## Baseline details
 
@@ -130,6 +136,10 @@ _Quantities of interest (MAE)_
 
 *Single-scale CGN (ADR-0034) on the ADR-0039 §4 truncated recipe with the ADR-0038 strain knobs (train_frames 250, aux_tail_weight 3, asinh aux transform at scale 0.01; hidden 192 / 15 MP steps / 2-layer node MLP, noise_std 0.01, batch 4) at 250k steps; seed 1 of the 2026-07-24 h250c pair (seeds 1-2), val-selected checkpoint model-best-186000.pt (186k), one A100-80GB, ~80 h. Extending the same recipe from 200k to 250k steps cut seed-mean test rollout position RMSE 21% and deflection MAE 30% while validation strain RMSE stayed flat (0.0173 -> 0.0163): the extra budget buys kinematics, not damage-field quality. Caveats: the model over-predicts cracked fraction on the reviewed cases (crack MAE 0.19 vs sibling seed s2's 0.13, the one metric s2 wins); the off-grid probe case S_80_400_V140 is this seed's worst rollout (0.59 mm scored vs 0.40 for s2); predictions break the mirror symmetry of centered-notch cases while the ground truth stays symmetric (2026-07-24 finding); full-horizon (502-frame) rollout position RMSE is 0.87 mm on test_interp - diagnostic only, not scored. Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values are unchanged.*
 
+**Transolver** (transolver, 2026-08-12, commit `c042eaa`)
+
+*Native autoregressive Transolver (ADR-0048 multi-method extension): next-step on the SPH particle set as a mesh, run notch-transolver-adr0048, 250k steps - budget-matched to the time-conditioned row - val-selected model-best-178000.pt, single seed. This is the run behind the ADR-0048 finding that the operator beats CGN ~4x on-grid (scored rollout position 0.061 vs 0.250 mm). Standing against the time-conditioned row: TC wins the FIELDS ~2x (displacement relative L2 0.0641 vs 0.0352, strain 0.320 vs 0.229) and midspan deflection ~3x (0.126 vs 0.041 mm), but AR wins the fracture QoI ~2x (cracked-fraction MAE 0.0106 vs 0.0212) and systematically: in the seed-matched paired check (vs tc-s1) AR is better on 10/12 interp cases - same extremes-vs-fields scheme trade as Taylor's peak-vm. AR also posts the best on-grid one-step of any family (0.00064 mm) and halves the unscored full-horizon rollout error (0.16 vs 0.33 mm diagnostic). On the off-centre triple-OOD PROBE both schemes fail hard (relative L2 > 1) with AR worst (1.185 vs 1.047): rollout accumulation compounds the operator's mis-localisation instead of containing it. PROVISIONAL (ADR-0044/0046), single seed. Relative-L2/QoI values recomputed 2026-08-27 from the run's saved rollouts under the exact evaluator recipe (see module header); pooled relative L2 headline (ADR-0055).*
+
 **Transolver** (transolver, 2026-08-16, commit `59d5786`)
 
 *Native time-conditioned Transolver (ADR-0054): history-free independent-time-query, no rollout accumulation, so one-step is N/A. Seed 2 of the s1-s2 pair, val-selected model-best-230000.pt, run notch-transolver-tc-s2. PROVISIONAL (ADR-0044/0045). On test_interp it is the strongest baseline (~8x lower displacement relative L2 than CGN); on the PROBE it fails hard (relative L2 > 1) - the off-centre triple-OOD case (ADR-0026 amendment) where the global-attention operator mis-localises the response to the learned midspan prior, while CGN's relative-position message passing degrades more gracefully (probe disp 0.59 vs 1.05). Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval.*
@@ -137,6 +147,10 @@ _Quantities of interest (MAE)_
 **Transolver++** (transolver_plus, 2026-08-18, commit `5b84119`)
 
 *Transolver++ (ADR-0057): the native time-conditioned Transolver with both eidetic-state knobs ON - per-point adaptive slice temperature + train-only Gumbel Rep-Slice reparameterisation. Seed 2 of the s1-s2 pair (val-selected model-best-250000.pt, run notch-transolver-tcpp-s2), seed-matched to the plain Transolver entry above (also seed 2). PROVISIONAL method comparison (ADR-0046), not a blessed baseline. It is neutral-to-worse than plain Transolver: test_interp displacement is ~5% worse (0.03699 vs 0.03517) and strain ~4% worse; on the off-centre triple-OOD PROBE displacement is marginally better (1.01 vs 1.05) but strain is worse (1.263 vs 1.236) and both still fail hard (relative L2 > 1). No robust generalisation gain. Consistent with Transolver++ being designed for million-scale geometries: its eidetic-state edits do not help these O(10^4)-particle impact meshes. Pooled relative L2 headline (ADR-0055).*
+
+**GeoFLARE** (geoflare, 2026-08-12, commit `c042eaa`)
+
+*Native autoregressive GeoFLARE (ADR-0048 multi-method extension): next-step on the SPH particle set as a mesh, run notch-geoflare-adr0048, 250k steps - budget-matched to the Transolver rows - val-selected model-best-128000.pt, single seed. This is the run behind the ADR-0048 finding that the operators beat CGN ~5x on-grid (scored rollout position 0.050 vs 0.250 mm - the best scored position RMSE on the table). Standing: between the two Transolver schemes on the in-distribution fields (displacement relative L2 0.0526 vs 0.0641 AR / 0.0352 TC) and on midspan deflection (0.105 vs 0.126 / 0.041 mm); on the fracture QoI it sits at time-conditioned levels (cracked-fraction MAE 0.0251 vs TC's 0.0212), NOT at Transolver-AR's 0.0106 - the AR fracture-extreme edge does not replicate on this family here. On the off-centre triple-OOD PROBE it is nominally the best operator row (0.993 vs 1.047-1.185) but still in the failure regime (relative L2 ~ 1, the operator mis-localisation mode). PROVISIONAL (ADR-0045/0046), single seed; no time-conditioned GeoFLARE run exists on notch yet. Relative-L2/QoI values recomputed 2026-08-28 from the run's saved rollouts under the exact evaluator recipe (see module header); pooled relative L2 headline (ADR-0055).*
 
 ## Quickstart
 
@@ -156,3 +170,4 @@ Dataset access: the canonical archive is maintainer-held on institutional storag
 - **CGN** — Li, Q., Wang, Z., Li, L., Hao, H., Chen, W., & Shao, Y. (2023). Machine learning prediction of structural dynamic responses using graph neural networks. *Computers & Structures*, 289, 107188. https://doi.org/10.1016/j.compstruc.2023.107188
 - **Transolver** — Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: A Fast Transformer Solver for PDEs on General Geometries. *ICML*. https://arxiv.org/abs/2402.02366
 - **Transolver++** — Luo, H., Wu, H., Zhou, H., Wang, J., & Long, M. (2025). Transolver++: An Accurate Neural Solver for PDEs on Million-Scale Geometries. https://arxiv.org/abs/2502.02414. Adapted per ADR-0057 (thuml reference implementation github.com/thuml/Transolver_plus).
+- **GeoFLARE** — Adams, R., et al. (NVIDIA). GeoTransolver. arXiv:2512.20399; with Puri, R., et al. FLARE: Fast Low-rank Attention Routing Engine. arXiv:2508.12594. GeoFLARE is GeoTransolver with the FLARE attention backend (attention_type GALE_FA; ADR-0045).

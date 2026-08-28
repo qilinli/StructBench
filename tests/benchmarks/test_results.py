@@ -116,11 +116,15 @@ def test_taylor_baseline_is_the_cgn_reference_run():
 
 
 def test_wave_baseline_is_the_cgn_reference_run():
-    (result,) = get_benchmark("wave_propagation_1d").results
-    assert result.family == "cgn"
-    assert result.run_commit == "48046ea"
+    # wave now carries the 2026-08-28 family x scheme matrix (provisional
+    # operator rows incl. deliberate AR negative rows) alongside the blessed
+    # CGN reference; pick out the blessed.
+    results = get_benchmark("wave_propagation_1d").results
+    cgn = next(r for r in results if r.family == "cgn")
+    assert not cgn.provisional
+    assert cgn.run_commit == "48046ea"
     # val selects the checkpoint; wave's only held-out split is test_interp.
-    assert set(result.metrics) == {"test_interp"}
+    assert set(cgn.metrics) == {"test_interp"}
 
 
 def test_notch_impact_baseline_is_the_cgn_reference_run():

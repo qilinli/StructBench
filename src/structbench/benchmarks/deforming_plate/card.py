@@ -39,15 +39,17 @@ number (pooled position RMSE inside the reported band, ADR-0043), anchoring the
 benchmark to a result the field already trusts. Against it run two provisional
 native operators - **Transolver** (Physics-Attention) and **GeoFLARE**
 (geometry-aware attention with a low-rank routing engine) - both adapted here
-to autoregressive rollout (ADR-0044/0045). Everything is scored in physical
+natively, under the autoregressive and time-conditioned schemes
+(ADR-0044/0045/0054). Everything is scored in physical
 units - displacement RMSE in mm and the von Mises field in MPa, both **pooled
 over space and time** to match the published DeformingPlate convention
 (ADR-0043), not the mean-of-per-step RMSE used on the other benchmarks - with
 two quantities of interest reading the engineering outcome: peak von Mises
 stress and terminal peak deflection. On this smooth, quasi-static task the
-operators' freedom from a fixed mesh graph tells on displacement: the
-time-conditioned Transolver leads (relative L2 0.154, pooled RMSE 2.00 mm), with
-GeoFLARE next. MGN's pooled position RMSE (15.45 mm) reproduces the published
+operators' freedom from a fixed mesh graph tells on displacement: the two
+Transolver rows lead (relative L2 0.144 autoregressive / 0.154 time-conditioned
+- a statistical tie on displacement; pooled RMSE 3.0 / 3.5 mm), with GeoFLARE
+next. MGN's pooled position RMSE (15.45 mm) reproduces the published
 reference (15.1 +/- 4.0); a 2026-08-20 training-noise fix (noise_std corrected to
 the working frame, ~1000x stronger) repaired MGN's previously-collapsed von Mises
 field (relative L2 4.21 -> 0.36), so the cross-method stress gap is now narrow.

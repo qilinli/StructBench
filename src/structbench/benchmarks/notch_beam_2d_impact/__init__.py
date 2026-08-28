@@ -37,6 +37,20 @@ __all__ = [
 #: numbers and the fleet spread stay in the run directory. ``val`` selects the
 #: checkpoint, so it is not a number to beat and is omitted here. All scored
 #: metrics use the ADR-0039 horizon (frames [6, 250) of 502).
+#:
+#: SCHEME MATRIX EXTENSION (2026-08-27, maintainer-directed in-session): like
+#: DeformingPlate, this benchmark now tables one row per family x prediction
+#: scheme where a run exists — the autoregressive Transolver row joins the
+#: time-conditioned one because the scheme axis (ADR-0054) is itself a finding.
+#: The AR run predates ADR-0055, so its relative-L2 and QoI values were
+#: recomputed from the run's saved rollout ``.npz`` files with the exact
+#: evaluator recipe (frame-0-referenced displacement, kinematic keep-mask,
+#: ADR-0039 scored horizon, pooled rel-L2), validated by reproducing the
+#: time-conditioned runs' stored rel-L2 to 4 s.f.; its RMSE/one-step values are
+#: transcribed from the run's ``metrics-*.json`` as usual. Extended 2026-08-28
+#: with the GeoFLARE autoregressive row (same rescore provenance, same
+#: ADR-0048 fleet); GeoFLARE has no time-conditioned run on this benchmark
+#: yet, so its matrix cell stays empty.
 RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
         family="mgn",
@@ -151,6 +165,65 @@ RESULTS: tuple[BaselineResult, ...] = (
     BaselineResult(
         family="transolver",
         label="Transolver",
+        scheme="autoregressive",
+        reference=(
+            "Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: "
+            "A Fast Transformer Solver for PDEs on General Geometries. *ICML*. "
+            "https://arxiv.org/abs/2402.02366"
+        ),
+        provisional=True,
+        run_commit="c042eaa",
+        run_date="2026-08-12",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.06406,
+                "rollout_rel_l2_aux": 0.3197,
+                "rollout_pos_rmse_mm": 0.06121,
+                "rollout_strain_rmse": 0.009229,
+                "one_step_pos_rmse_mm": 0.0006444,
+                "one_step_strain_rmse": 0.007439,
+                "qoi_midspan_deflection_peak_mae_mm": 0.1261,
+                "qoi_cracked_fraction_mae": 0.01064,
+            },
+            "probe": {
+                "rollout_rel_l2_disp": 1.185,
+                "rollout_rel_l2_aux": 1.829,
+                "rollout_pos_rmse_mm": 0.6669,
+                "rollout_strain_rmse": 0.03758,
+                "one_step_pos_rmse_mm": 0.005050,
+                "one_step_strain_rmse": 0.03909,
+                "qoi_midspan_deflection_peak_mae_mm": 3.617,
+                "qoi_cracked_fraction_mae": 0.08400,
+            },
+        },
+        notes=(
+            "Native autoregressive Transolver (ADR-0048 multi-method "
+            "extension): next-step on the SPH particle set as a mesh, run "
+            "notch-transolver-adr0048, 250k steps - budget-matched to the "
+            "time-conditioned row - val-selected model-best-178000.pt, single "
+            "seed. This is the run behind the ADR-0048 finding that the "
+            "operator beats CGN ~4x on-grid (scored rollout position 0.061 vs "
+            "0.250 mm). Standing against the time-conditioned row: TC wins the "
+            "FIELDS ~2x (displacement relative L2 0.0641 vs 0.0352, strain "
+            "0.320 vs 0.229) and midspan deflection ~3x (0.126 vs 0.041 mm), "
+            "but AR wins the fracture QoI ~2x (cracked-fraction MAE 0.0106 vs "
+            "0.0212) and systematically: in the seed-matched paired check (vs "
+            "tc-s1) AR is better on 10/12 interp cases - same "
+            "extremes-vs-fields scheme trade as Taylor's peak-vm. AR also "
+            "posts the best on-grid one-step of any family (0.00064 mm) and "
+            "halves the unscored full-horizon rollout error (0.16 vs 0.33 mm "
+            "diagnostic). On the off-centre triple-OOD PROBE both schemes fail "
+            "hard (relative L2 > 1) with AR worst (1.185 vs 1.047): rollout "
+            "accumulation compounds the operator's mis-localisation instead of "
+            "containing it. PROVISIONAL (ADR-0044/0046), single seed. "
+            "Relative-L2/QoI values recomputed 2026-08-27 from the run's saved "
+            "rollouts under the exact evaluator recipe (see module header); "
+            "pooled relative L2 headline (ADR-0055)."
+        ),
+    ),
+    BaselineResult(
+        family="transolver",
+        label="Transolver",
         scheme="time-conditioned",
         reference=(
             "Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: "
@@ -238,6 +311,66 @@ RESULTS: tuple[BaselineResult, ...] = (
             "No robust generalisation gain. Consistent with Transolver++ being "
             "designed for million-scale geometries: its eidetic-state edits do "
             "not help these O(10^4)-particle impact meshes. Pooled relative L2 "
+            "headline (ADR-0055)."
+        ),
+    ),
+    BaselineResult(
+        family="geoflare",
+        label="GeoFLARE",
+        scheme="autoregressive",
+        reference=(
+            "Adams, R., et al. (NVIDIA). GeoTransolver. arXiv:2512.20399; with "
+            "Puri, R., et al. FLARE: Fast Low-rank Attention Routing Engine. "
+            "arXiv:2508.12594. GeoFLARE is GeoTransolver with the FLARE attention "
+            "backend (attention_type GALE_FA; ADR-0045)."
+        ),
+        provisional=True,
+        run_commit="c042eaa",
+        run_date="2026-08-12",
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.05257,
+                "rollout_rel_l2_aux": 0.2676,
+                "rollout_pos_rmse_mm": 0.04988,
+                "rollout_strain_rmse": 0.007649,
+                "one_step_pos_rmse_mm": 0.001621,
+                "one_step_strain_rmse": 0.004904,
+                "qoi_midspan_deflection_peak_mae_mm": 0.1052,
+                "qoi_cracked_fraction_mae": 0.02508,
+            },
+            "probe": {
+                "rollout_rel_l2_disp": 0.9926,
+                "rollout_rel_l2_aux": 1.478,
+                "rollout_pos_rmse_mm": 0.5769,
+                "rollout_strain_rmse": 0.03313,
+                "one_step_pos_rmse_mm": 0.004251,
+                "one_step_strain_rmse": 0.02267,
+                "qoi_midspan_deflection_peak_mae_mm": 3.487,
+                "qoi_cracked_fraction_mae": 0.07245,
+            },
+        },
+        notes=(
+            "Native autoregressive GeoFLARE (ADR-0048 multi-method extension): "
+            "next-step on the SPH particle set as a mesh, run "
+            "notch-geoflare-adr0048, 250k steps - budget-matched to the "
+            "Transolver rows - val-selected model-best-128000.pt, single "
+            "seed. This is the run behind the ADR-0048 finding that the "
+            "operators beat CGN ~5x on-grid (scored rollout position 0.050 "
+            "vs 0.250 mm - the best scored position RMSE on the table). "
+            "Standing: between the two Transolver schemes on the "
+            "in-distribution fields (displacement relative L2 0.0526 vs "
+            "0.0641 AR / 0.0352 TC) and on midspan deflection (0.105 vs "
+            "0.126 / 0.041 mm); on the fracture QoI it sits at "
+            "time-conditioned levels (cracked-fraction MAE 0.0251 vs TC's "
+            "0.0212), NOT at Transolver-AR's 0.0106 - the AR "
+            "fracture-extreme edge does not replicate on this family here. "
+            "On the off-centre triple-OOD PROBE it is nominally the best "
+            "operator row (0.993 vs 1.047-1.185) but still in the failure "
+            "regime (relative L2 ~ 1, the operator mis-localisation mode). "
+            "PROVISIONAL (ADR-0045/0046), single seed; no time-conditioned "
+            "GeoFLARE run exists on notch yet. Relative-L2/QoI values "
+            "recomputed 2026-08-28 from the run's saved rollouts under the "
+            "exact evaluator recipe (see module header); pooled relative L2 "
             "headline (ADR-0055)."
         ),
     ),

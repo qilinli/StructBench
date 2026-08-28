@@ -35,15 +35,17 @@ number (pooled position RMSE inside the reported band, ADR-0043), anchoring the
 benchmark to a result the field already trusts. Against it run two provisional
 native operators - **Transolver** (Physics-Attention) and **GeoFLARE**
 (geometry-aware attention with a low-rank routing engine) - both adapted here
-to autoregressive rollout (ADR-0044/0045). Everything is scored in physical
+natively, under the autoregressive and time-conditioned schemes
+(ADR-0044/0045/0054). Everything is scored in physical
 units - displacement RMSE in mm and the von Mises field in MPa, both **pooled
 over space and time** to match the published DeformingPlate convention
 (ADR-0043), not the mean-of-per-step RMSE used on the other benchmarks - with
 two quantities of interest reading the engineering outcome: peak von Mises
 stress and terminal peak deflection. On this smooth, quasi-static task the
-operators' freedom from a fixed mesh graph tells on displacement: the
-time-conditioned Transolver leads (relative L2 0.154, pooled RMSE 2.00 mm), with
-GeoFLARE next. MGN's pooled position RMSE (15.45 mm) reproduces the published
+operators' freedom from a fixed mesh graph tells on displacement: the two
+Transolver rows lead (relative L2 0.144 autoregressive / 0.154 time-conditioned
+- a statistical tie on displacement; pooled RMSE 3.0 / 3.5 mm), with GeoFLARE
+next. MGN's pooled position RMSE (15.45 mm) reproduces the published
 reference (15.1 +/- 4.0); a 2026-08-20 training-noise fix (noise_std corrected to
 the working frame, ~1000x stronger) repaired MGN's previously-collapsed von Mises
 field (relative L2 4.21 -> 0.36), so the cross-method stress gap is now narrow.
@@ -97,34 +99,34 @@ _Headline — pooled relative L2 (↓ better)_
 
 | Method | Scheme | test·disp | test·aux |
 |---|---|---|---|
-| MGN | autoregressive | 0.5013 | 0.363 |
-| Transolver | autoregressive | 0.1437 | 0.1777 |
-| Transolver | time-conditioned | 0.1538 | 0.1993 |
-| Transolver++ | time-conditioned | 0.158 | 0.2054 |
-| GeoFLARE | autoregressive | 0.3828 | 0.2935 |
-| GeoFLARE | time-conditioned | 0.2464 | 0.2804 |
+| MGN | autoregressive | 0.50130 | 0.36300 |
+| Transolver | autoregressive | 0.14370 | 0.17770 |
+| Transolver | time-conditioned | 0.15380 | 0.19930 |
+| Transolver++ | time-conditioned | 0.15800 | 0.20540 |
+| GeoFLARE | autoregressive | 0.38280 | 0.29350 |
+| GeoFLARE | time-conditioned | 0.24640 | 0.28040 |
 
 _Trajectory error — RMSE_
 
 | Method | Scheme | test·pos (mm) | test·vm (MPa) |
 |---|---|---|---|
-| MGN | autoregressive | 15.45 | 0.01501 |
-| Transolver | autoregressive | 3.018 | 0.008139 |
-| Transolver | time-conditioned | 3.454 | 0.008906 |
-| Transolver++ | time-conditioned | 3.322 | 0.009332 |
-| GeoFLARE | autoregressive | 4.064 | 0.01326 |
-| GeoFLARE | time-conditioned | 4.369 | 0.01219 |
+| MGN | autoregressive | 15.45000 | 0.01501 |
+| Transolver | autoregressive | 3.01800 | 0.00814 |
+| Transolver | time-conditioned | 3.45400 | 0.00891 |
+| Transolver++ | time-conditioned | 3.32200 | 0.00933 |
+| GeoFLARE | autoregressive | 4.06400 | 0.01326 |
+| GeoFLARE | time-conditioned | 4.36900 | 0.01219 |
 
 _Quantities of interest (MAE)_
 
 | Method | Scheme | test·peak_vm (MPa) | test·terminal_deflection (mm) |
 |---|---|---|---|
-| MGN | autoregressive | 0.03978 | 48.42 |
-| Transolver | autoregressive | 0.02108 | 4.244 |
-| Transolver | time-conditioned | 0.01388 | 0.5615 |
-| Transolver++ | time-conditioned | 0.01895 | 0.8748 |
-| GeoFLARE | autoregressive | 0.03595 | 6.196 |
-| GeoFLARE | time-conditioned | 0.04545 | 3.669 |
+| MGN | autoregressive | 0.03978 | 48.42000 |
+| Transolver | autoregressive | 0.02108 | 4.24400 |
+| Transolver | time-conditioned | 0.01388 | 0.56150 |
+| Transolver++ | time-conditioned | 0.01895 | 0.87480 |
+| GeoFLARE | autoregressive | 0.03595 | 6.19600 |
+| GeoFLARE | time-conditioned | 0.04545 | 3.66900 |
 
 ## Baseline details
 
@@ -134,11 +136,11 @@ _Quantities of interest (MAE)_
 
 **Transolver** (transolver, 2026-08-18, commit `eb39994`)
 
-*Native autoregressive Transolver (ADR-0044) under the CORRECT working-frame training noise (noise_std 3.0 mm; run deforming-transolver-n3, 2M steps, val-selected model-best-1850000.pt, single seed). RESTORED to the table by the 2026-08-21 scheme-matrix pass: the original AR entry (run 84df162, displacement relative L2 0.2681, pooled position RMSE 4.282 mm) was first replaced by the time-conditioned entry and then found to be a PRE-noise-fix run; the noise-fixed refit is much stronger (0.268 -> 0.144). Standing: statistically TIES the time-conditioned Transolver on the field metrics (displacement relative L2 0.1437 vs 0.1538, von Mises 0.1777 vs 0.1993, pooled position RMSE 3.02 vs 3.45 mm) at 8x the training budget (2M vs 250k), while the time-conditioned run wins the engineering QoIs decisively (terminal-deflection MAE 4.24 vs 0.56 mm, peak-vm 0.0211 vs 0.0139 MPa) - on this benchmark the scheme trade is QoIs-and-budget, not field accuracy. One-step position RMSE 0.279 mm carries the noise-injection trade like MGN's. PROVISIONAL (ADR-0044/0046). Pooled relative L2 headline (ADR-0055).*
+*Native autoregressive Transolver (ADR-0044) under the CORRECT working-frame training noise (noise_std 3.0 mm; run deforming-transolver-n3, 2M steps, val-selected model-best-1850000.pt, single seed). RESTORED to the table by the 2026-08-21 scheme-matrix pass: the original AR entry (run 84df162, displacement relative L2 0.2681, pooled position RMSE 4.282 mm) was first replaced by the time-conditioned entry and then found to be a PRE-noise-fix run; the noise-fixed refit is much stronger (0.268 -> 0.144). Standing (paired per-case check, 2026-08-27): TIES the time-conditioned Transolver on displacement (relative L2 0.1437 vs 0.1538 - 0.9 sigma paired, and TC's seed 2 scored 0.1471) but genuinely WINS the von Mises field (0.1777 vs 0.1993, 3.4 sigma paired, TC better on only 28/100 cases), at 8x the training budget (2M vs 250k). The time-conditioned run wins terminal deflection decisively (MAE 4.24 vs 0.56 mm) - a tail-robustness effect: this run has three divergent late rollouts (33/42/134 mm errors) where TC's worst case is 1.8 mm. Its nominal peak-vm loss (0.0211 vs 0.0139 MPa) is the same single tail, not an accuracy deficit: one divergent case (test_0033, 0.965 MPa error) carries the whole gap (0.75 sigma paired; excluding it this run wins, 0.0115 vs 0.0138, and its median is better, 0.0072 vs 0.0081). So the scheme trade is tail-robustness-and-budget, not field accuracy. One-step position RMSE 0.279 mm carries the noise-injection trade like MGN's. PROVISIONAL (ADR-0044/0046). Pooled relative L2 headline (ADR-0055).*
 
 **Transolver** (transolver, 2026-08-18, commit `5b84119`)
 
-*Native time-conditioned Transolver (ADR-0054): history-free, each frame predicted independently from the reference mesh + normalized query time, with no rollout accumulation, so one-step is N/A. CONVENTION REPAIR (2026-08-21): the previous entry transcribed the evaluator's mean-of-per-step statistics (1.996 mm / 0.007373 MPa) in violation of this module's pooled-RMSE header; the pooled values are 3.454 mm / 0.008906 MPa (relative-L2 and QoI values unchanged). Standing against the noise-fixed autoregressive Transolver above: the FIELD metrics tie (0.1538 vs 0.1437 displacement relative L2) - the earlier 'beats AR on every metric' reading compared against the pre-noise-fix AR run (0.268) - but time-conditioning wins the engineering QoIs decisively (terminal-deflection MAE 0.56 vs 4.24 mm, peak-vm 0.0139 vs 0.0211 MPa) at 1/8 the budget (250k vs 2M steps), because avoiding rollout accumulation protects exactly the late-horizon quantities the QoIs read. Against the blessed noise-fixed MGN it leads ~3.3x on displacement relative L2 (0.154 vs 0.501) and ~4.5x on pooled position RMSE (3.45 vs 15.45 mm). Seed 1 of the s1-s2 pair, val-selected model-best-235000.pt (val relative L2 0.174 vs seed 2's 0.189; seed 2 test displacement 0.1471), run deforming-transolver-tc-s1. PROVISIONAL (ADR-0044/0046): a best-effort native implementation, not validated against a published Transolver-DeformingPlate number. Pooled relative L2 headline (ADR-0055).*
+*Native time-conditioned Transolver (ADR-0054): history-free, each frame predicted independently from the reference mesh + normalized query time, with no rollout accumulation, so one-step is N/A. CONVENTION REPAIR (2026-08-21): the previous entry transcribed the evaluator's mean-of-per-step statistics (1.996 mm / 0.007373 MPa) in violation of this module's pooled-RMSE header; the pooled values are 3.454 mm / 0.008906 MPa (relative-L2 and QoI values unchanged). Standing against the noise-fixed autoregressive Transolver above (paired per-case check, 2026-08-27): displacement TIES (0.1538 vs 0.1437 relative L2, 0.9 sigma paired; this family's seed 2 scored 0.1471) - the earlier 'beats AR on every metric' reading compared against the pre-noise-fix AR run (0.268) - while the AR run genuinely wins the von Mises field (0.1993 vs 0.1777, 3.4 sigma paired) at 8x this run's budget. Time-conditioning's real win is TAIL ROBUSTNESS at 1/8 the budget (250k vs 2M steps): terminal-deflection MAE 0.56 vs 4.24 mm, because avoiding rollout accumulation eliminates AR's divergent late rollouts (its three worst cases err 33/42/134 mm; this run's worst across all 100 is 1.8 mm). The nominal peak-vm edge (0.0139 vs 0.0211 MPa) is the same single tail, not an across-the-board QoI win: one divergent AR case carries the gap (0.75 sigma paired; AR's median is better, 0.0072 vs 0.0081 MPa). Against the blessed noise-fixed MGN it leads ~3.3x on displacement relative L2 (0.154 vs 0.501) and ~4.5x on pooled position RMSE (3.45 vs 15.45 mm). Seed 1 of the s1-s2 pair, val-selected model-best-235000.pt (val relative L2 0.174 vs seed 2's 0.189; seed 2 test displacement 0.1471), run deforming-transolver-tc-s1. PROVISIONAL (ADR-0044/0046): a best-effort native implementation, not validated against a published Transolver-DeformingPlate number. Pooled relative L2 headline (ADR-0055).*
 
 **Transolver++** (transolver_plus, 2026-08-18, commit `5b84119`)
 
@@ -167,6 +169,6 @@ Dataset access: the source data is public — download the MeshGraphNets `deform
 ## References
 
 - **MGN** — Pfaff, T., Fortunato, M., Sanchez-Gonzalez, A., & Battaglia, P. W. (2021). Learning Mesh-Based Simulation with Graph Networks. *ICLR*. https://arxiv.org/abs/2010.03409
-- **Transolver / Transolver** — Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: A Fast Transformer Solver for PDEs on General Geometries. *ICML*. https://arxiv.org/abs/2402.02366
+- **Transolver** — Wu, H., Luo, H., Wang, H., Wang, J., & Long, M. (2024). Transolver: A Fast Transformer Solver for PDEs on General Geometries. *ICML*. https://arxiv.org/abs/2402.02366
 - **Transolver++** — Luo, H., Wu, H., Zhou, H., Wang, J., & Long, M. (2025). Transolver++: An Accurate Neural Solver for PDEs on Million-Scale Geometries. https://arxiv.org/abs/2502.02414. Adapted per ADR-0057 (thuml reference implementation github.com/thuml/Transolver_plus).
-- **GeoFLARE / GeoFLARE** — Adams, R., et al. (NVIDIA). GeoTransolver. arXiv:2512.20399; with Puri, R., et al. FLARE: Fast Low-rank Attention Routing Engine. arXiv:2508.12594. GeoFLARE is GeoTransolver with the FLARE attention backend (attention_type GALE_FA; ADR-0045).
+- **GeoFLARE** — Adams, R., et al. (NVIDIA). GeoTransolver. arXiv:2512.20399; with Puri, R., et al. FLARE: Fast Low-rank Attention Routing Engine. arXiv:2508.12594. GeoFLARE is GeoTransolver with the FLARE attention backend (attention_type GALE_FA; ADR-0045).
