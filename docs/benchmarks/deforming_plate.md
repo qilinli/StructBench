@@ -155,7 +155,7 @@ _Quantities of interest (MAE)_
 ## Quickstart
 
 ```bash
-pip install git+https://github.com/qilinli/StructBench  # or: pip install -e . from a clone
+pip install git+https://github.com/qilinli/StructBench # or: pip install -e .
 structbench-train --mode train --config configs/deforming_plate/mgn.toml \
     --data-root /path/to/deforming_plate --out runs/deforming_plate-mgn
 ```

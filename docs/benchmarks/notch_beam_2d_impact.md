@@ -141,7 +141,7 @@ _Quantities of interest (MAE)_
 ## Quickstart
 
 ```bash
-pip install git+https://github.com/qilinli/StructBench  # or: pip install -e . from a clone
+pip install git+https://github.com/qilinli/StructBench # or: pip install -e .
 structbench-train --mode train --config configs/notch_beam_2d_impact/cgn.toml \
     --data-root /path/to/notch_beam_2d_impact --out runs/notch_beam_2d_impact-cgn
 ```
