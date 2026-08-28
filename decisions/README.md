@@ -71,7 +71,7 @@ What becomes easier, harder, or constrained as a result.
 | 0020 | Native radius_graph; no graph-backend binary dependency | Durable | Accepted |
 | 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
 | 0022 | FEM-convention visualization harness (`viz/`, matplotlib as optional extra) | Durable | Accepted |
-| 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted |
+| 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted (amended 2026-08-28: Hugging Face data-release actions are on-instruction) |
 | 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Durable | Accepted (amended 2026-08-06: notch-bend parked; v0.3 scope superseded by 0041, 2026-08-07) |
 | 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted |
 | 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted (amended by ADR-0029) |

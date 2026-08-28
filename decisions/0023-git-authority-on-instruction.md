@@ -50,3 +50,20 @@ third-party PR acceptance, and repository settings remain forbidden.
   outside a session.
 - CLAUDE.md's session-ending rule is softened accordingly: work still lands
   on feature branches by default; `main` moves only on instruction.
+
+---
+
+**Amendment (2026-08-28, maintainer).** Data-release actions on the Hugging
+Face dataset repos move from *forbidden* to *on explicit instruction*:
+creating `StructBench/*` dataset repos, uploading archives and bundles to
+them, flipping them public, and creating **data** tags (`v0.x.y` on the
+dataset repos, versioned independently of the code). The first HF release
+(2026-08-28, ADR-0040 amendment) showed the same transcription friction this
+ADR removed for merges: the human had authorised each step in-session and
+then retyped the visibility flip and the tag commands. What stays
+forbidden: **code** releases (GitHub releases, code version tags, PyPI,
+Zenodo) and handling the HF token — the human logs in (`hf auth login`);
+Claude only invokes the CLI against the stored login. Each data-release
+action still traces to an explicit utterance in the session ("flip them
+public", "tag v0.1.0"), never to unprompted work, and a data tag is created
+only after the human has looked at the public pages.

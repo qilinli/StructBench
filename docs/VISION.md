@@ -8,7 +8,11 @@
 
 StructBench is an open platform for data-driven structural engineering. It provides standardised benchmark problems, reference models, and — over time — reusable deployment tools that let research groups and practitioners apply machine learning methods to structural analysis and health monitoring in a consistent, reproducible way.
 
-At its current stage, the platform's focus is on benchmarks and reference implementations for surrogate modelling of structures under dynamic and extreme loading. Its scope will expand to include multi-modal structural health monitoring and end-to-end deployment workflows as the platform matures.
+At its current stage, the platform's focus is on benchmarks and reference
+implementations for surrogate modelling of structural response — from
+quasi-static contact to stress-wave propagation, impact, and fracture. Its
+scope will expand to include multi-modal structural health monitoring and
+end-to-end deployment workflows as the platform matures.
 
 ## Why it exists
 
