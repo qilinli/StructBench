@@ -146,6 +146,15 @@ def test_hf_readme_front_matter_and_sections():
     assert body.count("# Wave1D-Propagation — StructBench canonical dataset") == 1
     assert "<https://github.com/qilinli/StructBench>.\n\n" in body
     assert 'hf_hub_download("StructBench/wave-propagation-1d"' in body
+    # The mirror-only section (manifest, decks, case-id grammar) sits between
+    # the archive's Files section and its layout table.
+    assert "## Manifest and input decks (Hugging Face mirror)" in body
+    assert "`W1D-<L>-<V>`" in body
+    assert (
+        body.index("## Files")
+        < body.index("## Manifest")
+        < body.index("## HDF5 layout")
+    )
     assert "## Citation" in body and "@software{structbench," in body
     assert "  url     = {https://github.com/qilinli/StructBench}," in body
 

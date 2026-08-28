@@ -90,6 +90,23 @@ _NOTCH_CROSS_SECTIONS = {
     "Bullet": "rod",
 }
 
+#: How to read a case id, per benchmark — the prose twin of ``_case_params``
+#: for the HF README's manifest section.
+_CASE_ID_GRAMMAR: dict[str, str] = {
+    "taylor_impact_2d": (
+        "`T-20-<L>-<V>` — 20 mm bar width, bar length L mm, impact speed "
+        "V m/s (`T-20-80-Convergence` is the held-aside mesh-convergence run)"
+    ),
+    "wave_propagation_1d": "`W1D-<L>-<V>` — bar length L mm, initial speed V m/s",
+    "notch_beam_2d_impact": (
+        "`NB-I-<W>-<Shape>-<n>-<V>` — beam width W mm (height 80 mm), "
+        "impactor `Rectangular` / `Sphere` / `Bullet` (plate / disk / rod "
+        "cross-section), notch position code n ∈ {a, b, c}, impact speed "
+        "V m/s; the two off-grid probes are `S_<H>_<W>_V<V>_<label>` (beam "
+        "height H mm, width W mm, disk impactor at V m/s)"
+    ),
+}
+
 
 def _case_params(benchmark: str, case_id: str) -> dict[str, object]:
     """Loading/geometry parameters parsed from a case id (per-benchmark)."""
@@ -282,11 +299,36 @@ def _hf_readme(spec, name: str, repo: str) -> str:
             "",
         ]
     )
+    # The mirror ships two things the archive itself does not (the manifest
+    # and the deck copies); describe them right after the archive's Files
+    # section, before the layout table.
+    manifest = "\n".join(
+        [
+            "## Manifest and input decks (Hugging Face mirror)",
+            "",
+            "- `cases.csv` — one row per `.h5`: `case_id`, `split` "
+            "(`held_aside` for files shipped outside the protocol splits), the "
+            "loading/geometry parameters parsed from the id, `n_nodes`, "
+            "`n_frames`, `file_bytes`, `sha256` (integrity manifest; also what "
+            "the Dataset Viewer shows).",
+            "- `decks/<case_id>.k` — the LS-DYNA input deck of every case (also "
+            "embedded verbatim in each file's `metadata/source_deck`); "
+            "re-running a deck regenerates the raw output the adapter converts "
+            "to canonical HDF5.",
+            f"- Case ids: {_CASE_ID_GRAMMAR[name]}.",
+            "",
+            "",
+        ]
+    )
     readme = render_archive_readme(spec, name)
     title, _, rest = readme.partition("\n")
+    body = rest.lstrip()
+    layout_heading = "## HDF5 layout"
+    assert layout_heading in body, "archive README lost its layout section"
+    body = body.replace(layout_heading, manifest + layout_heading, 1)
     # ``download`` ends in a single newline; the extra one keeps the archive
     # README's first paragraph from merging into the Download section.
-    return f"{front_matter}{title}\n\n{download}\n{rest.lstrip()}{citation}"
+    return f"{front_matter}{title}\n\n{download}\n{body}{citation}"
 
 
 def build(args: argparse.Namespace) -> int:
