@@ -123,8 +123,9 @@ folder. The three LS-DYNA archives (CC BY 4.0) are public on Hugging Face —
 [`StructBench/notch-beam-2d-impact`](https://huggingface.co/datasets/StructBench/notch-beam-2d-impact)
 — one `.h5` per case plus a `cases.csv` manifest (splits, parameters,
 SHA-256) and the LS-DYNA input decks; `snapshot_download` an archive (pin
-`revision="v0.1.0"`) and point `--data-root` at it, or ingest your own
-LS-DYNA output via the adapter. The maintainer's OneDrive copy stays the
+the dataset repo's `v0.1.0` tag — a data release, independent of the code
+version) and point `--data-root` at it, or ingest your own LS-DYNA output
+via the adapter. The maintainer's OneDrive copy stays the
 master and is still shared on request (ADR-0040, amended 2026-08-28).
 DeformingPlate's source data is
 public (MeshGraphNets; no data licence stated by the source): download it

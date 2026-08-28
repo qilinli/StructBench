@@ -205,11 +205,12 @@ CARD = BenchmarkCard(
         "the canonical archive is public on Hugging Face — "
         "[StructBench/notch-beam-2d-impact]"
         "(https://huggingface.co/datasets/StructBench/notch-beam-2d-impact) "
-        "(CC BY 4.0, ~25 GB): one `.h5` per case, `cases.csv` (split, "
-        "loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input "
-        "decks under `decks/`. Fetch one case with `hf_hub_download` or the "
-        "whole archive with `snapshot_download` (resumable) and point "
-        '`--data-root` at it; pin `revision="v0.1.0"` for reproducible '
+        "(CC BY 4.0): one `.h5` per case, `cases.csv` (split, loading/geometry "
+        "parameters, SHA-256 manifest) and the LS-DYNA input decks under "
+        "`decks/`. Fetch one case with `hf_hub_download` or the whole archive "
+        "with `snapshot_download` (resumable) and point `--data-root` at it; "
+        'pin the dataset repo\'s `v0.1.0` tag (`revision="v0.1.0"` — a data '
+        "release, independent of the code version) for reproducible "
         "pipelines. The maintainer's OneDrive copy remains the master "
         "(ADR-0040, amended 2026-08-28)."
     ),

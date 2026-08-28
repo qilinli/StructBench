@@ -183,9 +183,10 @@ CARD = BenchmarkCard(
         "loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input "
         "decks under `decks/`. Fetch one case with `hf_hub_download` or the "
         "whole archive with `snapshot_download` and point `--data-root` at "
-        'it; pin `revision="v0.1.0"` for reproducible pipelines. The '
-        "maintainer's OneDrive copy remains the master (ADR-0040, amended "
-        "2026-08-28)."
+        'it; pin the dataset repo\'s `v0.1.0` tag (`revision="v0.1.0"` — a '
+        "data release, independent of the code version) for reproducible "
+        "pipelines. The maintainer's OneDrive copy remains the master "
+        "(ADR-0040, amended 2026-08-28)."
     ),
     data_access_label=(
         "public on Hugging Face — [StructBench/taylor-impact-2d]"
