@@ -113,25 +113,6 @@ benchmark — or swap the model family within a benchmark, e.g.
 `configs/deforming_plate/{mgn,transolver,geoflare}.toml` for the 3D
 DeformingPlate benchmark (ADR-0041; operator adaptations ADR-0044/0045).
 
-**Data availability:** each benchmark ships as a self-contained canonical
-archive — a `canonical/<benchmark>/` folder of `<case_id>.h5` files with a
-generated `README.md` and `card.json` — and `--data-root` points at that
-folder. The three LS-DYNA archives (CC BY 4.0) are public on Hugging Face —
-[`StructBench/wave-propagation-1d`](https://huggingface.co/datasets/StructBench/wave-propagation-1d),
-[`StructBench/taylor-impact-2d`](https://huggingface.co/datasets/StructBench/taylor-impact-2d),
-[`StructBench/notch-beam-2d-impact`](https://huggingface.co/datasets/StructBench/notch-beam-2d-impact)
-— one `.h5` per case plus a `cases.csv` manifest (splits, parameters,
-SHA-256) and the LS-DYNA input decks; `snapshot_download` an archive (pin
-the dataset repo's `v0.1.0` tag — a data release, independent of the code
-version) and point `--data-root` at it, or ingest your own LS-DYNA output
-via the adapter. The maintainer's OneDrive copy stays the
-master and is still shared on request (ADR-0040, amended 2026-08-28).
-DeformingPlate's source data is
-public (MeshGraphNets; no data licence stated by the source): download it
-from the DeepMind bucket and convert locally with
-`data_generation/meshgraphnets/deforming_plate/` (ADR-0042 — StructBench
-points to the source rather than rehosting).
-
 ## Repository layout
 
 ```
@@ -203,26 +184,23 @@ assets/            # figures embedded in the docs + landing pages
 
 Rationale for every item lives in [`decisions/`](decisions/).
 
-## How this project is run
+## Citation
 
-StructBench is co-developed by its maintainer and an AI agent under an
-explicit written harness: a decision log of ADRs, tiered agent authority,
-and a corrections log — [HARNESS.md](docs/HARNESS.md) explains the philosophy.
-Agent-assisted research needs the same auditability we demand of the
-benchmarks themselves; whatever you think of the arrangement, the side effect
-is useful to you as a reader: the *why* behind every choice in this repo is
-written down.
+If you use StructBench, please cite it
+([CITATION.cff](CITATION.cff)):
 
-## Limitations, stated plainly
-
-Small datasets by learned-simulator standards — tens to low hundreds of cases
-per LS-DYNA benchmark (the public DeformingPlate set brings 1200), testing
-protocol rigor and rollout stability, not web-scale generalization. Mostly
-1D/2D with a first 3D benchmark; no erosion yet (the gate for the parked
-RC-beam benchmark); no experimental validation data. If you need any of those
-today, this repo is not it yet; if you want a clean, reproducible number to
-beat on a real solid-mechanics rollout task, it is.
+```bibtex
+@software{li_structbench_2026,
+  author  = {Li, Qilin},
+  title   = {{StructBench}: Standardized benchmarks for machine learning
+             on structural simulation},
+  year    = {2026},
+  version = {0.3.0},
+  license = {Apache-2.0},
+  url     = {https://github.com/qilinli/StructBench}
+}
+```
 
 ## License
 
-[Apache 2.0](LICENSE). Cite via [CITATION.cff](CITATION.cff).
+[Apache 2.0](LICENSE).
