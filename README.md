@@ -10,8 +10,8 @@ from quasi-static contact to impact and fracture.
 
 > **Status: four benchmarks, four model families; cross-method leaderboards
 > on Taylor, notch-impact, and DeformingPlate (wave-1D stays CGN-only).**
-> v0.3.0 release-ready on `main` (tag pending); v0.2.0 was the last tagged
-> release. What exists is real and tested; what doesn't is on the
+> v0.3.0 is the latest release (tagged and released on GitHub 2026-08-27).
+> What exists is real and tested; what doesn't is on the
 > [roadmap](#roadmap).
 
 ![Taylor bar rollout: ground truth vs CGN prediction, copper bar mushrooming against a rigid wall, colored by von Mises stress](assets/taylor_rollout.gif)
@@ -162,7 +162,7 @@ assets/            # figures embedded in the docs + landing pages
      crossed-out block may be compressed to one line. Reasoning lives in
      decisions/, not here. Substrate-layer work only (ADR-0014). -->
 
-*Last revised: 2026-08-27.*
+*Last revised: 2026-08-29.*
 
 ### Shipped
 
@@ -185,10 +185,11 @@ assets/            # figures embedded in the docs + landing pages
 <!-- Completed inbox items are removed at each release; their record lives in
      git history and the ADRs they cite. -->
 
-- [ ] Human, out of session: update VISION.md's current-stage sentence
-      ("dynamic and extreme loading" — v0.3's quasi-static 3D benchmark has
-      outgrown it; drafted copy in `scratch/2026-08-27-vision-copy-draft.md`;
-      VISION edits are forbidden-tier during coding sessions).
+- [x] ~~Human, out of session: update VISION.md's current-stage sentence
+      ("dynamic and extreme loading" — v0.3's quasi-static 3D benchmark had
+      outgrown it; VISION edits are forbidden-tier during coding sessions).~~
+      (2026-08-28, maintainer edit — the sentence now spans quasi-static
+      contact to stress-wave propagation, impact, and fracture.)
 
 ### Later (each becomes an ADR/spec when picked up)
 
