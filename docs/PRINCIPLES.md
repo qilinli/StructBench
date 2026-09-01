@@ -92,6 +92,7 @@ A dependency is a long-term commitment, not a convenience. The bar to add one is
 | torch | Autograd + tensors for the reference ML models | ADR-0018 |
 | torch-geometric | `MessagePassing` base class for the CGN; its `radius_graph` was replaced by a native pure-torch implementation (ADR-0020) | ADR-0018, ADR-0020 |
 | matplotlib | FEM-style fringe visualization; optional `viz` extra, never a hard runtime dependency | ADR-0022 |
+| huggingface_hub | Fetching the public canonical archives; optional `data` extra, never imported by the package | ADR-0058 |
 
 **Development** *(established by this document)*:
 

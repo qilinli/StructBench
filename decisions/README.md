@@ -105,6 +105,7 @@ What becomes easier, harder, or constrained as a result.
 | 0055 | Relative-L2 as the headline metric (amended: headline, RMSE retained secondary) | Durable | Accepted |
 | 0056 | Descope notch-bend: the notch-beam benchmark narrows to notch-impact (redundant with impact; amends 0024/0026) | Durable | Accepted |
 | 0057 | Transolver++ eidetic-state adaptation (adaptive temperature + train-only Gumbel Rep-Slice) on the Transolver family | Durable | Proposed |
+| 0058 | `huggingface_hub` as an optional `data` extra | Durable | Proposed |
 
 ---
 
