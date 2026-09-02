@@ -106,6 +106,7 @@ What becomes easier, harder, or constrained as a result.
 | 0056 | Descope notch-bend: the notch-beam benchmark narrows to notch-impact (redundant with impact; amends 0024/0026) | Durable | Accepted |
 | 0057 | Transolver++ eidetic-state adaptation (adaptive temperature + train-only Gumbel Rep-Slice) on the Transolver family | Durable | Proposed |
 | 0058 | `huggingface_hub` as an optional `data` extra | Durable | Proposed |
+| 0059 | Auxiliary state channels: `aux` generalises from `(T, P)` to `(T, P, C)` | Durable | Proposed |
 
 ---
 
