@@ -232,7 +232,7 @@ class MeshSimulator(CaseBoundSimulator):
         )
         # Inverse-normalize the FULL (P, dim+C) output first -- slicing
         # before inverse would broadcast the dim-wide velocity slice against
-        # the (dim+1)-wide std/mean buffers.
+        # the (dim+C)-wide std/mean buffers.
         out = self._target_normalizer.inverse(out)
         velocity = out[:, : self._dim]
         stress = out[:, self._dim :]

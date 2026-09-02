@@ -766,9 +766,11 @@ def train(
     aux_field = train_cfg.aux_fields or spec.aux_field
     # Record the RESOLVED selection in config.json (ADR-0059) so evaluate()
     # and post-hoc tooling read the channels the run actually trained on,
-    # never a null needing spec-side reconstruction.
-    train_cfg.aux_fields = (
-        (aux_field,) if isinstance(aux_field, str) else tuple(aux_field)
+    # never a null needing spec-side reconstruction. On a COPY: train() must
+    # not mutate the caller's config object (programmatic sweeps reuse it).
+    train_cfg = replace(
+        train_cfg,
+        aux_fields=(aux_field,) if isinstance(aux_field, str) else tuple(aux_field),
     )
     if tuple(train_cfg.aux_fields or ()) not in ((), (spec.aux_field,)):
         logger.info(
@@ -2047,7 +2049,7 @@ def _train_transolver_tc(
         for batch in loader:
             particle_type = batch["particle_type"].to(device)
             next_position = batch["next_position"].to(device)  # (P, dim) GT at t
-            next_aux = batch["next_aux"].to(device)  # (P,) GT aux at t
+            next_aux = batch["next_aux"].to(device)  # (P, C) GT aux at t
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
             target_frame = batch["target_frame"].to(device)  # (B,)
@@ -2088,10 +2090,12 @@ def _train_transolver_tc(
                         reference_coords, n_particles_per_example, h1_neighbors
                     )
                 pred_u = torch.where(
-                    is_kinematic.unsqueeze(1), target[..., :-1], pred[..., :-1]
+                    is_kinematic.unsqueeze(1),
+                    target[..., :-aux_c],
+                    pred[..., :-aux_c],
                 )
                 g_pred = _apply_lsq_gradient(h1_ei, h1_cf, pred_u)
-                g_gt = _apply_lsq_gradient(h1_ei, h1_cf, target[..., :-1])
+                g_gt = _apply_lsq_gradient(h1_ei, h1_cf, target[..., :-aux_c])
                 h1_per_particle = ((g_pred - g_gt) ** 2).sum(dim=(-1, -2))
                 if h1_eff_weight is None and free.any():
                     with torch.no_grad():
@@ -2317,7 +2321,7 @@ def _train_geoflare_tc(
         for batch in loader:
             particle_type = batch["particle_type"].to(device)
             next_position = batch["next_position"].to(device)  # (P, dim) GT at t
-            next_aux = batch["next_aux"].to(device)  # (P,) GT aux at t
+            next_aux = batch["next_aux"].to(device)  # (P, C) GT aux at t
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
             target_frame = batch["target_frame"].to(device)  # (B,)
@@ -2887,6 +2891,20 @@ def evaluate(
     )
     run_aux_labels = aux_channel_labels(run_aux_fields)
     n_aux_c = len(run_aux_labels)
+    # ADR-0059: aux QoIs bind the benchmark's headline channel BY NAME within
+    # the run's selection. A variant selection that lacks it gets NaN aux
+    # QoIs (loud) rather than channel-0 values of a different quantity.
+    _headline = aux_channel_labels((spec.aux_field,))[0]
+    qoi_aux_channel: int | None
+    try:
+        qoi_aux_channel = run_aux_labels.index(_headline)
+    except ValueError:
+        qoi_aux_channel = None
+        logger.warning(
+            "run aux selection %r carries no %r channel; aux QoIs will be NaN",
+            run_aux_labels,
+            _headline,
+        )
 
     simulator: (
         LearnedSimulator | MeshSimulator | TransolverSimulator | GeoFlareSimulator
@@ -3015,6 +3033,7 @@ def evaluate(
                 qois=spec.qois,
                 kinematic_types=spec.kinematic_types,
                 scored_frames=spec.scored_frames,
+                qoi_aux_channel=qoi_aux_channel,
             )
             one_step = None
             one_step_aux = None
@@ -3027,6 +3046,7 @@ def evaluate(
                 qois=spec.qois,
                 kinematic_types=spec.kinematic_types,
                 scored_frames=spec.scored_frames,
+                qoi_aux_channel=qoi_aux_channel,
             )
             if mesh_sim is not None:
                 mesh_sim.reset_rollout()

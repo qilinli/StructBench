@@ -59,3 +59,15 @@ def test_render_report_contains_cases_and_aggregate():
         assert f"@{k}" in report
     with pytest.raises(ValueError, match="no timelines"):
         render_report("x", [])
+
+
+def test_peak_mean_aux_binds_headline_channel():
+    """ADR-0059: the timeline's peak column reads channel 0 only."""
+    tr = _impact_like_traj(T=40)
+    aux = np.zeros((40, 6, 2), dtype=np.float32)
+    aux[15, :, 0] = 7.0  # headline channel peaks at frame 15
+    aux[30, :, 1] = 99.0  # a second channel peaks later and higher
+    tr2 = CaseTrajectory(tr.case_id, tr.positions, tr.particle_type, aux, tr.time)
+    tl = analyze_trajectory(tr2)
+    assert tl.peak_mean_aux == pytest.approx(7.0)
+    assert tl.t_peak_mean_aux == pytest.approx(tr.time[15])

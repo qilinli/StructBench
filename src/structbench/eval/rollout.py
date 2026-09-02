@@ -90,6 +90,7 @@ def rollout(
     qois: Mapping[str, QoiFn] | None = None,
     kinematic_types: tuple[int, ...] = (),
     scored_frames: int | None = None,
+    qoi_aux_channel: int | None = 0,
 ) -> RolloutResult:
     """Seed with the observed prefix, then autoregress to the end.
 
@@ -215,6 +216,7 @@ def rollout(
         keep,
         scored_frames,
         qois,
+        qoi_aux_channel,
     )
 
 
@@ -227,6 +229,7 @@ def _finalize_rollout(
     keep: np.ndarray | None,
     scored_frames: int | None,
     qois: Mapping[str, QoiFn] | None,
+    qoi_aux_channel: int | None = 0,
 ) -> RolloutResult:
     """Assemble per-frame arrays into a :class:`RolloutResult` (shared tail).
 
@@ -281,19 +284,29 @@ def _finalize_rollout(
         mask=keep,
     )
 
-    # ADR-0059: aux QoIs bind the headline channel (channel 0) — the scalar
-    # (T, P) view every QoI function is written against.
+    # ADR-0059: aux QoIs bind ONE named channel — the scalar (T, P) view
+    # every QoI function is written against. The caller resolves the
+    # benchmark's headline label within the run's channel selection and
+    # passes its index; ``None`` means the run carries no such channel, and
+    # the aux inputs are NaN so aux QoIs fail loud (NaN) instead of silently
+    # scoring the wrong physical quantity. Position-only QoIs are unaffected.
+    if qoi_aux_channel is None:
+        qoi_aux_pred = np.full(pred_aux[:scored_end, :, 0].shape, np.nan, np.float32)
+        qoi_aux_true = qoi_aux_pred
+    else:
+        qoi_aux_pred = pred_aux[:scored_end, :, qoi_aux_channel]
+        qoi_aux_true = trajectory.aux[:scored_end, :, qoi_aux_channel]
     pred_inputs = QoiInputs(
         time=trajectory.time[:scored_end],
         positions=pred_pos[:scored_end],
-        aux=pred_aux[:scored_end, :, 0],
+        aux=qoi_aux_pred,
         particle_type=trajectory.particle_type,
         init=input_frames,
     )
     true_inputs = QoiInputs(
         time=trajectory.time[:scored_end],
         positions=trajectory.positions[:scored_end],
-        aux=trajectory.aux[:scored_end, :, 0],
+        aux=qoi_aux_true,
         particle_type=trajectory.particle_type,
         init=input_frames,
     )
@@ -358,6 +371,7 @@ def time_conditioned_rollout(
     qois: Mapping[str, QoiFn] | None = None,
     kinematic_types: tuple[int, ...] = (),
     scored_frames: int | None = None,
+    qoi_aux_channel: int | None = 0,
 ) -> RolloutResult:
     """Independent-query trajectory assembly for the time-conditioned scheme.
 
@@ -434,6 +448,7 @@ def time_conditioned_rollout(
         keep,
         scored_frames,
         qois,
+        qoi_aux_channel,
     )
 
 

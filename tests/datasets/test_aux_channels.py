@@ -190,3 +190,21 @@ def test_wall_append_zero_fills_every_channel():
     assert out.aux.shape == (T, P + n_wall, C)
     np.testing.assert_allclose(out.aux[:, P:], 0.0)
     np.testing.assert_allclose(out.aux[:, :P], 1.0)
+
+
+def test_stats_npz_round_trip_preserves_channel_shape(tmp_path):
+    """ADR-0059: (C,) aux stats survive NormalizationStats save/load."""
+    from structbench.datasets import NormalizationStats
+
+    aux = np.stack([np.full((4, 3), 5.0), np.full((4, 3), 7.0)], axis=-1)
+    stats = compute_stats(
+        [_traj(aux)],
+        aux_transform=("asinh", "none"),
+        aux_transform_scale=(1.0, 1.0),
+    )
+    path = tmp_path / "stats.npz"
+    stats.save(path)
+    loaded = NormalizationStats.load(path)
+    assert loaded.aux_mean.shape == (2,)
+    np.testing.assert_allclose(loaded.aux_mean, stats.aux_mean)
+    np.testing.assert_allclose(loaded.aux_std, stats.aux_std)

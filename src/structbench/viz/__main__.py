@@ -108,23 +108,35 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--aux-channel",
-        type=int,
-        default=0,
-        help="aux channel to fringe on a multi-channel (ADR-0059) rollout "
-        "(default 0, the headline channel; ignored for single-channel runs)",
+        default="0",
+        help="aux channel to fringe on a multi-channel (ADR-0059) rollout: a "
+        "channel label (e.g. s_xx) or an index (default 0, the headline "
+        "channel; ignored for single-channel runs)",
     )
     args = parser.parse_args(argv)
 
     spec, record = _resolve_run_spec(args.run)
     # ADR-0059: a variant run's rollouts carry (T, P, C) aux; fringe rendering
-    # is per-scalar, so one channel is selected. Labels follow the recorded
-    # selection; legacy/C=1 artifacts are (T, P) and keep today's labelling.
-    from ..datasets import aux_channel_labels
+    # is per-scalar, so one channel is selected — by label or index. Labels
+    # follow the recorded selection; legacy artifacts without a recorded
+    # selection keep today's labelling.
+    from ..datasets import aux_channel_labels, aux_channel_units
 
     run_aux_fields = tuple(record.get("train", {}).get("aux_fields") or ()) or (
         spec.aux_field,
     )
     channel_labels = aux_channel_labels(run_aux_fields)
+    channel_units = aux_channel_units(run_aux_fields)
+    if args.aux_channel in channel_labels:
+        aux_channel = channel_labels.index(args.aux_channel)
+    else:
+        try:
+            aux_channel = int(args.aux_channel)
+        except ValueError:
+            raise SystemExit(
+                f"--aux-channel {args.aux_channel!r} is neither a channel "
+                f"label ({', '.join(channel_labels)}) nor an index"
+            ) from None
 
     import matplotlib
 
@@ -141,17 +153,31 @@ def main(argv: list[str] | None = None) -> None:
         split, case = split_and_case(npz_path.stem)
         pred = np.load(npz_path)
         pred_aux = pred["predicted_aux"]
-        aux_label, aux_unit = spec.aux_field, spec.card.aux_unit
+        # The run's recorded selection names the channels even for a C=1
+        # variant (whose artifact is a squeezed (T, P)); the benchmark's
+        # canonical selection reproduces today's labels exactly.
+        aux_label = channel_labels[min(aux_channel, len(channel_labels) - 1)]
+        aux_unit = (
+            spec.card.aux_unit
+            if run_aux_fields == (spec.aux_field,)
+            else channel_units[min(aux_channel, len(channel_units) - 1)]
+        )
         if pred_aux.ndim == 3:  # (T, P, C) variant artifact (ADR-0059)
-            if not 0 <= args.aux_channel < pred_aux.shape[-1]:
+            if not 0 <= aux_channel < pred_aux.shape[-1]:
                 raise SystemExit(
                     f"--aux-channel {args.aux_channel} out of range for "
                     f"{pred_aux.shape[-1]} channels ({', '.join(channel_labels)})"
                 )
-            pred_aux = pred_aux[..., args.aux_channel]
-            if args.aux_channel < len(channel_labels):
-                aux_label = channel_labels[args.aux_channel]
-                aux_unit = ""
+            pred_aux = pred_aux[..., aux_channel]
+        # The GT fringe row always shows the benchmark's canonical field —
+        # per-channel GT extraction is not wired into the fringe loader. Say
+        # so loudly when the prediction row shows something else.
+        if aux_label != spec.aux_field:
+            print(
+                f"WARNING: prediction row shows {aux_label!r} but the GT row "
+                f"shows the benchmark field {spec.aux_field!r} — the two "
+                "fringe rows are different quantities"
+            )
         gt = load_case_field(args.data_root / f"{case}.h5", spec.aux_field)
         n_frames = gt.positions.shape[0]
         input_frames = n_frames - len(pred["position_rmse"])

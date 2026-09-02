@@ -194,3 +194,43 @@ adapter is needed; records written after 0059 include the resolved
 - **Enables** the Stage-3 variant fleet of the complete-state plan (V0
   renormalised control, deviator head, full state, structured heads), which
   will be proposed separately once this lands.
+
+## Implementation notes (2026-09-02, post-review amendment)
+
+The implementation (feat/adr-0059-aux-channels) deviates from the text above
+in four descriptive respects, found by the post-implementation multi-agent
+review; the code's form is the accepted one and the text is amended here
+rather than the code bent to stale wording:
+
+- **Per-channel name/unit/label metadata is homed in the datasets extractor
+  registry** (`AuxFieldInfo` in `datasets/canonical.py`), not on
+  `BenchmarkCard`: the card keeps its singular `aux_field`/`aux_unit`
+  (unchanged at `C = 1`, which is every registered benchmark), and the new
+  spec ↔ card consistency check lives in `BenchmarkSpec.__post_init__`.
+  Variant selections get their channel labels/units from the registry, so
+  no card grows per-channel structure until a benchmark itself goes
+  `C > 1`.
+- **The metrics.json singular-vs-list switch keys on "the run's selection is
+  the benchmark's canonical field", not on the literal `C = 1`**: a
+  single-channel *variant* run (e.g. the migrated E-X swap configs) records
+  list-valued keys plus `aux_fields`, which is strictly more informative;
+  canonical runs stay byte-identical.
+- **Per-channel error forms exist per-case for the rollout metrics only**
+  (`rollout_aux_rmse_channels` / `rollout_rel_l2_aux_channels`, keyed by
+  label, emitted at `C > 1`); the one-step aux RMSE and the split-level
+  `mean` block stay channel-pooled. Recorded limitation — extend when the
+  Stage-3 fleet needs aggregated per-channel columns.
+- **Aux QoIs and the timeline column bind the benchmark's headline channel
+  BY NAME within the run's selection** (resolved at evaluate; a selection
+  that lacks the headline channel yields NaN aux QoIs, loudly, rather than
+  scoring channel 0 of a different quantity). The viz selector accepts a
+  channel label or an index; its GT fringe row always shows the canonical
+  benchmark field and warns when the prediction row shows a different
+  channel.
+
+The Surface-changed list is corrected in place by this note:
+`models/cgn/simulator.py` (per-channel inverse transform),
+`datasets/__init__.py` (new exports), and the four migrated E-X screen
+configs belong on it; `benchmarks/card.py` and the per-benchmark card
+instantiations do not (untouched by design), and `benchmarks/render.py` was
+touched only for the archive-README loader snippet's aux shape.

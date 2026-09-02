@@ -643,7 +643,7 @@ def _loading_lines(c: BenchmarkCard) -> list[str]:
         "",
         f'traj = load_case_trajectory("<case_id>.h5", aux_field="{c.aux_field}")',
         "traj.positions   # (T′, P, d) float32, mm",
-        f"traj.aux         # (T′, P) float32, {unit}",
+        f"traj.aux         # (T′, P, C) float32, {unit} (C = 1 here; ADR-0059)",
         "traj.time        # (T′,) float64, s",
         "```",
     ]

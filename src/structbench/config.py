@@ -614,6 +614,46 @@ def _normalize_aux_knobs(cfg: Any) -> None:
             setattr(cfg, name, tuple(value))
 
 
+def _check_aux_knob_types(section: str, cfg: Any) -> None:
+    """Explicit wrong-type rejection for the union-typed aux knobs (ADR-0059).
+
+    ``_check_value_types`` keys on exact annotation strings and skips union
+    annotations, so widening these knobs to scalar-or-per-channel silently
+    dropped their load-time type check; this restores "strict validation
+    fails at load, not mid-run" for them. A knob is a scalar of its base
+    type or a non-empty tuple of them (lists were already normalized).
+    """
+    for name, base, label in (
+        ("aux_transform", str, "str"),
+        ("aux_transform_scale", (float, int), "float"),
+        ("aux_tail_weight", (float, int), "float"),
+    ):
+        if not hasattr(cfg, name):
+            continue
+        value = getattr(cfg, name)
+        scalar_ok = isinstance(value, base) and not isinstance(value, bool)
+        seq_ok = (
+            isinstance(value, tuple)
+            and bool(value)
+            and all(isinstance(v, base) and not isinstance(v, bool) for v in value)
+        )
+        if not (scalar_ok or seq_ok):
+            raise ConfigError(
+                f"[{section}] {name} must be {label} or a list of {label}, "
+                f"got {value!r}"
+            )
+    value = getattr(cfg, "aux_fields", None)
+    if value is not None:
+        if not (isinstance(value, tuple) and all(isinstance(v, str) for v in value)):
+            raise ConfigError(
+                f"[{section}] aux_fields must be a list of str, got {value!r}"
+            )
+        if len(set(value)) != len(value):
+            raise ConfigError(
+                f"[{section}] aux_fields entries must be unique, got {value!r}"
+            )
+
+
 def _require_keys(section: str, given: set[str], required: set[str]) -> None:
     missing = sorted(required - given)
     unknown = sorted(given - required)
@@ -749,9 +789,11 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
 
     train_cfg = TrainConfig(benchmark=run["benchmark"], seed=run["seed"], **train_table)
     _normalize_aux_knobs(train_cfg)
+    _check_aux_knob_types("train", train_cfg)
 
     model = model_cls(**model_table)
     _normalize_aux_knobs(model)
+    _check_aux_knob_types("model", model)
     from .datasets.normalization import AUX_TRANSFORMS
 
     transform = getattr(model, "aux_transform", "none")
