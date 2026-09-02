@@ -114,6 +114,16 @@ class BenchmarkSpec:
     (e.g. actuator-driven deforming-plate), in which case a run that requests
     the feature is rejected at train time."""
 
+    @property
+    def aux_fields(self) -> tuple[str, ...]:
+        """The canonical aux channel selection as a tuple (ADR-0059).
+
+        Every registered benchmark declares one field today, so this is
+        ``(aux_field,)``; variant runs widen the selection via
+        ``train.aux_fields``, never by editing a benchmark in place.
+        """
+        return (self.aux_field,)
+
     def __post_init__(self) -> None:
         for required in ("train", "val"):
             if required not in self.splits:
@@ -127,6 +137,14 @@ class BenchmarkSpec:
         if self.aux_field not in available_aux_fields():
             raise ValueError(
                 f"aux_field {self.aux_field!r} not in {sorted(available_aux_fields())}"
+            )
+        # ADR-0059: the card's descriptive aux declaration and the spec's
+        # loaded-with declaration were previously kept equal only by
+        # convention (both set from one per-benchmark constant); check it.
+        if self.card.aux_field != self.aux_field:
+            raise ValueError(
+                f"card.aux_field {self.card.aux_field!r} != spec.aux_field "
+                f"{self.aux_field!r} (one canonical declaration per benchmark)"
             )
         for result in self.results:
             unknown = [s for s in result.metrics if s not in self.splits]

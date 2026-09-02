@@ -3,7 +3,8 @@
 # notch plane-strain max-eigenvalue definition, computed from the canonical
 # response/element/sph/strain Voigt tensor by the registered loader extractor).
 #
-# REQUIRES the env gate at submission: STRUCTBENCH_TAYLOR_AUX_MPSTRAIN=1
+# The swapped target is declared below via train.aux_fields (ADR-0059;
+# the env-gated submission of the original screen is retired).
 # (read by train() only; without it this config trains the reference vm target
 # byte-identically to transolver-timecond-iv-s1). Aux normalization is computed
 # from data (online normalizer warmup), so it follows the swapped target.
@@ -50,4 +51,5 @@ val_every = 2000                # CGN taylor cadence
 w_pos = 1.0
 w_aux = 1.0
 aux_tail_weight = 0.0
+aux_fields = ["max_principal_strain"]  # E-X swapped target (ADR-0059; was the env gate)
 train_frames = 0

@@ -112,7 +112,7 @@ def test_append_wall_nodes():
     )
     n_wall = 9  # (2 - (-2)) / 0.5 + 1
     assert out.positions.shape == (5, n_bar + n_wall, 2)
-    assert out.aux.shape == (5, n_bar + n_wall)
+    assert out.aux.shape == (5, n_bar + n_wall, 1)
     assert out.particle_type.shape == (n_bar + n_wall,)
     assert out.reference_coords.shape == (n_bar + n_wall, 2)
     # Wall rows: static across frames, on the plane, type 2, zero aux.

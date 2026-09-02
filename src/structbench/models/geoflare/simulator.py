@@ -129,6 +129,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
         history_velocities: int = 0,
         impact_velocity_feature: bool = False,
         time_conditioned: bool = False,
+        n_aux: int = 1,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -164,7 +165,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
 
         self._net = GeoFlareNet(
             node_in=node_in,
-            out_size=dim + 1,
+            out_size=dim + n_aux,  # ADR-0059
             n_hidden=n_hidden,
             n_layers=n_layers,
             n_heads=n_heads,
@@ -177,8 +178,9 @@ class GeoFlareSimulator(CaseBoundSimulator):
             dim=dim,
             time_conditioned=time_conditioned,
         )
+        self._n_aux = n_aux
         self._node_normalizer = OnlineNormalizer(node_in)
-        self._target_normalizer = OnlineNormalizer(dim + 1)
+        self._target_normalizer = OnlineNormalizer(dim + n_aux)
 
         self.to(device)
 
@@ -260,7 +262,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
         Returns
         -------
         tuple[Tensor, Tensor]
-            ``(next_positions (P, dim), aux (P, 1))``. ``aux`` is the
+            ``(next_positions (P, dim), aux (P, C))``. ``aux`` is the
             de-normalized predicted stress, kept 2-D per the
             ``_SimulatorLike`` contract.
 
@@ -317,9 +319,9 @@ class GeoFlareSimulator(CaseBoundSimulator):
         # and NOT pre-standardized: GeoFlareNet's internal MultiScaleContext
         # standardizes per example (see module docstring).
         out = self._net(node_feats, x_t, None)
-        # Inverse-normalize the FULL (P, dim+1) output first -- slicing
+        # Inverse-normalize the FULL (P, dim+C) output first -- slicing
         # before inverse would broadcast the dim-wide velocity slice against
-        # the (dim+1)-wide std/mean buffers.
+        # the (dim+C)-wide std/mean buffers.
         out = self._target_normalizer.inverse(out)
         velocity = out[:, : self._dim]
         stress = out[:, self._dim :]
@@ -349,7 +351,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
         next_positions:
             ``(P, dim)`` ground-truth next-frame world positions.
         next_aux:
-            ``(P,)`` ground-truth stress (working-frame units, e.g. MPa) at
+            ``(P, C)`` ground-truth aux channels (working-frame units, e.g. MPa) at
             the next frame.
         particle_types:
             ``(P,)`` int64 node-type codes.
@@ -374,11 +376,11 @@ class GeoFlareSimulator(CaseBoundSimulator):
         Returns
         -------
         tuple[Tensor, Tensor]
-            ``(pred_norm, target_norm)``, each ``(P, dim + 1)``: the raw
+            ``(pred_norm, target_norm)``, each ``(P, dim + C)``: the raw
             network output (already in normalized/target space, matching
             what :meth:`predict_positions` inverse-normalizes) and the
             normalized ground-truth target ``cat([next_positions - x_last,
-            next_aux[:, None]], dim=1)``.
+            next_aux], dim=1)``.
 
         Notes
         -----
@@ -416,7 +418,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
         # Coords are the RAW mm-frame x_last, same rule as predict_positions.
         pred_norm = self._net(node_feats, x_last, n_particles_per_example)
 
-        target_raw = torch.cat([next_positions - x_last, next_aux[:, None]], dim=1)
+        target_raw = torch.cat([next_positions - x_last, next_aux], dim=1)
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
 
         return pred_norm, target_norm
@@ -496,7 +498,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
         geometry, node types, scalar impact velocity?, scripted BC at t, query
         time t) -> rest-frame displacement at t (+ aux), history-free. The
         geometry context is built on the REST coordinates. Returns
-        ``(pred_norm, target_norm)``, each ``(P, dim + 1)``."""
+        ``(pred_norm, target_norm)``, each ``(P, dim + C)``."""
         one_hot = F.one_hot(particle_types, num_classes=self._node_type_size).to(
             torch.float32
         )
@@ -519,7 +521,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
             node_feats, reference_coords, n_particles_per_example, t=t_norm
         )
 
-        target_raw = torch.cat([gt_position - reference_coords, gt_aux[:, None]], dim=1)
+        target_raw = torch.cat([gt_position - reference_coords, gt_aux], dim=1)
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
         return pred_norm, target_norm
 
@@ -558,7 +560,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
             dtype=reference_coords.dtype,
             device=reference_coords.device,
         )
-        out = self._net(node_feats, reference_coords, None, t=t)  # (P, dim+1)
+        out = self._net(node_feats, reference_coords, None, t=t)  # (P, dim+C)
         out = self._target_normalizer.inverse(out)
         displacement = out[:, : self._dim]
         stress = out[:, self._dim :]

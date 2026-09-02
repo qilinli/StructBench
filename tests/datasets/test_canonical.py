@@ -74,8 +74,8 @@ def test_load_case_trajectory_sph_only_in_mm_and_mpa(tmp_path):
     assert traj.positions.shape == (2, 3, 2)  # SPH particles only
     np.testing.assert_allclose(traj.positions[0, 1], [1.0, 0.0])  # 1 mm
     np.testing.assert_allclose(traj.positions[1, 0], [2.0, 0.0])  # +2 mm disp
-    assert traj.aux.shape == (2, 3)
-    np.testing.assert_allclose(traj.aux[1], [300.0, 300.0, 300.0])  # MPa
+    assert traj.aux.shape == (2, 3, 1)
+    np.testing.assert_allclose(traj.aux[1, :, 0], [300.0, 300.0, 300.0])  # MPa
     np.testing.assert_array_equal(traj.particle_type, [1, 1, 1])
 
 
@@ -94,7 +94,7 @@ def test_n_valid_frames_drops_terminal_dt_artifact():
 def test_load_case_trajectory_default_aux_is_von_mises(tmp_path):
     h5_path = _sph_case(tmp_path)
     tr = load_case_trajectory(h5_path)
-    assert tr.aux.shape == tr.positions.shape[:2]
+    assert tr.aux.shape == (*tr.positions.shape[:2], 1)
 
 
 def test_load_case_trajectory_rejects_unknown_aux_field(tmp_path):
@@ -116,7 +116,8 @@ def test_axial_stress_extractor_takes_voigt_xx(tmp_path):
 
     with h5py.File(h5_path) as f:
         sxx_pa = f["response/element/sph/stress"][...][..., 0]
-    np.testing.assert_allclose(tr_axial.aux, sxx_pa * 1e-6, rtol=1e-6)  # Pa -> MPa
+    # Pa -> MPa
+    np.testing.assert_allclose(tr_axial.aux[..., 0], sxx_pa * 1e-6, rtol=1e-6)
 
 
 def test_available_aux_fields_lists_axial_stress():
@@ -132,7 +133,7 @@ def test_damage_extractor_reads_eff_plastic_strain_unscaled(tmp_path):
 
     with h5py.File(h5_path) as f:
         expected = f["response/element/sph/effective_plastic_strain"][...]
-    np.testing.assert_allclose(tr.aux, expected, rtol=1e-6)  # NO stress scaling
+    np.testing.assert_allclose(tr.aux[..., 0], expected, rtol=1e-6)  # NO stress scaling
 
 
 def test_available_aux_fields_lists_damage():
@@ -234,7 +235,7 @@ def test_mesh_trajectory_loads_nodes_as_particles(tmp_path):
     np.testing.assert_allclose(traj.positions[2], a["world_pos"][2] * 1e3, rtol=1e-5)
     np.testing.assert_array_equal(traj.particle_type, a["node_type"].astype(np.int64))
     # aux: stored Pa scalar -> MPa working frame
-    np.testing.assert_allclose(traj.aux, a["stress"][:, :, 0] * 1e-6, rtol=1e-5)
+    np.testing.assert_allclose(traj.aux[..., 0], a["stress"][:, :, 0] * 1e-6, rtol=1e-5)
     np.testing.assert_array_equal(traj.cells, a["cells"].astype(np.int64))
     np.testing.assert_allclose(traj.reference_coords, a["mesh_pos"] * 1e3, rtol=1e-5)
 

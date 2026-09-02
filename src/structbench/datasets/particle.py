@@ -94,10 +94,10 @@ class WindowDataset(Dataset):
             ``particle_type``: LongTensor of shape ``(P,)``.
             ``next_position``: Tensor of shape ``(P, dim)`` at
             ``target_frames=1``, mm; ``(P, target_frames, dim)`` otherwise.
-            ``next_aux``: Tensor of shape ``(P,)`` at ``target_frames=1``
-            (``(P, target_frames)`` otherwise); auxiliary target, units are
-            benchmark-dependent (e.g. MPa for von Mises stress, dimensionless
-            for max principal strain).
+            ``next_aux``: Tensor of shape ``(P, C)`` at ``target_frames=1``
+            (``(P, target_frames, C)`` otherwise); auxiliary target channels
+            (ADR-0059), per-channel units are benchmark-dependent (e.g. MPa
+            for von Mises stress, dimensionless for max principal strain).
             ``n_particles``: int number of particles ``P``.
             ``traj_idx``: int index of the source trajectory in the
             ``trajectories`` list passed to the constructor. Additive to the
@@ -116,16 +116,16 @@ class WindowDataset(Dataset):
         seq = tr.positions[t - w : t]  # (input_frames, P, dim)
         seq = np.transpose(seq, (1, 0, 2))  # (P, input_frames, dim)
         if m == 1:
-            # Byte-identical single-frame target: (P, dim) / (P,).
+            # Single-frame target: (P, dim) / (P, C).
             next_position = torch.from_numpy(tr.positions[t])
             next_aux = torch.from_numpy(tr.aux[t])
         else:
-            # target span: (P, m, dim) / (P, m).
+            # target span: (P, m, dim) / (P, m, C).
             next_position = torch.from_numpy(
                 np.ascontiguousarray(np.transpose(tr.positions[t : t + m], (1, 0, 2)))
             )
             next_aux = torch.from_numpy(
-                np.ascontiguousarray(np.transpose(tr.aux[t : t + m], (1, 0)))
+                np.ascontiguousarray(np.transpose(tr.aux[t : t + m], (1, 0, 2)))
             )
         return {
             "position_seq": torch.from_numpy(np.ascontiguousarray(seq)),
@@ -161,7 +161,8 @@ def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:
         ``position_seq``: Tensor ``(sum_P, input_frames, dim)``, mm.
         ``particle_type``: LongTensor ``(sum_P,)``.
         ``next_position``: Tensor ``(sum_P, dim)``, mm.
-        ``next_aux``: Tensor ``(sum_P,)``; auxiliary target, benchmark-dependent units.
+        ``next_aux``: Tensor ``(sum_P, C)``; auxiliary target channels
+        (ADR-0059), per-channel benchmark-dependent units.
         ``n_particles_per_example``: LongTensor ``(B,)`` — particle count per
         example.
     """

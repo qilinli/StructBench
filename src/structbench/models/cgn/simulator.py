@@ -32,7 +32,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from ...datasets.normalization import aux_inverse_transform
+from ...datasets.normalization import aux_inverse_transform_channels, expand_aux_knob
 from .graph_network import EncodeProcessDecode
 from .graph_ops import radius_graph
 
@@ -136,8 +136,10 @@ class LearnedSimulator(nn.Module):
         self._nparticle_types = nparticle_types
         self._particle_dimensions = particle_dimensions
         self._n_aux = n_aux
-        self._aux_transform = aux_transform
-        self._aux_transform_scale = aux_transform_scale
+        # ADR-0059: scalar knobs apply to every channel; per-channel tuples
+        # must match n_aux. Expanded once here so predict stays cheap.
+        self._aux_transform = expand_aux_knob(aux_transform, n_aux)
+        self._aux_transform_scale = expand_aux_knob(aux_transform_scale, n_aux)
         self._boundary_feature_fn = boundary_feature_fn
 
         # Particle-type embedding lookup.
@@ -415,7 +417,7 @@ class LearnedSimulator(nn.Module):
         # rollout/metrics operate on physical values.
         aux_stats = self._normalization_stats["aux"]
         predicted_aux = predicted_normalized_aux * aux_stats["std"] + aux_stats["mean"]
-        predicted_aux = aux_inverse_transform(
+        predicted_aux = aux_inverse_transform_channels(
             predicted_aux, self._aux_transform, self._aux_transform_scale
         )
 

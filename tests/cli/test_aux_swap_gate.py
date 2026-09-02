@@ -1,44 +1,14 @@
-"""E-X env-gated aux-target swap screens (train-process only)."""
+"""The ADR-0059 aux_fields selection replaced the env-gated E-X swap."""
 
-from structbench.cli.train import _env_aux_field_override
-from structbench.datasets import available_aux_fields
-
-
-def test_unset_env_is_a_no_op(monkeypatch):
-    monkeypatch.delenv("STRUCTBENCH_TAYLOR_AUX_MPSTRAIN", raising=False)
-    monkeypatch.delenv("STRUCTBENCH_NOTCH_AUX_VM", raising=False)
-    for bench in (
-        "taylor_impact_2d",
-        "notch_beam_2d_impact",
-        "wave_propagation_1d",
-        "deforming_plate",
-    ):
-        assert _env_aux_field_override(bench) is None
+from structbench.config import TrainConfig
 
 
-def test_empty_env_value_is_a_no_op(monkeypatch):
-    # os.environ.get truthiness: an empty string does NOT arm the gate.
-    monkeypatch.setenv("STRUCTBENCH_TAYLOR_AUX_MPSTRAIN", "")
-    assert _env_aux_field_override("taylor_impact_2d") is None
+def test_env_gate_is_retired():
+    import structbench.cli.train as train_mod
+
+    assert not hasattr(train_mod, "_env_aux_field_override")
+    assert not hasattr(train_mod, "_ENV_AUX_SWAPS")
 
 
-def test_taylor_gate_swaps_to_max_principal_strain(monkeypatch):
-    monkeypatch.setenv("STRUCTBENCH_TAYLOR_AUX_MPSTRAIN", "1")
-    assert _env_aux_field_override("taylor_impact_2d") == "max_principal_strain"
-    # The gate is benchmark-scoped: no other benchmark is touched.
-    assert _env_aux_field_override("notch_beam_2d_impact") is None
-    assert _env_aux_field_override("wave_propagation_1d") is None
-
-
-def test_notch_gate_swaps_to_von_mises(monkeypatch):
-    monkeypatch.setenv("STRUCTBENCH_NOTCH_AUX_VM", "1")
-    assert _env_aux_field_override("notch_beam_2d_impact") == "von_mises_stress"
-    assert _env_aux_field_override("taylor_impact_2d") is None
-
-
-def test_swapped_fields_are_registered_loader_extractors():
-    # The swap must reuse the canonical extractors (same definitions the
-    # benchmarks already use), never new math: both targets resolve in the
-    # loader registry.
-    for env_field in ("max_principal_strain", "von_mises_stress"):
-        assert env_field in available_aux_fields()
+def test_train_config_carries_aux_fields_default_none():
+    assert TrainConfig().aux_fields is None

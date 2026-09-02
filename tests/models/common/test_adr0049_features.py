@@ -90,7 +90,7 @@ def test_forward_train_requires_velocity_history_when_enabled(build):
     P = 5
     x = torch.tensor(rng.random((P, 3)), dtype=torch.float32)
     nxt = x + 0.01
-    aux = torch.zeros(P)
+    aux = torch.zeros(P, 1)
     types = torch.zeros(P, dtype=torch.int64)
     ref = torch.tensor(rng.random((P, 3)), dtype=torch.float32)
     npp = torch.tensor([P])

@@ -4,7 +4,8 @@
 # response/element/sph/stress Voigt tensor by the registered loader extractor;
 # MPa in the working frame).
 #
-# REQUIRES the env gate at submission: STRUCTBENCH_NOTCH_AUX_VM=1
+# The swapped target is declared below via train.aux_fields (ADR-0059;
+# the env-gated submission of the original screen is retired).
 # (read by train() only; without it this config trains the reference
 # max-principal-strain target byte-identically to transolver-timecond-iv-s1).
 # Aux normalization is computed from data (online normalizer warmup), so it
@@ -51,4 +52,5 @@ val_every = 2000                # h250c cadence
 w_pos = 1.0
 w_aux = 1.0
 aux_tail_weight = 0.0
+aux_fields = ["von_mises_stress"]  # E-X swapped target (ADR-0059; was the env gate)
 train_frames = 250      # ADR-0039 §4 recipe: train only the scored window

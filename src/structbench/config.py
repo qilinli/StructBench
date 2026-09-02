@@ -66,8 +66,8 @@ class CGNConfig:
         Per-node neighbour cap for the radius graph. Size it above the true
         maximum degree at ``connectivity_radius`` so it never binds on
         physical configurations (ADR-0028).
-    aux_transform : str
-        Target-space transform for the auxiliary channel: ``"none"`` (raw
+    aux_transform : str or sequence of str
+        Target-space transform for the auxiliary channels: ``"none"`` (raw
         values, the reference behaviour) or ``"asinh"``
         (``asinh(aux / aux_transform_scale)``). A heavy-tailed auxiliary field
         (notch-impact max principal strain: bulk ~1e-3, tail ~1) z-scores its
@@ -75,10 +75,13 @@ class CGNConfig:
         it; the transform spreads that region before normalization. Stats,
         the training target, and the decoder all live in transformed space;
         predictions are inverted back to raw units inside the simulator, so
-        the evaluation contract is unchanged.
-    aux_transform_scale : float
-        Scale ``s`` of the transform's linear-to-log knee. For a thresholded
-        crack field, the QoI threshold (0.01 strain) is the natural knee.
+        the evaluation contract is unchanged. A scalar applies to every aux
+        channel; a per-channel list must match the run's channel count
+        (ADR-0059).
+    aux_transform_scale : float or sequence of float
+        Scale ``s`` of the transform's linear-to-log knee (scalar or
+        per-channel, like ``aux_transform``). For a thresholded crack field,
+        the QoI threshold (0.01 strain) is the natural knee.
     """
 
     input_frames: int = 6
@@ -90,8 +93,8 @@ class CGNConfig:
     noise_std: float = 0.02
     dim: int = 2
     max_neighbors: int = 32  # project-wide backstop cap (M-B, 2026-07-06)
-    aux_transform: str = "none"
-    aux_transform_scale: float = 0.01
+    aux_transform: str | tuple[str, ...] = "none"
+    aux_transform_scale: float | tuple[float, ...] = 0.01
 
 
 @dataclass
@@ -459,12 +462,25 @@ class TrainConfig:
         Weight on the acceleration (position) loss term.
     w_aux : float
         Weight on the auxiliary loss term.
-    aux_tail_weight : float
+    aux_tail_weight : float or sequence of float
         Extra per-particle weight on the auxiliary loss where the (normalized,
         possibly transformed) target is above its mean:
         ``1 + aux_tail_weight * relu(z_target)``. ``0.0`` (reference) leaves
         the plain MSE. Counteracts the heavy-tail starvation of the crack
-        decision region without moving the loss minimizer wholesale.
+        decision region without moving the loss minimizer wholesale. A scalar
+        applies to every aux channel; a per-channel list must match the run's
+        channel count (ADR-0059). The relu form is only meaningful for
+        non-negative channels — signed channels (e.g. deviator components)
+        should declare ``0`` in the per-channel form.
+    aux_fields : tuple of str, optional
+        Auxiliary channel selection for this run (ADR-0059): extractor names
+        whose channels concatenate in declaration order (multi-channel names
+        like ``"deviatoric_stress_2d"`` contribute several). ``None``
+        (default, and the key may be omitted from ``[train]``) trains on the
+        benchmark's canonical declaration (``spec.aux_field``) — every
+        registered benchmark's reference task. Variant fleets (the ADR-0059
+        Stage-3 state blocks) set it explicitly; the resolved selection is
+        recorded in the run's ``config.json``.
     train_frames : int
         Truncate every training trajectory to its first ``train_frames``
         frames before normalization statistics and windowing (the ADR-0039 §4
@@ -488,9 +504,10 @@ class TrainConfig:
     val_every: int = 2000
     w_pos: float = 1.0
     w_aux: float = 1.0
-    aux_tail_weight: float = 0.0
+    aux_tail_weight: float | tuple[float, ...] = 0.0
     train_frames: int = 0
     seed: int = 0
+    aux_fields: tuple[str, ...] | None = None
 
 
 #: Additive floor on the exponential LR schedule applied in ``structbench.cli.train``::
@@ -532,6 +549,9 @@ _RUN_KEYS = {"benchmark", "seed"}
 
 #: ``TrainConfig`` fields sourced from ``[run]`` rather than ``[train]``.
 _RUN_SOURCED = {"benchmark", "seed"}
+
+#: [train] keys that may be omitted from a TOML (ADR-0059).
+_OPTIONAL_TRAIN_KEYS = {"aux_fields"}
 
 #: ``TrainConfig`` fields computed by :func:`load_run_config`, not read from the
 #: ``[train]`` table (see :func:`_derive_lr_decay_steps`).
@@ -576,6 +596,61 @@ def _check_value_types(section: str, table: dict[str, Any], cls: type) -> None:
             raise ConfigError(
                 f"[{section}] {key} must be {expected}, "
                 f"got {type(value).__name__} ({value!r})"
+            )
+
+
+def _normalize_aux_knobs(cfg: Any) -> None:
+    """Store per-channel aux knobs as tuples (TOML arrays arrive as lists).
+
+    ADR-0059: ``aux_transform`` / ``aux_transform_scale`` (model) and
+    ``aux_tail_weight`` / ``aux_fields`` (train) accept scalar-or-per-channel
+    forms; the canonical in-config representation of the sequence form is a
+    tuple so records hash/compare predictably.
+    """
+    knobs = ("aux_transform", "aux_transform_scale", "aux_tail_weight", "aux_fields")
+    for name in knobs:
+        value = getattr(cfg, name, None)
+        if isinstance(value, list):
+            setattr(cfg, name, tuple(value))
+
+
+def _check_aux_knob_types(section: str, cfg: Any) -> None:
+    """Explicit wrong-type rejection for the union-typed aux knobs (ADR-0059).
+
+    ``_check_value_types`` keys on exact annotation strings and skips union
+    annotations, so widening these knobs to scalar-or-per-channel silently
+    dropped their load-time type check; this restores "strict validation
+    fails at load, not mid-run" for them. A knob is a scalar of its base
+    type or a non-empty tuple of them (lists were already normalized).
+    """
+    for name, base, label in (
+        ("aux_transform", str, "str"),
+        ("aux_transform_scale", (float, int), "float"),
+        ("aux_tail_weight", (float, int), "float"),
+    ):
+        if not hasattr(cfg, name):
+            continue
+        value = getattr(cfg, name)
+        scalar_ok = isinstance(value, base) and not isinstance(value, bool)
+        seq_ok = (
+            isinstance(value, tuple)
+            and bool(value)
+            and all(isinstance(v, base) and not isinstance(v, bool) for v in value)
+        )
+        if not (scalar_ok or seq_ok):
+            raise ConfigError(
+                f"[{section}] {name} must be {label} or a list of {label}, "
+                f"got {value!r}"
+            )
+    value = getattr(cfg, "aux_fields", None)
+    if value is not None:
+        if not (isinstance(value, tuple) and all(isinstance(v, str) for v in value)):
+            raise ConfigError(
+                f"[{section}] aux_fields must be a list of str, got {value!r}"
+            )
+        if len(set(value)) != len(value):
+            raise ConfigError(
+                f"[{section}] aux_fields entries must be unique, got {value!r}"
             )
 
 
@@ -699,23 +774,68 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
     train_fields = (
         {f.name for f in fields(TrainConfig)} - _RUN_SOURCED - _DERIVED_TRAIN_KEYS
     )
-    _require_keys("train", set(train_table), train_fields)
+    # aux_fields is the one optional [train] key (ADR-0059): omitted means
+    # "the benchmark's canonical aux declaration", so pre-0059 TOMLs load
+    # unchanged.
+    _require_keys(
+        "train",
+        set(train_table) - _OPTIONAL_TRAIN_KEYS,
+        train_fields - _OPTIONAL_TRAIN_KEYS,
+    )
     _check_value_types("train", train_table, TrainConfig)
     train_table["lr_decay_steps"] = _derive_lr_decay_steps(
         train_table["training_steps"]
     )
 
     train_cfg = TrainConfig(benchmark=run["benchmark"], seed=run["seed"], **train_table)
+    _normalize_aux_knobs(train_cfg)
+    _check_aux_knob_types("train", train_cfg)
 
     model = model_cls(**model_table)
-    transform = getattr(model, "aux_transform", "none")
+    _normalize_aux_knobs(model)
+    _check_aux_knob_types("model", model)
     from .datasets.normalization import AUX_TRANSFORMS
 
-    if transform not in AUX_TRANSFORMS:
-        raise ConfigError(
-            f"[model] unknown aux_transform {transform!r}; "
-            f"supported: {', '.join(sorted(AUX_TRANSFORMS))}"
-        )
+    transform = getattr(model, "aux_transform", "none")
+    for t in (transform,) if isinstance(transform, str) else transform:
+        if t not in AUX_TRANSFORMS:
+            raise ConfigError(
+                f"[model] unknown aux_transform {t!r}; "
+                f"supported: {', '.join(sorted(AUX_TRANSFORMS))}"
+            )
+
+    # ADR-0059: validate the aux channel selection and per-channel knob
+    # lengths at load, not mid-run.
+    if train_cfg.aux_fields is not None:
+        from .datasets import available_aux_fields
+
+        if not train_cfg.aux_fields:
+            raise ConfigError("[train] aux_fields must name at least one field")
+        bad = [n for n in train_cfg.aux_fields if n not in available_aux_fields()]
+        if bad:
+            raise ConfigError(
+                f"[train] unknown aux_fields: {', '.join(bad)}; "
+                f"available: {', '.join(sorted(available_aux_fields()))}"
+            )
+    if bench in available_benchmarks():
+        from .datasets import aux_channel_count
+        from .datasets.normalization import expand_aux_knob
+
+        names = train_cfg.aux_fields or (get_benchmark(bench).aux_field,)
+        n_channels = aux_channel_count(names)
+        for section, key, value in (
+            ("model", "aux_transform", getattr(model, "aux_transform", "none")),
+            (
+                "model",
+                "aux_transform_scale",
+                getattr(model, "aux_transform_scale", 0.0),
+            ),
+            ("train", "aux_tail_weight", train_cfg.aux_tail_weight),
+        ):
+            try:
+                expand_aux_knob(value, n_channels)
+            except ValueError as exc:
+                raise ConfigError(f"[{section}] {key}: {exc}") from None
 
     # Prediction-scheme axis (ADR-0050/0051): 0 is the one-shot sentinel and
     # k>=1 is the concrete frames-per-call; a negative value is a typo. Reject

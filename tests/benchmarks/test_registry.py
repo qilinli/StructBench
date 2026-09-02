@@ -135,3 +135,12 @@ def test_quickstart_family_blank_raises():
     spec = get_benchmark("taylor_impact_2d")
     with pytest.raises(ValueError, match="quickstart_family"):
         replace(spec, quickstart_family="  ")
+
+
+def test_spec_card_aux_declaration_consistency_checked():
+    """ADR-0059: card.aux_field and spec.aux_field must agree."""
+    from dataclasses import replace
+
+    spec = get_benchmark("taylor_impact_2d")
+    with pytest.raises(ValueError, match="card.aux_field"):
+        replace(spec, aux_field="axial_stress")

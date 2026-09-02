@@ -78,7 +78,7 @@ class TransolverSimulator(CaseBoundSimulator):
         resolved by :func:`~structbench.cli.train.build_transolver_simulator`
         before construction). ``1`` (default) is the byte-identical
         autoregressive scheme; ``k>1`` widens the decoder head to
-        ``k*(dim+1)`` and makes :meth:`predict_positions` / :meth:`forward_train`
+        ``k*(dim+C)`` and makes :meth:`predict_positions` / :meth:`forward_train`
         emit ``k`` per-frame velocities (integrated on eval). The 1<k<T
         training-seam pushforward lives in the training loop, not here.
     device:
@@ -104,6 +104,7 @@ class TransolverSimulator(CaseBoundSimulator):
         time_conditioned: bool = False,
         adaptive_temperature: bool = False,
         slice_reparam: bool = False,
+        n_aux: int = 1,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -123,7 +124,7 @@ class TransolverSimulator(CaseBoundSimulator):
         # already resolved to a concrete count (the k=T sentinel 0 is resolved
         # by build_transolver_simulator BEFORE construction, so a 0 reaching
         # here is an unresolved-sentinel bug). k>1 widens the decoder head to
-        # k*(dim+1); the (P, k*(dim+1)) -> (P, k, dim+1) reshape is a
+        # k*(dim+C); the (P, k*(dim+C)) -> (P, k, dim+C) reshape is a
         # simulator-side convention (network.py is k-agnostic) and a no-op at
         # k=1, so k=1 is byte-identical to the pre-0051 recipe.
         if frames_per_call < 1:
@@ -169,9 +170,10 @@ class TransolverSimulator(CaseBoundSimulator):
                 + (1 if impact_velocity_feature else 0)
             )
 
+        self._n_aux = n_aux
         self._net = TransolverNet(
             node_in=node_in,
-            out_size=frames_per_call * (dim + 1),
+            out_size=frames_per_call * (dim + n_aux),  # ADR-0059
             hidden_dim=hidden_dim,
             n_layers=n_layers,
             n_heads=n_heads,
@@ -183,7 +185,7 @@ class TransolverSimulator(CaseBoundSimulator):
             slice_reparam=slice_reparam,
         )
         self._node_normalizer = OnlineNormalizer(node_in)
-        self._target_normalizer = OnlineNormalizer(dim + 1)
+        self._target_normalizer = OnlineNormalizer(dim + n_aux)
 
         self.to(device)
 
@@ -328,8 +330,8 @@ class TransolverSimulator(CaseBoundSimulator):
         -------
         tuple[Tensor, Tensor]
             At ``k=1`` (byte-identical to the pre-0051 recipe):
-            ``(next_positions (P, dim), aux (P, 1))``. At ``k>1``:
-            ``(next_positions (P, k, dim), aux (P, k, 1))`` — the ``k`` bundled
+            ``(next_positions (P, dim), aux (P, C))``. At ``k>1``:
+            ``(next_positions (P, k, dim), aux (P, k, C))`` — the ``k`` bundled
             frames, positions obtained by integrating the ``k`` predicted
             per-frame velocities from ``x_t`` (``cumsum``). ``aux`` is the
             de-normalized predicted stress.
@@ -389,19 +391,19 @@ class TransolverSimulator(CaseBoundSimulator):
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=False)
 
-        out = self._net(node_feats, None)  # (P, k*(dim+1))
+        out = self._net(node_feats, None)  # (P, k*(dim+C))
         if self._k == 1:
-            # Byte-identical k=1 path. Inverse-normalize the FULL (P, dim+1)
+            # k=1 path. Inverse-normalize the FULL (P, dim+C)
             # output first -- slicing before inverse would broadcast the
-            # dim-wide velocity slice against the (dim+1)-wide std/mean buffers.
+            # dim-wide velocity slice against the (dim+C)-wide std/mean buffers.
             out = self._target_normalizer.inverse(out)
             velocity = out[:, : self._dim]
             stress = out[:, self._dim :]
             next_positions = x_t + velocity
             return next_positions, stress
 
-        # k>1: reshape to (P, k, dim+1), inverse-normalize on the row-folded
-        # (P*k, dim+1) view (same width-(dim+1) stats as k=1), then integrate
+        # k>1: reshape to (P, k, dim+C), inverse-normalize on the row-folded
+        # (P*k, dim+C) view (same width-(dim+C) stats as k=1), then integrate
         # the k per-frame velocities from x_t to k absolute positions.
         return self._decode_positions(out, x_t)
 
@@ -411,26 +413,27 @@ class TransolverSimulator(CaseBoundSimulator):
         """Integrate a normalized k-frame output into ``k`` absolute positions.
 
         Shared by :meth:`predict_positions` (eval) and the 1<k<T pushforward
-        seam in the training loop: inverse-normalize the ``(P, k*(dim+1))``
-        network output on the row-folded ``(P*k, dim+1)`` view (the same
-        width-(dim+1) target stats k=1 uses), then integrate the ``k``
+        seam in the training loop: inverse-normalize the ``(P, k*(dim+C))``
+        network output on the row-folded ``(P*k, dim+C)`` view (the same
+        width-(dim+C) target stats k=1 uses), then integrate the ``k``
         per-frame velocities from ``x_last`` via ``cumsum``.
 
         Parameters
         ----------
         pred_norm:
-            ``(P, k*(dim+1))`` raw network output (normalized/target space).
+            ``(P, k*(dim+C))`` raw network output (normalized/target space).
         x_last:
             ``(P, dim)`` positions to integrate the velocities from.
 
         Returns
         -------
         tuple[Tensor, Tensor]
-            ``(positions (P, k, dim), stress (P, k, 1))``.
+            ``(positions (P, k, dim), aux (P, k, C))``.
         """
         p, k, dim = pred_norm.shape[0], self._k, self._dim
-        out = self._target_normalizer.inverse(pred_norm.reshape(p * k, dim + 1))
-        out = out.reshape(p, k, dim + 1)
+        w = dim + self._n_aux
+        out = self._target_normalizer.inverse(pred_norm.reshape(p * k, w))
+        out = out.reshape(p, k, w)
         velocity = out[:, :, :dim]  # (P, k, dim)
         stress = out[:, :, dim:]  # (P, k, 1)
         next_positions = x_last.unsqueeze(1) + torch.cumsum(velocity, dim=1)
@@ -460,8 +463,8 @@ class TransolverSimulator(CaseBoundSimulator):
             Ground-truth next-frame world positions: ``(P, dim)`` at ``k=1``;
             ``(P, k, dim)`` at ``k>1`` (the k bundled target frames).
         next_aux:
-            Ground-truth stress (working-frame units, e.g. MPa): ``(P,)`` at
-            ``k=1``; ``(P, k)`` at ``k>1``.
+            Ground-truth aux channels (working-frame units, e.g. MPa;
+            ADR-0059): ``(P, C)`` at ``k=1``; ``(P, k, C)`` at ``k>1``.
         particle_types:
             ``(P,)`` int64 node-type codes.
         reference_coords:
@@ -487,11 +490,11 @@ class TransolverSimulator(CaseBoundSimulator):
             ``(pred_norm, target_norm)``: the raw network output (already in
             normalized/target space, matching what :meth:`predict_positions`
             inverse-normalizes) and the normalized ground-truth target. Each is
-            ``(P, dim + 1)`` at ``k=1`` (target
-            ``cat([next_positions - x_last, next_aux[:, None]], dim=1)``) and
-            ``(P, k, dim + 1)`` at ``k>1`` (per-frame running-integration
-            velocity targets ``cat([Δpositions, next_aux[..., None]], -1)``,
-            normalized on the row-folded ``(P*k, dim+1)`` view).
+            ``(P, dim + C)`` at ``k=1`` (target
+            ``cat([next_positions - x_last, next_aux], dim=1)``) and
+            ``(P, k, dim + C)`` at ``k>1`` (per-frame running-integration
+            velocity targets ``cat([Δpositions, next_aux], -1)``,
+            normalized on the row-folded ``(P*k, dim+C)`` view).
 
         Notes
         -----
@@ -535,26 +538,27 @@ class TransolverSimulator(CaseBoundSimulator):
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
 
-        pred_norm = self._net(node_feats, n_particles_per_example)  # (P, k*(dim+1))
+        pred_norm = self._net(node_feats, n_particles_per_example)  # (P, k*(dim+C))
 
         if self._k == 1:
             # Byte-identical k=1 path.
-            target_raw = torch.cat([next_positions - x_last, next_aux[:, None]], dim=1)
+            target_raw = torch.cat([next_positions - x_last, next_aux], dim=1)
             target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
             return pred_norm, target_norm
 
         # k>1: per-frame velocity targets via running integration
         # (v_0 = next[:,0] - x_last; v_j = next[:,j] - next[:,j-1]), so every
-        # one of the k targets stays one-step scaled and the width-(dim+1)
-        # target normalizer stays valid (fed the row-folded (P*k, dim+1) view).
+        # one of the k targets stays one-step scaled and the width-(dim+C)
+        # target normalizer stays valid (fed the row-folded (P*k, dim+C) view).
         p, k, dim = x_last.shape[0], self._k, self._dim
         running = torch.cat([x_last.unsqueeze(1), next_positions], dim=1)
         velocities = running[:, 1:] - running[:, :-1]  # (P, k, dim)
-        target_raw = torch.cat([velocities, next_aux.unsqueeze(-1)], dim=-1)
+        w = dim + self._n_aux
+        target_raw = torch.cat([velocities, next_aux], dim=-1)
         target_norm = self._target_normalizer(
-            target_raw.reshape(p * k, dim + 1), accumulate=accumulate
-        ).reshape(p, k, dim + 1)
-        pred_norm = pred_norm.reshape(p, k, dim + 1)
+            target_raw.reshape(p * k, w), accumulate=accumulate
+        ).reshape(p, k, w)
+        pred_norm = pred_norm.reshape(p, k, w)
         return pred_norm, target_norm
 
     # --- ADR-0054 time-conditioned scheme -----------------------------------
@@ -642,7 +646,7 @@ class TransolverSimulator(CaseBoundSimulator):
         gt_position:
             ``(P, dim)`` ground-truth world positions at the queried frames.
         gt_aux:
-            ``(P,)`` ground-truth aux (e.g. stress) at the queried frames.
+            ``(P, C)`` ground-truth aux channels at the queried frames (ADR-0059).
         particle_types:
             ``(P,)`` int64 node-type codes.
         reference_coords:
@@ -661,7 +665,7 @@ class TransolverSimulator(CaseBoundSimulator):
         Returns
         -------
         tuple[Tensor, Tensor]
-            ``(pred_norm, target_norm)``, each ``(P, dim + 1)`` in the target
+            ``(pred_norm, target_norm)``, each ``(P, dim + C)`` in the target
             normalizer's space, for the standard position(+aux) RMSE loss.
         """
         one_hot = F.one_hot(particle_types, num_classes=self._node_type_size).to(
@@ -682,7 +686,7 @@ class TransolverSimulator(CaseBoundSimulator):
 
         pred_norm = self._net(node_feats, n_particles_per_example, t=t_norm)
 
-        target_raw = torch.cat([gt_position - reference_coords, gt_aux[:, None]], dim=1)
+        target_raw = torch.cat([gt_position - reference_coords, gt_aux], dim=1)
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
         return pred_norm, target_norm
 
@@ -710,7 +714,7 @@ class TransolverSimulator(CaseBoundSimulator):
         Returns
         -------
         tuple[Tensor, Tensor]
-            ``(positions (P, dim), aux (P, 1))`` at ``frame``.
+            ``(positions (P, dim), aux (P, C))`` at ``frame``.
 
         Raises
         ------
@@ -747,7 +751,7 @@ class TransolverSimulator(CaseBoundSimulator):
             dtype=reference_coords.dtype,
             device=reference_coords.device,
         )
-        out = self._net(node_feats, None, t=t)  # (P, dim+1)
+        out = self._net(node_feats, None, t=t)  # (P, dim+C)
         out = self._target_normalizer.inverse(out)
         displacement = out[:, : self._dim]
         stress = out[:, self._dim :]

@@ -106,9 +106,37 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--gif", action="store_true", help="also write a GIF of each predicted rollout"
     )
+    parser.add_argument(
+        "--aux-channel",
+        default="0",
+        help="aux channel to fringe on a multi-channel (ADR-0059) rollout: a "
+        "channel label (e.g. s_xx) or an index (default 0, the headline "
+        "channel; ignored for single-channel runs)",
+    )
     args = parser.parse_args(argv)
 
-    spec, _ = _resolve_run_spec(args.run)
+    spec, record = _resolve_run_spec(args.run)
+    # ADR-0059: a variant run's rollouts carry (T, P, C) aux; fringe rendering
+    # is per-scalar, so one channel is selected — by label or index. Labels
+    # follow the recorded selection; legacy artifacts without a recorded
+    # selection keep today's labelling.
+    from ..datasets import aux_channel_labels, aux_channel_units
+
+    run_aux_fields = tuple(record.get("train", {}).get("aux_fields") or ()) or (
+        spec.aux_field,
+    )
+    channel_labels = aux_channel_labels(run_aux_fields)
+    channel_units = aux_channel_units(run_aux_fields)
+    if args.aux_channel in channel_labels:
+        aux_channel = channel_labels.index(args.aux_channel)
+    else:
+        try:
+            aux_channel = int(args.aux_channel)
+        except ValueError:
+            raise SystemExit(
+                f"--aux-channel {args.aux_channel!r} is neither a channel "
+                f"label ({', '.join(channel_labels)}) nor an index"
+            ) from None
 
     import matplotlib
 
@@ -124,6 +152,32 @@ def main(argv: list[str] | None = None) -> None:
     for npz_path in rollouts:
         split, case = split_and_case(npz_path.stem)
         pred = np.load(npz_path)
+        pred_aux = pred["predicted_aux"]
+        # The run's recorded selection names the channels even for a C=1
+        # variant (whose artifact is a squeezed (T, P)); the benchmark's
+        # canonical selection reproduces today's labels exactly.
+        aux_label = channel_labels[min(aux_channel, len(channel_labels) - 1)]
+        aux_unit = (
+            spec.card.aux_unit
+            if run_aux_fields == (spec.aux_field,)
+            else channel_units[min(aux_channel, len(channel_units) - 1)]
+        )
+        if pred_aux.ndim == 3:  # (T, P, C) variant artifact (ADR-0059)
+            if not 0 <= aux_channel < pred_aux.shape[-1]:
+                raise SystemExit(
+                    f"--aux-channel {args.aux_channel} out of range for "
+                    f"{pred_aux.shape[-1]} channels ({', '.join(channel_labels)})"
+                )
+            pred_aux = pred_aux[..., aux_channel]
+        # The GT fringe row always shows the benchmark's canonical field —
+        # per-channel GT extraction is not wired into the fringe loader. Say
+        # so loudly when the prediction row shows something else.
+        if aux_label != spec.aux_field:
+            print(
+                f"WARNING: prediction row shows {aux_label!r} but the GT row "
+                f"shows the benchmark field {spec.aux_field!r} — the two "
+                "fringe rows are different quantities"
+            )
         gt = load_case_field(args.data_root / f"{case}.h5", spec.aux_field)
         n_frames = gt.positions.shape[0]
         input_frames = n_frames - len(pred["position_rmse"])
@@ -135,13 +189,13 @@ def main(argv: list[str] | None = None) -> None:
             gt.positions,
             gt.values,
             pred["predicted_positions"],
-            pred["predicted_aux"],
+            pred_aux,
             frames=frames,
             times_us=gt.times_us,
             title=(
                 f"{case} ({split})   |   rollout RMSE: "
                 f"position {pos_rmse:.2f} mm, "
-                f"{spec.aux_field} {aux_rmse:.1f} {spec.card.aux_unit}"
+                f"{aux_label} {aux_rmse:.1f} {aux_unit}"
             ),
             bands=args.bands,
             wall_x=args.wall_x,
@@ -154,7 +208,7 @@ def main(argv: list[str] | None = None) -> None:
         if args.gif:
             gif = animate_rollout(
                 pred["predicted_positions"],
-                pred["predicted_aux"],
+                pred_aux,
                 out_dir / f"rollout-{case}-{split}.gif",
                 times_us=gt.times_us,
                 title=f"{case} ({split}) — CGN prediction",

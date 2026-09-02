@@ -60,9 +60,12 @@ from ..datasets import (
     CaseTrajectory,
     NormalizationStats,
     WindowDataset,
-    aux_forward_transform,
+    aux_channel_labels,
+    aux_channel_units,
+    aux_forward_transform_channels,
     cached_compute_stats,
     collate_samples,
+    expand_aux_knob,
     load_case_trajectory,
 )
 from ..eval import (
@@ -277,9 +280,10 @@ def build_simulator(
         Mapping ``{"velocity": ..., "acceleration": ..., "aux": ...}`` where
         each value is ``{"mean": Tensor, "std": Tensor}``. Velocity and
         acceleration stats are per-dimension (shape ``(dim,)``); the ``"aux"``
-        stats are scalar (shape ``(1,)``). Velocity/acceleration std is inflated
-        by the training noise; the auxiliary stats are passed through unchanged
-        (the auxiliary target carries no input noise).
+        stats are per-channel (shape ``(C,)``; ADR-0059 — the decoder's aux
+        width ``n_aux`` is derived from them). Velocity/acceleration std is
+        inflated by the training noise; the auxiliary stats are passed through
+        unchanged (the auxiliary target carries no input noise).
     cgn : CGNConfig
         Architecture and noise configuration.
     n_particle_types : int
@@ -325,7 +329,8 @@ def build_simulator(
         normalization_stats=normalization_stats,
         nparticle_types=n_particle_types,
         particle_type_embedding_size=cgn.particle_type_embedding_size,
-        n_aux=1,
+        # ADR-0059: the aux decoder width is the stats' channel count.
+        n_aux=int(stats["aux"]["mean"].numel()),
         aux_transform=cgn.aux_transform,
         aux_transform_scale=cgn.aux_transform_scale,
         max_neighbors=cgn.max_neighbors,
@@ -339,6 +344,7 @@ def build_mgn_simulator(
     *,
     kinematic_types: tuple[int, ...],
     scripted_types: tuple[int, ...] | None = None,
+    n_aux: int = 1,
     device: str,
 ) -> MeshSimulator:
     """Construct a :class:`MeshSimulator` from an :class:`MGNConfig`.
@@ -378,6 +384,7 @@ def build_mgn_simulator(
         mesh_edge_max_stretch=mgn.mesh_edge_max_stretch,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
+        n_aux=n_aux,
         device=device,
     )
 
@@ -387,6 +394,7 @@ def build_transolver_simulator(
     *,
     kinematic_types: tuple[int, ...],
     scripted_types: tuple[int, ...] | None = None,
+    n_aux: int = 1,
     device: str,
 ) -> TransolverSimulator:
     """Construct a :class:`TransolverSimulator` from a :class:`TransolverConfig`.
@@ -437,6 +445,7 @@ def build_transolver_simulator(
         slice_reparam=cfg.slice_reparam,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
+        n_aux=n_aux,
         device=device,
     )
 
@@ -446,6 +455,7 @@ def build_geoflare_simulator(
     *,
     kinematic_types: tuple[int, ...],
     scripted_types: tuple[int, ...] | None = None,
+    n_aux: int = 1,
     device: str,
 ) -> GeoFlareSimulator:
     """Construct a :class:`GeoFlareSimulator` from a :class:`GeoFlareConfig`.
@@ -498,62 +508,19 @@ def build_geoflare_simulator(
         time_conditioned=cfg.time_conditioned,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
+        n_aux=n_aux,
         device=device,
     )
 
 
 def _load_trajectories(
-    case_ids: list[str], data_root: Path, aux_field: str
+    case_ids: list[str], data_root: Path, aux_field: str | tuple[str, ...]
 ) -> list[CaseTrajectory]:
     """Load each ``<data_root>/<case_id>.h5`` into a :class:`CaseTrajectory`."""
     return [
         load_case_trajectory(data_root / f"{case_id}.h5", aux_field=aux_field)
         for case_id in case_ids
     ]
-
-
-#: E-X aux-target swap screens (env-gated, TRAIN-process only): env var
-#: -> (benchmark it applies to, replacement aux_field). Both replacements are
-#: registered loader extractors, so the swap reuses the exact canonical
-#: definitions — notch's plane-strain max-eigenvalue
-#: (:func:`~structbench.datasets.canonical.max_principal_strain_from_voigt`,
-#: from ``response/element/sph/strain``) and Taylor's von Mises
-#: (:func:`~structbench.datasets.canonical.von_mises_from_voigt`, from
-#: ``response/element/sph/stress``) — with no re-implementation.
-_ENV_AUX_SWAPS: dict[str, tuple[str, str]] = {
-    "STRUCTBENCH_TAYLOR_AUX_MPSTRAIN": ("taylor_impact_2d", "max_principal_strain"),
-    "STRUCTBENCH_NOTCH_AUX_VM": ("notch_beam_2d_impact", "von_mises_stress"),
-}
-
-
-def _env_aux_field_override(benchmark: str) -> str | None:
-    """The env-gated E-X replacement ``aux_field`` for ``benchmark``, or ``None``.
-
-    Screen-only gates (off-by-default aux-target swap screens):
-    read once by :func:`train` at the point where the aux channel is assembled
-    for the training/val pipeline, so the swapped target is seen by BOTH the
-    training loss and the in-training validation metric. Normalization adapts
-    automatically — the mesh families' online normalizers warm on the loaded
-    aux, and the CGN stats cache/statistics are computed from (and keyed on)
-    the effective field. Unset = ``None`` = byte-identical; :func:`evaluate`
-    and the eval CLI never call this, so public evaluation is unaffected.
-
-    Parameters
-    ----------
-    benchmark:
-        Registry name of the benchmark being trained
-        (``train_cfg.benchmark``).
-
-    Returns
-    -------
-    str or None
-        The replacement aux-field name when this benchmark's gate is set in
-        the environment (non-empty), else ``None``.
-    """
-    for env, (bench, field_name) in _ENV_AUX_SWAPS.items():
-        if benchmark == bench and os.environ.get(env):
-            return field_name
-    return None
 
 
 def _stats_to_dict(stats: NormalizationStats) -> dict[str, dict[str, Tensor]]:
@@ -791,18 +758,25 @@ def train(
     # reproducible.
     torch.manual_seed(train_cfg.seed)
 
-    # E-X aux-target swap screens (env-gated): swap the aux
-    # TARGET at the single point where the aux channel enters the training/val
-    # pipeline, so the training loss and the in-training validation both see
-    # it. Off (env unset) = byte-identical; evaluate() never reads the gate.
-    aux_field = spec.aux_field
-    swapped = _env_aux_field_override(train_cfg.benchmark)
-    if swapped is not None:
-        aux_field = swapped
+    # ADR-0059: the run's aux channel selection — the benchmark's canonical
+    # declaration unless the config sets train.aux_fields (variant fleets).
+    # This is the single point where the aux block enters the training/val
+    # pipeline, so the loss, in-training validation, and normalization all
+    # follow it. Supersedes (and retires) the env-gated E-X swap screens.
+    aux_field = train_cfg.aux_fields or spec.aux_field
+    # Record the RESOLVED selection in config.json (ADR-0059) so evaluate()
+    # and post-hoc tooling read the channels the run actually trained on,
+    # never a null needing spec-side reconstruction. On a COPY: train() must
+    # not mutate the caller's config object (programmatic sweeps reuse it).
+    train_cfg = replace(
+        train_cfg,
+        aux_fields=(aux_field,) if isinstance(aux_field, str) else tuple(aux_field),
+    )
+    if tuple(train_cfg.aux_fields or ()) not in ((), (spec.aux_field,)):
         logger.info(
-            "E-X aux-target swap ACTIVE (screen, env-gated): benchmark %r "
-            "trains its aux channel on %r instead of %r; normalization "
-            "follows the swapped target automatically",
+            "aux_fields override ACTIVE (ADR-0059): benchmark %r trains its "
+            "aux block on %r instead of %r; normalization follows the "
+            "selection automatically",
             train_cfg.benchmark,
             aux_field,
             spec.aux_field,
@@ -925,6 +899,17 @@ def train(
     # keeping it O(1) and balanced against the position loss.
     aux_mean = torch.tensor(stats.aux_mean, dtype=torch.float32, device=device)
     aux_std = torch.tensor(stats.aux_std, dtype=torch.float32, device=device)
+    n_aux_channels = int(aux_mean.numel())
+    aux_transforms = expand_aux_knob(cgn.aux_transform, n_aux_channels)
+    aux_transform_scales = expand_aux_knob(cgn.aux_transform_scale, n_aux_channels)
+    # None disables the tail-weight branch entirely (the reference path);
+    # otherwise a (C,) tensor weights each channel's relu(z_target) term.
+    _tails = expand_aux_knob(train_cfg.aux_tail_weight, n_aux_channels)
+    aux_tail_weights = (
+        torch.tensor(_tails, dtype=torch.float32, device=device)
+        if any(w > 0.0 for w in _tails)
+        else None
+    )
 
     (out_dir / "config.json").write_text(
         json.dumps(
@@ -989,18 +974,21 @@ def train(
                 particle_types=particle_type,
             )
             loss_pos = ((pred_acc - target_acc) ** 2).sum(dim=-1)
-            next_aux_t = aux_forward_transform(
-                next_aux, cgn.aux_transform, cgn.aux_transform_scale
+            next_aux_t = aux_forward_transform_channels(
+                next_aux, aux_transforms, aux_transform_scales
             )
-            next_aux_norm = (next_aux_t - aux_mean) / aux_std
-            loss_aux = (pred_aux[:, 0] - next_aux_norm) ** 2
-            if train_cfg.aux_tail_weight > 0.0:
+            next_aux_norm = (next_aux_t - aux_mean) / aux_std  # (P, C)
+            # ADR-0059: per-channel squared error, averaged over channels —
+            # identical to the historical scalar loss at C = 1.
+            loss_aux = ((pred_aux - next_aux_norm) ** 2).mean(dim=-1)
+            if aux_tail_weights is not None:
                 # Upweight above-mean (tail) targets so the heavy-tailed crack
                 # field's decision region is not starved by the bulk; weights
                 # follow the target, never the prediction.
-                loss_aux = loss_aux * (
-                    1.0 + train_cfg.aux_tail_weight * torch.relu(next_aux_norm)
-                )
+                loss_aux = (
+                    (pred_aux - next_aux_norm) ** 2
+                    * (1.0 + aux_tail_weights * torch.relu(next_aux_norm))
+                ).mean(dim=-1)
             per_particle = train_cfg.w_pos * loss_pos + train_cfg.w_aux * loss_aux
             if spec.kinematic_types:
                 free = ~torch.isin(
@@ -1171,6 +1159,7 @@ def _train_mgn(
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
     sim = build_mgn_simulator(
         mgn,
+        n_aux=int(train_trajs[0].aux.shape[-1]),  # ADR-0059
         kinematic_types=spec.kinematic_types,
         scripted_types=spec.scripted_types,
         device=device,
@@ -1253,12 +1242,12 @@ def _train_mgn(
                 accumulate=(step < mgn.normalizer_warmup_steps),
                 velocity_history=velocity_history,
             )
-            delta_v = pred[:, :-1] - target[:, :-1]
-            delta_aux = pred[:, -1] - target[:, -1]
-            per_particle = (
-                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
-                + train_cfg.w_aux * delta_aux**2
-            )
+            aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
+            delta_v = pred[:, :-aux_c] - target[:, :-aux_c]
+            delta_aux = pred[:, -aux_c:] - target[:, -aux_c:]
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
             free = ~is_kinematic
             if free.any():
                 loss = per_particle[free].mean()
@@ -1634,6 +1623,7 @@ def _train_transolver(
         loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
     sim = build_transolver_simulator(
         cfg,
+        n_aux=int(train_trajs[0].aux.shape[-1]),  # ADR-0059
         kinematic_types=spec.kinematic_types,
         scripted_types=spec.scripted_types,
         device=device,
@@ -1759,12 +1749,12 @@ def _train_transolver(
             # Rank-agnostic: (P, dim+1) at k=1 (byte-identical), (P, k, dim+1)
             # at k>1; the kinematic row mask selects on dim 0 either way and
             # .mean() averages uniformly over free rows (and k frames).
-            delta_v = pred[..., :-1] - target[..., :-1]
-            delta_aux = pred[..., -1] - target[..., -1]
-            per_particle = (
-                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
-                + train_cfg.w_aux * delta_aux**2
-            )
+            aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
+            delta_v = pred[..., :-aux_c] - target[..., :-aux_c]
+            delta_aux = pred[..., -aux_c:] - target[..., -aux_c:]
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
             free = ~is_kinematic
             if free.any():
                 loss = per_particle[free].mean()
@@ -1992,6 +1982,7 @@ def _train_transolver_tc(
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
     sim = build_transolver_simulator(
         cfg,
+        n_aux=int(train_trajs[0].aux.shape[-1]),  # ADR-0059
         kinematic_types=spec.kinematic_types,
         scripted_types=spec.scripted_types,
         device=device,
@@ -2058,7 +2049,7 @@ def _train_transolver_tc(
         for batch in loader:
             particle_type = batch["particle_type"].to(device)
             next_position = batch["next_position"].to(device)  # (P, dim) GT at t
-            next_aux = batch["next_aux"].to(device)  # (P,) GT aux at t
+            next_aux = batch["next_aux"].to(device)  # (P, C) GT aux at t
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
             target_frame = batch["target_frame"].to(device)  # (B,)
@@ -2080,12 +2071,12 @@ def _train_transolver_tc(
                 accumulate=accumulate,
                 loading_feature=loading_feature,
             )
-            delta_v = pred[..., :-1] - target[..., :-1]
-            delta_aux = pred[..., -1] - target[..., -1]
-            per_particle = (
-                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
-                + train_cfg.w_aux * delta_aux**2
-            )
+            aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
+            delta_v = pred[..., :-aux_c] - target[..., :-aux_c]
+            delta_aux = pred[..., -aux_c:] - target[..., -aux_c:]
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
             free = ~is_kinematic
             # Gradient-consistency (Sobolev/H^1) regulariser on the normalized
             # displacement: match grad(pred_u) to grad(gt_u) via the fixed
@@ -2099,10 +2090,12 @@ def _train_transolver_tc(
                         reference_coords, n_particles_per_example, h1_neighbors
                     )
                 pred_u = torch.where(
-                    is_kinematic.unsqueeze(1), target[..., :-1], pred[..., :-1]
+                    is_kinematic.unsqueeze(1),
+                    target[..., :-aux_c],
+                    pred[..., :-aux_c],
                 )
                 g_pred = _apply_lsq_gradient(h1_ei, h1_cf, pred_u)
-                g_gt = _apply_lsq_gradient(h1_ei, h1_cf, target[..., :-1])
+                g_gt = _apply_lsq_gradient(h1_ei, h1_cf, target[..., :-aux_c])
                 h1_per_particle = ((g_pred - g_gt) ** 2).sum(dim=(-1, -2))
                 if h1_eff_weight is None and free.any():
                     with torch.no_grad():
@@ -2261,6 +2254,7 @@ def _train_geoflare_tc(
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
     sim = build_geoflare_simulator(
         cfg,
+        n_aux=int(train_trajs[0].aux.shape[-1]),  # ADR-0059
         kinematic_types=spec.kinematic_types,
         scripted_types=spec.scripted_types,
         device=device,
@@ -2327,7 +2321,7 @@ def _train_geoflare_tc(
         for batch in loader:
             particle_type = batch["particle_type"].to(device)
             next_position = batch["next_position"].to(device)  # (P, dim) GT at t
-            next_aux = batch["next_aux"].to(device)  # (P,) GT aux at t
+            next_aux = batch["next_aux"].to(device)  # (P, C) GT aux at t
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
             target_frame = batch["target_frame"].to(device)  # (B,)
@@ -2349,12 +2343,12 @@ def _train_geoflare_tc(
                 accumulate=accumulate,
                 loading_feature=loading_feature,
             )
-            delta_v = pred[..., :-1] - target[..., :-1]
-            delta_aux = pred[..., -1] - target[..., -1]
-            per_particle = (
-                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
-                + train_cfg.w_aux * delta_aux**2
-            )
+            aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
+            delta_v = pred[..., :-aux_c] - target[..., :-aux_c]
+            delta_aux = pred[..., -aux_c:] - target[..., -aux_c:]
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
             free = ~is_kinematic
             if free.any():
                 loss = per_particle[free].mean()
@@ -2545,6 +2539,7 @@ def _train_geoflare(
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
     sim = build_geoflare_simulator(
         cfg,
+        n_aux=int(train_trajs[0].aux.shape[-1]),  # ADR-0059
         kinematic_types=spec.kinematic_types,
         scripted_types=spec.scripted_types,
         device=device,
@@ -2627,12 +2622,12 @@ def _train_geoflare(
                 accumulate=(step < cfg.normalizer_warmup_steps),
                 velocity_history=velocity_history,
             )
-            delta_v = pred[:, :-1] - target[:, :-1]
-            delta_aux = pred[:, -1] - target[:, -1]
-            per_particle = (
-                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
-                + train_cfg.w_aux * delta_aux**2
-            )
+            aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
+            delta_v = pred[:, :-aux_c] - target[:, :-aux_c]
+            delta_aux = pred[:, -aux_c:] - target[:, -aux_c:]
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
             free = ~is_kinematic
             if free.any():
                 loss = per_particle[free].mean()
@@ -2888,6 +2883,28 @@ def evaluate(
     family = record["model"]["family"]
     model_cfg = _model_config_from_record(record)
     n_types = int(record["n_particle_types"])
+    # ADR-0059: the run's aux channel selection, recorded at train time
+    # (train.aux_fields); legacy records carry none and mean the benchmark's
+    # canonical declaration.
+    run_aux_fields = tuple(record.get("train", {}).get("aux_fields") or ()) or (
+        spec.aux_field,
+    )
+    run_aux_labels = aux_channel_labels(run_aux_fields)
+    n_aux_c = len(run_aux_labels)
+    # ADR-0059: aux QoIs bind the benchmark's headline channel BY NAME within
+    # the run's selection. A variant selection that lacks it gets NaN aux
+    # QoIs (loud) rather than channel-0 values of a different quantity.
+    _headline = aux_channel_labels((spec.aux_field,))[0]
+    qoi_aux_channel: int | None
+    try:
+        qoi_aux_channel = run_aux_labels.index(_headline)
+    except ValueError:
+        qoi_aux_channel = None
+        logger.warning(
+            "run aux selection %r carries no %r channel; aux QoIs will be NaN",
+            run_aux_labels,
+            _headline,
+        )
 
     simulator: (
         LearnedSimulator | MeshSimulator | TransolverSimulator | GeoFlareSimulator
@@ -2896,6 +2913,7 @@ def evaluate(
         assert isinstance(model_cfg, MGNConfig)
         simulator = build_mgn_simulator(
             model_cfg,
+            n_aux=n_aux_c,
             kinematic_types=spec.kinematic_types,
             scripted_types=spec.scripted_types,
             device=device,
@@ -2904,6 +2922,7 @@ def evaluate(
         assert isinstance(model_cfg, TransolverConfig)
         simulator = build_transolver_simulator(
             model_cfg,
+            n_aux=n_aux_c,
             kinematic_types=spec.kinematic_types,
             scripted_types=spec.scripted_types,
             device=device,
@@ -2912,6 +2931,7 @@ def evaluate(
         assert isinstance(model_cfg, GeoFlareConfig)
         simulator = build_geoflare_simulator(
             model_cfg,
+            n_aux=n_aux_c,
             kinematic_types=spec.kinematic_types,
             scripted_types=spec.scripted_types,
             device=device,
@@ -2966,7 +2986,7 @@ def evaluate(
     cases: dict[str, dict[str, Any]] = {}
     for case_id in case_ids:
         trajectory = load_case_trajectory(
-            data_root / f"{case_id}.h5", aux_field=spec.aux_field
+            data_root / f"{case_id}.h5", aux_field=run_aux_fields
         )
         if mesh_sim is not None and spec.mesh_transform is not None:
             # ADR-0047: same synthesis the training load applied.
@@ -3013,6 +3033,7 @@ def evaluate(
                 qois=spec.qois,
                 kinematic_types=spec.kinematic_types,
                 scored_frames=spec.scored_frames,
+                qoi_aux_channel=qoi_aux_channel,
             )
             one_step = None
             one_step_aux = None
@@ -3025,6 +3046,7 @@ def evaluate(
                 qois=spec.qois,
                 kinematic_types=spec.kinematic_types,
                 scored_frames=spec.scored_frames,
+                qoi_aux_channel=qoi_aux_channel,
             )
             if mesh_sim is not None:
                 mesh_sim.reset_rollout()
@@ -3078,6 +3100,24 @@ def evaluate(
             # per-frame position-RMSE diagnostic).
             "rollout_rel_l2_displacement": result.mean_rel_l2_displacement,
             "rollout_rel_l2_aux": result.mean_rel_l2_aux,
+            # ADR-0059: per-channel forms, present only on C > 1 runs (keyed
+            # by channel label); C = 1 records stay byte-identical.
+            **(
+                {}
+                if result.mean_aux_rmse_channels is None
+                else {
+                    "rollout_aux_rmse_channels": dict(
+                        zip(run_aux_labels, result.mean_aux_rmse_channels, strict=True)
+                    ),
+                    "rollout_rel_l2_aux_channels": dict(
+                        zip(
+                            run_aux_labels,
+                            result.mean_rel_l2_aux_channels or (),
+                            strict=True,
+                        )
+                    ),
+                }
+            ),
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
             # frame to trajectory end. Non-leaderboard; equals the scored value
             # when the benchmark pins no horizon. Field name matches the
@@ -3098,18 +3138,24 @@ def evaluate(
             case_id,
             one_step_str,
             result.mean_position_rmse,
-            spec.aux_field,
+            run_aux_labels[0] if n_aux_c > 1 else run_aux_fields[0],
             result.mean_aux_rmse,
-            spec.card.aux_unit,
+            spec.card.aux_unit if run_aux_fields == (spec.aux_field,) else "",
         )
         if save_rollouts:
             npz_path = rollout_dir / f"{split_name}-{case_id}.npz"
+            # ADR-0059 artifact policy: C = 1 keeps the historical (T, P)
+            # shape so existing tooling and blessed artifacts stay readable;
+            # C > 1 writes the full (T, P, C) block.
+            saved_aux = result.predicted_aux
+            if saved_aux.ndim == 3 and saved_aux.shape[-1] == 1:
+                saved_aux = saved_aux[..., 0]
             if one_step is None:
                 # Time-conditioned: no one-step arrays to persist (null; ADR-0054).
                 np.savez(
                     npz_path,
                     predicted_positions=result.predicted_positions,
-                    predicted_aux=result.predicted_aux,
+                    predicted_aux=saved_aux,
                     position_rmse=result.position_rmse,
                     aux_rmse=result.aux_rmse,
                 )
@@ -3118,7 +3164,7 @@ def evaluate(
                 np.savez(
                     npz_path,
                     predicted_positions=result.predicted_positions,
-                    predicted_aux=result.predicted_aux,
+                    predicted_aux=saved_aux,
                     position_rmse=result.position_rmse,
                     aux_rmse=result.aux_rmse,
                     one_step_position_rmse=one_step,
@@ -3148,8 +3194,18 @@ def evaluate(
         # (e.g. a pre-0035 window=11 run re-evaluated here) read as non-standard.
         "protocol_standard": bool(record["protocol"].get("standard", True))
         and model_cfg.input_frames == spec.card.input_frames,
-        "aux_field": spec.aux_field,
-        "aux_unit": spec.card.aux_unit,
+        # ADR-0059: the run's actual aux selection. The benchmark's canonical
+        # single field keeps the historical singular string keys; variant
+        # selections record per-channel label/unit lists.
+        **(
+            {"aux_field": spec.aux_field, "aux_unit": spec.card.aux_unit}
+            if run_aux_fields == (spec.aux_field,)
+            else {
+                "aux_field": list(run_aux_labels),
+                "aux_unit": list(aux_channel_units(run_aux_fields)),
+                "aux_fields": list(run_aux_fields),
+            }
+        ),
         "cases": cases,
         "mean": {
             "one_step_position_rmse": _mean_over_cases("one_step_position_rmse"),
@@ -3305,6 +3361,12 @@ def _print_split_report(metrics: dict[str, Any]) -> None:
     split, mean = metrics["split"], metrics["mean"]
     aux_field = metrics.get("aux_field", "aux")
     aux_unit = metrics.get("aux_unit", "")
+    # ADR-0059 variant runs record per-channel lists; the summary line shows
+    # the joined labels and pooled numbers (per-channel detail stays in JSON).
+    if isinstance(aux_field, list):
+        aux_field = "+".join(aux_field)
+    if isinstance(aux_unit, list):
+        aux_unit = "/".join(dict.fromkeys(aux_unit))
 
     def _fmt(value: float | None) -> str:
         # one_step_* is None under the ADR-0054 time-conditioned scheme

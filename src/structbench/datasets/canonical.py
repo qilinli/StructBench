@@ -10,7 +10,7 @@ particle, with connectivity and reference coordinates alongside (ADR-0043).
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -103,7 +103,9 @@ def max_principal_strain_from_voigt(
 AuxExtractor = Callable[
     [Mapping[str, NDArray[np.floating]], float], NDArray[np.float32]
 ]
-"""Maps (mapping of SPH response fields, stress_scale) to a (T, P) aux array."""
+"""Maps (mapping of SPH response fields, stress_scale) to a ``(T, P)`` or
+``(T, P, k)`` aux array — single-channel extractors return ``(T, P)`` and are
+lifted to one channel by the loader (ADR-0059)."""
 
 
 def _aux_von_mises(
@@ -201,12 +203,213 @@ def _aux_max_principal_strain(
     return max_principal_strain_from_voigt(sph["strain"][...]).astype(np.float32)
 
 
-_AUX_EXTRACTORS: dict[str, AuxExtractor] = {
-    "von_mises_stress": _aux_von_mises,
-    "axial_stress": _aux_axial_stress,
-    "damage": _aux_damage,
-    "max_principal_strain": _aux_max_principal_strain,
+def _aux_deviatoric_stress_2d(
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
+) -> NDArray[np.float32]:
+    """Deviatoric stress components ``(s_xx, s_yy, s_xy)``, scaled (ADR-0059).
+
+    The trace is removed from the 6-component Voigt Cauchy stress. Under
+    plane strain (``s_yz = s_zx = 0``, ``s_zz = -(s_xx + s_yy)``) these three
+    components carry the full deviator, so von Mises recovers exactly as
+    ``sqrt(3/2 s:s)`` — the composed-stress route of the complete-state plan
+    (C1). For non-plane-strain cases the three components are still valid
+    deviator entries but no longer determine the tensor.
+
+    Parameters
+    ----------
+    sph:
+        Mapping of SPH response fields with a ``"stress"`` key holding a
+        ``(T, P, 6)`` Voigt array (Pa).
+    stress_scale:
+        Multiplier to the working stress unit (1e-6 for Pa -> MPa).
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T, P, 3)``, float32, working-frame units.
+    """
+    sig = np.asarray(sph["stress"][...], dtype=np.float64)
+    tr3 = (sig[..., 0] + sig[..., 1] + sig[..., 2]) / 3.0
+    dev = np.stack([sig[..., 0] - tr3, sig[..., 1] - tr3, sig[..., 3]], axis=-1)
+    return (dev * stress_scale).astype(np.float32)
+
+
+def _aux_effective_plastic_strain(
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
+) -> NDArray[np.float32]:
+    """Effective plastic strain, raw slot value, dimensionless (ADR-0059).
+
+    Unlike :func:`_aux_damage` (which documents the K&C reuse of this d3plot
+    slot as a damage measure), this extractor is for materials where the slot
+    holds the true accumulated plastic strain (e.g. Taylor's
+    ``*MAT_ELASTIC_PLASTIC_HYDRO``).
+
+    Parameters
+    ----------
+    sph:
+        Mapping of SPH response fields with an
+        ``"effective_plastic_strain"`` key holding a ``(T, P)`` array.
+    stress_scale:
+        Unused; present for the :data:`AuxExtractor` signature.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T, P)``, float32, dimensionless.
+    """
+    del stress_scale
+    return sph["effective_plastic_strain"][...].astype(np.float32)
+
+
+def _aux_internal_energy(
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
+) -> NDArray[np.float32]:
+    """Internal energy per particle, SI joules, unscaled (ADR-0059).
+
+    Verified on Taylor: ``sum(E)`` reproduces ``global/internal_energy``
+    exactly, so the slot is total energy per particle in J (not per unit
+    mass or volume). Left in SI — energy has no working-frame convention and
+    per-channel normalization (ADR-0059) handles the magnitude.
+
+    Parameters
+    ----------
+    sph:
+        Mapping of SPH response fields with an ``"internal_energy"`` key
+        holding a ``(T, P)`` array (J).
+    stress_scale:
+        Unused; present for the :data:`AuxExtractor` signature.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T, P)``, float32, J.
+    """
+    del stress_scale
+    return sph["internal_energy"][...].astype(np.float32)
+
+
+def _aux_density(
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
+) -> NDArray[np.float32]:
+    """Density per particle, SI kg/m^3, unscaled (ADR-0059).
+
+    Left in SI for the same reason as internal energy; the FORM=12
+    continuity-equation density cannot be recomputed from positions
+    (summation density measured ~9% median error on Taylor), so it must be
+    carried as state.
+
+    Parameters
+    ----------
+    sph:
+        Mapping of SPH response fields with a ``"density"`` key holding a
+        ``(T, P)`` array (kg/m^3).
+    stress_scale:
+        Unused; present for the :data:`AuxExtractor` signature.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T, P)``, float32, kg/m^3.
+    """
+    del stress_scale
+    return sph["density"][...].astype(np.float32)
+
+
+@dataclass(frozen=True)
+class AuxFieldInfo:
+    """Registry metadata for one auxiliary field name (ADR-0059).
+
+    Parameters
+    ----------
+    extractor:
+        The SPH-path extraction function.
+    labels:
+        Per-channel labels; ``len(labels)`` is the field's channel count.
+        Single-channel fields label the channel with the field name itself.
+    unit:
+        Working-frame unit shared by the field's channels (``"MPa"``,
+        ``"-"`` for dimensionless, ``"J"``, ``"kg/m^3"``).
+    """
+
+    extractor: AuxExtractor
+    labels: tuple[str, ...]
+    unit: str
+
+    @property
+    def n_channels(self) -> int:
+        return len(self.labels)
+
+
+_AUX_FIELDS: dict[str, AuxFieldInfo] = {
+    "von_mises_stress": AuxFieldInfo(_aux_von_mises, ("von_mises_stress",), "MPa"),
+    "axial_stress": AuxFieldInfo(_aux_axial_stress, ("axial_stress",), "MPa"),
+    "damage": AuxFieldInfo(_aux_damage, ("damage",), "-"),
+    "max_principal_strain": AuxFieldInfo(
+        _aux_max_principal_strain, ("max_principal_strain",), "-"
+    ),
+    "deviatoric_stress_2d": AuxFieldInfo(
+        _aux_deviatoric_stress_2d, ("s_xx", "s_yy", "s_xy"), "MPa"
+    ),
+    "effective_plastic_strain": AuxFieldInfo(
+        _aux_effective_plastic_strain, ("effective_plastic_strain",), "-"
+    ),
+    "internal_energy": AuxFieldInfo(_aux_internal_energy, ("internal_energy",), "J"),
+    "density": AuxFieldInfo(_aux_density, ("density",), "kg/m^3"),
 }
+
+#: Backwards-compatible view used by pre-0059 call sites/tests.
+_AUX_EXTRACTORS: dict[str, AuxExtractor] = {
+    name: info.extractor for name, info in _AUX_FIELDS.items()
+}
+
+
+def as_aux_fields(aux_field: str | Sequence[str]) -> tuple[str, ...]:
+    """Normalize the ``aux_field`` argument to a non-empty name tuple.
+
+    A bare string is the ``C = 1``-per-field shorthand (ADR-0059). Raises
+    ``ValueError`` on an empty sequence — a trajectory always carries at
+    least one auxiliary channel.
+    """
+    names = (aux_field,) if isinstance(aux_field, str) else tuple(aux_field)
+    if not names:
+        raise ValueError("aux_field must name at least one auxiliary field")
+    return names
+
+
+def aux_channel_labels(aux_field: str | Sequence[str]) -> tuple[str, ...]:
+    """Flattened per-channel labels for a field selection (ADR-0059).
+
+    Names in the SPH registry contribute their declared labels (a
+    multi-channel field like ``deviatoric_stress_2d`` contributes three);
+    unknown names (the mesh ``response.node`` path) contribute themselves as
+    a single channel.
+    """
+    labels: list[str] = []
+    for name in as_aux_fields(aux_field):
+        info = _AUX_FIELDS.get(name)
+        labels.extend(info.labels if info is not None else (name,))
+    return tuple(labels)
+
+
+def aux_channel_count(aux_field: str | Sequence[str]) -> int:
+    """Total channel count ``C`` for a field selection (ADR-0059)."""
+    return len(aux_channel_labels(aux_field))
+
+
+def aux_channel_units(aux_field: str | Sequence[str]) -> tuple[str, ...]:
+    """Per-channel working-frame units, aligned with :func:`aux_channel_labels`.
+
+    Unknown (mesh-path) names report the stress working unit ``"MPa"`` —
+    every current mesh aux is a stress read with ``stress_scale`` applied.
+    """
+    units: list[str] = []
+    for name in as_aux_fields(aux_field):
+        info = _AUX_FIELDS.get(name)
+        if info is not None:
+            units.extend([info.unit] * info.n_channels)
+        else:
+            units.append("MPa")
+    return tuple(units)
 
 
 def available_aux_fields() -> frozenset[str]:
@@ -234,16 +437,22 @@ class CaseTrajectory:
     case_id: str
     positions: NDArray[np.float32]  # (T, P, dim), mm
     particle_type: NDArray[np.int64]  # (P,)
-    aux: NDArray[np.float32]  # (T, P); units depend on aux_field
+    aux: NDArray[np.float32]  # (T, P, C); per-channel units per aux_field (ADR-0059)
     time: NDArray[np.float64]  # (T,), s
     cells: NDArray[np.int64] | None = None  # (n_cells, nodes_per_cell); mesh only
     reference_coords: NDArray[np.float32] | None = None  # (P, dim), mm; mesh only
+
+    def __post_init__(self) -> None:
+        # ADR-0059 compat lift: a legacy (T, P) aux is one channel. Keeps the
+        # internal representation single — every consumer sees (T, P, C).
+        if self.aux.ndim == 2:
+            self.aux = self.aux[..., None]
 
 
 def load_case_trajectory(
     h5_path: str | Path,
     *,
-    aux_field: str = "von_mises_stress",
+    aux_field: str | Sequence[str] = "von_mises_stress",
     length_scale: float = 1e3,
     stress_scale: float = 1e-6,
 ) -> CaseTrajectory:
@@ -259,11 +468,16 @@ def load_case_trajectory(
     h5_path:
         Path to a canonical ``.h5`` case.
     aux_field:
-        SPH path: name of the auxiliary extraction strategy to apply, must be
-        one of :func:`available_aux_fields`, and receives ``stress_scale`` to
-        convert stress-like values from SI to the working unit. Mesh path: a
-        ``response.node`` key read directly (``stress_scale`` still applies).
-        Defaults to ``"von_mises_stress"``.
+        One name or a sequence of names; the resulting channels are
+        concatenated in declaration order into ``aux``'s trailing axis
+        (ADR-0059 — a bare string is the ``C = 1``-per-field shorthand).
+        SPH path: each name is an extraction strategy from
+        :func:`available_aux_fields` and receives ``stress_scale`` to convert
+        stress-like values from SI to the working unit (multi-channel
+        strategies like ``"deviatoric_stress_2d"`` contribute several
+        channels). Mesh path: each name is a ``response.node`` key read
+        directly (``stress_scale`` still applies). Defaults to
+        ``"von_mises_stress"``.
     length_scale:
         Multiplier applied to SI positions (default 1e3: m -> mm).
     stress_scale:
@@ -286,14 +500,17 @@ def load_case_trajectory(
     if case.response is None:
         raise ValueError(f"case {case.metadata.case_id} has no response")
 
+    aux_names = as_aux_fields(aux_field)
     if "sph" in case.elements:
-        try:
-            extractor = _AUX_EXTRACTORS[aux_field]
-        except KeyError:
-            raise KeyError(
-                f"unknown aux_field {aux_field!r}; available: "
-                f"{', '.join(sorted(_AUX_EXTRACTORS))}"
-            ) from None
+        infos = []
+        for name in aux_names:
+            try:
+                infos.append(_AUX_FIELDS[name])
+            except KeyError:
+                raise KeyError(
+                    f"unknown aux_field {name!r}; available: "
+                    f"{', '.join(sorted(_AUX_FIELDS))}"
+                ) from None
 
         sph = case.elements["sph"]
         idx = sph.connectivity[:, 0]  # node indices of the SPH particles
@@ -304,9 +521,16 @@ def load_case_trajectory(
         disp = case.response.node["displacement"][:n_frames, idx, :]  # (T, P, dim) SI
         positions = ((coords0[None] + disp) * length_scale).astype(np.float32)
 
-        # The extractor sees the full response; the terminal-artifact trim
+        # Each extractor sees the full response; the terminal-artifact trim
         # (ADR-0028) is applied to its output alongside positions and time.
-        aux = extractor(case.response.element["sph"], stress_scale)[:n_frames]
+        # Single-channel extractors return (T, P) and are lifted to one
+        # channel; channels concatenate in declaration order (ADR-0059).
+        blocks = []
+        for info in infos:
+            arr = info.extractor(case.response.element["sph"], stress_scale)
+            arr = np.asarray(arr)[:n_frames]
+            blocks.append(arr[..., None] if arr.ndim == 2 else arr)
+        aux = np.concatenate(blocks, axis=-1).astype(np.float32)
 
         return CaseTrajectory(
             case_id=case.metadata.case_id,
@@ -318,7 +542,7 @@ def load_case_trajectory(
 
     return _load_mesh_trajectory(
         case,
-        aux_field=aux_field,
+        aux_fields=aux_names,
         length_scale=length_scale,
         stress_scale=stress_scale,
     )
@@ -327,7 +551,7 @@ def load_case_trajectory(
 def _load_mesh_trajectory(
     case: Case,
     *,
-    aux_field: str,
+    aux_fields: tuple[str, ...],
     length_scale: float,
     stress_scale: float,
 ) -> CaseTrajectory:
@@ -345,17 +569,22 @@ def _load_mesh_trajectory(
         )
     response = case.response
     assert response is not None  # guaranteed: shared response-None check runs first
-    if aux_field not in response.node:
-        raise ValueError(
-            f"aux field {aux_field!r} not in response.node "
-            f"(available: {sorted(response.node)})"
-        )
+    for name in aux_fields:
+        if name not in response.node:
+            raise ValueError(
+                f"aux field {name!r} not in response.node "
+                f"(available: {sorted(response.node)})"
+            )
     n = n_valid_frames(np.asarray(response.time))  # same trim as the SPH path
     disp = response.node["displacement"][:n].astype(np.float64)
     positions = ((nodes.coords[None, :, :] + disp) * length_scale).astype(np.float32)
-    aux = (response.node[aux_field][:n, :, 0].astype(np.float64) * stress_scale).astype(
-        np.float32
-    )
+    aux = np.stack(
+        [
+            response.node[name][:n, :, 0].astype(np.float64) * stress_scale
+            for name in aux_fields
+        ],
+        axis=-1,
+    ).astype(np.float32)
     (block,) = case.elements.values()
     reference = (
         (nodes.reference_coords * length_scale).astype(np.float32)
