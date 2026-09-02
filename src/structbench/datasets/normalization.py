@@ -55,14 +55,67 @@ def aux_inverse_transform(values, transform: str, scale: float):
     )
 
 
+def expand_aux_knob(value, n_channels: int) -> tuple:
+    """Expand a scalar-or-per-channel aux knob to a per-channel tuple (ADR-0059).
+
+    A scalar (``str``/``float``/``int``) applies to every channel — the
+    ``C = 1`` shorthand and the byte-identical legacy form. A sequence must
+    match ``n_channels`` exactly.
+    """
+    if isinstance(value, str | float | int) and not isinstance(value, bool):
+        return (value,) * n_channels
+    values = tuple(value)
+    if len(values) != n_channels:
+        raise ValueError(
+            f"per-channel aux knob has {len(values)} entries for "
+            f"{n_channels} channel(s): {values!r}"
+        )
+    return values
+
+
+def _apply_per_channel(fn, values, transforms, scales):
+    """Apply a (values, transform, scale) fn per trailing-axis channel.
+
+    Fast path: when every channel shares one (transform, scale) pair the fn
+    is applied to the whole array in one call — bit-identical to the
+    pre-0059 scalar path and free of per-channel stacking cost.
+    """
+    pairs = list(zip(transforms, scales, strict=True))
+    if len(set(pairs)) == 1:
+        return fn(values, pairs[0][0], pairs[0][1])
+    import torch
+
+    stack = torch.stack if isinstance(values, torch.Tensor) else np.stack
+    return stack(
+        [fn(values[..., i], tr, sc) for i, (tr, sc) in enumerate(pairs)],
+        -1,
+    )
+
+
+def aux_forward_transform_channels(values, transforms, scales):
+    """Per-channel :func:`aux_forward_transform` over the trailing axis.
+
+    ``values`` is ``(..., C)``; ``transforms`` / ``scales`` are length-``C``
+    sequences (see :func:`expand_aux_knob`).
+    """
+    return _apply_per_channel(aux_forward_transform, values, transforms, scales)
+
+
+def aux_inverse_transform_channels(values, transforms, scales):
+    """Per-channel :func:`aux_inverse_transform` over the trailing axis."""
+    return _apply_per_channel(aux_inverse_transform, values, transforms, scales)
+
+
 @dataclass
 class NormalizationStats:
     """Mean/std of velocity, acceleration, and the auxiliary field.
 
     Velocity and acceleration carry a per-dimension mean/std (mm/frame,
-    mm/frame^2). The auxiliary target field (e.g. von Mises stress for Taylor)
-    carries a scalar mean/std (shape ``(1,)``) so its training target can be
-    normalized to O(1), balancing the dual position/auxiliary loss.
+    mm/frame^2). The auxiliary target block carries a per-channel mean/std
+    (shape ``(C,)``; ADR-0059 — channels differ by orders of magnitude, so
+    each is z-scored on its own statistics) so its training target can be
+    normalized to O(1), balancing the dual position/auxiliary loss. ``C = 1``
+    reproduces the historical scalar shape ``(1,)``.
     """
 
     velocity_mean: NDArray[np.float64]
@@ -101,8 +154,8 @@ class NormalizationStats:
 def compute_stats(
     trajectories: list[CaseTrajectory],
     *,
-    aux_transform: str = "none",
-    aux_transform_scale: float = 0.01,
+    aux_transform="none",
+    aux_transform_scale=0.01,
 ) -> NormalizationStats:
     """Pool velocity/acceleration/aux stats over all particles, frames, and cases.
 
@@ -122,15 +175,20 @@ def compute_stats(
         Each must have at least 3 frames (``T >= 3``) so that both velocity and
         acceleration samples exist.
     aux_transform, aux_transform_scale:
-        Auxiliary target-space transform (``CGNConfig`` fields).
+        Auxiliary target-space transform (``CGNConfig`` fields). Each is a
+        scalar (applied to every channel) or a length-``C`` per-channel
+        sequence (ADR-0059; see :func:`expand_aux_knob`).
 
     Returns
     -------
     NormalizationStats
         Per-dimension mean and std for velocity ``(dim,)`` and acceleration
-        ``(dim,)``, plus scalar mean and std for the auxiliary field ``(1,)``,
-        pooled over all particles, frames, and cases.
+        ``(dim,)``, plus per-channel mean and std for the auxiliary block
+        ``(C,)``, pooled over all particles, frames, and cases.
     """
+    n_channels = int(trajectories[0].aux.shape[-1]) if trajectories else 1
+    transforms = expand_aux_knob(aux_transform, n_channels)
+    scales = expand_aux_knob(aux_transform_scale, n_channels)
     vels, accs, auxs = [], [], []
     for tr in trajectories:
         p = tr.positions.astype(np.float64)  # (T, P, dim)
@@ -138,10 +196,10 @@ def compute_stats(
         a = v[1:] - v[:-1]  # (T-2, P, dim)
         vels.append(v.reshape(-1, p.shape[-1]))
         accs.append(a.reshape(-1, p.shape[-1]))
-        aux = aux_forward_transform(
-            tr.aux.astype(np.float64), aux_transform, aux_transform_scale
+        aux = aux_forward_transform_channels(
+            tr.aux.astype(np.float64), transforms, scales
         )
-        auxs.append(np.asarray(aux).reshape(-1))  # (T*P,)
+        auxs.append(np.asarray(aux).reshape(-1, n_channels))  # (T*P, C)
     v_all = np.concatenate(vels, axis=0)
     a_all = np.concatenate(accs, axis=0)
     aux_all = np.concatenate(auxs, axis=0)
@@ -150,8 +208,8 @@ def compute_stats(
         velocity_std=v_all.std(0),
         acceleration_mean=a_all.mean(0),
         acceleration_std=a_all.std(0),
-        aux_mean=np.array([aux_all.mean()]),
-        aux_std=np.array([aux_all.std()]),
+        aux_mean=aux_all.mean(0),
+        aux_std=aux_all.std(0),
     )
 
 
@@ -181,9 +239,9 @@ def cached_compute_stats(
     trajectories: list[CaseTrajectory],
     *,
     dataset_root: str | Path,
-    aux_field: str,
-    aux_transform: str = "none",
-    aux_transform_scale: float = 0.01,
+    aux_field,
+    aux_transform="none",
+    aux_transform_scale=0.01,
 ) -> NormalizationStats:
     """:func:`compute_stats` with a dataset-level cache.
 
@@ -209,22 +267,38 @@ def cached_compute_stats(
         Directory the ``derived/`` cache folder lives under — normally the
         directory holding the split's ``<case_id>.h5`` files.
     aux_field:
-        Name of the auxiliary field (e.g., "von_mises_stress", "axial_stress").
-        Different auxiliary fields produce separate cache files even for the
-        same trajectories.
+        Auxiliary field name or sequence of names (ADR-0059). A single name
+        keys exactly as before, so existing caches stay valid; a multi-field
+        selection keys on the ``"+"``-joined names. Different selections
+        produce separate cache files even for the same trajectories.
     aux_transform, aux_transform_scale:
-        Auxiliary target-space transform, forwarded to :func:`compute_stats`.
-        A non-``"none"`` transform keys its own cache file; ``"none"`` keeps
-        the pre-transform cache keys, so existing caches stay valid.
+        Auxiliary target-space transform, forwarded to :func:`compute_stats`
+        (scalar or per-channel, ADR-0059). An all-``"none"`` transform keeps
+        the pre-transform cache keys, so existing caches stay valid; scalar
+        non-``"none"`` keys exactly as before; per-channel forms key on
+        their tuple reprs.
 
     Returns
     -------
     NormalizationStats
     """
+    from .canonical import as_aux_fields
+
     fingerprint = [_traj_signature(tr) for tr in trajectories]
-    key_parts = [_STATS_VERSION, aux_field]
-    if aux_transform != "none":
-        key_parts.append(f"aux_transform={aux_transform}:{aux_transform_scale!r}")
+    key_parts = [_STATS_VERSION, "+".join(as_aux_fields(aux_field))]
+    t_seq = not isinstance(aux_transform, str)
+    s_seq = not isinstance(aux_transform_scale, float | int)
+    all_none = (
+        all(t == "none" for t in aux_transform) if t_seq else aux_transform == "none"
+    )
+    if not all_none:
+        if t_seq or s_seq:
+            t_key = tuple(aux_transform) if t_seq else aux_transform
+            s_key = tuple(aux_transform_scale) if s_seq else aux_transform_scale
+            key_parts.append(f"aux_transform={t_key}:{s_key!r}")
+        else:
+            # scalar non-"none": the exact pre-0059 key, so caches stay valid
+            key_parts.append(f"aux_transform={aux_transform}:{aux_transform_scale!r}")
     key_material = "\n".join([*key_parts, *fingerprint])
     key = hashlib.sha256(key_material.encode("utf-8")).hexdigest()[:12]
     cache_path = Path(dataset_root) / "derived" / f"norm_{key}.npz"

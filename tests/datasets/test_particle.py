@@ -74,7 +74,7 @@ def test_window_dataset_kframe_target_shapes_and_count():
     s = ds[0]
     assert s["position_seq"].shape == (5, 3, 2)
     assert s["next_position"].shape == (5, 2, 2)  # (P, k, dim)
-    assert s["next_aux"].shape == (5, 2)  # (P, k)
+    assert s["next_aux"].shape == (5, 2, 1)  # (P, k, C)
     # frames 3,4 have x = 3,4 for every particle
     torch.testing.assert_close(
         s["next_position"][:, :, 0], torch.tensor([[3.0, 4.0]] * 5)

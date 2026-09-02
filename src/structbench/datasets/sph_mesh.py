@@ -221,7 +221,11 @@ def append_wall_nodes(
         axis=1,
     )
     aux = np.concatenate(
-        [traj.aux, np.zeros((n_frames, n_wall), dtype=np.float32)], axis=1
+        [
+            traj.aux,
+            np.zeros((n_frames, n_wall, traj.aux.shape[2]), dtype=np.float32),
+        ],
+        axis=1,
     )
     particle_type = np.concatenate(
         [traj.particle_type, np.full(n_wall, node_type, dtype=np.int64)]
