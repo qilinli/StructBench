@@ -1,6 +1,6 @@
 # 0059 — Auxiliary state channels: `aux` generalises from `(T, P)` to `(T, P, C)`
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-09-02)
 **Type**: Durable
 **Date**: 2026-09-02 (revised same day after a multi-agent surface audit)
 
