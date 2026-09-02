@@ -1,6 +1,6 @@
 """The ADR-0059 aux_fields selection replaced the env-gated E-X swap."""
 
-from structbench.config import ConfigError, TrainConfig
+from structbench.config import TrainConfig
 
 
 def test_env_gate_is_retired():

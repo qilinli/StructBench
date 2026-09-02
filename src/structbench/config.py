@@ -607,7 +607,8 @@ def _normalize_aux_knobs(cfg: Any) -> None:
     forms; the canonical in-config representation of the sequence form is a
     tuple so records hash/compare predictably.
     """
-    for name in ("aux_transform", "aux_transform_scale", "aux_tail_weight", "aux_fields"):
+    knobs = ("aux_transform", "aux_transform_scale", "aux_tail_weight", "aux_fields")
+    for name in knobs:
         value = getattr(cfg, name, None)
         if isinstance(value, list):
             setattr(cfg, name, tuple(value))
@@ -782,7 +783,11 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
         n_channels = aux_channel_count(names)
         for section, key, value in (
             ("model", "aux_transform", getattr(model, "aux_transform", "none")),
-            ("model", "aux_transform_scale", getattr(model, "aux_transform_scale", 0.0)),
+            (
+                "model",
+                "aux_transform_scale",
+                getattr(model, "aux_transform_scale", 0.0),
+            ),
             ("train", "aux_tail_weight", train_cfg.aux_tail_weight),
         ):
             try:

@@ -121,9 +121,9 @@ def main(argv: list[str] | None = None) -> None:
     # selection; legacy/C=1 artifacts are (T, P) and keep today's labelling.
     from ..datasets import aux_channel_labels
 
-    run_aux_fields = tuple(
-        record.get("train", {}).get("aux_fields") or ()
-    ) or (spec.aux_field,)
+    run_aux_fields = tuple(record.get("train", {}).get("aux_fields") or ()) or (
+        spec.aux_field,
+    )
     channel_labels = aux_channel_labels(run_aux_fields)
 
     import matplotlib

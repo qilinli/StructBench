@@ -1237,10 +1237,9 @@ def _train_mgn(
             aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
             delta_v = pred[:, :-aux_c] - target[:, :-aux_c]
             delta_aux = pred[:, -aux_c:] - target[:, -aux_c:]
-            per_particle = (
-                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
-                + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
-            )
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
             free = ~is_kinematic
             if free.any():
                 loss = per_particle[free].mean()
@@ -1745,10 +1744,9 @@ def _train_transolver(
             aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
             delta_v = pred[..., :-aux_c] - target[..., :-aux_c]
             delta_aux = pred[..., -aux_c:] - target[..., -aux_c:]
-            per_particle = (
-                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
-                + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
-            )
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
             free = ~is_kinematic
             if free.any():
                 loss = per_particle[free].mean()
@@ -2068,10 +2066,9 @@ def _train_transolver_tc(
             aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
             delta_v = pred[..., :-aux_c] - target[..., :-aux_c]
             delta_aux = pred[..., -aux_c:] - target[..., -aux_c:]
-            per_particle = (
-                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
-                + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
-            )
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
             free = ~is_kinematic
             # Gradient-consistency (Sobolev/H^1) regulariser on the normalized
             # displacement: match grad(pred_u) to grad(gt_u) via the fixed
@@ -2339,10 +2336,9 @@ def _train_geoflare_tc(
             aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
             delta_v = pred[..., :-aux_c] - target[..., :-aux_c]
             delta_aux = pred[..., -aux_c:] - target[..., -aux_c:]
-            per_particle = (
-                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
-                + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
-            )
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
             free = ~is_kinematic
             if free.any():
                 loss = per_particle[free].mean()
@@ -2619,10 +2615,9 @@ def _train_geoflare(
             aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
             delta_v = pred[:, :-aux_c] - target[:, :-aux_c]
             delta_aux = pred[:, -aux_c:] - target[:, -aux_c:]
-            per_particle = (
-                train_cfg.w_pos * (delta_v**2).sum(dim=-1)
-                + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
-            )
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
             free = ~is_kinematic
             if free.any():
                 loss = per_particle[free].mean()
@@ -2881,8 +2876,8 @@ def evaluate(
     # ADR-0059: the run's aux channel selection, recorded at train time
     # (train.aux_fields); legacy records carry none and mean the benchmark's
     # canonical declaration.
-    run_aux_fields = (
-        tuple(record.get("train", {}).get("aux_fields") or ()) or (spec.aux_field,)
+    run_aux_fields = tuple(record.get("train", {}).get("aux_fields") or ()) or (
+        spec.aux_field,
     )
     run_aux_labels = aux_channel_labels(run_aux_fields)
     n_aux_c = len(run_aux_labels)

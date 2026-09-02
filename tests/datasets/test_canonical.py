@@ -116,7 +116,8 @@ def test_axial_stress_extractor_takes_voigt_xx(tmp_path):
 
     with h5py.File(h5_path) as f:
         sxx_pa = f["response/element/sph/stress"][...][..., 0]
-    np.testing.assert_allclose(tr_axial.aux[..., 0], sxx_pa * 1e-6, rtol=1e-6)  # Pa -> MPa
+    # Pa -> MPa
+    np.testing.assert_allclose(tr_axial.aux[..., 0], sxx_pa * 1e-6, rtol=1e-6)
 
 
 def test_available_aux_fields_lists_axial_stress():
