@@ -74,7 +74,10 @@ def field_rmse(
     Parameters
     ----------
     pred, true:
-        Arrays of shape ``(T, P)``.
+        Arrays of shape ``(T, P)`` or ``(T, P, C)`` (ADR-0059 channel
+        blocks); the mean pools every non-time axis, so ``C = 1`` reproduces
+        the scalar-field value exactly. Pooling across ``C > 1`` channels
+        mixes units — per-channel reads slice the channel axis first.
     keep:
         Optional boolean particle mask ``(P,)``; when given, the mean runs
         over kept particles only (e.g. excluding kinematically prescribed
@@ -88,7 +91,7 @@ def field_rmse(
     d = (np.asarray(pred, float) - np.asarray(true, float)) ** 2
     if keep is not None:
         d = d[:, keep]
-    return np.sqrt(d.mean(axis=1))
+    return np.sqrt(d.mean(axis=tuple(range(1, d.ndim))))
 
 
 def relative_l2(

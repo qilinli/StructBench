@@ -86,6 +86,7 @@ class MeshSimulator(CaseBoundSimulator):
         world_edge_radius: float = 30.0,
         history_velocities: int = 0,
         mesh_edge_max_stretch: float = 0.0,
+        n_aux: int = 1,
         device: str = "cpu",
     ) -> None:
         super().__init__(
@@ -100,11 +101,12 @@ class MeshSimulator(CaseBoundSimulator):
         self._mesh_edge_max_stretch = mesh_edge_max_stretch
 
         node_in = node_type_size + dim + history_velocities * dim
+        self._n_aux = n_aux
         self._net = MGNet(
             node_in=node_in,
             mesh_edge_in=2 * dim + 2,
             world_edge_in=dim + 1,
-            out_size=dim + 1,
+            out_size=dim + n_aux,  # ADR-0059: velocity block + C aux channels
             latent=latent,
             mp_steps=mp_steps,
             n_hidden=n_hidden,
@@ -112,7 +114,7 @@ class MeshSimulator(CaseBoundSimulator):
         self._node_normalizer = OnlineNormalizer(node_in)
         self._mesh_edge_normalizer = OnlineNormalizer(2 * dim + 2)
         self._world_edge_normalizer = OnlineNormalizer(dim + 1)
-        self._target_normalizer = OnlineNormalizer(dim + 1)
+        self._target_normalizer = OnlineNormalizer(dim + n_aux)
 
         # MGN-specific per-case binding, populated by _on_bind_case() (called
         # at the end of the inherited bind_case()). The rest of the per-case
@@ -158,8 +160,8 @@ class MeshSimulator(CaseBoundSimulator):
         Returns
         -------
         tuple[Tensor, Tensor]
-            ``(next_positions (P, dim), aux (P, 1))``. ``aux`` is the
-            de-normalized predicted stress, kept 2-D per the
+            ``(next_positions (P, dim), aux (P, C))``. ``aux`` is the
+            de-normalized predicted aux block, kept 2-D per the
             ``_SimulatorLike`` contract.
 
         Raises
@@ -228,7 +230,7 @@ class MeshSimulator(CaseBoundSimulator):
             world_edge_index,
             world_edge_feats,
         )
-        # Inverse-normalize the FULL (P, dim+1) output first -- slicing
+        # Inverse-normalize the FULL (P, dim+C) output first -- slicing
         # before inverse would broadcast the dim-wide velocity slice against
         # the (dim+1)-wide std/mean buffers.
         out = self._target_normalizer.inverse(out)
@@ -428,8 +430,8 @@ class MeshSimulator(CaseBoundSimulator):
         next_positions:
             ``(P, dim)`` ground-truth next-frame world positions.
         next_aux:
-            ``(P,)`` ground-truth stress (working-frame units, e.g. MPa) at
-            the next frame.
+            ``(P, C)`` ground-truth aux channels (working-frame units, e.g.
+            MPa) at the next frame (ADR-0059).
         particle_types:
             ``(P,)`` int64 node-type codes.
         mesh_edge_index:
@@ -453,11 +455,11 @@ class MeshSimulator(CaseBoundSimulator):
         Returns
         -------
         tuple[Tensor, Tensor]
-            ``(pred_norm, target_norm)``, each ``(P, dim + 1)``: the raw
+            ``(pred_norm, target_norm)``, each ``(P, dim + C)``: the raw
             network output (already in normalized/target space, matching
             what :meth:`predict_positions` inverse-normalizes) and the
             normalized ground-truth target ``cat([next_positions - x_last,
-            next_aux[:, None]], dim=1)``.
+            next_aux], dim=1)``.
 
         Notes
         -----
@@ -512,7 +514,7 @@ class MeshSimulator(CaseBoundSimulator):
             world_edge_feats,
         )
 
-        target_raw = torch.cat([next_positions - x_last, next_aux[:, None]], dim=1)
+        target_raw = torch.cat([next_positions - x_last, next_aux], dim=1)
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
 
         return pred_norm, target_norm

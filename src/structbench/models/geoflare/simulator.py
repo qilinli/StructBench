@@ -129,6 +129,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
         history_velocities: int = 0,
         impact_velocity_feature: bool = False,
         time_conditioned: bool = False,
+        n_aux: int = 1,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -164,7 +165,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
 
         self._net = GeoFlareNet(
             node_in=node_in,
-            out_size=dim + 1,
+            out_size=dim + n_aux,  # ADR-0059
             n_hidden=n_hidden,
             n_layers=n_layers,
             n_heads=n_heads,
@@ -177,8 +178,9 @@ class GeoFlareSimulator(CaseBoundSimulator):
             dim=dim,
             time_conditioned=time_conditioned,
         )
+        self._n_aux = n_aux
         self._node_normalizer = OnlineNormalizer(node_in)
-        self._target_normalizer = OnlineNormalizer(dim + 1)
+        self._target_normalizer = OnlineNormalizer(dim + n_aux)
 
         self.to(device)
 
@@ -349,7 +351,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
         next_positions:
             ``(P, dim)`` ground-truth next-frame world positions.
         next_aux:
-            ``(P,)`` ground-truth stress (working-frame units, e.g. MPa) at
+            ``(P, C)`` ground-truth aux channels (working-frame units, e.g. MPa) at
             the next frame.
         particle_types:
             ``(P,)`` int64 node-type codes.
@@ -378,7 +380,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
             network output (already in normalized/target space, matching
             what :meth:`predict_positions` inverse-normalizes) and the
             normalized ground-truth target ``cat([next_positions - x_last,
-            next_aux[:, None]], dim=1)``.
+            next_aux], dim=1)``.
 
         Notes
         -----
@@ -416,7 +418,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
         # Coords are the RAW mm-frame x_last, same rule as predict_positions.
         pred_norm = self._net(node_feats, x_last, n_particles_per_example)
 
-        target_raw = torch.cat([next_positions - x_last, next_aux[:, None]], dim=1)
+        target_raw = torch.cat([next_positions - x_last, next_aux], dim=1)
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
 
         return pred_norm, target_norm
@@ -519,7 +521,7 @@ class GeoFlareSimulator(CaseBoundSimulator):
             node_feats, reference_coords, n_particles_per_example, t=t_norm
         )
 
-        target_raw = torch.cat([gt_position - reference_coords, gt_aux[:, None]], dim=1)
+        target_raw = torch.cat([gt_position - reference_coords, gt_aux], dim=1)
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
         return pred_norm, target_norm
 

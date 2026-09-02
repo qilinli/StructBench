@@ -106,9 +106,25 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--gif", action="store_true", help="also write a GIF of each predicted rollout"
     )
+    parser.add_argument(
+        "--aux-channel",
+        type=int,
+        default=0,
+        help="aux channel to fringe on a multi-channel (ADR-0059) rollout "
+        "(default 0, the headline channel; ignored for single-channel runs)",
+    )
     args = parser.parse_args(argv)
 
-    spec, _ = _resolve_run_spec(args.run)
+    spec, record = _resolve_run_spec(args.run)
+    # ADR-0059: a variant run's rollouts carry (T, P, C) aux; fringe rendering
+    # is per-scalar, so one channel is selected. Labels follow the recorded
+    # selection; legacy/C=1 artifacts are (T, P) and keep today's labelling.
+    from ..datasets import aux_channel_labels
+
+    run_aux_fields = tuple(
+        record.get("train", {}).get("aux_fields") or ()
+    ) or (spec.aux_field,)
+    channel_labels = aux_channel_labels(run_aux_fields)
 
     import matplotlib
 
@@ -124,6 +140,18 @@ def main(argv: list[str] | None = None) -> None:
     for npz_path in rollouts:
         split, case = split_and_case(npz_path.stem)
         pred = np.load(npz_path)
+        pred_aux = pred["predicted_aux"]
+        aux_label, aux_unit = spec.aux_field, spec.card.aux_unit
+        if pred_aux.ndim == 3:  # (T, P, C) variant artifact (ADR-0059)
+            if not 0 <= args.aux_channel < pred_aux.shape[-1]:
+                raise SystemExit(
+                    f"--aux-channel {args.aux_channel} out of range for "
+                    f"{pred_aux.shape[-1]} channels ({', '.join(channel_labels)})"
+                )
+            pred_aux = pred_aux[..., args.aux_channel]
+            if args.aux_channel < len(channel_labels):
+                aux_label = channel_labels[args.aux_channel]
+                aux_unit = ""
         gt = load_case_field(args.data_root / f"{case}.h5", spec.aux_field)
         n_frames = gt.positions.shape[0]
         input_frames = n_frames - len(pred["position_rmse"])
@@ -135,13 +163,13 @@ def main(argv: list[str] | None = None) -> None:
             gt.positions,
             gt.values,
             pred["predicted_positions"],
-            pred["predicted_aux"],
+            pred_aux,
             frames=frames,
             times_us=gt.times_us,
             title=(
                 f"{case} ({split})   |   rollout RMSE: "
                 f"position {pos_rmse:.2f} mm, "
-                f"{spec.aux_field} {aux_rmse:.1f} {spec.card.aux_unit}"
+                f"{aux_label} {aux_rmse:.1f} {aux_unit}"
             ),
             bands=args.bands,
             wall_x=args.wall_x,
@@ -154,7 +182,7 @@ def main(argv: list[str] | None = None) -> None:
         if args.gif:
             gif = animate_rollout(
                 pred["predicted_positions"],
-                pred["predicted_aux"],
+                pred_aux,
                 out_dir / f"rollout-{case}-{split}.gif",
                 times_us=gt.times_us,
                 title=f"{case} ({split}) — CGN prediction",

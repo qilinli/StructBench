@@ -59,7 +59,7 @@ class RolloutResult:
     """
 
     predicted_positions: NDArray[np.float32]  # (T, P, dim)
-    predicted_aux: NDArray[np.float32]  # (T, P)
+    predicted_aux: NDArray[np.float32]  # (T, P, C) — ADR-0059 channel block
     position_rmse: NDArray[np.float64]  # (nsteps,)
     aux_rmse: NDArray[np.float64]  # (nsteps,)
     mean_position_rmse: float = float("nan")
@@ -73,6 +73,10 @@ class RolloutResult:
     # raw aux field. Same scored horizon and kinematic mask as the RMSEs.
     mean_rel_l2_displacement: float = float("nan")
     mean_rel_l2_aux: float = float("nan")
+    # ADR-0059: per-channel summaries, populated only when C > 1 (None at
+    # C = 1 keeps every report byte-identical). Ordered as the channels.
+    mean_aux_rmse_channels: tuple[float, ...] | None = None
+    mean_rel_l2_aux_channels: tuple[float, ...] | None = None
     qoi_pred: dict[str, float] = field(default_factory=dict)
     qoi_true: dict[str, float] = field(default_factory=dict)
     qoi_error: dict[str, float] = field(default_factory=dict)
@@ -180,14 +184,14 @@ def rollout(
                     next_pos = next_pos.clone()
                     next_pos[kin_idx] = pos[t][kin_idx]
                 predicted.append(next_pos)
-                aux_pred.append(aux[:, 0])
+                aux_pred.append(aux)  # (P, C)
                 seq = torch.cat([seq[1:], next_pos[None]], dim=0)
                 t += 1
             else:
                 # k>1 bundle: predict-k-and-truncate remainder (fixed head).
                 k_eff = min(next_pos.shape[1], n_frames - t)
                 bundle = next_pos[:, :k_eff]  # (P, k_eff, dim)
-                bundle_aux = aux[:, :k_eff]  # (P, k_eff, 1)
+                bundle_aux = aux[:, :k_eff]  # (P, k_eff, C)
                 if kin_idx.numel():
                     # Override every bundle frame's kinematic rows with GT
                     # BEFORE the re-seed, so the fed-back window's last frame
@@ -198,7 +202,7 @@ def rollout(
                         bundle[kin_idx, j] = pos[t + j][kin_idx]
                 for j in range(k_eff):
                     predicted.append(bundle[:, j])
-                    aux_pred.append(bundle_aux[:, j, 0])
+                    aux_pred.append(bundle_aux[:, j])  # (P, C)
                 seq = torch.stack(predicted[-input_frames:], dim=0)
                 t += k_eff
 
@@ -277,22 +281,47 @@ def _finalize_rollout(
         mask=keep,
     )
 
+    # ADR-0059: aux QoIs bind the headline channel (channel 0) — the scalar
+    # (T, P) view every QoI function is written against.
     pred_inputs = QoiInputs(
         time=trajectory.time[:scored_end],
         positions=pred_pos[:scored_end],
-        aux=pred_aux[:scored_end],
+        aux=pred_aux[:scored_end, :, 0],
         particle_type=trajectory.particle_type,
         init=input_frames,
     )
     true_inputs = QoiInputs(
         time=trajectory.time[:scored_end],
         positions=trajectory.positions[:scored_end],
-        aux=trajectory.aux[:scored_end],
+        aux=trajectory.aux[:scored_end, :, 0],
         particle_type=trajectory.particle_type,
         init=input_frames,
     )
     qoi_pred = {name: float(fn(pred_inputs)) for name, fn in (qois or {}).items()}
     qoi_true = {name: float(fn(true_inputs)) for name, fn in (qois or {}).items()}
+    n_channels = pred_aux.shape[-1]
+    aux_rmse_ch = rel_l2_ch = None
+    if n_channels > 1:
+        aux_rmse_ch = tuple(
+            float(
+                field_rmse(
+                    pred_aux[input_frames:, :, c : c + 1],
+                    trajectory.aux[input_frames:, :, c : c + 1],
+                    keep=keep,
+                )[:n_scored].mean()
+            )
+            for c in range(n_channels)
+        )
+        rel_l2_ch = tuple(
+            float(
+                relative_l2_pooled(
+                    pred_aux[input_frames:, :, c][:n_scored],
+                    trajectory.aux[input_frames:, :, c][:n_scored],
+                    mask=keep,
+                )
+            )
+            for c in range(n_channels)
+        )
     return RolloutResult(
         predicted_positions=pred_pos,
         predicted_aux=pred_aux,
@@ -302,6 +331,8 @@ def _finalize_rollout(
         mean_aux_rmse=float(aux_rmse[:n_scored].mean()),
         mean_rel_l2_displacement=pooled_disp,
         mean_rel_l2_aux=pooled_aux,
+        mean_aux_rmse_channels=aux_rmse_ch,
+        mean_rel_l2_aux_channels=rel_l2_ch,
         qoi_pred=qoi_pred,
         qoi_true=qoi_true,
         qoi_error={name: qoi_pred[name] - qoi_true[name] for name in qoi_pred},
@@ -392,7 +423,7 @@ def time_conditioned_rollout(
             t_norm = f / (time_ref_frames - 1)
             next_pos, aux = simulator.predict_state_at(f, t_norm)
             predicted.append(next_pos)
-            aux_pred.append(aux[:, 0])
+            aux_pred.append(aux)  # (P, C)
 
     return _finalize_rollout(
         predicted,
@@ -533,9 +564,9 @@ def one_step_aux_rmse(
         for t in range(input_frames, n_frames):
             seq_pw = pos[t - input_frames : t].permute(1, 0, 2).contiguous()
             _, aux = simulator.predict_positions(seq_pw, npp, ptype, **tf_kw)
-            if aux.ndim == 3:  # (P, k, 1) bundle -> first frame's aux
+            if aux.ndim == 3:  # (P, k, C) bundle -> first frame's aux
                 aux = aux[:, 0]
-            predicted.append(aux[:, 0])
+            predicted.append(aux)  # (P, C)
 
     pred = torch.stack(predicted, dim=0).cpu().numpy().astype(np.float32)
     return field_rmse(pred, trajectory.aux[input_frames:], keep=keep)

@@ -117,7 +117,9 @@ def analyze_trajectory(traj: CaseTrajectory) -> CaseTimeline:
         for k in CANDIDATE_INITS
     }
 
-    mean_aux = np.asarray(traj.aux, float).mean(axis=1)
+    # ADR-0059: the timeline's peak column binds the HEADLINE aux channel
+    # (channel 0), the same binding rule as the aux QoIs.
+    mean_aux = np.asarray(traj.aux, float)[..., 0].mean(axis=1)
     peak_frame = int(mean_aux.argmax())
 
     return CaseTimeline(
