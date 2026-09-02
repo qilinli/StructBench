@@ -434,7 +434,10 @@ def main() -> None:
             )
 
     args.out.mkdir(parents=True, exist_ok=True)
-    dest = args.out / f"probe-{args.arm}-s{args.seed}.json"
+    # mp keeps the historical name; other trunks carry the model so two trunks
+    # sharing one --out directory never silently overwrite each other.
+    stem = "probe" if args.model == "mp" else f"probe-{args.model}"
+    dest = args.out / f"{stem}-{args.arm}-s{args.seed}.json"
     meta = {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()}
     dest.write_text(json.dumps({"args": meta, "history": history}, indent=2))
     print(f"wrote {dest}")
