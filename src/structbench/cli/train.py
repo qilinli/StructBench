@@ -764,6 +764,12 @@ def train(
     # pipeline, so the loss, in-training validation, and normalization all
     # follow it. Supersedes (and retires) the env-gated E-X swap screens.
     aux_field = train_cfg.aux_fields or spec.aux_field
+    # Record the RESOLVED selection in config.json (ADR-0059) so evaluate()
+    # and post-hoc tooling read the channels the run actually trained on,
+    # never a null needing spec-side reconstruction.
+    train_cfg.aux_fields = (
+        (aux_field,) if isinstance(aux_field, str) else tuple(aux_field)
+    )
     if tuple(train_cfg.aux_fields or ()) not in ((), (spec.aux_field,)):
         logger.info(
             "aux_fields override ACTIVE (ADR-0059): benchmark %r trains its "
