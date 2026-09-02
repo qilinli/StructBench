@@ -45,6 +45,22 @@ neighbourhood of i)` — so `model.py` is a neighbourhood operator throughout. A
 per-particle MLP has no spatial gradients and would fail for reasons unrelated
 to state sufficiency.
 
+## Trunks and the vm metric
+
+`--model mp` (default) is the message-passing neighbourhood operator below;
+`--model transolver` swaps in the package's native `TransolverNet` (the
+ADR-0044 Physics-Attention family) behind the same contract — arms, targets,
+budget unchanged. Physics-Attention has no edges, so normalised position is
+prepended to the node features (native Transolver treatment; both arms get
+it, so the ablation stays fair) at the cost of the MP trunk's structural
+translation invariance. `--slice-num` sets the slice tokens (default 32).
+
+Eval also reports `vm`: relative L2 of the composed one-step von Mises,
+`vm(s_n + ds_pred)` vs `vm(s_{n+1})` — stress computed from the predicted
+tensor, never regressed (plan C1). Teacher forcing anchors the base state,
+so absolute `vm` values run far below the increment errors; read it across
+arms/trunks, not against the other rows.
+
 ## Verification
 
 `load_state(..., check=True)` gates every case on:
