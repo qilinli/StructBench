@@ -340,7 +340,7 @@ def test_transolver_pushforward_helper_shapes_and_grad_through_bundle2():
     )
     position_seq = torch.randn(P, F, dim)
     next_position = torch.randn(P, 2 * k, dim)  # two consecutive GT bundles
-    next_aux = torch.randn(P, 2 * k)
+    next_aux = torch.randn(P, 2 * k, 1)  # (P, 2k, C=1) — ADR-0059
     ptype = torch.tensor([0, 0, 1, 0, 0])
     ref = torch.randn(P, dim)
     npp = torch.tensor([P])

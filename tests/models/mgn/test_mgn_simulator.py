@@ -155,7 +155,7 @@ def test_untrained_mgn_through_eval_rollout(tmp_path):
     sim.reset_rollout()
     result = rollout(sim, traj, input_frames=2, kinematic_types=(1, 3), qois=spec.qois)
     assert result.predicted_positions.shape == (T, P, 3)
-    assert result.predicted_aux.shape == (T, P)
+    assert result.predicted_aux.shape == (T, P, 1)
     assert result.position_rmse.shape == (T - 2,)
     # the ADR-0043 QoIs evaluate on MGN output: populated, finite
     assert set(result.qoi_pred) == {"peak_vm_stress", "terminal_peak_deflection"}
@@ -186,7 +186,7 @@ def test_forward_train_shapes_and_target_semantics():
     P = 5
     x = torch.rand(P, 3)
     nxt = x + 0.1
-    aux = torch.rand(P)
+    aux = torch.rand(P, 1)
     types = torch.tensor([0, 0, 1, 3, 0], dtype=torch.int64)
     mesh = torch.tensor([[0, 1, 2, 3], [1, 2, 3, 4]], dtype=torch.int64)
     ref = torch.rand(P, 3)
@@ -196,7 +196,7 @@ def test_forward_train_shapes_and_target_semantics():
     assert pred.shape == (P, 4) and target.shape == (P, 4)
     # untrained target normalizer is identity: target == [v_target | stress]
     torch.testing.assert_close(target[:, :3], nxt - x)
-    torch.testing.assert_close(target[:, 3], aux)
+    torch.testing.assert_close(target[:, 3:], aux)
 
 
 def test_train_and_eval_paths_build_identical_features():
@@ -223,7 +223,7 @@ def test_train_and_eval_paths_build_identical_features():
     sim.forward_train(
         x_last,
         gt[2],
-        torch.zeros(5),
+        torch.zeros(5, 1),
         types,
         sim._mesh_edge_index,
         sim._reference_coords,
@@ -242,7 +242,7 @@ def test_forward_train_accumulates_normalizers_when_asked():
     args = (
         torch.rand(P, 3),
         torch.rand(P, 3) + 1.0,
-        torch.rand(P),
+        torch.rand(P, 1),
         torch.zeros(P, dtype=torch.int64),
         torch.tensor([[0, 1], [1, 0]], dtype=torch.int64),
         torch.rand(P, 3),
@@ -269,7 +269,7 @@ def test_forward_train_never_builds_cross_example_world_edges():
     P = 2  # per example; positions overlap across examples deliberately
     x = torch.zeros(2 * P, 3)  # ALL nodes coincide -> max cross-example risk
     nxt = x + 0.1
-    aux = torch.zeros(2 * P)
+    aux = torch.zeros(2 * P, 1)
     types = torch.zeros(2 * P, dtype=torch.int64)
     mesh = torch.tensor([[0, 1, 2, 3], [1, 0, 3, 2]], dtype=torch.int64)
     ref = torch.zeros(2 * P, 3)
@@ -298,7 +298,7 @@ def test_forward_train_rejects_mesh_edge_crossing_example_boundary():
     P = 2  # per example -> 4 nodes total, example 0 = {0,1}, example 1 = {2,3}
     x = torch.rand(2 * P, 3)
     nxt = x + 0.1
-    aux = torch.zeros(2 * P)
+    aux = torch.zeros(2 * P, 1)
     types = torch.zeros(2 * P, dtype=torch.int64)
     mesh = torch.tensor([[0, 1], [1, 2]], dtype=torch.int64)  # edge (1,2) crosses
     ref = torch.rand(2 * P, 3)

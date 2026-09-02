@@ -65,14 +65,14 @@ class _PerfectSim:
 
     def __init__(self, traj: CaseTrajectory, input_frames: int = 2) -> None:
         self._pos = traj.positions  # (T, P, dim)
-        self._aux = traj.aux  # (T, P)
+        self._aux = traj.aux  # (T, P, C)
         self._step = input_frames
 
     def predict_positions(
         self, position_sequence, nparticles_per_example, particle_types
     ):
         pos = torch.from_numpy(self._pos[self._step])  # (P, dim)
-        aux = torch.from_numpy(self._aux[self._step]).unsqueeze(1)  # (P, 1)
+        aux = torch.from_numpy(self._aux[self._step])  # (P, C)
         self._step += 1
         return pos, aux
 

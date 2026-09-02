@@ -116,7 +116,7 @@ def test_forward_train_shapes_and_target_semantics():
     P = 5
     x = torch.rand(P, 3)
     nxt = x + 0.1
-    aux = torch.rand(P)
+    aux = torch.rand(P, 1)
     types = torch.tensor([0, 0, 1, 3, 0], dtype=torch.int64)
     ref = torch.rand(P, 3)
     pred, target = sim.forward_train(
@@ -125,7 +125,7 @@ def test_forward_train_shapes_and_target_semantics():
     assert pred.shape == (P, 4) and target.shape == (P, 4)
     # untrained target normalizer is identity: target == [v_target | stress]
     torch.testing.assert_close(target[:, :3], nxt - x)
-    torch.testing.assert_close(target[:, 3], aux)
+    torch.testing.assert_close(target[:, 3:], aux)
 
 
 def test_forward_train_accumulates_normalizers_when_asked():
@@ -134,7 +134,7 @@ def test_forward_train_accumulates_normalizers_when_asked():
     P = 4
     x = torch.rand(P, 3)
     nxt = x + 0.1
-    aux = torch.rand(P)
+    aux = torch.rand(P, 1)
     types = torch.zeros(P, dtype=torch.int64)
     ref = torch.rand(P, 3)
     norms = [sim._node_normalizer, sim._target_normalizer]
@@ -168,7 +168,7 @@ def test_train_and_eval_paths_build_identical_features():
     sim.forward_train(
         x_last,
         gt[2],
-        torch.zeros(5),
+        torch.zeros(5, 1),
         types,
         sim._reference_coords,
         torch.tensor([5]),
@@ -184,7 +184,7 @@ def test_save_load_roundtrip_before_bind_case(tmp_path):
     P = 4
     x = torch.rand(P, 3)
     nxt = x + 0.05
-    aux = torch.rand(P)
+    aux = torch.rand(P, 1)
     types = torch.zeros(P, dtype=torch.int64)
     ref = torch.rand(P, 3)
     # Accumulate some normalizer stats so the buffers being restored is
@@ -233,7 +233,7 @@ def test_net_receives_raw_x_t_as_coords_not_a_feats_slice_or_standardized():
     # accumulate=True training calls.
     for i in range(3):
         x_i, nxt_i = gt[i], gt[i + 1]
-        aux_i = torch.rand(5)
+        aux_i = torch.rand(5, 1)
         sim.forward_train(
             x_i, nxt_i, aux_i, types, sim._reference_coords, npp, accumulate=True
         )
