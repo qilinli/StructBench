@@ -14,6 +14,16 @@ comparable. If ``kinematic`` matches ``full``, the hidden variables carry
 nothing and the complete-state direction is dead. If it does not, the gap is
 what they carry.
 
+Two trunks (``--model``): ``mp`` (default) is the local message-passing
+neighbourhood operator; ``transolver`` is the package's native Physics-
+Attention net (the Stage-3 family), positions as input channels since it has
+no edges. Same arms, targets, and budget either way.
+
+Eval additionally reports ``vm``: relative L2 of the one-step von Mises
+COMPOSED from the predicted deviator increment, ``vm(s_n + ds_pred)`` against
+``vm(s_{n+1})`` -- stress computed, not regressed (plan C1). Derived, so it
+costs nothing and stays consistent with the predicted tensor by construction.
+
 Usage
 -----
     python probe.py --smoke                      # synthetic, no data needed
@@ -34,7 +44,14 @@ from pathlib import Path
 import numpy as np
 import torch
 from model import StateOperator, edge_features
-from state import UNIT_SCALE, CaseState, load_state, normalise
+from state import (
+    UNIT_SCALE,
+    X_SCALE,
+    CaseState,
+    load_state,
+    normalise,
+    von_mises_from_deviatoric,
+)
 from torch import Tensor
 
 from structbench.benchmarks.taylor_impact_2d.benchmark import TEST_INTERP, TRAIN, VAL
@@ -52,6 +69,8 @@ LAYOUT: tuple[tuple[str, int], ...] = (
     ("v", 2), ("s", 3), ("peeq", 1), ("E", 1), ("rho", 1),
 )
 FEAT_DIM = sum(n for _, n in LAYOUT)  # 8
+_S_OFF = LAYOUT[0][1]  # deviator slice within the packed layout
+S_SLICE = slice(_S_OFF, _S_OFF + LAYOUT[1][1])
 
 #: Input channels per ablation arm. Both arms predict all eight increments.
 ARM_SLICE: dict[str, slice] = {
@@ -137,15 +156,27 @@ def target_scales(cases: list[Case], stride: int = 5) -> np.ndarray:
 
 
 class Batcher:
-    """Samples ``(case, frame)`` pairs and assembles graph tensors."""
+    """Samples ``(case, frame)`` pairs and assembles model-ready tensors.
+
+    ``assemble`` always returns ``(a, b, c, tgt)`` with ``model(a, b, c)``
+    the forward call: for the mp trunk ``(feat, edge_feat, edge_index)``,
+    for the transolver trunk ``(feat, pos_norm, n_per_example)`` -- no graph
+    is built there, Physics-Attention has no edges.
+    """
 
     def __init__(
-        self, cases: list[Case], arm: str, scales: np.ndarray, device: torch.device
+        self,
+        cases: list[Case],
+        arm: str,
+        scales: np.ndarray,
+        device: torch.device,
+        model_kind: str = "mp",
     ) -> None:
         self.cases = cases
         self.sl = ARM_SLICE[arm]
         self.scales = torch.from_numpy(scales).to(device)
         self.device = device
+        self.model_kind = model_kind
         self.node_in = self.sl.stop - self.sl.start
 
     def sample(self, rng: np.random.Generator, batch_size: int) -> tuple[Tensor, ...]:
@@ -168,34 +199,43 @@ class Batcher:
 
         dev = self.device
         pos_t = torch.cat(pos).to(dev)
+        feat_t = torch.cat(feat).to(dev)
+        tgt_t = torch.cat(tgt).to(dev) / self.scales
+        if self.model_kind == "transolver":
+            npp = torch.tensor([p.shape[0] for p in pos], device=dev)
+            return feat_t, pos_t / X_SCALE, npp, tgt_t
         edge_index = radius_graph(
             pos_t, RADIUS, torch.cat(batch).to(dev),
             max_num_neighbors=MAX_NEIGHBORS, loop=True,
         )
-        return (
-            torch.cat(feat).to(dev),
-            edge_features(pos_t, edge_index, RADIUS),
-            edge_index,
-            torch.cat(tgt).to(dev) / self.scales,
-        )
+        return feat_t, edge_features(pos_t, edge_index, RADIUS), edge_index, tgt_t
 
 
 def evaluate(
-    model: StateOperator, batcher: Batcher, cases: list[Case], stride: int = 10
+    model: torch.nn.Module, batcher: Batcher, cases: list[Case], stride: int = 10
 ) -> dict[str, float]:
-    """Per-field increment relative L2, in physical units.
+    """Per-field increment relative L2 in physical units, plus derived ``vm``.
+
+    ``vm`` scores the composed one-step von Mises -- ``vm(s_n + ds_pred)``
+    against ``vm(s_n + ds_true)`` via :func:`von_mises_from_deviatoric` -- so
+    stress accuracy is measured the way a complete-state simulator would
+    report it: computed from the tensor, never regressed (plan C1). ``s_n``
+    is the ground-truth deviator (teacher forcing), read from the case
+    regardless of the input arm.
 
     Restricted to frames >= 7 -- the rod is in free flight before first wall
     contact, and including it inflates every score.
     """
     model.eval()
-    num = {n: 0.0 for n, _ in LAYOUT}
-    den = {n: 0.0 for n, _ in LAYOUT}
+    names = [n for n, _ in LAYOUT] + ["vm"]
+    num = dict.fromkeys(names, 0.0)
+    den = dict.fromkeys(names, 0.0)
+    s_unit = UNIT_SCALE["s"]
     with torch.no_grad():
         for case in cases:
             for t in range(7, case.n_pairs, stride):
-                feat, edge, eidx, tgt = batcher.assemble([(case, t)])
-                pred = model(feat, edge, eidx)
+                a, b, c, tgt = batcher.assemble([(case, t)])
+                pred = model(a, b, c)
                 p = (pred * batcher.scales).cpu().numpy()
                 g = (tgt * batcher.scales).cpu().numpy()
                 off = 0
@@ -206,11 +246,16 @@ def evaluate(
                     num[name] += float(((pe - ge) ** 2).sum())
                     den[name] += float((ge**2).sum())
                     off += width
-                del feat, edge, eidx, tgt, pred
+                s0 = np.ascontiguousarray(case.feat[t][:, S_SLICE]) * s_unit
+                vm_p = von_mises_from_deviatoric(s0 + p[:, S_SLICE] * s_unit)
+                vm_g = von_mises_from_deviatoric(s0 + g[:, S_SLICE] * s_unit)
+                num["vm"] += float(((vm_p - vm_g) ** 2).sum())
+                den["vm"] += float((vm_g**2).sum())
+                del a, b, c, tgt, pred
     model.train()
     return {
         n: float(np.sqrt(num[n] / den[n])) if den[n] > 0 else float("nan")
-        for n, _ in LAYOUT
+        for n in names
     }
 
 
@@ -268,9 +313,27 @@ def pick_device(name: str) -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+def build_model(args: argparse.Namespace, node_in: int) -> torch.nn.Module:
+    """Construct the trunk. ``--n-steps`` is MP blocks or Transolver layers."""
+    if args.model == "transolver":
+        from model_transolver import TransolverOperator
+
+        return TransolverOperator(
+            node_in,
+            hidden=args.hidden,
+            n_layers=args.n_steps,
+            slice_num=args.slice_num,
+            out_dim=FEAT_DIM,
+        )
+    return StateOperator(
+        node_in, hidden=args.hidden, n_steps=args.n_steps, out_dim=FEAT_DIM
+    )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--arm", choices=sorted(ARM_SLICE), default="full")
+    ap.add_argument("--model", choices=("mp", "transolver"), default="mp")
     ap.add_argument("--data-root", type=Path)
     ap.add_argument("--cache-dir", type=Path, default=Path("cache"))
     ap.add_argument("--rebuild-cache", action="store_true")
@@ -278,6 +341,7 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=1)
     ap.add_argument("--hidden", type=int, default=64)
     ap.add_argument("--n-steps", type=int, default=4)
+    ap.add_argument("--slice-num", type=int, default=32, help="transolver only")
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--seed", type=int, default=1)  # never 0 (CORRECTIONS 2026-07-10)
     ap.add_argument("--device", default="auto")
@@ -324,25 +388,24 @@ def main() -> None:
         )
 
     scales = target_scales(train_cases)
-    batcher = Batcher(train_cases, args.arm, scales, device)
-    val_batcher = Batcher(val_cases, args.arm, scales, device)
-    model = StateOperator(
-        batcher.node_in, hidden=args.hidden, n_steps=args.n_steps, out_dim=FEAT_DIM
-    ).to(device)
+    batcher = Batcher(train_cases, args.arm, scales, device, args.model)
+    val_batcher = Batcher(val_cases, args.arm, scales, device, args.model)
+    model = build_model(args, batcher.node_in).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     n_params = sum(p.numel() for p in model.parameters())
 
     print(
-        f"arm={args.arm} node_in={batcher.node_in} params={n_params:,} "
-        f"device={device} train={len(train_cases)} val={len(val_cases)}",
+        f"model={args.model} arm={args.arm} node_in={batcher.node_in} "
+        f"params={n_params:,} device={device} "
+        f"train={len(train_cases)} val={len(val_cases)}",
         flush=True,
     )
 
     history = []
     t0 = time.time()
     for step in range(1, args.steps + 1):
-        feat, edge, eidx, tgt = batcher.sample(rng, args.batch_size)
-        pred = model(feat, edge, eidx)
+        a, b, c, tgt = batcher.sample(rng, args.batch_size)
+        pred = model(a, b, c)
         loss = torch.nn.functional.mse_loss(pred, tgt)
         opt.zero_grad(set_to_none=True)
         loss.backward()

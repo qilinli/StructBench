@@ -29,6 +29,9 @@
 #
 # Recognised variables:
 #   ARM        full | kinematic                  (required)
+#   MODEL      mp | transolver                   (default mp; transolver = the
+#              package's Physics-Attention net, positions as input channels)
+#   SLICE      transolver slice tokens           (default 32)
 #   SEED       training seed                     (default 1; never 0)
 #   STEPS      training steps                    (default 30000)
 #   DATA       data root  (default /data/curtin_eecms/curtin_qilin/data/taylor_impact)
@@ -63,6 +66,12 @@ case "$ARM" in
   *) echo "ARM must be 'full' or 'kinematic', got: $ARM" >&2; exit 1 ;;
 esac
 
+MODEL=${MODEL:-mp}
+case "$MODEL" in
+  mp|transolver) ;;
+  *) echo "MODEL must be 'mp' or 'transolver', got: $MODEL" >&2; exit 1 ;;
+esac
+
 SEED=${SEED:-1}
 [ "$SEED" -ge 1 ] || { echo "SEED must be >= 1 (2026-07-10 correction)" >&2; exit 1; }
 
@@ -70,7 +79,11 @@ STEPS=${STEPS:-30000}
 DATA=${DATA:-/data/curtin_eecms/curtin_qilin/data/taylor_impact}
 CACHE=${CACHE:-scratch/probe-cache}
 PROBE_DIR=${PROBE_DIR:-tools/state_probe}
-OUT=${OUT:-runs/probe-${ARM}-s${SEED}}
+if [ "$MODEL" = "mp" ]; then
+  OUT=${OUT:-runs/probe-${ARM}-s${SEED}}       # historical mp naming kept
+else
+  OUT=${OUT:-runs/probe-${MODEL}-${ARM}-s${SEED}}
+fi
 
 [ -f "$PROBE_DIR/probe.py" ] || { echo "no probe at $PROBE_DIR/probe.py" >&2; exit 1; }
 [ -d "$CACHE" ] || { echo "cache missing at $CACHE -- run --prepare-cache first" >&2; exit 1; }
@@ -80,7 +93,7 @@ source .venv/bin/activate
 export PYTHONPATH="src:$PROBE_DIR"
 
 echo "code commit: $(git rev-parse HEAD) ($(git rev-parse --abbrev-ref HEAD))"
-echo "arm: $ARM  seed: $SEED  steps: $STEPS  out: $OUT"
+echo "model: $MODEL  arm: $ARM  seed: $SEED  steps: $STEPS  out: $OUT"
 nvidia-smi
 python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 
@@ -89,6 +102,8 @@ python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.ge
 # comparison, and nothing downstream loads its weights.
 python "$PROBE_DIR/probe.py" \
     --arm "$ARM" \
+    --model "$MODEL" \
+    --slice-num "${SLICE:-32}" \
     --seed "$SEED" \
     --steps "$STEPS" \
     --data-root "$DATA" \
