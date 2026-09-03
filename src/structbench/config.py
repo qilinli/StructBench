@@ -287,6 +287,16 @@ class TransolverConfig:
         upstream, which samples at eval too. ``False`` (default) is
         byte-identical to the pre-0057 recipe. Independent of
         ``adaptive_temperature`` (each edit is separately ablatable).
+    aux_input : bool
+        ADR-0060 state-feedback surface: consume the run's aux channel block
+        (ADR-0059 selection) at the LAST input frame as node features —
+        teacher-forced in training, oracle-or-self-fed in rollout (the
+        evaluator reports both). Autoregressive-only: rejected at load with
+        ``time_conditioned=true`` (no evolving state to consume) or
+        ``frames_per_call != 1`` (state feedback through bundles is out of
+        scope). No noise is injected on state inputs (ADR-0060: measure
+        accumulation before engineering against it). ``False`` (default) is
+        byte-identical.
     """
 
     input_frames: int = 2
@@ -308,6 +318,7 @@ class TransolverConfig:
     time_conditioned: bool = False
     adaptive_temperature: bool = False
     slice_reparam: bool = False
+    aux_input: bool = False
 
 
 @dataclass
@@ -876,6 +887,21 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 "[model] time_conditioned=true requires frames_per_call=1 "
                 f"(got {frames_per_call}); the time-conditioned and "
                 "k-frames-per-call schemes are mutually exclusive (ADR-0054)"
+            )
+
+    # ADR-0060: the state-feedback input is autoregressive-only and k=1-only.
+    if getattr(model, "aux_input", False):
+        if getattr(model, "time_conditioned", False):
+            raise ConfigError(
+                "[model] aux_input=true is incompatible with "
+                "time_conditioned=true (the TC scheme consumes no evolving "
+                "state; ADR-0060)"
+            )
+        if frames_per_call != 1:
+            raise ConfigError(
+                "[model] aux_input=true requires frames_per_call=1 "
+                f"(got {frames_per_call}); state feedback through k-frame "
+                "bundles is out of scope (ADR-0060)"
             )
 
     return ResolvedRunConfig(

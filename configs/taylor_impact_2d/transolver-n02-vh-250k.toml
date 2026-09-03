@@ -14,6 +14,7 @@ seed = 1
 family = "transolver"
 adaptive_temperature = false
 slice_reparam = false
+aux_input = false            # ADR-0060 state-feedback input (off = reference)
 input_frames = 6                # taylor card protocol (ADR-0035); see header
 dim = 2
 hidden_dim = 128                # ADR-0044 family reference

@@ -259,6 +259,7 @@ impact_velocity_feature = false
 time_conditioned = false
 adaptive_temperature = false
 slice_reparam = false
+aux_input = false            # ADR-0060 state-feedback input (off = reference)
 
 [train]
 batch_size = 8
@@ -624,3 +625,36 @@ def test_load_taylor_native_smoke_configs():
         assert isinstance(rc.model, cls)
         assert rc.model.input_frames == 6
         assert rc.train.training_steps == 50
+
+
+def test_aux_input_rejected_with_time_conditioned(tmp_path):
+    """ADR-0060: state feedback is autoregressive-only."""
+    text = VALID_TRANSOLVER.replace("aux_input = false", "aux_input = true").replace(
+        "time_conditioned = false", "time_conditioned = true"
+    )
+    # the TC scheme itself requires history_frames=0/frames_per_call=1;
+    # keep the template's values valid for TC so only aux_input trips.
+    with pytest.raises(ConfigError, match="aux_input.*time_conditioned"):
+        load_run_config(_write(tmp_path, text))
+
+
+def test_aux_input_rejected_with_kframe_bundles(tmp_path):
+    with pytest.raises(ConfigError, match="aux_input.*frames_per_call"):
+        load_run_config(
+            _write(
+                tmp_path,
+                VALID_TRANSOLVER.replace(
+                    "aux_input = false", "aux_input = true"
+                ).replace("frames_per_call = 1", "frames_per_call = 4"),
+            )
+        )
+
+
+def test_aux_input_loads_on_the_ar_scheme(tmp_path):
+    cfg = load_run_config(
+        _write(
+            tmp_path,
+            VALID_TRANSOLVER.replace("aux_input = false", "aux_input = true"),
+        )
+    )
+    assert cfg.model.aux_input is True

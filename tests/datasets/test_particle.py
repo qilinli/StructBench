@@ -58,6 +58,7 @@ def test_collate_samples_output_unaffected_by_traj_idx_key():
         "particle_type",
         "next_position",
         "next_aux",
+        "input_aux",  # ADR-0060 state-feedback input (additive)
         "n_particles_per_example",
     }
     assert "traj_idx" not in out

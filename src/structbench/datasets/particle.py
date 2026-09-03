@@ -98,6 +98,9 @@ class WindowDataset(Dataset):
             (``(P, target_frames, C)`` otherwise); auxiliary target channels
             (ADR-0059), per-channel units are benchmark-dependent (e.g. MPa
             for von Mises stress, dimensionless for max principal strain).
+            ``input_aux``: Tensor of shape ``(P, C)`` — the aux state at
+            the last input frame ``t - 1`` (ADR-0060 state-feedback input;
+            additive to the sample contract).
             ``n_particles``: int number of particles ``P``.
             ``traj_idx``: int index of the source trajectory in the
             ``trajectories`` list passed to the constructor. Additive to the
@@ -132,6 +135,10 @@ class WindowDataset(Dataset):
             "particle_type": torch.from_numpy(tr.particle_type),
             "next_position": next_position,
             "next_aux": next_aux,
+            # ADR-0060: the aux state at the LAST input frame, for the
+            # state-feedback input (teacher-forced training). Additive to the
+            # sample contract; ignored by consumers that don't ask for it.
+            "input_aux": torch.from_numpy(np.ascontiguousarray(tr.aux[t - 1])),
             "n_particles": int(tr.positions.shape[1]),
             "traj_idx": traj_idx,
             # Index of the (first) predicted frame, used by the time-conditioned
@@ -163,6 +170,8 @@ def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:
         ``next_position``: Tensor ``(sum_P, dim)``, mm.
         ``next_aux``: Tensor ``(sum_P, C)``; auxiliary target channels
         (ADR-0059), per-channel benchmark-dependent units.
+        ``input_aux``: Tensor ``(sum_P, C)``; the aux state at each sample's
+        last input frame (ADR-0060).
         ``n_particles_per_example``: LongTensor ``(B,)`` — particle count per
         example.
     """
@@ -171,6 +180,12 @@ def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:
         "particle_type": torch.cat([b["particle_type"] for b in batch], dim=0),
         "next_position": torch.cat([b["next_position"] for b in batch], dim=0),
         "next_aux": torch.cat([b["next_aux"] for b in batch], dim=0),
+        # ADR-0060 (tolerant: hand-built sample dicts may omit the key)
+        **(
+            {"input_aux": torch.cat([b["input_aux"] for b in batch], dim=0)}
+            if "input_aux" in batch[0]
+            else {}
+        ),
         "n_particles_per_example": torch.tensor(
             [b["n_particles"] for b in batch], dtype=torch.long
         ),
