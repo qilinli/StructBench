@@ -707,3 +707,27 @@ def test_stability_noise_rejects_wrong_type(tmp_path):
                 ),
             )
         )
+
+
+def test_stability_noise_rejects_negative_values(tmp_path):
+    """ADR-0061 review: a sign typo would be silently inert at train time
+    (the runtime gate is ``any(v > 0)``), training the reference arm while
+    the record claims noise was on — so negatives fail at load, on BOTH
+    aux_input paths."""
+    for aux_input, value in (
+        ("true", "-0.1"),
+        ("false", "-0.1"),
+        ("true", "[-0.2]"),  # per-channel form (deforming_plate C=1)
+    ):
+        with pytest.raises(ConfigError, match="must be >= 0"):
+            load_run_config(
+                _write(
+                    tmp_path,
+                    VALID_TRANSOLVER.replace(
+                        "aux_input = false", f"aux_input = {aux_input}"
+                    ).replace(
+                        "aux_input_noise_std = 0.0",
+                        f"aux_input_noise_std = {value}",
+                    ),
+                )
+            )

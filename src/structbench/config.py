@@ -920,14 +920,22 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 "k-frames-per-call schemes are mutually exclusive (ADR-0054)"
             )
 
+    # ADR-0061: the noise knob is a relative scale, so a negative entry is a
+    # typo — and the train-time gate would make an all-negative knob silently
+    # inert (the record would claim noise was on while the reference model
+    # trained). Reject at load, on BOTH aux_input paths.
+    noise = getattr(model, "aux_input_noise_std", 0.0)
+    noise_values = noise if isinstance(noise, tuple) else (noise,)
+    if any(v < 0 for v in noise_values):
+        raise ConfigError(
+            f"[model] aux_input_noise_std entries must be >= 0 "
+            f"(batch-std-relative noise scale, ADR-0061); got {noise}"
+        )
+
     # ADR-0061: the stability knobs act on the state input; without one they
     # are silently inert, so reject the combination loudly instead.
     if not getattr(model, "aux_input", False):
-        noise = getattr(model, "aux_input_noise_std", 0.0)
-        noise_on = (
-            any(v != 0 for v in noise) if isinstance(noise, tuple) else noise != 0
-        )
-        if noise_on:
+        if any(v != 0 for v in noise_values):
             raise ConfigError(
                 "[model] aux_input_noise_std requires aux_input=true "
                 "(ADR-0061: the knob perturbs the state input)"

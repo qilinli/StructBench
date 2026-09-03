@@ -54,6 +54,14 @@ state input: `input_aux += knob * std_batch_per_channel * N(0, 1)`.
   house pattern), on the raw `input_aux` before `forward_train`. The target
   stays the clean GT state at `t` — the model learns to contract perturbed
   states toward the truth. Position noise is untouched and orthogonal.
+- Kinematic rows stay clean (amended 2026-09-04 post-review, matching the
+  position-noise house pattern, ADR-0043 §4): at rollout their fed state is
+  always GT — oracle mode reads `gt_aux` and the self-fed cache clamps them
+  (ADR-0060) — so noising them would train on an input distribution rollout
+  never produces. The batch std is still pooled over all rows (the knob is
+  a swept relative scale; any deflation folds into the sweep). Negative
+  knob entries are rejected at config load (a sign typo would otherwise be
+  silently inert at train time).
 - `0.0` (default) is byte-identical. Requires `aux_input = true`; rejected
   otherwise at config load.
 
@@ -112,13 +120,20 @@ position noise, and entangling the two would blur attribution):
   gap (9–12 vs 35–44 pooled aux RMSE), with oracle mode the measured
   ceiling and one-step/oracle metrics guarding against mechanisms that
   destroy the information effect while stabilising.
-- **Surface changed** (on acceptance): `config.py` (two fields +
-  validation), `cli/train.py` (noise injection + the two-step chain in the
-  transolver AR loop; `WindowDataset(target_frames=2)` wiring when
-  pushforward is on), tests (byte-identity when off; noise determinism
-  under seed; chain shapes). **Not touched**: the ADR-0060 eval modes and
-  metrics keys, simulators' predict paths, other families, TC paths,
-  benchmarks/registries.
+- **Surface changed** (on acceptance; amended 2026-09-04 post-review to
+  match the implementation): `config.py` (two fields + validation, including
+  load-time rejection of negative noise entries), `cli/train.py` (noise
+  injection — kinematic rows stay clean, matching the position-noise house
+  pattern and the rollout clamp — + the two-step chain in the transolver AR
+  loop; `WindowDataset(target_frames=2)` wiring when pushforward is on),
+  `models/transolver/simulator.py` (one additive helper,
+  `train_output_aux`, inverting the target normalizer for the chain's raw-
+  unit feedback), every transolver config TOML (the strict loader requires
+  the two new keys in all of them — a mandatory, inert migration), tests
+  (byte-identity when off; noise determinism under seed; kinematic-row
+  cleanliness; chain end-to-end via a train() smoke). **Not touched**: the
+  ADR-0060 eval modes and metrics keys, simulators' predict paths, other
+  families, TC paths, benchmarks/registries.
 
 ## Relationship to other ADRs
 

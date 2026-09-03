@@ -1476,7 +1476,9 @@ def _transolver_pushforward(
 
 
 def _state_input_noise(
-    input_aux: Tensor, noise_std: tuple[float, ...] | None
+    input_aux: Tensor,
+    noise_std: tuple[float, ...] | None,
+    is_kinematic: Tensor,
 ) -> Tensor:
     """ADR-0061 knob 1: per-channel batch-std-relative Gaussian state noise.
 
@@ -1485,12 +1487,22 @@ def _state_input_noise(
     absolute scale meaningless). The target stays the clean GT state, so the
     model learns to contract perturbed states. ``None`` or all-zero knobs
     return the input unchanged (byte-identical off path).
+
+    Kinematic rows stay clean, matching :func:`_mesh_family_noise` (ADR-0043
+    §4) and rollout, where their fed state is always GT (oracle mode reads
+    ``gt_aux``; the self-fed cache clamps them) — noising them would train on
+    an input distribution rollout never produces. The batch std is still
+    pooled over all rows: kinematic aux is near-constant, which deflates the
+    relative scale slightly, but the knob is a swept scale so this folds into
+    the sweep.
     """
     if noise_std is None or not any(v > 0 for v in noise_std):
         return input_aux
     scale = torch.tensor(noise_std, dtype=input_aux.dtype, device=input_aux.device)
     std = input_aux.std(dim=0, keepdim=True)
-    return input_aux + scale * std * torch.randn_like(input_aux)
+    noise = scale * std * torch.randn_like(input_aux)
+    noise = noise.masked_fill(is_kinematic.unsqueeze(-1), 0.0)
+    return input_aux + noise
 
 
 def _train_transolver(
@@ -1765,7 +1777,7 @@ def _train_transolver(
                 # error. Loss = mean over both steps (the (P, 2, dim+C)
                 # stacking below feeds the rank-agnostic loss unchanged).
                 input_aux_a = _state_input_noise(
-                    batch["input_aux"].to(device), aux_noise
+                    batch["input_aux"].to(device), aux_noise, is_kinematic
                 )
                 x_a, vh_a, next_a = _mesh_family_noise(
                     position_seq,
@@ -1840,7 +1852,9 @@ def _train_transolver(
                     # last input frame), ADR-0061-noised when the knob is on;
                     # None keeps the pre-0060 path.
                     input_aux=(
-                        _state_input_noise(batch["input_aux"].to(device), aux_noise)
+                        _state_input_noise(
+                            batch["input_aux"].to(device), aux_noise, is_kinematic
+                        )
                         if cfg.aux_input
                         else None
                     ),
