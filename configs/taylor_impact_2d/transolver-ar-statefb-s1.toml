@@ -1,27 +1,28 @@
-# Taylor 2D — Transolver k-frames sweep arm (kT, seed 2); ADR-0050/0051.
-# Base recipe transolver-n02-vh (L8/M64, history_frames=5); k-sweep at
-# 60k reduced budget into runs/kframes-*. frames_per_call=0 (one-shot k=T).
-# noise_std set 0 (inert at k>1; ADR-0051).
+# Taylor 2D — state-helpfulness pair arm (c) INPUT+OUTPUT (ADR-0060 aux_input), seed 1.
+# Pre-registered in scratch/2026-09-04-state-pair-prereg.md (BINDING
+# readouts/branches); NOT a leaderboard row. Base recipe = the
+# registered AR representative transolver-n02-vh-big verbatim; the only
+# changes are the ADR-0059 state target block and (arm c) aux_input.
 
 [run]
 benchmark = "taylor_impact_2d"
-seed = 2
+seed = 1
 
 [model]
 family = "transolver"
 adaptive_temperature = false
 slice_reparam = false
-aux_input = false            # ADR-0060 state-feedback input (off = reference)
+aux_input = true             # ADR-0060: consume the state block at the last input frame
 input_frames = 6                # taylor card protocol (ADR-0035); see header
 dim = 2
-hidden_dim = 128                # ADR-0044 family reference
+hidden_dim = 256                # 2x the ADR-0044 reference (tuning arm; see header)
 n_layers = 8
 n_heads = 8
-slice_num = 64
+slice_num = 128                 # 2x the ADR-0044 reference (tuning arm; see header)
 mlp_ratio = 1
 dropout = 0.0
 node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
-noise_std = 0.0
+noise_std = 0.02                # blessed CGN taylor value (ADR-0049 noise rescale)
 normalizer_warmup_steps = 1000
 weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
 max_grad_norm = 0.1             # global-norm clip, thuml reference
@@ -29,7 +30,7 @@ max_grad_norm = 0.1             # global-norm clip, thuml reference
 history_frames = 5            # +5 window velocities; CGN random-walk window noise +
                               # GNS adjusted-next target (de-noise velocity, not the
                               # accumulated position offset; ADR-0049)
-frames_per_call = 0            # ADR-0050/0051 k-frames axis (one-shot sentinel)
+frames_per_call = 1            # ADR-0050/0051 prediction scheme: 1 = autoregressive next-step
 impact_velocity_feature = false  # ADR-0051 B: scalar loading-param channel (off = byte-identical)
 time_conditioned = false        # ADR-0054: faithful thuml time-conditioned scheme (off = byte-identical)
 
@@ -38,9 +39,10 @@ batch_size = 2                  # family reference (ADR-0044, matched to MGN)
 lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
 lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
                                 # ADR-0044); present because [train] is family-uniform.
-training_steps = 60_000         # reduced k-sweep budget
+training_steps = 100_000        # CGN-matched budget (ADR-0047 §6), not DP's 10M
 val_every = 2000                # CGN taylor cadence
 w_pos = 1.0
 w_aux = 1.0
 aux_tail_weight = 0.0
+aux_fields = ["deviatoric_stress_2d", "effective_plastic_strain", "internal_energy", "density"]  # state-pair target block (ADR-0059)
 train_frames = 0

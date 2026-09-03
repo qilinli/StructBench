@@ -208,3 +208,15 @@ def test_stats_npz_round_trip_preserves_channel_shape(tmp_path):
     assert loaded.aux_mean.shape == (2,)
     np.testing.assert_allclose(loaded.aux_mean, stats.aux_mean)
     np.testing.assert_allclose(loaded.aux_std, stats.aux_std)
+
+
+def test_input_aux_is_the_last_input_frame_state():
+    """ADR-0060: sample t carries aux[t-1] (the last window frame) as input."""
+    aux = np.arange(5 * 4 * 2, dtype=np.float32).reshape(5, 4, 2)
+    tr = _traj(aux)
+    ds = WindowDataset([tr], input_frames=2)
+    for i in range(len(ds)):
+        sample = ds[i]
+        t = sample["target_frame"]
+        np.testing.assert_allclose(sample["input_aux"], aux[t - 1])
+        np.testing.assert_allclose(sample["next_aux"], aux[t])

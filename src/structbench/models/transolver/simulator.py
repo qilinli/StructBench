@@ -105,6 +105,7 @@ class TransolverSimulator(CaseBoundSimulator):
         adaptive_temperature: bool = False,
         slice_reparam: bool = False,
         n_aux: int = 1,
+        aux_input: bool = False,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -168,9 +169,24 @@ class TransolverSimulator(CaseBoundSimulator):
                 + 3 * dim
                 + history_velocities * dim
                 + (1 if impact_velocity_feature else 0)
+                # ADR-0060: the aux state block at the last input frame.
+                + (n_aux if aux_input else 0)
             )
 
         self._n_aux = n_aux
+        # ADR-0060 state-feedback surface (guarded at config load too;
+        # defense in depth for programmatic construction).
+        if aux_input and time_conditioned:
+            raise ValueError("aux_input is incompatible with time_conditioned")
+        if aux_input and frames_per_call != 1:
+            raise ValueError("aux_input requires frames_per_call=1 (ADR-0060)")
+        self._aux_input = aux_input
+        #: rollout state-input mode: "self" feeds back the model's own
+        #: predicted aux; "oracle" reads ground truth each step (ADR-0060
+        #: accumulation-isolation mode). The evaluator switches this.
+        self.aux_feedback: str = "self"
+        self._aux_state: Tensor | None = None  # last predicted aux (self mode)
+        self._aux_t: int | None = None  # frame the NEXT predict call targets
         self._net = TransolverNet(
             node_in=node_in,
             out_size=frames_per_call * (dim + n_aux),  # ADR-0059
@@ -218,6 +234,7 @@ class TransolverSimulator(CaseBoundSimulator):
         reference_coords: Tensor,
         velocity_history: Tensor | None = None,
         loading_feature: Tensor | None = None,
+        aux_state: Tensor | None = None,
     ) -> Tensor:
         """Build the raw (pre-normalization) node feature tensor.
 
@@ -244,13 +261,18 @@ class TransolverSimulator(CaseBoundSimulator):
             ``(P, history_velocities * dim)`` flattened window velocities
             (ADR-0049); required exactly when the simulator was built with
             ``history_velocities > 0``, ``None`` otherwise.
+        aux_state:
+            ``(P, C)`` aux state block at the last input frame (ADR-0060);
+            required exactly when the simulator was built with
+            ``aux_input=True``, forbidden-by-ignore otherwise.
 
         Returns
         -------
         Tensor
-            ``(P, node_type_size + (3 + history_velocities) * dim)`` raw
-            node features: ``cat([one_hot, scripted_velocity, x_t,
-            reference_coords, velocity_history?], -1)``.
+            ``(P, node_type_size + (3 + history_velocities) * dim [+ 1]
+            [+ C])`` raw node features: ``cat([one_hot, scripted_velocity,
+            x_t, reference_coords, velocity_history?, loading_feature?,
+            aux_state?], -1)``.
         """
         parts = [one_hot, scripted_velocity, x_t, reference_coords]
         if self._history_velocities > 0:
@@ -269,7 +291,26 @@ class TransolverSimulator(CaseBoundSimulator):
                     "supplied"
                 )
             parts.append(loading_feature)
+        if self._aux_input:
+            if aux_state is None:
+                raise ValueError(
+                    "simulator was built with aux_input=True but no aux_state "
+                    "block was supplied (ADR-0060)"
+                )
+            parts.append(aux_state)
         return torch.cat(parts, dim=-1)
+
+    def reset_rollout(self) -> None:
+        """Reset the step pointer AND the ADR-0060 state-feedback cache."""
+        super().reset_rollout()
+        self._aux_state = None
+        self._aux_t = None
+
+    def _on_bind_case(self, cells: Tensor) -> None:
+        """Clear the ADR-0060 state-feedback cache for the new case."""
+        del cells  # no static connectivity to derive (operator family)
+        self._aux_state = None
+        self._aux_t = None
 
     def _loading_feature(self, ref: Tensor) -> Tensor | None:
         """Broadcast the bound case's scalar loading parameter to ``(P, 1)``.
@@ -381,6 +422,47 @@ class TransolverSimulator(CaseBoundSimulator):
         )
         loading_feature = self._loading_feature(x_t)
 
+        aux_state: Tensor | None = None
+        if self._aux_input:
+            # ADR-0060 state input for the frame this call predicts. The
+            # counter anchors at the window frame count F on the first call
+            # (predicting frame F needs the state at F-1) and advances by 1
+            # per call — valid for k=1 (enforced) in both the rollout and the
+            # teacher-forced one-step sweep, which slides the window by 1.
+            gt_aux = self._gt_aux
+            if gt_aux is None:
+                raise RuntimeError(
+                    "aux_input=True but bind_case() supplied no gt_aux "
+                    "trajectory for this case (ADR-0060)"
+                )
+            if self._aux_t is None:
+                self._aux_t = n_frames
+            if self._aux_t - 1 >= gt_aux.shape[0]:
+                # Loud-failure parity with the position pointer's tripwire
+                # (which no-ops on kinematic-free cases): a counter past the
+                # bound trajectory means a missing reset between eval passes.
+                raise RuntimeError(
+                    "aux-state counter is past the bound gt_aux trajectory "
+                    f"(frame {self._aux_t} of {gt_aux.shape[0]}): call "
+                    "reset_rollout() before each eval pass, or re-bind_case() "
+                    "the trajectory being evaluated (ADR-0060)"
+                )
+            if self.aux_feedback == "oracle":
+                aux_state = gt_aux[self._aux_t - 1]
+            elif self.aux_feedback == "self":
+                # seed from the GT state at the last seed frame; thereafter
+                # the model's own prediction feeds back.
+                aux_state = (
+                    self._aux_state
+                    if self._aux_state is not None
+                    else gt_aux[n_frames - 1]
+                )
+            else:
+                raise ValueError(
+                    f"aux_feedback must be 'self' or 'oracle', got "
+                    f"{self.aux_feedback!r}"
+                )
+
         node_feats_raw = self._features(
             node_type_onehot,
             scripted_velocity,
@@ -388,6 +470,7 @@ class TransolverSimulator(CaseBoundSimulator):
             reference_coords,
             velocity_history,
             loading_feature,
+            aux_state,
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=False)
 
@@ -400,6 +483,28 @@ class TransolverSimulator(CaseBoundSimulator):
             velocity = out[:, : self._dim]
             stress = out[:, self._dim :]
             next_positions = x_t + velocity
+            if self._aux_input:
+                # ADR-0060: cache the prediction for the self-fed mode's next
+                # step, then advance the state counter. KINEMATIC rows are
+                # overwritten with the GT state at the just-predicted frame —
+                # the exact analog of the rollout loop's GT position override:
+                # those rows receive no aux training signal (their loss is
+                # masked), so the decoder's output there is untargeted, and
+                # feeding it back would contaminate the self-fed mode with a
+                # train/rollout distribution shift unrelated to state-channel
+                # accumulation (the effect modes 2 vs 3 exist to isolate).
+                cached = stress.detach()
+                t_pred = self._aux_t if self._aux_t is not None else n_frames
+                if (
+                    self._has_kinematic
+                    and self._gt_aux is not None
+                    and self._kin_mask is not None
+                    and t_pred < self._gt_aux.shape[0]
+                ):
+                    cached = cached.clone()
+                    cached[self._kin_mask] = self._gt_aux[t_pred][self._kin_mask]
+                self._aux_state = cached
+                self._aux_t = t_pred + 1
             return next_positions, stress
 
         # k>1: reshape to (P, k, dim+C), inverse-normalize on the row-folded
@@ -451,6 +556,7 @@ class TransolverSimulator(CaseBoundSimulator):
         accumulate: bool,
         velocity_history: Tensor | None = None,
         loading_feature: Tensor | None = None,
+        input_aux: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
         """One training forward pass: normalized network output and target.
 
@@ -535,6 +641,7 @@ class TransolverSimulator(CaseBoundSimulator):
             reference_coords,
             velocity_history,
             loading_feature,
+            input_aux,
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
 
@@ -602,6 +709,11 @@ class TransolverSimulator(CaseBoundSimulator):
         loading_feature: Tensor | None,
     ) -> Tensor:
         """Build the raw (pre-normalization) time-conditioned node features.
+        input_aux:
+            ``(P, C)`` ground-truth aux state at the last input frame
+            (ADR-0060 teacher forcing; the ``input_aux`` sample key);
+            required exactly when built with ``aux_input=True``. CLEAN GT —
+            no noise is injected on state inputs (ADR-0060).
 
         ``cat([one_hot, reference_coords, kinematic_bc, loading_feature?])``
         (ADR-0054): the static geometry (node type + rest coords), the
@@ -617,6 +729,8 @@ class TransolverSimulator(CaseBoundSimulator):
                     "no loading_feature (case impact-velocity scalar) was supplied"
                 )
             parts.append(loading_feature)
+        # NB: no aux_state part here — aux_input is rejected with the TC
+        # scheme (ADR-0060), so the TC feature builder never consumes state.
         return torch.cat(parts, dim=-1)
 
     def forward_train_tc(

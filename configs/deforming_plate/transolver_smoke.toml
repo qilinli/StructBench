@@ -10,6 +10,7 @@ seed = 0
 family = "transolver"
 adaptive_temperature = false
 slice_reparam = false
+aux_input = false            # ADR-0060 state-feedback input (off = reference)
 input_frames = 2
 dim = 3
 hidden_dim = 16

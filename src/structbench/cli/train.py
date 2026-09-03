@@ -443,6 +443,7 @@ def build_transolver_simulator(
         time_conditioned=cfg.time_conditioned,
         adaptive_temperature=cfg.adaptive_temperature,
         slice_reparam=cfg.slice_reparam,
+        aux_input=cfg.aux_input,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         n_aux=n_aux,
@@ -1745,6 +1746,11 @@ def _train_transolver(
                     accumulate=accumulate,
                     velocity_history=velocity_history,
                     loading_feature=loading_feature,
+                    # ADR-0060: teacher-forced state input (GT aux at the
+                    # last input frame); None keeps the pre-0060 path.
+                    input_aux=(
+                        batch["input_aux"].to(device) if cfg.aux_input else None
+                    ),
                 )
             # Rank-agnostic: (P, dim+1) at k=1 (byte-identical), (P, k, dim+1)
             # at k>1; the kinematic row mask selects on dim 0 either way and
@@ -1787,6 +1793,11 @@ def _train_transolver(
                                 spec.loading_scalar(tr.case_id)
                                 if getattr(cfg, "impact_velocity_feature", False)
                                 and spec.loading_scalar
+                                else None
+                            ),
+                            gt_aux=(
+                                torch.from_numpy(tr.aux).to(device)
+                                if getattr(cfg, "aux_input", False)
                                 else None
                             ),
                         )
@@ -2891,6 +2902,9 @@ def evaluate(
     )
     run_aux_labels = aux_channel_labels(run_aux_fields)
     n_aux_c = len(run_aux_labels)
+    # ADR-0060: state-feedback runs get the oracle-state rollout alongside
+    # the canonical self-fed one, and oracle-mode one-step sweeps.
+    aux_in_run = family == "transolver" and bool(getattr(model_cfg, "aux_input", False))
     # ADR-0059: aux QoIs bind the benchmark's headline channel BY NAME within
     # the run's selection. A variant selection that lacks it gets NaN aux
     # QoIs (loud) rather than channel-0 values of a different quantity.
@@ -3009,10 +3023,14 @@ def evaluate(
                     and spec.loading_scalar
                     else None
                 ),
+                gt_aux=(
+                    torch.from_numpy(trajectory.aux).to(device) if aux_in_run else None
+                ),
             )
             mesh_sim.reset_rollout()
         one_step: np.ndarray | None
         one_step_aux: np.ndarray | None
+        result_oracle = None  # ADR-0060 oracle-state rollout (aux_input only)
         if tc:
             # Time-conditioned: independent per-frame query, no accumulation and
             # no teacher-forced one-step sweep (ADR-0054). one_step_* is undefined.
@@ -3038,6 +3056,13 @@ def evaluate(
             one_step = None
             one_step_aux = None
         else:
+            # ADR-0060: for an aux_input run the canonical rollout is SELF-FED
+            # (the honest simulator mode; artifacts and standard metrics), and
+            # a second ORACLE-STATE rollout (GT state input every step,
+            # positions still self-fed) isolates the information effect from
+            # accumulation through the state channel.
+            if aux_in_run:
+                simulator.aux_feedback = "self"
             result = rollout(
                 simulator,
                 trajectory,
@@ -3048,8 +3073,29 @@ def evaluate(
                 scored_frames=spec.scored_frames,
                 qoi_aux_channel=qoi_aux_channel,
             )
+            result_oracle = None
+            if aux_in_run:
+                assert mesh_sim is not None
+                mesh_sim.reset_rollout()
+                simulator.aux_feedback = "oracle"
+                result_oracle = rollout(
+                    simulator,
+                    trajectory,
+                    model_cfg.input_frames,
+                    device,
+                    # mode-2 records the four field metrics only (ADR-0060);
+                    # QoIs come from the canonical self-fed rollout.
+                    qois=None,
+                    kinematic_types=spec.kinematic_types,
+                    scored_frames=spec.scored_frames,
+                    qoi_aux_channel=qoi_aux_channel,
+                )
             if mesh_sim is not None:
                 mesh_sim.reset_rollout()
+            # One-step sweeps are teacher-forced by definition: state input
+            # (when any) reads ground truth (ADR-0060).
+            if aux_in_run:
+                simulator.aux_feedback = "oracle"
             one_step = one_step_position_rmse(
                 simulator,
                 trajectory,
@@ -3066,6 +3112,8 @@ def evaluate(
                 device,
                 kinematic_types=spec.kinematic_types,
             )
+            if aux_in_run:
+                simulator.aux_feedback = "self"
         # One-step aggregates cover the same scored span as the rollout means
         # (ADR-0035 parity, ADR-0039 horizon); per-frame arrays stay full.
         n_scored = (
@@ -3116,6 +3164,20 @@ def evaluate(
                             strict=True,
                         )
                     ),
+                }
+            ),
+            # ADR-0060: oracle-state rollout metrics (GT state input each
+            # step, positions self-fed) beside the canonical self-fed ones.
+            **(
+                {}
+                if result_oracle is None
+                else {
+                    "rollout_oracle_position_rmse": result_oracle.mean_position_rmse,
+                    "rollout_oracle_aux_rmse": result_oracle.mean_aux_rmse,
+                    "rollout_oracle_rel_l2_displacement": (
+                        result_oracle.mean_rel_l2_displacement
+                    ),
+                    "rollout_oracle_rel_l2_aux": result_oracle.mean_rel_l2_aux,
                 }
             ),
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
@@ -3216,6 +3278,19 @@ def evaluate(
                 "rollout_rel_l2_displacement"
             ),
             "rollout_rel_l2_aux": _mean_over_cases("rollout_rel_l2_aux"),
+            **(
+                {}
+                if not aux_in_run
+                else {
+                    k: _mean_over_cases(k)
+                    for k in (
+                        "rollout_oracle_position_rmse",
+                        "rollout_oracle_aux_rmse",
+                        "rollout_oracle_rel_l2_displacement",
+                        "rollout_oracle_rel_l2_aux",
+                    )
+                }
+            ),
             "rollout_position_rmse_full": _mean_over_cases(
                 "rollout_position_rmse_full"
             ),

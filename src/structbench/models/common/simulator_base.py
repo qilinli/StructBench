@@ -149,6 +149,10 @@ class CaseBoundSimulator(nn.Module):
         self._kin_mask: Tensor | None = None
         self._scripted_mask: Tensor | None = None
         self._gt_positions: Tensor | None = None
+        # ADR-0060: the bound case's GT aux trajectory (T, P, C); only cached
+        # (and only needed) for an aux_input subclass — oracle-state rollout,
+        # one-step sweeps, and the self-fed seed all read it.
+        self._gt_aux: Tensor | None = None
         self._has_kinematic: bool = False
         self._n_gt_frames: int = 0
         self._t: int | None = None
@@ -167,6 +171,7 @@ class CaseBoundSimulator(nn.Module):
         particle_types: Tensor,
         kinematic_positions: Tensor,
         loading_scalar: float | None = None,
+        gt_aux: Tensor | None = None,
     ) -> None:
         """Bind one case's static geometry and GT trajectory; reset pointer.
 
@@ -190,6 +195,12 @@ class CaseBoundSimulator(nn.Module):
             The case's scalar loading parameter (impact velocity), cached for
             a subclass that uses the ``impact_velocity_feature`` global node
             channel (ADR-0051 B). ``None`` when the feature is off.
+        gt_aux:
+            ``(T, P, C)`` ground-truth aux trajectory of this case
+            (ADR-0060), cached for an ``aux_input`` subclass: the oracle-
+            state rollout mode and the teacher-forced one-step sweeps read
+            it per frame, and the self-fed mode seeds from its last seed
+            frame. ``None`` when the subclass consumes no state.
         """
         self._reference_coords = reference_coords
         self._node_type_onehot = F.one_hot(
@@ -204,6 +215,7 @@ class CaseBoundSimulator(nn.Module):
         self._has_kinematic = bool(self._kin_mask.any())
 
         self._gt_positions = kinematic_positions
+        self._gt_aux = gt_aux
         self._n_gt_frames = kinematic_positions.shape[0]
         self._t = None
         self._loading_scalar = loading_scalar
