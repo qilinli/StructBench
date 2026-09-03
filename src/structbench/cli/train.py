@@ -1475,6 +1475,36 @@ def _transolver_pushforward(
     )
 
 
+def _state_input_noise(
+    input_aux: Tensor,
+    noise_std: tuple[float, ...] | None,
+    is_kinematic: Tensor,
+) -> Tensor:
+    """ADR-0061 knob 1: per-channel batch-std-relative Gaussian state noise.
+
+    ``input_aux + knob_c * std_batch_c * N(0, 1)`` — the scale is RELATIVE
+    to each channel's batch standard deviation (mixed-unit channels make an
+    absolute scale meaningless). The target stays the clean GT state, so the
+    model learns to contract perturbed states. ``None`` or all-zero knobs
+    return the input unchanged (byte-identical off path).
+
+    Kinematic rows stay clean, matching :func:`_mesh_family_noise` (ADR-0043
+    §4) and rollout, where their fed state is always GT (oracle mode reads
+    ``gt_aux``; the self-fed cache clamps them) — noising them would train on
+    an input distribution rollout never produces. The batch std is still
+    pooled over all rows: kinematic aux is near-constant, which deflates the
+    relative scale slightly, but the knob is a swept scale so this folds into
+    the sweep.
+    """
+    if noise_std is None or not any(v > 0 for v in noise_std):
+        return input_aux
+    scale = torch.tensor(noise_std, dtype=input_aux.dtype, device=input_aux.device)
+    std = input_aux.std(dim=0, keepdim=True)
+    noise = scale * std * torch.randn_like(input_aux)
+    noise = noise.masked_fill(is_kinematic.unsqueeze(-1), 0.0)
+    return input_aux + noise
+
+
 def _train_transolver(
     spec: BenchmarkSpec,
     cfg: TransolverConfig,
@@ -1585,11 +1615,23 @@ def _train_transolver(
     # MP-PDE bundle-seam pushforward (two forward passes per step, below).
     cfg, is_one_shot, horizon = _resolve_transolver_k(cfg, train_trajs)
     k = cfg.frames_per_call
+    # ADR-0061 knob 1: expanded once; None when the state input is off.
+    aux_noise = (
+        expand_aux_knob(cfg.aux_input_noise_std, int(train_trajs[0].aux.shape[-1]))
+        if cfg.aux_input
+        else None
+    )
     is_pushforward = k > 1 and not is_one_shot
     # The pushforward needs TWO consecutive GT bundles per sample (bundle1 to
     # drift the seam, bundle2 for the loss), so its target span is 2k; the
     # single-forward regimes (k=1, one-shot) use a k-frame span.
     target_frames = 2 * k if is_pushforward else k
+    # ADR-0061: the state-channel pushforward chain needs TWO consecutive
+    # single-frame targets (step A teacher-forced, step B fed the detached
+    # prediction); aux_input enforces k=1, so this never collides with the
+    # ADR-0051 bundle pushforward above.
+    if cfg.aux_input_pushforward:
+        target_frames = 2
     # ADR-0050/0051: injected single-step noise is a k=1-only robustness
     # mechanism. At k>1 it is replaced by the pushforward (1<k<T) or dropped
     # (one-shot clean L2), so a nonzero noise_std is INERT — warn rather than
@@ -1727,6 +1769,66 @@ def _train_transolver(
                     loading_feature,
                     warmup=accumulate,
                 )
+            elif cfg.aux_input_pushforward:
+                # ADR-0061 knob 2: two-step chain on the STATE channel only.
+                # Positions stay teacher-forced throughout (position exposure
+                # bias is the recipe's position-noise job); only the state
+                # input of step B carries the model's own (detached) one-step
+                # error. Loss = mean over both steps (the (P, 2, dim+C)
+                # stacking below feeds the rank-agnostic loss unchanged).
+                input_aux_a = _state_input_noise(
+                    batch["input_aux"].to(device), aux_noise, is_kinematic
+                )
+                x_a, vh_a, next_a = _mesh_family_noise(
+                    position_seq,
+                    next_position[:, 0],
+                    is_kinematic,
+                    cfg.noise_std,
+                    cfg.history_frames,
+                )
+                pred_a, target_a = sim.forward_train(
+                    x_a,
+                    next_a,
+                    next_aux[:, 0],
+                    particle_type,
+                    reference_coords,
+                    n_particles_per_example,
+                    accumulate=accumulate,
+                    velocity_history=vh_a,
+                    loading_feature=loading_feature,
+                    input_aux=input_aux_a,
+                )
+                # Step B consumes step A's predicted state, DETACHED (the
+                # pushforward trick). KINEMATIC rows are clamped to the GT
+                # state at t — the training-side analog of the rollout
+                # cache clamp (those rows carry no aux training signal).
+                state_pred = sim.train_output_aux(pred_a).detach()
+                if is_kinematic.any():
+                    state_pred = state_pred.clone()
+                    state_pred[is_kinematic] = next_aux[:, 0][is_kinematic]
+                seq_b = torch.cat([position_seq[:, 1:], next_position[:, :1]], dim=1)
+                x_b, vh_b, next_b = _mesh_family_noise(
+                    seq_b,
+                    next_position[:, 1],
+                    is_kinematic,
+                    cfg.noise_std,
+                    cfg.history_frames,
+                )
+                pred_b, target_b = sim.forward_train(
+                    x_b,
+                    next_b,
+                    next_aux[:, 1],
+                    particle_type,
+                    reference_coords,
+                    n_particles_per_example,
+                    # normalizers warm on the clean teacher-forced step only
+                    accumulate=False,
+                    velocity_history=vh_b,
+                    loading_feature=loading_feature,
+                    input_aux=state_pred,
+                )
+                pred = torch.stack([pred_a, pred_b], dim=1)  # (P, 2, dim+C)
+                target = torch.stack([target_a, target_b], dim=1)
             else:
                 x_noisy, velocity_history, next_target = _mesh_family_noise(
                     position_seq,
@@ -1747,9 +1849,14 @@ def _train_transolver(
                     velocity_history=velocity_history,
                     loading_feature=loading_feature,
                     # ADR-0060: teacher-forced state input (GT aux at the
-                    # last input frame); None keeps the pre-0060 path.
+                    # last input frame), ADR-0061-noised when the knob is on;
+                    # None keeps the pre-0060 path.
                     input_aux=(
-                        batch["input_aux"].to(device) if cfg.aux_input else None
+                        _state_input_noise(
+                            batch["input_aux"].to(device), aux_noise, is_kinematic
+                        )
+                        if cfg.aux_input
+                        else None
                     ),
                 )
             # Rank-agnostic: (P, dim+1) at k=1 (byte-identical), (P, k, dim+1)

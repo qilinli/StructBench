@@ -74,6 +74,25 @@ def test_forward_train_requires_input_aux_when_on():
     assert target.shape == (_P, _DIM + _C)
 
 
+def test_train_output_aux_inverts_to_raw_state():
+    """ADR-0061: pushforward step B feeds ``train_output_aux``'s output back
+    as ``input_aux``, which lives in raw working units — so the method must
+    invert the target normalizer and slice the trailing aux block exactly."""
+    sim = _sim(aux_input=True)
+    rng = np.random.default_rng(2)
+    x = torch.tensor(rng.random((_P, _DIM)), dtype=torch.float32)
+    nxt = torch.tensor(rng.random((_P, _DIM)), dtype=torch.float32)
+    aux = torch.tensor(rng.random((_P, _C)) * 100.0, dtype=torch.float32)
+    types = torch.zeros(_P, dtype=torch.int64)
+    ref = torch.tensor(rng.random((_P, _DIM)), dtype=torch.float32)
+    npp = torch.tensor([_P], dtype=torch.int64)
+    _pred, target = sim.forward_train(
+        x, nxt, aux, types, ref, npp, accumulate=True, input_aux=aux
+    )
+    # the normalized target's trailing block round-trips to the raw GT aux
+    torch.testing.assert_close(sim.train_output_aux(target), aux)
+
+
 def test_predict_requires_gt_aux_binding():
     sim = _sim(aux_input=True)
     gt, _, types = _bind(sim, with_aux=False)

@@ -300,6 +300,16 @@ class TransolverSimulator(CaseBoundSimulator):
             parts.append(aux_state)
         return torch.cat(parts, dim=-1)
 
+    def train_output_aux(self, pred_norm: Tensor) -> Tensor:
+        """Raw-unit aux block of a ``k=1`` ``forward_train`` output.
+
+        ADR-0061 pushforward helper: step B of the state-channel chain feeds
+        step A's predicted state back as ``input_aux``, which lives in raw
+        working units — this inverts the target normalizer and slices the
+        trailing aux block. ``(P, dim+C)`` normalized -> ``(P, C)`` raw.
+        """
+        return self._target_normalizer.inverse(pred_norm)[..., self._dim :]
+
     def reset_rollout(self) -> None:
         """Reset the step pointer AND the ADR-0060 state-feedback cache."""
         super().reset_rollout()

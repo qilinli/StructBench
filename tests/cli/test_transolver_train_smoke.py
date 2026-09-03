@@ -93,6 +93,9 @@ def _run_transolver_smoke(
     frames_per_call: int = 1,
     impact_velocity_feature: bool = False,
     time_conditioned: bool = False,
+    aux_input: bool = False,
+    aux_input_noise_std: float = 0.0,
+    aux_input_pushforward: bool = False,
 ):
     """Shared spec/data/train setup for both smoke tests below.
 
@@ -128,6 +131,9 @@ def _run_transolver_smoke(
         frames_per_call=frames_per_call,
         impact_velocity_feature=impact_velocity_feature,
         time_conditioned=time_conditioned,
+        aux_input=aux_input,
+        aux_input_noise_std=aux_input_noise_std,
+        aux_input_pushforward=aux_input_pushforward,
         # time-conditioning is history-free / non-autoregressive: noise is inert
         noise_std=0.0 if time_conditioned else TransolverConfig().noise_std,
     )
@@ -359,6 +365,46 @@ def test_transolver_pushforward_helper_shapes_and_grad_through_bundle2():
     pp.sum().backward()
     grads = [p.grad for p in sim.parameters() if p.grad is not None]
     assert grads, "no gradient reached the network through the pushforward"
+
+
+def test_transolver_aux_input_pushforward_train_and_evaluate_smoke(
+    tmp_path, monkeypatch
+):
+    """ADR-0060/0061 end-to-end: state-feedback input + both stability knobs.
+
+    Exercises the aux_input training path through a REAL train() with BOTH
+    ADR-0061 knobs on — the state-input noise on step A and the ~60-line
+    two-step pushforward chain (train_output_aux inversion, detached step-B
+    feed, (P, 2, dim+C) stacking into the rank-agnostic loss) — then the
+    ADR-0060 evaluate() branch: self-fed canonical rollout plus the
+    oracle-state rollout recorded under rollout_oracle_* keys.
+    """
+    import structbench.cli.train as cli_train
+
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path,
+        aux_input=True,
+        aux_input_noise_std=0.1,
+        aux_input_pushforward=True,
+    )
+
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    assert record["model"]["aux_input"] is True
+    assert record["model"]["aux_input_noise_std"] == 0.1
+    assert record["model"]["aux_input_pushforward"] is True
+
+    ckpts = list(out.glob("model-*.pt"))
+    assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    per_case = metrics["cases"][ids["val"][0]]
+    assert np.isfinite(per_case["one_step_position_rmse"])
+    assert np.isfinite(per_case["rollout_position_rmse"])
+    assert np.isfinite(per_case["rollout_aux_rmse"])
+    # ADR-0060 accumulation isolation: the oracle-state rollout ran too.
+    assert np.isfinite(per_case["rollout_oracle_aux_rmse"])
+    assert np.isfinite(metrics["mean"]["rollout_oracle_aux_rmse"])
 
 
 def test_transolver_impact_velocity_feature_train_and_evaluate_smoke(
