@@ -42,6 +42,8 @@ time_conditioned = true          # ADR-0054: faithful thuml native structural sc
 adaptive_temperature = false     # ADR-0057 (off = byte-identical)
 slice_reparam = false            # ADR-0057 (off = byte-identical)
 aux_input = false            # ADR-0060 state-feedback input (off = reference)
+aux_input_noise_std = 0.0     # ADR-0061 stability knob (0 = off)
+aux_input_pushforward = false # ADR-0061 stability knob (off = reference)
 
 [train]
 batch_size = 2                  # family reference (ADR-0044, matched to MGN)

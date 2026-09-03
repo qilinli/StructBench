@@ -297,6 +297,23 @@ class TransolverConfig:
         scope). No noise is injected on state inputs (ADR-0060: measure
         accumulation before engineering against it). ``False`` (default) is
         byte-identical.
+    aux_input_noise_std : float or sequence of float
+        ADR-0061 stability knob 1: Gaussian noise on the teacher-forced
+        state input during training, scaled PER CHANNEL by the batch's
+        per-channel standard deviation of ``input_aux`` (an absolute scale
+        is meaningless across the mixed-unit state channels). Scalar =
+        same relative scale for every channel; per-channel list refines it.
+        The target stays the clean GT state, so the model learns to
+        contract perturbed states. Requires ``aux_input = true``. ``0.0``
+        (default) is byte-identical.
+    aux_input_pushforward : bool
+        ADR-0061 stability knob 2: detached two-step training chains on the
+        STATE channel only — step B consumes step A's predicted state
+        (no gradient through A) while positions stay teacher-forced; the
+        loss is the mean of both steps. Trains contraction of the model's
+        own one-step state error distribution (~2x step cost; samples use
+        two consecutive targets). Requires ``aux_input = true``. ``False``
+        (default) is byte-identical.
     """
 
     input_frames: int = 2
@@ -319,6 +336,8 @@ class TransolverConfig:
     adaptive_temperature: bool = False
     slice_reparam: bool = False
     aux_input: bool = False
+    aux_input_noise_std: float | tuple[float, ...] = 0.0
+    aux_input_pushforward: bool = False
 
 
 @dataclass
@@ -618,7 +637,13 @@ def _normalize_aux_knobs(cfg: Any) -> None:
     forms; the canonical in-config representation of the sequence form is a
     tuple so records hash/compare predictably.
     """
-    knobs = ("aux_transform", "aux_transform_scale", "aux_tail_weight", "aux_fields")
+    knobs = (
+        "aux_transform",
+        "aux_transform_scale",
+        "aux_tail_weight",
+        "aux_fields",
+        "aux_input_noise_std",
+    )
     for name in knobs:
         value = getattr(cfg, name, None)
         if isinstance(value, list):
@@ -638,6 +663,7 @@ def _check_aux_knob_types(section: str, cfg: Any) -> None:
         ("aux_transform", str, "str"),
         ("aux_transform_scale", (float, int), "float"),
         ("aux_tail_weight", (float, int), "float"),
+        ("aux_input_noise_std", (float, int), "float"),
     ):
         if not hasattr(cfg, name):
             continue
@@ -842,6 +868,11 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 getattr(model, "aux_transform_scale", 0.0),
             ),
             ("train", "aux_tail_weight", train_cfg.aux_tail_weight),
+            (
+                "model",
+                "aux_input_noise_std",
+                getattr(model, "aux_input_noise_std", 0.0),
+            ),
         ):
             try:
                 expand_aux_knob(value, n_channels)
@@ -887,6 +918,24 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 "[model] time_conditioned=true requires frames_per_call=1 "
                 f"(got {frames_per_call}); the time-conditioned and "
                 "k-frames-per-call schemes are mutually exclusive (ADR-0054)"
+            )
+
+    # ADR-0061: the stability knobs act on the state input; without one they
+    # are silently inert, so reject the combination loudly instead.
+    if not getattr(model, "aux_input", False):
+        noise = getattr(model, "aux_input_noise_std", 0.0)
+        noise_on = (
+            any(v != 0 for v in noise) if isinstance(noise, tuple) else noise != 0
+        )
+        if noise_on:
+            raise ConfigError(
+                "[model] aux_input_noise_std requires aux_input=true "
+                "(ADR-0061: the knob perturbs the state input)"
+            )
+        if getattr(model, "aux_input_pushforward", False):
+            raise ConfigError(
+                "[model] aux_input_pushforward requires aux_input=true "
+                "(ADR-0061: the chain feeds the predicted state back)"
             )
 
     # ADR-0060: the state-feedback input is autoregressive-only and k=1-only.

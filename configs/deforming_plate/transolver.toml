@@ -13,6 +13,8 @@ family = "transolver"
 adaptive_temperature = false
 slice_reparam = false
 aux_input = false            # ADR-0060 state-feedback input (off = reference)
+aux_input_noise_std = 0.0     # ADR-0061 stability knob (0 = off)
+aux_input_pushforward = false # ADR-0061 stability knob (off = reference)
 input_frames = 2
 dim = 3
 hidden_dim = 128

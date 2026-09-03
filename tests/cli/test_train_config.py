@@ -260,6 +260,8 @@ time_conditioned = false
 adaptive_temperature = false
 slice_reparam = false
 aux_input = false            # ADR-0060 state-feedback input (off = reference)
+aux_input_noise_std = 0.0     # ADR-0061 stability knob (0 = off)
+aux_input_pushforward = false # ADR-0061 stability knob (off = reference)
 
 [train]
 batch_size = 8
@@ -658,3 +660,50 @@ def test_aux_input_loads_on_the_ar_scheme(tmp_path):
         )
     )
     assert cfg.model.aux_input is True
+
+
+def test_stability_knobs_require_aux_input(tmp_path):
+    """ADR-0061: the knobs act on the state input; inert combos are errors."""
+    with pytest.raises(ConfigError, match="aux_input_noise_std.*aux_input"):
+        load_run_config(
+            _write(
+                tmp_path,
+                VALID_TRANSOLVER.replace(
+                    "aux_input_noise_std = 0.0", "aux_input_noise_std = 0.1"
+                ),
+            )
+        )
+    with pytest.raises(ConfigError, match="aux_input_pushforward.*aux_input"):
+        load_run_config(
+            _write(
+                tmp_path,
+                VALID_TRANSOLVER.replace(
+                    "aux_input_pushforward = false", "aux_input_pushforward = true"
+                ),
+            )
+        )
+
+
+def test_stability_knobs_load_with_aux_input(tmp_path):
+    cfg = load_run_config(
+        _write(
+            tmp_path,
+            VALID_TRANSOLVER.replace("aux_input = false", "aux_input = true")
+            .replace("aux_input_noise_std = 0.0", "aux_input_noise_std = 0.1")
+            .replace("aux_input_pushforward = false", "aux_input_pushforward = true"),
+        )
+    )
+    assert cfg.model.aux_input_noise_std == 0.1
+    assert cfg.model.aux_input_pushforward is True
+
+
+def test_stability_noise_rejects_wrong_type(tmp_path):
+    with pytest.raises(ConfigError, match="aux_input_noise_std"):
+        load_run_config(
+            _write(
+                tmp_path,
+                VALID_TRANSOLVER.replace(
+                    "aux_input_noise_std = 0.0", 'aux_input_noise_std = "high"'
+                ),
+            )
+        )
