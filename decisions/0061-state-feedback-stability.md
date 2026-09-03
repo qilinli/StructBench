@@ -1,6 +1,6 @@
 # 0061 — State-feedback stability: input noise and pushforward on the state channel
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-09-04)
 **Type**: Durable
 **Date**: 2026-09-04
 
