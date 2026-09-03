@@ -108,6 +108,7 @@ What becomes easier, harder, or constrained as a result.
 | 0058 | `huggingface_hub` as an optional `data` extra | Durable | Proposed |
 | 0059 | Auxiliary state channels: `aux` generalises from `(T, P)` to `(T, P, C)` | Durable | Accepted |
 | 0060 | Aux channels as model inputs: the state-feedback surface (Transolver AR) | Durable | Proposed |
+| 0061 | State-feedback stability: input noise and pushforward on the state channel | Durable | Proposed |
 
 ---
 
