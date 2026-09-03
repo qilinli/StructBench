@@ -125,3 +125,31 @@ proposal once this surface lands.
 - **ADR-0057 pattern**: off-by-default knob with byte-identity when off.
 - The stability question (state noise / pushforward), if mode-3 results
   demand it, gets its own ADR.
+
+## Implementation notes (2026-09-04, post-review amendment)
+
+Three deltas from the multi-agent implementation review, folded in before
+the fleet:
+
+- **Kinematic rows of the fed-back state are ground truth.** In self-fed
+  mode the cached state overwrites kinematic rows with the GT aux at the
+  just-predicted frame — the exact analog of the rollout loop's GT position
+  override. Those rows receive no aux training signal (their loss is
+  masked; the codebase documents their decoder output as meaningless), so
+  feeding the decoder's untargeted output back would contaminate mode 3
+  with a train/rollout distribution shift unrelated to state-channel
+  accumulation — corrupting precisely the mode-2/mode-3 decomposition this
+  ADR exists to protect, and the in-training (self-fed) checkpoint
+  selection with it.
+- **The state counter fails loud on overrun** (RuntimeError naming
+  ``reset_rollout()``), restoring parity with the position pointer's
+  tripwire on kinematic-free benchmarks (wave-1D). Like that tripwire, a
+  first stale-but-in-bounds read after a missing reset is undetectable in
+  principle; the overrun is caught on the next call.
+- **Mode-2 (oracle) records the four field metrics only**; QoIs come from
+  the canonical self-fed rollout (the oracle pass no longer computes ones
+  it would discard). The Surface-changed list additionally includes the 49
+  transolver TOMLs/fixtures gaining the explicit ``aux_input = false`` line
+  (strict schema, ADR-0057 precedent) and the ADR index row; the
+  GeoFLARE-side gt_aux threading briefly introduced by a broad edit was
+  removed (scope stays Transolver-only).

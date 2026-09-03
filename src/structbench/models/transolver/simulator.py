@@ -261,13 +261,18 @@ class TransolverSimulator(CaseBoundSimulator):
             ``(P, history_velocities * dim)`` flattened window velocities
             (ADR-0049); required exactly when the simulator was built with
             ``history_velocities > 0``, ``None`` otherwise.
+        aux_state:
+            ``(P, C)`` aux state block at the last input frame (ADR-0060);
+            required exactly when the simulator was built with
+            ``aux_input=True``, forbidden-by-ignore otherwise.
 
         Returns
         -------
         Tensor
-            ``(P, node_type_size + (3 + history_velocities) * dim)`` raw
-            node features: ``cat([one_hot, scripted_velocity, x_t,
-            reference_coords, velocity_history?], -1)``.
+            ``(P, node_type_size + (3 + history_velocities) * dim [+ 1]
+            [+ C])`` raw node features: ``cat([one_hot, scripted_velocity,
+            x_t, reference_coords, velocity_history?, loading_feature?,
+            aux_state?], -1)``.
         """
         parts = [one_hot, scripted_velocity, x_t, reference_coords]
         if self._history_velocities > 0:
@@ -432,6 +437,16 @@ class TransolverSimulator(CaseBoundSimulator):
                 )
             if self._aux_t is None:
                 self._aux_t = n_frames
+            if self._aux_t - 1 >= gt_aux.shape[0]:
+                # Loud-failure parity with the position pointer's tripwire
+                # (which no-ops on kinematic-free cases): a counter past the
+                # bound trajectory means a missing reset between eval passes.
+                raise RuntimeError(
+                    "aux-state counter is past the bound gt_aux trajectory "
+                    f"(frame {self._aux_t} of {gt_aux.shape[0]}): call "
+                    "reset_rollout() before each eval pass, or re-bind_case() "
+                    "the trajectory being evaluated (ADR-0060)"
+                )
             if self.aux_feedback == "oracle":
                 aux_state = gt_aux[self._aux_t - 1]
             elif self.aux_feedback == "self":
@@ -469,10 +484,27 @@ class TransolverSimulator(CaseBoundSimulator):
             stress = out[:, self._dim :]
             next_positions = x_t + velocity
             if self._aux_input:
-                # ADR-0060: advance the state counter; cache the prediction
-                # for the self-fed mode's next step.
-                self._aux_state = stress.detach()
-                self._aux_t = (self._aux_t or n_frames) + 1
+                # ADR-0060: cache the prediction for the self-fed mode's next
+                # step, then advance the state counter. KINEMATIC rows are
+                # overwritten with the GT state at the just-predicted frame —
+                # the exact analog of the rollout loop's GT position override:
+                # those rows receive no aux training signal (their loss is
+                # masked), so the decoder's output there is untargeted, and
+                # feeding it back would contaminate the self-fed mode with a
+                # train/rollout distribution shift unrelated to state-channel
+                # accumulation (the effect modes 2 vs 3 exist to isolate).
+                cached = stress.detach()
+                t_pred = self._aux_t if self._aux_t is not None else n_frames
+                if (
+                    self._has_kinematic
+                    and self._gt_aux is not None
+                    and self._kin_mask is not None
+                    and t_pred < self._gt_aux.shape[0]
+                ):
+                    cached = cached.clone()
+                    cached[self._kin_mask] = self._gt_aux[t_pred][self._kin_mask]
+                self._aux_state = cached
+                self._aux_t = t_pred + 1
             return next_positions, stress
 
         # k>1: reshape to (P, k, dim+C), inverse-normalize on the row-folded
@@ -677,6 +709,11 @@ class TransolverSimulator(CaseBoundSimulator):
         loading_feature: Tensor | None,
     ) -> Tensor:
         """Build the raw (pre-normalization) time-conditioned node features.
+        input_aux:
+            ``(P, C)`` ground-truth aux state at the last input frame
+            (ADR-0060 teacher forcing; the ``input_aux`` sample key);
+            required exactly when built with ``aux_input=True``. CLEAN GT —
+            no noise is injected on state inputs (ADR-0060).
 
         ``cat([one_hot, reference_coords, kinematic_bc, loading_feature?])``
         (ADR-0054): the static geometry (node type + rest coords), the

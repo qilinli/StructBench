@@ -2673,11 +2673,6 @@ def _train_geoflare(
                                 and spec.loading_scalar
                                 else None
                             ),
-                            gt_aux=(
-                                torch.from_numpy(tr.aux).to(device)
-                                if getattr(cfg, "aux_input", False)
-                                else None
-                            ),
                         )
                         sim.reset_rollout()
                         result = rollout(
@@ -3088,7 +3083,9 @@ def evaluate(
                     trajectory,
                     model_cfg.input_frames,
                     device,
-                    qois=spec.qois,
+                    # mode-2 records the four field metrics only (ADR-0060);
+                    # QoIs come from the canonical self-fed rollout.
+                    qois=None,
                     kinematic_types=spec.kinematic_types,
                     scored_frames=spec.scored_frames,
                     qoi_aux_channel=qoi_aux_channel,

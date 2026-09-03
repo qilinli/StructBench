@@ -125,3 +125,68 @@ def test_off_knob_is_inert():
         pos, aux = sim.predict_positions(window, npp, types)
     assert pos.shape == (_P, _DIM)
     assert aux.shape == (_P, _C)
+
+
+def _bind_with_kinematic(sim, seed=0):
+    """Bind a case whose row 2 is kinematic (type 1)."""
+    rng = np.random.default_rng(seed)
+    cells = torch.tensor([[0, 1, 2, 3], [1, 2, 3, 4]], dtype=torch.int64)
+    ref = torch.tensor(rng.random((_P, _DIM)), dtype=torch.float32)
+    types = torch.tensor([0, 0, 1, 0, 0], dtype=torch.int64)
+    gt = torch.tensor(rng.random((_T, _P, _DIM)), dtype=torch.float32).cumsum(0)
+    gt_aux = torch.tensor(rng.random((_T, _P, _C)), dtype=torch.float32)
+    sim.bind_case(cells, ref, types, gt, gt_aux=gt_aux)
+    return gt, gt_aux, types
+
+
+def test_self_fed_cache_clamps_kinematic_rows_to_gt():
+    """ADR-0060 amendment: kinematic rows of the fed-back state are GT —
+    the analog of the rollout's GT position override (their decoder output
+    is untargeted by the masked loss)."""
+    sim = _sim(aux_input=True)
+    gt, gt_aux, types = _bind_with_kinematic(sim)
+    sim.aux_feedback = "self"
+    npp = torch.tensor([_P], dtype=torch.int64)
+    window = gt[:_F].permute(1, 0, 2).contiguous()
+    with torch.no_grad():
+        # predicting frame _F: kinematic rows must be overwritten with GT
+        # position per the rollout contract before re-feeding
+        p1, a1 = sim.predict_positions(window, npp, types)
+    cached = sim._aux_state
+    kin = types == 1
+    torch.testing.assert_close(cached[kin], gt_aux[_F][kin])
+    torch.testing.assert_close(cached[~kin], a1.detach()[~kin])
+
+
+def test_counter_overrun_fails_loud_with_reset_guidance():
+    """ADR-0060: parity with the position tripwire on kinematic-free cases."""
+    sim = _sim(aux_input=True)
+    gt, _, types = _bind(sim)  # kinematic-free
+    sim.aux_feedback = "oracle"
+    npp = torch.tensor([_P], dtype=torch.int64)
+    with torch.no_grad():
+        for t in range(_F, _T):
+            window = gt[t - _F : t].permute(1, 0, 2).contiguous()
+            sim.predict_positions(window, npp, types)
+        # a further pass WITHOUT reset_rollout(): the counter cannot know
+        # the true frame, so (like the position tripwire, which only fires
+        # on kinematic rows) the first stale read passes — but the counter
+        # then overruns the trajectory and must fail LOUDLY with guidance.
+        window = gt[:_F].permute(1, 0, 2).contiguous()
+        sim.predict_positions(window, npp, types)  # stale but in-bounds
+        with pytest.raises(RuntimeError, match="reset_rollout"):
+            sim.predict_positions(window, npp, types)
+
+
+def test_off_knob_output_equality_with_and_without_gt_aux():
+    """aux_input=False output is IDENTICAL whether gt_aux is bound or not."""
+    outs = []
+    for with_aux in (True, False):
+        sim = _sim(aux_input=False)  # same torch seed inside _sim
+        gt, _, types = _bind(sim, with_aux=with_aux)
+        npp = torch.tensor([_P], dtype=torch.int64)
+        window = gt[:_F].permute(1, 0, 2).contiguous()
+        with torch.no_grad():
+            outs.append(sim.predict_positions(window, npp, types))
+    torch.testing.assert_close(outs[0][0], outs[1][0])
+    torch.testing.assert_close(outs[0][1], outs[1][1])
