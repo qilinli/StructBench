@@ -257,9 +257,9 @@ class TransolverSimulator(CaseBoundSimulator):
     def flow_map(self) -> bool:
         """Whether this simulator uses the ADR-0062 anchored-flow-map mode.
 
-        Read by :mod:`structbench.eval` and :mod:`structbench.cli.train` to
-        route to the re-anchoring rollout (self-/oracle-anchored per
-        interval) instead of the plain TC independent-query loop.
+        Introspection parity with :attr:`time_conditioned`; the routing
+        decision itself is made from the run config (``cfg.flow_map``) in
+        :mod:`structbench.cli.train`, before the simulator is built.
         """
         return self._flow_map
 
@@ -424,12 +424,17 @@ class TransolverSimulator(CaseBoundSimulator):
                 "set_anchor() received no anchor_t_norm"
             )
         anchor_aux = aux.detach()
-        if (
-            self._has_kinematic
-            and self._gt_aux is not None
-            and self._kin_mask is not None
-            and frame < self._gt_aux.shape[0]
-        ):
+        if self._has_kinematic and self._kin_mask is not None:
+            # The clamp is REQUIRED, not best-effort: kinematic rows carry no
+            # aux training signal, so silently anchoring on a predicted value
+            # there would corrupt every query in the segment with no error.
+            if self._gt_aux is None or frame >= self._gt_aux.shape[0]:
+                raise RuntimeError(
+                    "set_anchor() cannot clamp kinematic aux rows: bind_case()"
+                    f" supplied no gt_aux covering frame {frame} (the "
+                    "ADR-0060 house clamp is mandatory under flow_map; "
+                    "ADR-0062)"
+                )
             anchor_aux = anchor_aux.clone()
             anchor_aux[self._kin_mask] = self._gt_aux[frame][self._kin_mask]
         self._anchor_disp = (positions - reference_coords).detach()

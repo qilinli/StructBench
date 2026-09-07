@@ -1323,6 +1323,36 @@ def _train_mgn(
     return best_ckpt
 
 
+#: ADR-0062: the per-interval flow-map field metrics, each recorded per case
+#: under ``rollout_m{m}_*`` / ``rollout_oracle_m{m}_*`` AND aggregated into
+#: the split means. One vocabulary, two consumers — keep them in lockstep by
+#: construction (each suffix maps to ``RolloutResult.mean_<suffix>``).
+_FM_INTERVAL_METRICS = (
+    "position_rmse",
+    "aux_rmse",
+    "rel_l2_displacement",
+    "rel_l2_aux",
+)
+
+
+def _fm_intervals_and_canonical(model_cfg: Any) -> tuple[tuple[int, ...], int]:
+    """Resolve the ADR-0062 interval sweep and canonical interval (0 = first).
+
+    The SINGLE resolution site for trainer and evaluator: the canonical
+    interval selects both the in-training validation rollout and the eval
+    pass that writes the standard ``rollout_*`` keys/artifacts/QoIs — a
+    drift between the two would make checkpoint selection optimize a
+    different rollout than the one the registry-facing artifacts record.
+    """
+    intervals = tuple(
+        int(v) for v in (getattr(model_cfg, "flow_map_eval_intervals", ()) or ())
+    )
+    canonical = int(getattr(model_cfg, "flow_map_canonical_interval", 0) or 0) or (
+        intervals[0] if intervals else 0
+    )
+    return intervals, canonical
+
+
 def _tc_time_ref_frames(
     scored_frames: int | None, train_frames: int, traj_len: int
 ) -> int:
@@ -2098,8 +2128,7 @@ def _train_transolver_fm(
     aux_noise = expand_aux_knob(
         cfg.aux_input_noise_std, int(train_trajs[0].aux.shape[-1])
     )
-    intervals = tuple(cfg.flow_map_eval_intervals)
-    canonical = cfg.flow_map_canonical_interval or intervals[0]
+    intervals, canonical = _fm_intervals_and_canonical(cfg)
 
     (out_dir / "config.json").write_text(
         json.dumps(
@@ -3391,12 +3420,13 @@ def evaluate(
     # per interval, in self- and oracle-anchored modes; the canonical
     # interval's self-anchored pass writes the standard keys/artifacts/QoIs.
     fm = family == "transolver" and bool(getattr(model_cfg, "flow_map", False))
-    fm_intervals = tuple(
-        int(v) for v in (getattr(model_cfg, "flow_map_eval_intervals", ()) or ())
-    )
-    fm_canonical = int(getattr(model_cfg, "flow_map_canonical_interval", 0) or 0) or (
-        fm_intervals[0] if fm_intervals else 0
-    )
+    fm_intervals, fm_canonical = _fm_intervals_and_canonical(model_cfg)
+    if fm and not fm_intervals:
+        raise ValueError(
+            "flow_map=true run record carries no flow_map_eval_intervals "
+            "(ADR-0062); the record is corrupt or was built without "
+            "load-time validation"
+        )
 
     # Explicit-checkpoint sweeps must not clobber the selected checkpoint's
     # canonical artifacts: suffix the metrics file and skip the rollout .npz.
@@ -3460,9 +3490,15 @@ def evaluate(
                 # recorded in BOTH modes — the AR oracle passes never had it
                 # and the fleet prereg reads s_xy/peeq per interval.
                 assert isinstance(simulator, TransolverSimulator)
+                # Zero re-anchor events fire once the interval reaches the
+                # case horizon (the re-anchor condition needs f < n_frames-1),
+                # so self- and oracle-anchored rollouts coincide: run the
+                # self pass once and record it under BOTH prefixes.
+                horizon_case = len(trajectory.time) - model_cfg.input_frames
                 result_fm: RolloutResult | None = None
                 for m in fm_intervals:
-                    for mode in ("self", "oracle"):
+                    single_anchor = m >= horizon_case
+                    for mode in ("self",) if single_anchor else ("self", "oracle"):
                         canonical_pass = mode == "self" and m == fm_canonical
                         r = flow_map_rollout(
                             simulator,
@@ -3477,28 +3513,35 @@ def evaluate(
                             scored_frames=spec.scored_frames,
                             qoi_aux_channel=qoi_aux_channel,
                         )
-                        prefix = (
+                        prefixes = [
                             f"rollout_m{m}"
                             if mode == "self"
                             else f"rollout_oracle_m{m}"
-                        )
-                        fm_extra[f"{prefix}_position_rmse"] = r.mean_position_rmse
-                        fm_extra[f"{prefix}_aux_rmse"] = r.mean_aux_rmse
-                        fm_extra[f"{prefix}_rel_l2_displacement"] = (
-                            r.mean_rel_l2_displacement
-                        )
-                        fm_extra[f"{prefix}_rel_l2_aux"] = r.mean_rel_l2_aux
-                        if r.mean_rel_l2_aux_channels is not None:
-                            fm_extra[f"{prefix}_rel_l2_aux_channels"] = dict(
-                                zip(
-                                    run_aux_labels,
-                                    r.mean_rel_l2_aux_channels,
-                                    strict=True,
+                        ]
+                        if single_anchor:
+                            prefixes.append(f"rollout_oracle_m{m}")
+                        for prefix in prefixes:
+                            for metric in _FM_INTERVAL_METRICS:
+                                fm_extra[f"{prefix}_{metric}"] = getattr(
+                                    r, f"mean_{metric}"
                                 )
-                            )
+                            if r.mean_rel_l2_aux_channels is not None:
+                                fm_extra[f"{prefix}_rel_l2_aux_channels"] = dict(
+                                    zip(
+                                        run_aux_labels,
+                                        r.mean_rel_l2_aux_channels,
+                                        strict=True,
+                                    )
+                                )
                         if canonical_pass:
                             result_fm = r
-                assert result_fm is not None  # fm_canonical is a member
+                if result_fm is None:
+                    raise RuntimeError(
+                        f"flow-map canonical interval {fm_canonical} produced "
+                        f"no self-anchored pass over intervals {fm_intervals} "
+                        "— the record's flow_map_canonical_interval is not a "
+                        "member (ADR-0062 load-time validation bypassed?)"
+                    )
                 result = result_fm
             else:
                 result = time_conditioned_rollout(
@@ -3766,12 +3809,7 @@ def evaluate(
                     f"{prefix}_{metric}": _mean_over_cases(f"{prefix}_{metric}")
                     for m in fm_intervals
                     for prefix in (f"rollout_m{m}", f"rollout_oracle_m{m}")
-                    for metric in (
-                        "position_rmse",
-                        "aux_rmse",
-                        "rel_l2_displacement",
-                        "rel_l2_aux",
-                    )
+                    for metric in _FM_INTERVAL_METRICS
                 }
             ),
             "rollout_position_rmse_full": _mean_over_cases(

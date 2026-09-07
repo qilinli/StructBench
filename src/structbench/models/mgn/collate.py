@@ -88,7 +88,10 @@ def collate_mesh_samples(
     ----------
     batch:
         List of sample dicts as returned by
-        :meth:`~structbench.datasets.particle.WindowDataset.__getitem__`;
+        :meth:`~structbench.datasets.particle.WindowDataset.__getitem__` or
+        :meth:`~structbench.datasets.particle.FlowMapPairDataset.__getitem__`
+        (ADR-0062 — whose ``position_seq``/``input_aux`` carry anchor-pair
+        semantics; see :func:`~structbench.datasets.particle.collate_samples`);
         each must carry a ``"traj_idx"`` key.
     statics:
         Per-trajectory static mesh data, indexed by each sample's

@@ -227,13 +227,16 @@ def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:
     Returns
     -------
     dict
-        ``position_seq``: Tensor ``(sum_P, input_frames, dim)``, mm.
+        ``position_seq``: Tensor ``(sum_P, input_frames, dim)``, mm — or,
+        for :class:`FlowMapPairDataset` samples (ADR-0062), the
+        ``(sum_P, 2, dim)`` anchor pair (frames ``t0-1``, ``t0``).
         ``particle_type``: LongTensor ``(sum_P,)``.
         ``next_position``: Tensor ``(sum_P, dim)``, mm.
         ``next_aux``: Tensor ``(sum_P, C)``; auxiliary target channels
         (ADR-0059), per-channel benchmark-dependent units.
         ``input_aux``: Tensor ``(sum_P, C)``; the aux state at each sample's
-        last input frame (ADR-0060).
+        last input frame (ADR-0060) — or, for flow-map samples, at the
+        anchor frame ``t0`` (ADR-0062).
         ``n_particles_per_example``: LongTensor ``(B,)`` — particle count per
         example.
     """

@@ -7,8 +7,8 @@ import torch
 from structbench.datasets.canonical import CaseTrajectory
 from structbench.eval.metrics import QoiInputs, final_length, mushroom_width
 from structbench.eval.rollout import (
-    flow_map_rollout,
     RolloutResult,
+    flow_map_rollout,
     one_step_aux_rmse,
     one_step_position_rmse,
     rollout,

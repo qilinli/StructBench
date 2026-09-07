@@ -246,7 +246,11 @@ The fleet itself is launched under a separate binding pre-registration
   narrowed to `flow_map = false`, which requires threading `flow_map`
   into the constructor), `eval/rollout.py` (re-anchoring rollout with the
   two modes), `cli/train.py` (flow-map training loop; self-anchored val
-  at the canonical interval; evaluate's per-interval recording),
+  at the canonical interval; evaluate's per-interval recording; the
+  record read-back list→tuple normalization in
+  `_model_config_from_record` also covers the pre-existing ADR-0059/0061
+  tuple-typed knobs — a uniformity fix on reconstructed configs with no
+  runtime effect),
   `decisions/0060-aux-input-channels.md` (a dated narrowing note
   appended, and its index row marked "narrowed by 0062"), every
   transolver config TOML (strict loader: five inert new keys across the

@@ -120,10 +120,13 @@ def _pair_traj(T: int = 8, P: int = 4, dim: int = 2, C: int = 2) -> CaseTrajecto
 def test_flowmap_pairs_full_span():
     from structbench.datasets import FlowMapPairDataset
 
-    tr = _pair_traj()  # T=8, input_frames=2 -> t0 in [1, 6], t in [t0+1, 7]
+    # T=8, input_frames=2 -> t0 in [1, 6], t in [t0+1, 7]
+    tr = _pair_traj()
     ds = FlowMapPairDataset([tr], input_frames=2, max_dt=0)
     assert len(ds) == 6 + 5 + 4 + 3 + 2 + 1
-    dts = [int(ds[i]["target_frame"]) - int(ds[i]["anchor_frame"]) for i in range(len(ds))]
+    dts = [
+        int(ds[i]["target_frame"]) - int(ds[i]["anchor_frame"]) for i in range(len(ds))
+    ]
     # The uncapped index reaches the full horizon offset (T-1) - t0_min = 6.
     assert max(dts) == 6
     assert min(dts) == 1
@@ -136,7 +139,13 @@ def test_flowmap_pairs_max_dt_cap():
     ds = FlowMapPairDataset([tr], input_frames=2, max_dt=3)
     # per t0 = 1..6: min(t0+3, 7) - t0 = 3, 3, 3, 3, 2, 1
     assert len(ds) == 3 + 3 + 3 + 3 + 2 + 1
-    assert max(int(ds[i]["target_frame"]) - int(ds[i]["anchor_frame"]) for i in range(len(ds))) == 3
+    assert (
+        max(
+            int(ds[i]["target_frame"]) - int(ds[i]["anchor_frame"])
+            for i in range(len(ds))
+        )
+        == 3
+    )
     with pytest.raises(ValueError, match="max_dt"):
         FlowMapPairDataset([tr], input_frames=2, max_dt=-1)
 
@@ -152,7 +161,8 @@ def test_flowmap_sample_contract():
     # position_seq is the ANCHOR PAIR (t0-1, t0), particle-major.
     assert s["position_seq"].shape == (4, 2, 2)
     np.testing.assert_array_equal(
-        s["position_seq"].numpy(), np.transpose(tr.positions[t0 - 1 : t0 + 1], (1, 0, 2))
+        s["position_seq"].numpy(),
+        np.transpose(tr.positions[t0 - 1 : t0 + 1], (1, 0, 2)),
     )
     # input_aux carries the ANCHOR aux (ADR-0062 reuse of the ADR-0060 key).
     np.testing.assert_array_equal(s["input_aux"].numpy(), tr.aux[t0])

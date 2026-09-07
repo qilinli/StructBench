@@ -1049,7 +1049,7 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 "flow_map_eval_intervals (the re-anchoring m sweep; ADR-0062)"
             )
         if any(m < 1 for m in intervals) or any(
-            b <= a for a, b in zip(intervals, intervals[1:])
+            b <= a for a, b in zip(intervals, intervals[1:], strict=False)
         ):
             raise ConfigError(
                 "[model] flow_map_eval_intervals must be positive and "

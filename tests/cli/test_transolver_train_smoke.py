@@ -469,12 +469,14 @@ def test_transolver_flow_map_train_and_evaluate_smoke(tmp_path, monkeypatch):
         aux_input=True,
         aux_input_noise_std=0.15,
         flow_map=True,
-        flow_map_eval_intervals=(1, 3),
+        # 10 >= the case horizon (T=8 - input_frames=2 = 6): exercises the
+        # single-anchor path where self- and oracle-anchored coincide.
+        flow_map_eval_intervals=(1, 3, 10),
         flow_map_canonical_interval=3,
     )
     record = json.loads((out / "config.json").read_text(encoding="utf-8"))
     assert record["model"]["flow_map"] is True
-    assert record["model"]["flow_map_eval_intervals"] == [1, 3]
+    assert record["model"]["flow_map_eval_intervals"] == [1, 3, 10]
     ckpts = list(out.glob("model-*.pt"))
     assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
 
@@ -484,11 +486,16 @@ def test_transolver_flow_map_train_and_evaluate_smoke(tmp_path, monkeypatch):
     # TC convention: one-step undefined.
     assert per_case["one_step_position_rmse"] is None
     # Per-interval self- and oracle-anchored metrics, per case AND split mean.
-    for m in (1, 3):
+    for m in (1, 3, 10):
         for prefix in (f"rollout_m{m}", f"rollout_oracle_m{m}"):
             for metric in ("position_rmse", "aux_rmse", "rel_l2_aux"):
                 assert np.isfinite(per_case[f"{prefix}_{metric}"])
                 assert np.isfinite(metrics["mean"][f"{prefix}_{metric}"])
+    # m=10 >= horizon: zero feedback events, so the oracle prefix is a copy
+    # of the single self-anchored pass (evaluate runs it once).
+    assert (
+        per_case["rollout_m10_rel_l2_aux"] == per_case["rollout_oracle_m10_rel_l2_aux"]
+    )
     # The canonical interval's SELF-ANCHORED pass writes the standard keys.
     assert (
         per_case["rollout_rel_l2_displacement"]

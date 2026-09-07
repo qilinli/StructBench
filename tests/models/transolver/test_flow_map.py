@@ -143,7 +143,9 @@ def test_query_ignores_future_free_rows():
     perturbed = positions.clone()
     perturbed[2:, :2] += 7.0
     ptype = torch.tensor([0, 0, 2], dtype=torch.long)
-    sim.bind_case(torch.zeros((1, 3), dtype=torch.long), reference, ptype, perturbed, gt_aux=aux)
+    sim.bind_case(
+        torch.zeros((1, 3), dtype=torch.long), reference, ptype, perturbed, gt_aux=aux
+    )
     sim.set_anchor(1, positions[0], positions[1], aux[1], anchor_t_norm=0.2)
     with torch.no_grad():
         pos_b, aux_b = sim.predict_state_at(4, 0.5)
@@ -190,3 +192,22 @@ def test_markov_variant_trains_and_queries_without_time_inputs():
         pos, out_aux = sim.predict_state_at(3, 0.4)
     assert pos.shape == (P, DIM)
     assert out_aux.shape == (P, C)
+
+
+def test_set_anchor_requires_gt_aux_for_kinematic_clamp():
+    """The ADR-0060 house clamp is mandatory: with kinematic rows bound but
+    no gt_aux, set_anchor must fail loud, not silently anchor on untargeted
+    decoder output."""
+    sim = _sim()
+    g = torch.Generator().manual_seed(0)
+    positions = torch.rand((T, P, DIM), generator=g)
+    aux = torch.rand((T, P, C), generator=g)
+    ptype = torch.tensor([0, 0, 2], dtype=torch.long)
+    sim.bind_case(
+        torch.zeros((1, 3), dtype=torch.long),
+        torch.rand((P, DIM), generator=g),
+        ptype,
+        positions,
+    )
+    with pytest.raises(RuntimeError, match="gt_aux"):
+        sim.set_anchor(1, positions[0], positions[1], aux[1], anchor_t_norm=0.2)
