@@ -47,6 +47,11 @@ slice_reparam = false            # ADR-0057 (off = byte-identical)
 aux_input = false            # ADR-0060 state-feedback input (off = reference)
 aux_input_noise_std = 0.0     # ADR-0061 stability knob (0 = off)
 aux_input_pushforward = false # ADR-0061 stability knob (off = reference)
+flow_map = false              # ADR-0062 anchored flow map (off = reference)
+flow_map_anchor_time = true   # ADR-0062 anchor-time feature (inert when flow_map = false)
+flow_map_max_dt = 0           # ADR-0062 training dt cap (0 = no cap)
+flow_map_eval_intervals = []  # ADR-0062 re-anchoring m sweep (flow-map only)
+flow_map_canonical_interval = 0  # ADR-0062 (0 = first listed interval)
 
 [train]
 batch_size = 2

@@ -106,6 +106,8 @@ class TransolverSimulator(CaseBoundSimulator):
         slice_reparam: bool = False,
         n_aux: int = 1,
         aux_input: bool = False,
+        flow_map: bool = False,
+        flow_map_anchor_time: bool = True,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -163,6 +165,12 @@ class TransolverSimulator(CaseBoundSimulator):
             # at t (+ scalar impact velocity). No current-position or velocity
             # window channels: the geometry is static and time enters additively.
             node_in = node_type_size + 2 * dim + (1 if impact_velocity_feature else 0)
+            if flow_map:
+                # ADR-0062 anchor block: displacement-from-rest + FD velocity
+                # at the anchor frame (2*dim), the anchor aux state (n_aux),
+                # and optionally the anchor's normalized time (1). The time
+                # embedding then carries Δt from the anchor, not absolute t.
+                node_in += 2 * dim + n_aux + (1 if flow_map_anchor_time else 0)
         else:
             node_in = (
                 node_type_size
@@ -175,12 +183,31 @@ class TransolverSimulator(CaseBoundSimulator):
 
         self._n_aux = n_aux
         # ADR-0060 state-feedback surface (guarded at config load too;
-        # defense in depth for programmatic construction).
-        if aux_input and time_conditioned:
-            raise ValueError("aux_input is incompatible with time_conditioned")
+        # defense in depth for programmatic construction). ADR-0062 narrows
+        # the TC rejection: the anchored flow map consumes the anchor state
+        # through the TC formulation, so the combination is valid exactly
+        # when flow_map is on.
+        if aux_input and time_conditioned and not flow_map:
+            raise ValueError(
+                "aux_input is incompatible with time_conditioned "
+                "unless flow_map=True (ADR-0060/ADR-0062)"
+            )
         if aux_input and frames_per_call != 1:
             raise ValueError("aux_input requires frames_per_call=1 (ADR-0060)")
+        if flow_map and not time_conditioned:
+            raise ValueError("flow_map requires time_conditioned=True (ADR-0062)")
+        if flow_map and not aux_input:
+            raise ValueError("flow_map requires aux_input=True (ADR-0062)")
         self._aux_input = aux_input
+        self._flow_map = flow_map
+        self._flow_map_anchor_time = flow_map_anchor_time
+        # ADR-0062 anchor cache (eval path): set via set_anchor(), cleared on
+        # bind_case()/reset_rollout(). The training path passes anchor parts
+        # per batch instead and never touches the cache.
+        self._anchor_disp: Tensor | None = None
+        self._anchor_vel: Tensor | None = None
+        self._anchor_aux: Tensor | None = None
+        self._anchor_t_norm: float | None = None
         #: rollout state-input mode: "self" feeds back the model's own
         #: predicted aux; "oracle" reads ground truth each step (ADR-0060
         #: accumulation-isolation mode). The evaluator switches this.
@@ -225,6 +252,16 @@ class TransolverSimulator(CaseBoundSimulator):
         rollout, no one-step teacher forcing) instead of :meth:`predict_positions`.
         """
         return self._time_conditioned
+
+    @property
+    def flow_map(self) -> bool:
+        """Whether this simulator uses the ADR-0062 anchored-flow-map mode.
+
+        Introspection parity with :attr:`time_conditioned`; the routing
+        decision itself is made from the run config (``cfg.flow_map``) in
+        :mod:`structbench.cli.train`, before the simulator is built.
+        """
+        return self._flow_map
 
     def _features(
         self,
@@ -311,16 +348,101 @@ class TransolverSimulator(CaseBoundSimulator):
         return self._target_normalizer.inverse(pred_norm)[..., self._dim :]
 
     def reset_rollout(self) -> None:
-        """Reset the step pointer AND the ADR-0060 state-feedback cache."""
+        """Reset the step pointer, the ADR-0060 state cache, and the anchor."""
         super().reset_rollout()
         self._aux_state = None
         self._aux_t = None
+        self._clear_anchor()
 
     def _on_bind_case(self, cells: Tensor) -> None:
-        """Clear the ADR-0060 state-feedback cache for the new case."""
+        """Clear the ADR-0060 state cache and ADR-0062 anchor for the new case."""
         del cells  # no static connectivity to derive (operator family)
         self._aux_state = None
         self._aux_t = None
+        self._clear_anchor()
+
+    def _clear_anchor(self) -> None:
+        """Drop the ADR-0062 anchor cache (stale-anchor tripwire support)."""
+        self._anchor_disp = None
+        self._anchor_vel = None
+        self._anchor_aux = None
+        self._anchor_t_norm = None
+
+    def set_anchor(
+        self,
+        frame: int,
+        prev_positions: Tensor,
+        positions: Tensor,
+        aux: Tensor,
+        anchor_t_norm: float | None = None,
+    ) -> None:
+        """Bind the ADR-0062 flow-map anchor for subsequent queries.
+
+        The anchor is the scheme's only inter-segment interface: subsequent
+        :meth:`predict_state_at` calls condition on the state cached here (and
+        on the Δt the caller passes as ``t_norm``). The re-anchoring rollout
+        calls this at every segment boundary — with the model's own
+        predictions (self-anchored) or ground truth (oracle-anchored).
+
+        Parameters
+        ----------
+        frame:
+            The anchor frame index ``t0`` (used only for the kinematic-row
+            clamp below; the time feature comes from ``anchor_t_norm``).
+        prev_positions:
+            ``(P, dim)`` world positions at ``t0 - 1`` — the FD-velocity
+            partner frame (the AR families' ``time_diff`` convention,
+            un-divided by dt; ADR-0062 anchor contract).
+        positions:
+            ``(P, dim)`` world positions at ``t0``.
+        aux:
+            ``(P, C)`` aux state at ``t0``. KINEMATIC rows are overwritten
+            with the bound GT aux at ``t0`` (the ADR-0060 house clamp: those
+            rows receive no aux training signal, so a predicted value there
+            is untargeted decoder output, not state).
+        anchor_t_norm:
+            The anchor's normalized time ``t0 / (time_ref - 1)``; required
+            exactly when built with ``flow_map_anchor_time=True``.
+
+        Raises
+        ------
+        RuntimeError
+            If called before :meth:`~.CaseBoundSimulator.bind_case`, or on a
+            non-flow-map simulator.
+        """
+        if not self._flow_map:
+            raise RuntimeError("set_anchor() requires flow_map=True (ADR-0062)")
+        reference_coords = self._reference_coords
+        if reference_coords is None:
+            raise RuntimeError(
+                "set_anchor() called before bind_case(); bind_case() must be "
+                "called with the case being evaluated first"
+            )
+        if self._flow_map_anchor_time and anchor_t_norm is None:
+            raise ValueError(
+                "simulator was built with flow_map_anchor_time=True but "
+                "set_anchor() received no anchor_t_norm"
+            )
+        anchor_aux = aux.detach()
+        if self._has_kinematic and self._kin_mask is not None:
+            # The clamp is REQUIRED, not best-effort: kinematic rows carry no
+            # aux training signal, so silently anchoring on a predicted value
+            # there would corrupt every query in the segment with no error.
+            if self._gt_aux is None or frame >= self._gt_aux.shape[0]:
+                raise RuntimeError(
+                    "set_anchor() cannot clamp kinematic aux rows: bind_case()"
+                    f" supplied no gt_aux covering frame {frame} (the "
+                    "ADR-0060 house clamp is mandatory under flow_map; "
+                    "ADR-0062)"
+                )
+            anchor_aux = anchor_aux.clone()
+            anchor_aux[self._kin_mask] = self._gt_aux[frame][self._kin_mask]
+        self._anchor_disp = (positions - reference_coords).detach()
+        self._anchor_vel = (positions - prev_positions).detach()
+        self._anchor_aux = anchor_aux
+        self._anchor_t_norm = (
+            float(anchor_t_norm) if anchor_t_norm is not None else None
+        )
 
     def _loading_feature(self, ref: Tensor) -> Tensor | None:
         """Broadcast the bound case's scalar loading parameter to ``(P, 1)``.
@@ -717,19 +839,24 @@ class TransolverSimulator(CaseBoundSimulator):
         reference_coords: Tensor,
         kinematic_bc: Tensor,
         loading_feature: Tensor | None,
+        anchor_disp: Tensor | None = None,
+        anchor_vel: Tensor | None = None,
+        anchor_aux: Tensor | None = None,
+        anchor_time_feature: Tensor | None = None,
     ) -> Tensor:
         """Build the raw (pre-normalization) time-conditioned node features.
-        input_aux:
-            ``(P, C)`` ground-truth aux state at the last input frame
-            (ADR-0060 teacher forcing; the ``input_aux`` sample key);
-            required exactly when built with ``aux_input=True``. CLEAN GT —
-            no noise is injected on state inputs (ADR-0060).
 
-        ``cat([one_hot, reference_coords, kinematic_bc, loading_feature?])``
-        (ADR-0054): the static geometry (node type + rest coords), the
-        prescribed boundary displacement at the queried time, and optionally
-        the case's scalar impact velocity. No current-position or velocity
-        channels — time enters additively inside the network, not here.
+        ``cat([one_hot, reference_coords, kinematic_bc, loading_feature?,
+        anchor_disp?, anchor_vel?, anchor_aux?, anchor_time_feature?])``
+        (ADR-0054 / ADR-0062): the static geometry (node type + rest coords),
+        the prescribed boundary displacement at the queried time, optionally
+        the case's scalar impact velocity, and — under ``flow_map`` — the
+        ADR-0062 anchor block (displacement-from-rest ``(P, dim)``, FD
+        velocity ``(P, dim)``, and aux state ``(P, C)`` at the anchor frame,
+        plus the anchor's normalized time as a ``(P, 1)`` broadcast scalar
+        when ``flow_map_anchor_time`` is on). No current-position or velocity
+        channels of the QUERY frame — time (Δt from the anchor, under
+        ``flow_map``) enters additively inside the network, not here.
         """
         parts = [one_hot, reference_coords, kinematic_bc]
         if self._impact_velocity_feature:
@@ -739,8 +866,24 @@ class TransolverSimulator(CaseBoundSimulator):
                     "no loading_feature (case impact-velocity scalar) was supplied"
                 )
             parts.append(loading_feature)
-        # NB: no aux_state part here — aux_input is rejected with the TC
-        # scheme (ADR-0060), so the TC feature builder never consumes state.
+        if self._flow_map:
+            if anchor_disp is None or anchor_vel is None or anchor_aux is None:
+                raise ValueError(
+                    "simulator was built with flow_map=True but the anchor "
+                    "block (anchor_disp/anchor_vel/anchor_aux) was not "
+                    "supplied (ADR-0062)"
+                )
+            parts.extend([anchor_disp, anchor_vel, anchor_aux])
+            if self._flow_map_anchor_time:
+                if anchor_time_feature is None:
+                    raise ValueError(
+                        "simulator was built with flow_map_anchor_time=True "
+                        "but no anchor_time_feature was supplied (ADR-0062)"
+                    )
+                parts.append(anchor_time_feature)
+        # NB: no last-input-frame aux_state part here — plain-TC aux_input is
+        # rejected (ADR-0060); the flow map consumes state via the anchor
+        # block above (ADR-0062).
         return torch.cat(parts, dim=-1)
 
     def forward_train_tc(
@@ -754,6 +897,10 @@ class TransolverSimulator(CaseBoundSimulator):
         *,
         accumulate: bool,
         loading_feature: Tensor | None = None,
+        anchor_disp: Tensor | None = None,
+        anchor_vel: Tensor | None = None,
+        anchor_aux: Tensor | None = None,
+        anchor_time_feature: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
         """One time-conditioned training forward pass (ADR-0054).
 
@@ -779,12 +926,23 @@ class TransolverSimulator(CaseBoundSimulator):
             ``(B,)`` int64 per-example node counts (ragged-batch segments and
             the per-example time broadcast).
         t_norm:
-            ``(B,)`` per-example normalized query time ``t ∈ [0, 1]``.
+            ``(B,)`` per-example normalized query time ``t ∈ [0, 1]`` — or,
+            under ``flow_map`` (ADR-0062), the normalized OFFSET from the
+            anchor, ``Δt / (time_ref - 1)``.
         accumulate:
             Fold this call's features into the online node/target normalizers.
         loading_feature:
             ``(P, 1)`` scalar impact-velocity channel; required exactly when
             ``impact_velocity_feature`` is on.
+        anchor_disp, anchor_vel, anchor_aux:
+            ADR-0062 anchor block at each sample's anchor frame ``t0``
+            (``(P, dim)`` displacement-from-rest, ``(P, dim)`` FD velocity,
+            ``(P, C)`` aux state — the aux ADR-0061-noised by the caller
+            when the knob is on); required exactly when built with
+            ``flow_map=True``.
+        anchor_time_feature:
+            ``(P, 1)`` broadcast anchor time ``t0 / (time_ref - 1)``;
+            required exactly when built with ``flow_map_anchor_time=True``.
 
         Returns
         -------
@@ -804,7 +962,14 @@ class TransolverSimulator(CaseBoundSimulator):
         kinematic_bc = self._kinematic_bc(gt_position, reference_coords, kin_mask)
 
         node_feats_raw = self._features_tc(
-            one_hot, reference_coords, kinematic_bc, loading_feature
+            one_hot,
+            reference_coords,
+            kinematic_bc,
+            loading_feature,
+            anchor_disp=anchor_disp,
+            anchor_vel=anchor_vel,
+            anchor_aux=anchor_aux,
+            anchor_time_feature=anchor_time_feature,
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
 
@@ -833,7 +998,11 @@ class TransolverSimulator(CaseBoundSimulator):
             and the kinematic override).
         t_norm:
             Normalized query time for ``frame`` (``frame`` over the scored
-            horizon; ADR-0054), a Python float.
+            horizon; ADR-0054), a Python float. Under ``flow_map``
+            (ADR-0062) the caller instead passes the normalized OFFSET from
+            the current anchor, ``(frame - t0) / (time_ref - 1)``, and the
+            query additionally conditions on the anchor cached by
+            :meth:`set_anchor` (required — a missing anchor raises).
 
         Returns
         -------
@@ -865,8 +1034,31 @@ class TransolverSimulator(CaseBoundSimulator):
         kinematic_bc = self._kinematic_bc(gt_frame, reference_coords, kin_mask)
         loading_feature = self._loading_feature(reference_coords)
 
+        anchor_time_feature: Tensor | None = None
+        if self._flow_map:
+            if self._anchor_aux is None:
+                raise RuntimeError(
+                    "flow_map=True but no anchor is set: call set_anchor() "
+                    "before querying (the re-anchoring rollout does this; "
+                    "ADR-0062)"
+                )
+            if self._flow_map_anchor_time:
+                assert self._anchor_t_norm is not None  # set_anchor enforces
+                anchor_time_feature = torch.full(
+                    (reference_coords.shape[0], 1),
+                    self._anchor_t_norm,
+                    dtype=reference_coords.dtype,
+                    device=reference_coords.device,
+                )
         node_feats_raw = self._features_tc(
-            node_type_onehot, reference_coords, kinematic_bc, loading_feature
+            node_type_onehot,
+            reference_coords,
+            kinematic_bc,
+            loading_feature,
+            anchor_disp=self._anchor_disp,
+            anchor_vel=self._anchor_vel,
+            anchor_aux=self._anchor_aux,
+            anchor_time_feature=anchor_time_feature,
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=False)
 

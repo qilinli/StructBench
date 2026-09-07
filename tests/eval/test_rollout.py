@@ -8,6 +8,7 @@ from structbench.datasets.canonical import CaseTrajectory
 from structbench.eval.metrics import QoiInputs, final_length, mushroom_width
 from structbench.eval.rollout import (
     RolloutResult,
+    flow_map_rollout,
     one_step_aux_rmse,
     one_step_position_rmse,
     rollout,
@@ -402,3 +403,85 @@ def test_kframe_one_step_scores_first_bundle_frame():
     rmse = one_step_position_rmse(_KFrameConstVelSim(4), traj, input_frames=2)
     assert rmse.shape == (10,)
     np.testing.assert_allclose(rmse, 0.0, atol=1e-5)
+
+
+# --- ADR-0062: flow_map_rollout --------------------------------------------
+
+
+class _AnchorRecorder:
+    """Stub flow-map simulator: predicts GT (+ optional offset), records the
+    anchor/query schedule the rollout drives it with."""
+
+    def __init__(self, traj, offset: float = 0.0):
+        self._pos = torch.from_numpy(traj.positions)
+        self._offset = offset
+        self.anchors: list[tuple[int, torch.Tensor, float | None]] = []
+        self.queries: list[tuple[int, float]] = []
+
+    def set_anchor(self, frame, prev_positions, positions, aux, anchor_t_norm=None):
+        del prev_positions, aux
+        self.anchors.append((int(frame), positions.clone(), anchor_t_norm))
+
+    def predict_state_at(self, frame, t_norm):
+        self.queries.append((int(frame), round(float(t_norm), 6)))
+        pos = self._pos[frame] + self._offset
+        aux = torch.full((self._pos.shape[1], 1), self._offset)
+        return pos, aux
+
+
+def _fm_traj(T: int = 8, P: int = 3, dim: int = 2):
+    rng = np.random.default_rng(9)
+    return CaseTrajectory(
+        "fm",
+        rng.random((T, P, dim)).astype(np.float32),
+        np.zeros(P, dtype=np.int64),
+        rng.random((T, P, 1)).astype(np.float32),
+        np.arange(T, dtype=np.float64),
+    )
+
+
+def test_flow_map_rollout_schedule():
+    tr = _fm_traj()  # T=8; input_frames=2 -> seed anchor t0=1, queries f=2..7
+    sim = _AnchorRecorder(tr)
+    flow_map_rollout(sim, tr, input_frames=2, time_ref_frames=8, interval=2,
+                     anchor_mode="self")
+    # Re-anchor after the query at f = t0 + m, never at the final frame.
+    assert [a[0] for a in sim.anchors] == [1, 3, 5]
+    assert [a[2] for a in sim.anchors] == [1 / 7, 3 / 7, 5 / 7]
+    assert sim.queries == [
+        (2, round(1 / 7, 6)), (3, round(2 / 7, 6)),
+        (4, round(1 / 7, 6)), (5, round(2 / 7, 6)),
+        (6, round(1 / 7, 6)), (7, round(2 / 7, 6)),
+    ]
+
+
+def test_flow_map_rollout_anchor_source_by_mode():
+    tr = _fm_traj()
+    oracle = _AnchorRecorder(tr, offset=1.0)
+    flow_map_rollout(oracle, tr, 2, 8, 2, "oracle")
+    self_fed = _AnchorRecorder(tr, offset=1.0)
+    flow_map_rollout(self_fed, tr, 2, 8, 2, "self")
+    gt = torch.from_numpy(tr.positions)
+    for frame, pos, _t in oracle.anchors[1:]:
+        assert torch.allclose(pos, gt[frame])  # oracle anchors are GT
+    for frame, pos, _t in self_fed.anchors[1:]:
+        assert torch.allclose(pos, gt[frame] + 1.0)  # self anchors are predicted
+
+
+def test_flow_map_rollout_interval_beyond_horizon_is_single_anchor():
+    tr = _fm_traj()
+    a = _AnchorRecorder(tr, offset=0.5)
+    ra = flow_map_rollout(a, tr, 2, 8, 50, "self")
+    b = _AnchorRecorder(tr, offset=0.5)
+    rb = flow_map_rollout(b, tr, 2, 8, 50, "oracle")
+    # Zero feedback events: one (GT-seeded) anchor, identical results.
+    assert [x[0] for x in a.anchors] == [1] == [x[0] for x in b.anchors]
+    np.testing.assert_array_equal(ra.predicted_positions, rb.predicted_positions)
+
+
+def test_flow_map_rollout_rejects_bad_args():
+    tr = _fm_traj()
+    with pytest.raises(ValueError, match="interval"):
+        flow_map_rollout(_AnchorRecorder(tr), tr, 2, 8, 0, "self")
+    with pytest.raises(ValueError, match="anchor_mode"):
+        flow_map_rollout(_AnchorRecorder(tr), tr, 2, 8, 2, "hybrid")

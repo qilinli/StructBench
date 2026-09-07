@@ -76,6 +76,7 @@ def collate_mesh_samples(
     statics: Sequence[MeshStatic],
     loading_scalars: Sequence[float] | None = None,
     include_target_frame: bool = False,
+    include_anchor_frame: bool = False,
 ) -> dict:
     """Collate a batch of windowed samples into one mesh-batched graph.
 
@@ -87,7 +88,10 @@ def collate_mesh_samples(
     ----------
     batch:
         List of sample dicts as returned by
-        :meth:`~structbench.datasets.particle.WindowDataset.__getitem__`;
+        :meth:`~structbench.datasets.particle.WindowDataset.__getitem__` or
+        :meth:`~structbench.datasets.particle.FlowMapPairDataset.__getitem__`
+        (ADR-0062 — whose ``position_seq``/``input_aux`` carry anchor-pair
+        semantics; see :func:`~structbench.datasets.particle.collate_samples`);
         each must carry a ``"traj_idx"`` key.
     statics:
         Per-trajectory static mesh data, indexed by each sample's
@@ -158,5 +162,11 @@ def collate_mesh_samples(
         # to its own particle rows.
         out["target_frame"] = torch.tensor(
             [int(sample["target_frame"]) for sample in batch], dtype=torch.long
+        )
+    if include_anchor_frame:
+        # ADR-0062: one anchor-frame index per example (B,), for the flow-map
+        # path's Δt and anchor-time conditioning (per-EXAMPLE, as above).
+        out["anchor_frame"] = torch.tensor(
+            [int(sample["anchor_frame"]) for sample in batch], dtype=torch.long
         )
     return out

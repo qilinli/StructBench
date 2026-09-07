@@ -96,6 +96,11 @@ def _run_transolver_smoke(
     aux_input: bool = False,
     aux_input_noise_std: float = 0.0,
     aux_input_pushforward: bool = False,
+    flow_map: bool = False,
+    flow_map_anchor_time: bool = True,
+    flow_map_max_dt: int = 0,
+    flow_map_eval_intervals: tuple[int, ...] = (),
+    flow_map_canonical_interval: int = 0,
 ):
     """Shared spec/data/train setup for both smoke tests below.
 
@@ -134,6 +139,11 @@ def _run_transolver_smoke(
         aux_input=aux_input,
         aux_input_noise_std=aux_input_noise_std,
         aux_input_pushforward=aux_input_pushforward,
+        flow_map=flow_map,
+        flow_map_anchor_time=flow_map_anchor_time,
+        flow_map_max_dt=flow_map_max_dt,
+        flow_map_eval_intervals=flow_map_eval_intervals,
+        flow_map_canonical_interval=flow_map_canonical_interval,
         # time-conditioning is history-free / non-autoregressive: noise is inert
         noise_std=0.0 if time_conditioned else TransolverConfig().noise_std,
     )
@@ -444,3 +454,60 @@ def test_transolver_impact_velocity_feature_train_and_evaluate_smoke(
     per_case = metrics["cases"][ids["val"][0]]
     assert np.isfinite(per_case["one_step_position_rmse"])
     assert np.isfinite(per_case["rollout_position_rmse"])
+
+
+def test_transolver_flow_map_train_and_evaluate_smoke(tmp_path, monkeypatch):
+    """ADR-0062 end-to-end: _train_transolver_fm through validation (the
+    self-anchored canonical-interval rollout) + evaluate()'s per-interval
+    self/oracle recording, standard keys from the canonical pass, null
+    one-step, and NO ADR-0060 oracle keys."""
+    import structbench.cli.train as cli_train
+
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path,
+        time_conditioned=True,
+        aux_input=True,
+        aux_input_noise_std=0.15,
+        flow_map=True,
+        # 10 >= the case horizon (T=8 - input_frames=2 = 6): exercises the
+        # single-anchor path where self- and oracle-anchored coincide.
+        flow_map_eval_intervals=(1, 3, 10),
+        flow_map_canonical_interval=3,
+    )
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    assert record["model"]["flow_map"] is True
+    assert record["model"]["flow_map_eval_intervals"] == [1, 3, 10]
+    ckpts = list(out.glob("model-*.pt"))
+    assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    per_case = metrics["cases"][ids["val"][0]]
+    # TC convention: one-step undefined.
+    assert per_case["one_step_position_rmse"] is None
+    # Per-interval self- and oracle-anchored metrics, per case AND split mean.
+    for m in (1, 3, 10):
+        for prefix in (f"rollout_m{m}", f"rollout_oracle_m{m}"):
+            for metric in ("position_rmse", "aux_rmse", "rel_l2_aux"):
+                assert np.isfinite(per_case[f"{prefix}_{metric}"])
+                assert np.isfinite(metrics["mean"][f"{prefix}_{metric}"])
+    # m=10 >= horizon: zero feedback events, so the oracle prefix is a copy
+    # of the single self-anchored pass (evaluate runs it once).
+    assert (
+        per_case["rollout_m10_rel_l2_aux"] == per_case["rollout_oracle_m10_rel_l2_aux"]
+    )
+    # The canonical interval's SELF-ANCHORED pass writes the standard keys.
+    assert (
+        per_case["rollout_rel_l2_displacement"]
+        == per_case["rollout_m3_rel_l2_displacement"]
+    )
+    assert per_case["rollout_position_rmse"] == per_case["rollout_m3_position_rmse"]
+    # No ADR-0060 (AR-mode) oracle keys anywhere: the flow map's isolation
+    # instrument is the per-interval oracle-ANCHORED mode.
+    assert "rollout_oracle_position_rmse" not in per_case
+    assert "rollout_oracle_position_rmse" not in metrics["mean"]
+    # QoIs came from the canonical pass (finite, not NaN: the smoke benchmark's
+    # canonical aux selection carries the headline channel).
+    assert all(math.isfinite(v) for v in per_case["qoi_error"].values())
+    # Rollout artifacts written from the canonical pass.
+    assert (out / "rollouts" / f"val-{ids['val'][0]}.npz").exists()
