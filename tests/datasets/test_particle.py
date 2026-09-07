@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 from torch.utils.data import DataLoader
 
@@ -100,3 +101,60 @@ def test_window_dataset_k1_default_matches_pre_0051():
     explicit = WindowDataset([_traj("a", 5)], input_frames=3, target_frames=1)
     assert len(default) == len(explicit) == 3
     assert default[0]["next_position"].shape == (5, 2)  # (P, dim), not (P, 1, dim)
+
+
+# --- ADR-0062: FlowMapPairDataset -----------------------------------------
+
+
+def _pair_traj(T: int = 8, P: int = 4, dim: int = 2, C: int = 2) -> CaseTrajectory:
+    rng = np.random.default_rng(3)
+    return CaseTrajectory(
+        case_id="fm",
+        positions=rng.random((T, P, dim)).astype(np.float32),
+        particle_type=np.zeros(P, dtype=np.int64),
+        aux=rng.random((T, P, C)).astype(np.float32),
+        time=np.arange(T, dtype=np.float64),
+    )
+
+
+def test_flowmap_pairs_full_span():
+    from structbench.datasets import FlowMapPairDataset
+
+    tr = _pair_traj()  # T=8, input_frames=2 -> t0 in [1, 6], t in [t0+1, 7]
+    ds = FlowMapPairDataset([tr], input_frames=2, max_dt=0)
+    assert len(ds) == 6 + 5 + 4 + 3 + 2 + 1
+    dts = [int(ds[i]["target_frame"]) - int(ds[i]["anchor_frame"]) for i in range(len(ds))]
+    # The uncapped index reaches the full horizon offset (T-1) - t0_min = 6.
+    assert max(dts) == 6
+    assert min(dts) == 1
+
+
+def test_flowmap_pairs_max_dt_cap():
+    from structbench.datasets import FlowMapPairDataset
+
+    tr = _pair_traj()
+    ds = FlowMapPairDataset([tr], input_frames=2, max_dt=3)
+    # per t0 = 1..6: min(t0+3, 7) - t0 = 3, 3, 3, 3, 2, 1
+    assert len(ds) == 3 + 3 + 3 + 3 + 2 + 1
+    assert max(int(ds[i]["target_frame"]) - int(ds[i]["anchor_frame"]) for i in range(len(ds))) == 3
+    with pytest.raises(ValueError, match="max_dt"):
+        FlowMapPairDataset([tr], input_frames=2, max_dt=-1)
+
+
+def test_flowmap_sample_contract():
+    from structbench.datasets import FlowMapPairDataset
+
+    tr = _pair_traj()
+    ds = FlowMapPairDataset([tr], input_frames=2, max_dt=0)
+    s = ds[0]
+    t0, t = int(s["anchor_frame"]), int(s["target_frame"])
+    assert t0 == 1 and t == 2  # first indexed pair
+    # position_seq is the ANCHOR PAIR (t0-1, t0), particle-major.
+    assert s["position_seq"].shape == (4, 2, 2)
+    np.testing.assert_array_equal(
+        s["position_seq"].numpy(), np.transpose(tr.positions[t0 - 1 : t0 + 1], (1, 0, 2))
+    )
+    # input_aux carries the ANCHOR aux (ADR-0062 reuse of the ADR-0060 key).
+    np.testing.assert_array_equal(s["input_aux"].numpy(), tr.aux[t0])
+    np.testing.assert_array_equal(s["next_position"].numpy(), tr.positions[t])
+    np.testing.assert_array_equal(s["next_aux"].numpy(), tr.aux[t])

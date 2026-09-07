@@ -262,6 +262,11 @@ slice_reparam = false
 aux_input = false            # ADR-0060 state-feedback input (off = reference)
 aux_input_noise_std = 0.0     # ADR-0061 stability knob (0 = off)
 aux_input_pushforward = false # ADR-0061 stability knob (off = reference)
+flow_map = false              # ADR-0062 anchored flow map (off = reference)
+flow_map_anchor_time = true   # ADR-0062 (inert when flow_map = false)
+flow_map_max_dt = 0           # ADR-0062 training dt cap (0 = no cap)
+flow_map_eval_intervals = []  # ADR-0062 m sweep (flow-map only)
+flow_map_canonical_interval = 0  # ADR-0062 (0 = first listed interval)
 
 [train]
 batch_size = 8
@@ -731,3 +736,115 @@ def test_stability_noise_rejects_negative_values(tmp_path):
                     ),
                 )
             )
+
+
+# --- ADR-0062: anchored flow map ------------------------------------------
+
+
+def _fm_toml(**replacements) -> str:
+    """VALID_TRANSOLVER flipped into a valid flow-map config, then patched."""
+    s = (
+        VALID_TRANSOLVER.replace("aux_input = false", "aux_input = true")
+        .replace("time_conditioned = false", "time_conditioned = true")
+        .replace("flow_map = false", "flow_map = true")
+        .replace("flow_map_eval_intervals = []", "flow_map_eval_intervals = [1, 3]")
+    )
+    for old, new in replacements.items():
+        assert old in s, old
+        s = s.replace(old, new)
+    return s
+
+
+def test_flow_map_happy_path_loads(tmp_path):
+    rc = load_run_config(_write(tmp_path, _fm_toml()))
+    assert rc.model.flow_map is True
+    assert rc.model.flow_map_eval_intervals == (1, 3)  # list -> tuple
+    assert rc.model.flow_map_canonical_interval == 0
+
+
+def test_flow_map_requires_time_conditioned(tmp_path):
+    cfg = _fm_toml(**{"time_conditioned = true": "time_conditioned = false"})
+    with pytest.raises(ConfigError, match="flow_map=true requires time_conditioned"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_flow_map_requires_aux_input(tmp_path):
+    cfg = _fm_toml(**{"aux_input = true": "aux_input = false"})
+    with pytest.raises(ConfigError, match="flow_map=true requires aux_input"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_flow_map_rejects_pushforward(tmp_path):
+    cfg = _fm_toml(
+        **{"aux_input_pushforward = false": "aux_input_pushforward = true"}
+    )
+    with pytest.raises(ConfigError, match="aux_input_pushforward is incompatible"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_flow_map_requires_intervals(tmp_path):
+    cfg = _fm_toml(
+        **{"flow_map_eval_intervals = [1, 3]": "flow_map_eval_intervals = []"}
+    )
+    with pytest.raises(ConfigError, match="non-empty"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_flow_map_intervals_strictly_increasing(tmp_path):
+    for bad in ("[3, 1]", "[1, 1]", "[0, 3]"):
+        cfg = _fm_toml(
+            **{"flow_map_eval_intervals = [1, 3]": f"flow_map_eval_intervals = {bad}"}
+        )
+        with pytest.raises(ConfigError, match="strictly increasing"):
+            load_run_config(_write(tmp_path, cfg))
+
+
+def test_flow_map_canonical_must_be_member(tmp_path):
+    cfg = _fm_toml(
+        **{"flow_map_canonical_interval = 0": "flow_map_canonical_interval = 2"}
+    )
+    with pytest.raises(ConfigError, match="member of flow_map_eval_intervals"):
+        load_run_config(_write(tmp_path, cfg))
+    ok = _fm_toml(
+        **{"flow_map_canonical_interval = 0": "flow_map_canonical_interval = 3"}
+    )
+    assert load_run_config(_write(tmp_path, ok)).model.flow_map_canonical_interval == 3
+
+
+def test_flow_map_inert_knob_guards(tmp_path):
+    # Non-default flow-map knobs without flow_map=true are rejected loudly...
+    for old, new, match in (
+        ("flow_map_max_dt = 0", "flow_map_max_dt = 5", "flow_map_max_dt requires"),
+        (
+            "flow_map_eval_intervals = []",
+            "flow_map_eval_intervals = [1]",
+            "flow_map_eval_intervals requires",
+        ),
+        (
+            "flow_map_canonical_interval = 0",
+            "flow_map_canonical_interval = 1",
+            "flow_map_canonical_interval requires",
+        ),
+    ):
+        cfg = VALID_TRANSOLVER.replace(old, new)
+        with pytest.raises(ConfigError, match=match):
+            load_run_config(_write(tmp_path, cfg))
+    # ...but flow_map_anchor_time is inert by design (any value accepted).
+    cfg = VALID_TRANSOLVER.replace(
+        "flow_map_anchor_time = true", "flow_map_anchor_time = false"
+    )
+    assert load_run_config(_write(tmp_path, cfg)).model.flow_map_anchor_time is False
+
+
+def test_flowmap_fleet_configs_load():
+    """Every pre-registered ADR-0062 fleet TOML passes strict validation."""
+    fleet = sorted(
+        (REPO_ROOT / "configs" / "taylor_impact_2d").glob("transolver-flowmap-*.toml")
+    )
+    assert len(fleet) == 12
+    for path in fleet:
+        rc = load_run_config(path)
+        assert rc.model.flow_map is True
+        assert rc.model.aux_input is True
+        canonical = rc.model.flow_map_canonical_interval
+        assert canonical in rc.model.flow_map_eval_intervals

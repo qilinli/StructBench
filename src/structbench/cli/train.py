@@ -58,6 +58,7 @@ from ..config import (
 )
 from ..datasets import (
     CaseTrajectory,
+    FlowMapPairDataset,
     NormalizationStats,
     WindowDataset,
     aux_channel_labels,
@@ -69,6 +70,8 @@ from ..datasets import (
     load_case_trajectory,
 )
 from ..eval import (
+    RolloutResult,
+    flow_map_rollout,
     one_step_aux_rmse,
     one_step_position_rmse,
     rollout,
@@ -444,6 +447,8 @@ def build_transolver_simulator(
         adaptive_temperature=cfg.adaptive_temperature,
         slice_reparam=cfg.slice_reparam,
         aux_input=cfg.aux_input,
+        flow_map=cfg.flow_map,
+        flow_map_anchor_time=cfg.flow_map_anchor_time,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         n_aux=n_aux,
@@ -1601,8 +1606,13 @@ def _train_transolver(
 
     # ADR-0054: the time-conditioned scheme is a distinct, history-free,
     # non-autoregressive prediction path — a dedicated loop, not the AR/k-frames
-    # machinery below.
+    # machinery below. ADR-0062: its anchored-flow-map mode (pair sampling +
+    # Δt conditioning) gets its own loop in turn.
     if cfg.time_conditioned:
+        if cfg.flow_map:
+            return _train_transolver_fm(
+                spec, cfg, train_cfg, train_trajs, val_trajs, out_dir, device, data_root
+            )
         return _train_transolver_tc(
             spec, cfg, train_cfg, train_trajs, val_trajs, out_dir, device, data_root
         )
@@ -2018,6 +2028,281 @@ def _apply_lsq_gradient(edge_index: Tensor, coeff: Tensor, u: Tensor) -> Tensor:
     grad = u.new_zeros(u.shape[0], u.shape[1], u.shape[1])
     grad.index_add_(0, src, contrib)
     return grad
+
+
+def _train_transolver_fm(
+    spec: BenchmarkSpec,
+    cfg: TransolverConfig,
+    train_cfg: TrainConfig,
+    train_trajs: list[CaseTrajectory],
+    val_trajs: list[CaseTrajectory],
+    out_dir: Path,
+    device: str,
+    data_root: Path,
+) -> Path | None:
+    """Anchored flow-map Transolver training (ADR-0062).
+
+    The TC formulation with a movable anchor: each sample is one uniformly
+    drawn ``(anchor t0, query t)`` pair (:class:`FlowMapPairDataset`), and the
+    model maps ``(static geometry, node types, scalar impact velocity?,
+    prescribed boundary state at t, anchor state + kinematics at t0, anchor
+    time?, offset Δt) -> absolute state at t``. The anchor aux receives the
+    ADR-0061 batch-std-relative noise when ``aux_input_noise_std`` is on
+    (kinematic rows clean, clean targets); anchor kinematics are noise-free
+    (ADR-0062 v1). Targets, loss, optimizer recipe, and normalizer warmup
+    mirror :func:`_train_transolver_tc`; validation runs the SELF-ANCHORED
+    re-anchoring rollout at the canonical interval (the deployable mode,
+    ADR-0062) and selects on its mean position RMSE.
+    """
+    if cfg.noise_std:
+        logger.warning(
+            "noise_std=%.4g is IGNORED for flow_map=true: the flow map has no "
+            "autoregressive position feedback, so injected single-step noise "
+            "is inert (ADR-0054/0062). Set noise_std=0 to silence.",
+            cfg.noise_std,
+        )
+
+    loading_scalars: list[float] | None = None
+    if cfg.impact_velocity_feature:
+        if spec.loading_scalar is None:
+            raise ValueError(
+                f"benchmark {spec.card.name!r} has no loading_scalar (scalar "
+                "impact-velocity parameter), but the transolver config sets "
+                "impact_velocity_feature=True (ADR-0051 B / ADR-0054)."
+            )
+        loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
+
+    min_len = min(int(tr.positions.shape[0]) for tr in train_trajs)
+    time_ref = _tc_time_ref_frames(spec.scored_frames, train_cfg.train_frames, min_len)
+    if time_ref < 2:
+        raise ValueError(
+            f"flow-map time_ref_frames={time_ref} < 2 (scored_frames="
+            f"{spec.scored_frames}, train_frames={train_cfg.train_frames}, "
+            f"min train length={min_len})"
+        )
+
+    statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
+    sim = build_transolver_simulator(
+        cfg,
+        n_aux=int(train_trajs[0].aux.shape[-1]),  # ADR-0059
+        kinematic_types=spec.kinematic_types,
+        scripted_types=spec.scripted_types,
+        device=device,
+    )
+    sim.to(device)
+
+    kinematic = torch.as_tensor(
+        list(spec.kinematic_types), dtype=torch.long, device=device
+    )
+    # ADR-0061 knob 1 on the anchor aux (flow_map requires aux_input).
+    aux_noise = expand_aux_knob(
+        cfg.aux_input_noise_std, int(train_trajs[0].aux.shape[-1])
+    )
+    intervals = tuple(cfg.flow_map_eval_intervals)
+    canonical = cfg.flow_map_canonical_interval or intervals[0]
+
+    (out_dir / "config.json").write_text(
+        json.dumps(
+            resolved_config_dict(
+                "transolver",
+                cfg,
+                train_cfg,
+                horizon=spec.card.horizon,
+                eval_times=spec.card.eval_times,
+                n_particle_types=cfg.node_type_size,
+                data_root=data_root,
+            ),
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    dataset = FlowMapPairDataset(
+        train_trajs, cfg.input_frames, max_dt=cfg.flow_map_max_dt
+    )
+    if len(dataset) == 0:
+        raise ValueError(
+            "empty training set: no TRAIN trajectory yields a valid "
+            f"(anchor, query) pair with input_frames = {cfg.input_frames} "
+            f"and flow_map_max_dt = {cfg.flow_map_max_dt} (ADR-0062)."
+        )
+    loader = DataLoader(
+        dataset,
+        batch_size=train_cfg.batch_size,
+        shuffle=True,
+        collate_fn=functools.partial(
+            collate_mesh_samples,
+            statics=statics,
+            loading_scalars=loading_scalars,
+            include_target_frame=True,
+            include_anchor_frame=True,
+        ),
+    )
+    optimizer = torch.optim.AdamW(
+        sim.parameters(), lr=train_cfg.lr_init, weight_decay=cfg.weight_decay
+    )
+
+    logger.info(
+        "starting transolver training: %d steps, batch %d, anchored flow map "
+        "(ADR-0062), time_ref_frames=%d, %d (t0, t) pairs, max_dt=%d, "
+        "eval intervals %s (canonical m=%d)%s",
+        train_cfg.training_steps,
+        train_cfg.batch_size,
+        time_ref,
+        len(dataset),
+        cfg.flow_map_max_dt,
+        intervals,
+        canonical,
+        " (impact-velocity conditioned)" if cfg.impact_velocity_feature else "",
+    )
+
+    step = 0
+    best_pos = float("inf")
+    best_ckpt: Path | None = None
+    sim.train()
+    while step < train_cfg.training_steps:
+        for batch in loader:
+            particle_type = batch["particle_type"].to(device)
+            next_position = batch["next_position"].to(device)  # (P, dim) GT at t
+            next_aux = batch["next_aux"].to(device)  # (P, C) GT aux at t
+            reference_coords = batch["reference_coords"].to(device)
+            n_particles_per_example = batch["n_particles_per_example"].to(device)
+            target_frame = batch["target_frame"].to(device)  # (B,)
+            anchor_frame = batch["anchor_frame"].to(device)  # (B,)
+            # ADR-0062 anchor pair: position_seq is (P, 2, dim) = frames
+            # (t0-1, t0) — the FD-velocity partner and the anchor frame.
+            anchor_pair = batch["position_seq"].to(device)
+            loading_feature = batch.get("loading_feature")
+            if loading_feature is not None:
+                loading_feature = loading_feature.to(device)
+
+            is_kinematic = torch.isin(particle_type, kinematic)
+            anchor_pos = anchor_pair[:, 1]
+            anchor_disp = anchor_pos - reference_coords
+            anchor_vel = anchor_pos - anchor_pair[:, 0]
+            # ADR-0061 noise on the anchor aux only; kinematics stay clean
+            # (ADR-0062 v1) and the targets stay clean GT.
+            anchor_aux = _state_input_noise(
+                batch["input_aux"].to(device), aux_noise, is_kinematic
+            )
+            dt_norm = (target_frame - anchor_frame).to(torch.float32) / (
+                time_ref - 1
+            )  # (B,)
+            anchor_time_feature = None
+            if cfg.flow_map_anchor_time:
+                # Per-example anchor time, broadcast to each example's rows
+                # (the loading_feature convention).
+                anchor_time_feature = torch.repeat_interleave(
+                    anchor_frame.to(torch.float32) / (time_ref - 1),
+                    n_particles_per_example,
+                ).unsqueeze(1)
+
+            accumulate = step < cfg.normalizer_warmup_steps
+            optimizer.zero_grad()
+            pred, target = sim.forward_train_tc(
+                next_position,
+                next_aux,
+                particle_type,
+                reference_coords,
+                n_particles_per_example,
+                dt_norm,
+                accumulate=accumulate,
+                loading_feature=loading_feature,
+                anchor_disp=anchor_disp,
+                anchor_vel=anchor_vel,
+                anchor_aux=anchor_aux,
+                anchor_time_feature=anchor_time_feature,
+            )
+            aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
+            delta_v = pred[..., :-aux_c] - target[..., :-aux_c]
+            delta_aux = pred[..., -aux_c:] - target[..., -aux_c:]
+            per_particle = train_cfg.w_pos * (delta_v**2).sum(
+                dim=-1
+            ) + train_cfg.w_aux * (delta_aux**2).mean(dim=-1)
+            free = ~is_kinematic
+            if free.any():
+                loss = per_particle[free].mean()
+            else:
+                loss = per_particle.new_tensor(0.0, requires_grad=True)
+
+            loss.backward()
+            if cfg.max_grad_norm > 0:
+                torch.nn.utils.clip_grad_norm_(sim.parameters(), cfg.max_grad_norm)
+            optimizer.step()
+
+            lr_new = _lr_at_cosine(step, train_cfg)
+            for group in optimizer.param_groups:
+                group["lr"] = lr_new
+
+            step += 1
+
+            if step % train_cfg.val_every == 0:
+                sim.eval()
+                pos_losses: list[float] = []
+                with torch.no_grad():
+                    for tr in val_trajs:
+                        sim.bind_case(
+                            torch.from_numpy(tr.cells).to(device),
+                            torch.from_numpy(tr.reference_coords).to(device),
+                            torch.from_numpy(tr.particle_type).to(device),
+                            torch.from_numpy(tr.positions).to(device),
+                            loading_scalar=(
+                                spec.loading_scalar(tr.case_id)
+                                if cfg.impact_velocity_feature and spec.loading_scalar
+                                else None
+                            ),
+                            # set_anchor's kinematic clamp reads the GT state.
+                            gt_aux=torch.from_numpy(tr.aux).to(device),
+                        )
+                        val_time_ref = _tc_time_ref_frames(
+                            spec.scored_frames,
+                            train_cfg.train_frames,
+                            int(tr.positions.shape[0]),
+                        )
+                        # Selection runs the DEPLOYABLE mode: self-anchored at
+                        # the canonical interval (ADR-0062).
+                        result = flow_map_rollout(
+                            sim,
+                            tr,
+                            cfg.input_frames,
+                            val_time_ref,
+                            canonical,
+                            "self",
+                            device,
+                            kinematic_types=spec.kinematic_types,
+                            scored_frames=spec.scored_frames,
+                        )
+                        pos_losses.append(float(result.position_rmse.mean()))
+                val_pos = (
+                    sum(pos_losses) / len(pos_losses) if pos_losses else float("inf")
+                )
+                logger.info(
+                    "step %d: train_loss %.6f val_pos %.4f mm (best_pos %.4f)",
+                    step,
+                    loss.item(),
+                    val_pos,
+                    best_pos,
+                )
+                if val_pos < best_pos:
+                    best_pos = val_pos
+                    best_ckpt = out_dir / f"model-best-{step:06d}.pt"
+                    sim.save(str(best_ckpt))
+                    logger.info("saved improved checkpoint: %s", best_ckpt)
+                sim.train()
+
+            if step % PERIODIC_CKPT_EVERY == 0:
+                periodic_ckpt = out_dir / f"ckpt-{step:06d}.pt"
+                sim.save(str(periodic_ckpt))
+                logger.info("saved periodic checkpoint: %s", periodic_ckpt)
+
+            if step >= train_cfg.training_steps:
+                break
+
+    if best_ckpt is None:
+        best_ckpt = out_dir / f"model-final-{step:06d}.pt"
+        sim.save(str(best_ckpt))
+        logger.info("no validation improvement; saved final checkpoint: %s", best_ckpt)
+    return best_ckpt
 
 
 def _train_transolver_tc(
@@ -2903,6 +3188,13 @@ def _model_config_from_record(
         (pre-ADR-0034 records) resolves to :class:`CGNConfig` like ``"cgn"``.
     """
     model_table = {k: v for k, v in record["model"].items() if k != "family"}
+    # The JSON round-trip stores tuple-typed fields as lists; restore the
+    # canonical tuple form (the ADR-0059 per-channel knobs and the ADR-0062
+    # interval sweep) so a reconstructed config compares and reads uniformly.
+    for key in ("aux_transform", "aux_transform_scale", "aux_input_noise_std",
+                "flow_map_eval_intervals"):
+        if isinstance(model_table.get(key), list):
+            model_table[key] = tuple(model_table[key])
     model_cls = MODEL_FAMILIES[record["model"]["family"]]
     return model_cls(**model_table)
 
@@ -3095,6 +3387,16 @@ def evaluate(
     # teacher-forced one-step sweep — it queries every scored frame
     # independently and one_step_* is undefined (reported as null).
     tc = getattr(model_cfg, "time_conditioned", False)
+    # ADR-0062: an anchored-flow-map run evaluates the re-anchoring rollout
+    # per interval, in self- and oracle-anchored modes; the canonical
+    # interval's self-anchored pass writes the standard keys/artifacts/QoIs.
+    fm = family == "transolver" and bool(getattr(model_cfg, "flow_map", False))
+    fm_intervals = tuple(
+        int(v) for v in (getattr(model_cfg, "flow_map_eval_intervals", ()) or ())
+    )
+    fm_canonical = int(getattr(model_cfg, "flow_map_canonical_interval", 0) or 0) or (
+        fm_intervals[0] if fm_intervals else 0
+    )
 
     # Explicit-checkpoint sweeps must not clobber the selected checkpoint's
     # canonical artifacts: suffix the metrics file and skip the rollout .npz.
@@ -3138,6 +3440,7 @@ def evaluate(
         one_step: np.ndarray | None
         one_step_aux: np.ndarray | None
         result_oracle = None  # ADR-0060 oracle-state rollout (aux_input only)
+        fm_extra: dict[str, Any] = {}  # ADR-0062 per-interval metrics
         if tc:
             # Time-conditioned: independent per-frame query, no accumulation and
             # no teacher-forced one-step sweep (ADR-0054). one_step_* is undefined.
@@ -3149,17 +3452,66 @@ def evaluate(
                 record["train"].get("train_frames", 0),
                 len(trajectory.time),
             )
-            result = time_conditioned_rollout(
-                simulator,
-                trajectory,
-                model_cfg.input_frames,
-                time_ref,
-                device,
-                qois=spec.qois,
-                kinematic_types=spec.kinematic_types,
-                scored_frames=spec.scored_frames,
-                qoi_aux_channel=qoi_aux_channel,
-            )
+            if fm:
+                # ADR-0062: every listed interval in both anchor modes; the
+                # canonical self-anchored pass is the standard `result`
+                # (artifacts + QoIs), the rest record field metrics only
+                # (the ADR-0060 mode-2 convention). Per-channel rel-L2 is
+                # recorded in BOTH modes — the AR oracle passes never had it
+                # and the fleet prereg reads s_xy/peeq per interval.
+                assert isinstance(simulator, TransolverSimulator)
+                result_fm: RolloutResult | None = None
+                for m in fm_intervals:
+                    for mode in ("self", "oracle"):
+                        canonical_pass = mode == "self" and m == fm_canonical
+                        r = flow_map_rollout(
+                            simulator,
+                            trajectory,
+                            model_cfg.input_frames,
+                            time_ref,
+                            m,
+                            mode,
+                            device,
+                            qois=spec.qois if canonical_pass else None,
+                            kinematic_types=spec.kinematic_types,
+                            scored_frames=spec.scored_frames,
+                            qoi_aux_channel=qoi_aux_channel,
+                        )
+                        prefix = (
+                            f"rollout_m{m}"
+                            if mode == "self"
+                            else f"rollout_oracle_m{m}"
+                        )
+                        fm_extra[f"{prefix}_position_rmse"] = r.mean_position_rmse
+                        fm_extra[f"{prefix}_aux_rmse"] = r.mean_aux_rmse
+                        fm_extra[f"{prefix}_rel_l2_displacement"] = (
+                            r.mean_rel_l2_displacement
+                        )
+                        fm_extra[f"{prefix}_rel_l2_aux"] = r.mean_rel_l2_aux
+                        if r.mean_rel_l2_aux_channels is not None:
+                            fm_extra[f"{prefix}_rel_l2_aux_channels"] = dict(
+                                zip(
+                                    run_aux_labels,
+                                    r.mean_rel_l2_aux_channels,
+                                    strict=True,
+                                )
+                            )
+                        if canonical_pass:
+                            result_fm = r
+                assert result_fm is not None  # fm_canonical is a member
+                result = result_fm
+            else:
+                result = time_conditioned_rollout(
+                    simulator,
+                    trajectory,
+                    model_cfg.input_frames,
+                    time_ref,
+                    device,
+                    qois=spec.qois,
+                    kinematic_types=spec.kinematic_types,
+                    scored_frames=spec.scored_frames,
+                    qoi_aux_channel=qoi_aux_channel,
+                )
             one_step = None
             one_step_aux = None
         else:
@@ -3287,6 +3639,9 @@ def evaluate(
                     "rollout_oracle_rel_l2_aux": result_oracle.mean_rel_l2_aux,
                 }
             ),
+            # ADR-0062: per-interval flow-map metrics (self- and oracle-
+            # anchored per m), empty for every non-flow-map run.
+            **fm_extra,
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
             # frame to trajectory end. Non-leaderboard; equals the scored value
             # when the benchmark pins no horizon. Field name matches the
@@ -3386,8 +3741,12 @@ def evaluate(
             ),
             "rollout_rel_l2_aux": _mean_over_cases("rollout_rel_l2_aux"),
             **(
+                # A TC/flow-map aux_input run computes no ADR-0060 oracle
+                # rollout (its accumulation isolation is the per-interval
+                # oracle-ANCHORED mode below), so the per-case dicts carry
+                # no rollout_oracle_* keys to aggregate.
                 {}
-                if not aux_in_run
+                if not aux_in_run or tc
                 else {
                     k: _mean_over_cases(k)
                     for k in (
@@ -3395,6 +3754,23 @@ def evaluate(
                         "rollout_oracle_aux_rmse",
                         "rollout_oracle_rel_l2_displacement",
                         "rollout_oracle_rel_l2_aux",
+                    )
+                }
+            ),
+            **(
+                # ADR-0062: split means of the per-interval scalar metrics
+                # (the per-channel dicts stay per-case, house convention).
+                {}
+                if not fm
+                else {
+                    f"{prefix}_{metric}": _mean_over_cases(f"{prefix}_{metric}")
+                    for m in fm_intervals
+                    for prefix in (f"rollout_m{m}", f"rollout_oracle_m{m}")
+                    for metric in (
+                        "position_rmse",
+                        "aux_rmse",
+                        "rel_l2_displacement",
+                        "rel_l2_aux",
                     )
                 }
             ),

@@ -76,6 +76,7 @@ def collate_mesh_samples(
     statics: Sequence[MeshStatic],
     loading_scalars: Sequence[float] | None = None,
     include_target_frame: bool = False,
+    include_anchor_frame: bool = False,
 ) -> dict:
     """Collate a batch of windowed samples into one mesh-batched graph.
 
@@ -158,5 +159,11 @@ def collate_mesh_samples(
         # to its own particle rows.
         out["target_frame"] = torch.tensor(
             [int(sample["target_frame"]) for sample in batch], dtype=torch.long
+        )
+    if include_anchor_frame:
+        # ADR-0062: one anchor-frame index per example (B,), for the flow-map
+        # path's Δt and anchor-time conditioning (per-EXAMPLE, as above).
+        out["anchor_frame"] = torch.tensor(
+            [int(sample["anchor_frame"]) for sample in batch], dtype=torch.long
         )
     return out

@@ -20,7 +20,7 @@ from .normalization import (
     compute_stats,
     expand_aux_knob,
 )
-from .particle import WindowDataset, collate_samples
+from .particle import FlowMapPairDataset, WindowDataset, collate_samples
 
 __all__ = [
     "CaseTrajectory",
@@ -39,6 +39,7 @@ __all__ = [
     "expand_aux_knob",
     "compute_stats",
     "cached_compute_stats",
+    "FlowMapPairDataset",
     "WindowDataset",
     "collate_samples",
 ]

@@ -314,6 +314,38 @@ class TransolverConfig:
         own one-step state error distribution (~2x step cost; samples use
         two consecutive targets). Requires ``aux_input = true``. ``False``
         (default) is byte-identical.
+    flow_map : bool
+        ADR-0062 anchored flow map: a mode OF the time-conditioned scheme
+        that conditions each query on a movable anchor (complete state +
+        kinematics at frame ``t0``) and the offset ``Δt`` instead of
+        absolute time, trained on uniformly sampled ``(t0, Δt)`` pairs and
+        evaluated by re-anchoring every ``m`` frames (self- and
+        oracle-anchored modes). Requires ``time_conditioned = true`` and
+        ``aux_input = true`` (the ADR-0060 aux_input+TC rejection is
+        narrowed to accept exactly this combination); incompatible with
+        ``aux_input_pushforward``. ``False`` (default) is byte-identical.
+    flow_map_anchor_time : bool
+        ADR-0062: feed the anchor's normalized time ``t0/(time_ref-1)`` as a
+        broadcast scalar node feature. ``False`` (with
+        ``impact_velocity_feature = false``) is the Markov ablation — the
+        model conditions on ``(anchor state, Δt, static geometry)`` alone.
+        Inert (any value accepted, ignored) when ``flow_map = false``.
+    flow_map_max_dt : int
+        ADR-0062: cap on the training offset ``Δt`` (``t <= t0 + max_dt``);
+        ``0`` (default) = no cap (offsets up to the horizon). Non-default
+        requires ``flow_map = true``.
+    flow_map_eval_intervals : sequence of int
+        ADR-0062: the re-anchoring intervals ``m`` evaluated per run, each
+        in self-anchored and oracle-anchored modes (recorded under
+        ``rollout_m{m}_*`` / ``rollout_oracle_m{m}_*`` keys). Required
+        non-empty when ``flow_map = true`` (positive, strictly increasing);
+        must be empty otherwise.
+    flow_map_canonical_interval : int
+        ADR-0062: the interval whose SELF-ANCHORED rollout additionally
+        writes the standard ``rollout_*`` keys, artifacts, and QoIs (so
+        cross-run tooling reads flow-map runs unchanged). ``0`` (default) =
+        the first (smallest) listed interval; otherwise must be a member of
+        ``flow_map_eval_intervals``. Non-default requires ``flow_map = true``.
     """
 
     input_frames: int = 2
@@ -338,6 +370,11 @@ class TransolverConfig:
     aux_input: bool = False
     aux_input_noise_std: float | tuple[float, ...] = 0.0
     aux_input_pushforward: bool = False
+    flow_map: bool = False
+    flow_map_anchor_time: bool = True
+    flow_map_max_dt: int = 0
+    flow_map_eval_intervals: tuple[int, ...] = ()
+    flow_map_canonical_interval: int = 0
 
 
 @dataclass
@@ -831,6 +868,24 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
     model = model_cls(**model_table)
     _normalize_aux_knobs(model)
     _check_aux_knob_types("model", model)
+    # ADR-0062: flow_map_eval_intervals is a TOML array of ints; normalize the
+    # list to the canonical tuple form and reject wrong types at load (the
+    # generic type check skips union/parametrized annotations).
+    fm_intervals = getattr(model, "flow_map_eval_intervals", None)
+    if fm_intervals is not None:
+        if isinstance(fm_intervals, list):
+            model.flow_map_eval_intervals = tuple(fm_intervals)
+            fm_intervals = model.flow_map_eval_intervals
+        if not (
+            isinstance(fm_intervals, tuple)
+            and all(
+                isinstance(v, int) and not isinstance(v, bool) for v in fm_intervals
+            )
+        ):
+            raise ConfigError(
+                "[model] flow_map_eval_intervals must be a list of int, "
+                f"got {fm_intervals!r}"
+            )
     from .datasets.normalization import AUX_TRANSFORMS
 
     transform = getattr(model, "aux_transform", "none")
@@ -947,18 +1002,89 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             )
 
     # ADR-0060: the state-feedback input is autoregressive-only and k=1-only.
+    # ADR-0062 narrows the TC rejection: the anchored flow map consumes the
+    # anchor state THROUGH the TC formulation, so aux_input+time_conditioned
+    # is accepted exactly when flow_map=true; plain TC still consumes no
+    # evolving state and keeps the rejection.
     if getattr(model, "aux_input", False):
-        if getattr(model, "time_conditioned", False):
+        if getattr(model, "time_conditioned", False) and not getattr(
+            model, "flow_map", False
+        ):
             raise ConfigError(
                 "[model] aux_input=true is incompatible with "
                 "time_conditioned=true (the TC scheme consumes no evolving "
-                "state; ADR-0060)"
+                "state; ADR-0060) unless flow_map=true (ADR-0062)"
             )
         if frames_per_call != 1:
             raise ConfigError(
                 "[model] aux_input=true requires frames_per_call=1 "
                 f"(got {frames_per_call}); state feedback through k-frame "
                 "bundles is out of scope (ADR-0060)"
+            )
+
+    # ADR-0062: the anchored flow map is a mode OF the TC scheme that consumes
+    # the anchor state, so it requires both parents; its own knobs are
+    # validated here so a fleet config fails at load, not mid-run.
+    if getattr(model, "flow_map", False):
+        if not getattr(model, "time_conditioned", False):
+            raise ConfigError(
+                "[model] flow_map=true requires time_conditioned=true "
+                "(the flow map is Δt-conditioned TC querying; ADR-0062)"
+            )
+        if not getattr(model, "aux_input", False):
+            raise ConfigError(
+                "[model] flow_map=true requires aux_input=true "
+                "(the anchor state is the scheme's interface; ADR-0062)"
+            )
+        if getattr(model, "aux_input_pushforward", False):
+            raise ConfigError(
+                "[model] aux_input_pushforward is incompatible with "
+                "flow_map=true (the AR two-step chain has no meaning under "
+                "re-anchored querying; ADR-0062)"
+            )
+        intervals = getattr(model, "flow_map_eval_intervals", ())
+        if not intervals:
+            raise ConfigError(
+                "[model] flow_map=true requires a non-empty "
+                "flow_map_eval_intervals (the re-anchoring m sweep; ADR-0062)"
+            )
+        if any(m < 1 for m in intervals) or any(
+            b <= a for a, b in zip(intervals, intervals[1:])
+        ):
+            raise ConfigError(
+                "[model] flow_map_eval_intervals must be positive and "
+                f"strictly increasing (ADR-0062); got {intervals}"
+            )
+        canonical = getattr(model, "flow_map_canonical_interval", 0)
+        if canonical != 0 and canonical not in intervals:
+            raise ConfigError(
+                "[model] flow_map_canonical_interval must be 0 (= the first "
+                "listed interval) or a member of flow_map_eval_intervals "
+                f"(ADR-0062); got {canonical} with intervals {intervals}"
+            )
+        if getattr(model, "flow_map_max_dt", 0) < 0:
+            raise ConfigError(
+                "[model] flow_map_max_dt must be >= 0 (0 = no cap; "
+                f"ADR-0062); got {model.flow_map_max_dt}"
+            )
+    else:
+        # Non-default flow-map knobs without flow_map=true would be silently
+        # inert — reject loudly (ADR-0061 inert-knob precedent).
+        # flow_map_anchor_time (default true) is inert by design and accepted
+        # either way, so the mandatory default-valued TOML migration passes.
+        if getattr(model, "flow_map_max_dt", 0) != 0:
+            raise ConfigError(
+                "[model] flow_map_max_dt requires flow_map=true (ADR-0062)"
+            )
+        if tuple(getattr(model, "flow_map_eval_intervals", ()) or ()) != ():
+            raise ConfigError(
+                "[model] flow_map_eval_intervals requires flow_map=true "
+                "(ADR-0062)"
+            )
+        if getattr(model, "flow_map_canonical_interval", 0) != 0:
+            raise ConfigError(
+                "[model] flow_map_canonical_interval requires flow_map=true "
+                "(ADR-0062)"
             )
 
     return ResolvedRunConfig(

@@ -452,6 +452,144 @@ def time_conditioned_rollout(
     )
 
 
+class _FlowMapSimulatorLike(Protocol):
+    """Structural type for the anchored-flow-map simulator (ADR-0062)."""
+
+    def predict_state_at(
+        self, frame: int, t_norm: float
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return ``(positions (P, dim), aux (P, C))`` at a scored frame."""
+        ...
+
+    def set_anchor(
+        self,
+        frame: int,
+        prev_positions: torch.Tensor,
+        positions: torch.Tensor,
+        aux: torch.Tensor,
+        anchor_t_norm: float | None = None,
+    ) -> None:
+        """Bind the flow-map anchor for subsequent queries."""
+        ...
+
+
+def flow_map_rollout(
+    simulator: _FlowMapSimulatorLike,
+    trajectory: CaseTrajectory,
+    input_frames: int,
+    time_ref_frames: int,
+    interval: int,
+    anchor_mode: str,
+    device: str = "cpu",
+    qois: Mapping[str, QoiFn] | None = None,
+    kinematic_types: tuple[int, ...] = (),
+    scored_frames: int | None = None,
+    qoi_aux_channel: int | None = 0,
+) -> RolloutResult:
+    """Re-anchoring rollout for the anchored flow map (ADR-0062).
+
+    The anchor seeds from ground truth at the last seed frame
+    (``t0 = input_frames - 1``, ADR-0035: the seed is the rollout init).
+    Each frame ``f`` in a segment is an independent TC-style query at the
+    normalized OFFSET ``Δt = (f - t0) / (time_ref_frames - 1)``; after the
+    query at ``f = t0 + interval`` the rollout re-anchors at ``f`` and
+    continues (the last segment truncates at the horizon). Two modes:
+
+    - ``anchor_mode="self"`` (deployable): the new anchor is the model's own
+      predicted positions at ``f - 1`` and ``f`` (kinematic rows already GT
+      via the query-side override) and its predicted aux at ``f``
+      (kinematic rows clamped to GT inside ``set_anchor``, the ADR-0060
+      house clamp).
+    - ``anchor_mode="oracle"``: anchors read from ground truth — isolates
+      within-segment accuracy (the Δt-generalization curve) with anchor
+      drift severed. At ``interval >= horizon`` the two modes coincide
+      (zero feedback events).
+
+    Parameters
+    ----------
+    simulator:
+        Flow-map simulator, already bound to ``trajectory``'s case (with
+        ``gt_aux``) via ``bind_case``.
+    trajectory, input_frames, time_ref_frames, device, qois,
+    kinematic_types, scored_frames, qoi_aux_channel:
+        As in :func:`time_conditioned_rollout`.
+    interval:
+        The re-anchoring interval ``m`` (frames per segment); ``>= 1``.
+    anchor_mode:
+        ``"self"`` or ``"oracle"`` (above).
+
+    Returns
+    -------
+    RolloutResult
+    """
+    if interval < 1:
+        raise ValueError(f"interval must be >= 1, got {interval}")
+    if anchor_mode not in ("self", "oracle"):
+        raise ValueError(
+            f"anchor_mode must be 'self' or 'oracle', got {anchor_mode!r}"
+        )
+    pos = torch.from_numpy(trajectory.positions).to(device)  # (T, P, dim)
+    n_frames = pos.shape[0]
+    aux_true = torch.from_numpy(trajectory.aux).to(device)
+
+    if input_frames < 2:
+        raise ValueError(f"input_frames must be >= 2, got {input_frames}")
+    if input_frames >= n_frames:
+        raise ValueError(
+            f"input_frames={input_frames} but trajectory has {n_frames} frames"
+        )
+    if time_ref_frames < 2:
+        raise ValueError(f"time_ref_frames must be >= 2, got {time_ref_frames}")
+
+    kin_mask_np = np.isin(trajectory.particle_type, np.asarray(kinematic_types))
+    keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
+
+    predicted = [pos[i] for i in range(input_frames)]
+    aux_pred = [aux_true[i] for i in range(input_frames)]
+    t0 = input_frames - 1
+    with torch.no_grad():
+        simulator.set_anchor(
+            t0,
+            pos[t0 - 1],
+            pos[t0],
+            aux_true[t0],
+            anchor_t_norm=t0 / (time_ref_frames - 1),
+        )
+        for f in range(input_frames, n_frames):
+            dt_norm = (f - t0) / (time_ref_frames - 1)
+            next_pos, aux = simulator.predict_state_at(f, dt_norm)
+            predicted.append(next_pos)
+            aux_pred.append(aux)  # (P, C)
+            if f - t0 == interval and f < n_frames - 1:
+                if anchor_mode == "oracle":
+                    prev_a, pos_a, aux_a = pos[f - 1], pos[f], aux_true[f]
+                else:
+                    # predicted[] is frame-indexed (seed frames included), so
+                    # [f]/[f - 1] are this segment's own queries (or, at
+                    # interval=1, the previous anchor frame).
+                    prev_a, pos_a, aux_a = predicted[f - 1], predicted[f], aux_pred[f]
+                simulator.set_anchor(
+                    f,
+                    prev_a,
+                    pos_a,
+                    aux_a,
+                    anchor_t_norm=f / (time_ref_frames - 1),
+                )
+                t0 = f
+
+    return _finalize_rollout(
+        predicted,
+        aux_pred,
+        trajectory,
+        input_frames,
+        kin_mask_np,
+        keep,
+        scored_frames,
+        qois,
+        qoi_aux_channel,
+    )
+
+
 def one_step_position_rmse(
     simulator: _SimulatorLike,
     trajectory: CaseTrajectory,

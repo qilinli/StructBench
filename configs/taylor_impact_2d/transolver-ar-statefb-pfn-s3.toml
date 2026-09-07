@@ -15,6 +15,11 @@ slice_reparam = false
 aux_input = true             # ADR-0060: consume the state block at the last input frame
 aux_input_noise_std = 0.05    # ADR-0061 arm PFN
 aux_input_pushforward = true # ADR-0061 arm PFN
+flow_map = false              # ADR-0062 anchored flow map (off = reference)
+flow_map_anchor_time = true   # ADR-0062 anchor-time feature (inert when flow_map = false)
+flow_map_max_dt = 0           # ADR-0062 training dt cap (0 = no cap)
+flow_map_eval_intervals = []  # ADR-0062 re-anchoring m sweep (flow-map only)
+flow_map_canonical_interval = 0  # ADR-0062 (0 = first listed interval)
 input_frames = 6                # taylor card protocol (ADR-0035); see header
 dim = 2
 hidden_dim = 256                # 2x the ADR-0044 reference (tuning arm; see header)

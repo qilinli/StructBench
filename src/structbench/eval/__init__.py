@@ -20,6 +20,7 @@ from .metrics import (
 )
 from .rollout import (
     RolloutResult,
+    flow_map_rollout,
     one_step_aux_rmse,
     one_step_position_rmse,
     rollout,
@@ -46,6 +47,7 @@ __all__ = [
     "RolloutResult",
     "rollout",
     "time_conditioned_rollout",
+    "flow_map_rollout",
     "one_step_position_rmse",
     "one_step_aux_rmse",
 ]

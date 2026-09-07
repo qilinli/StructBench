@@ -149,6 +149,68 @@ class WindowDataset(Dataset):
         }
 
 
+class FlowMapPairDataset(Dataset):
+    """ADR-0062 ``(anchor t0, query t)`` pair samples for the anchored flow map.
+
+    One sample = one uniformly drawn valid pair: ``t0`` ranges over
+    ``[max(input_frames - 1, 1), T - 2]`` (the last seed frame is the
+    deployment anchor, ADR-0035; the ``max(..., 1)`` guard keeps the FD
+    partner frame ``t0 - 1`` in range on tiny fixtures) and ``t`` over
+    ``[t0 + 1, T - 1]``, capped at ``t <= t0 + max_dt`` when ``max_dt > 0``.
+    Uniform-over-pairs skews the ``Δt`` marginal toward short offsets
+    (linearly, as availability does) — the recorded ADR-0062 v1 choice.
+
+    The sample dict reuses the :class:`WindowDataset` key contract so
+    :func:`collate_samples` and the mesh collate work unchanged:
+    ``position_seq`` is the ANCHOR PAIR ``(P, 2, dim)`` — positions at
+    ``t0 - 1`` and ``t0`` (the FD-velocity partner and the anchor frame) —
+    and ``input_aux`` is the anchor's aux state ``aux[t0]``. The additive
+    ``anchor_frame`` key carries ``t0`` (per example, like ``target_frame``).
+    """
+
+    def __init__(
+        self,
+        trajectories: list[CaseTrajectory],
+        input_frames: int,
+        max_dt: int = 0,
+    ) -> None:
+        if max_dt < 0:
+            raise ValueError(f"max_dt must be >= 0 (0 = no cap), got {max_dt}")
+        self._index: list[tuple[CaseTrajectory, int, int, int]] = []
+        for traj_idx, tr in enumerate(trajectories):
+            n = int(tr.positions.shape[0])
+            for t0 in range(max(input_frames - 1, 1), n - 1):
+                t_hi = n - 1 if max_dt == 0 else min(t0 + max_dt, n - 1)
+                for t in range(t0 + 1, t_hi + 1):
+                    self._index.append((tr, t0, t, traj_idx))
+
+    def __len__(self) -> int:
+        return len(self._index)
+
+    def __getitem__(self, i: int) -> dict[str, torch.Tensor | int]:
+        """Return one ``(anchor, query)`` sample (see class docstring)."""
+        tr, t0, t, traj_idx = self._index[i]
+        pair = tr.positions[t0 - 1 : t0 + 1]  # (2, P, dim)
+        return {
+            "position_seq": torch.from_numpy(
+                np.ascontiguousarray(np.transpose(pair, (1, 0, 2)))
+            ),
+            "particle_type": torch.from_numpy(tr.particle_type),
+            "next_position": torch.from_numpy(tr.positions[t]),
+            "next_aux": torch.from_numpy(tr.aux[t]),
+            # The anchor's aux state (ADR-0062), riding the ADR-0060 key so
+            # the shared collates concatenate it unchanged.
+            "input_aux": torch.from_numpy(np.ascontiguousarray(tr.aux[t0])),
+            "n_particles": int(tr.positions.shape[1]),
+            "traj_idx": traj_idx,
+            "target_frame": t,
+            # Anchor frame index (per example, like target_frame): the
+            # trainer derives Δt = target_frame - anchor_frame and the
+            # anchor-time feature from it. Additive to the sample contract.
+            "anchor_frame": t0,
+        }
+
+
 def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:
     """Concatenate per-example particle rows into one batched graph.
 
