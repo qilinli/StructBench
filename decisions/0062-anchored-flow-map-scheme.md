@@ -1,6 +1,6 @@
 # 0062 — Anchored flow map: state-anchored time-conditioned prediction (Transolver)
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-09-08)
 **Type**: Durable
 **Date**: 2026-09-08
 

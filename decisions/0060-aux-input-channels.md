@@ -153,3 +153,12 @@ the fleet:
   (strict schema, ADR-0057 precedent) and the ADR index row; the
   GeoFLARE-side gt_aux threading briefly introduced by a broad edit was
   removed (scope stays Transolver-only).
+
+## Narrowing note (2026-09-08, ADR-0062)
+
+The `aux_input` + `time_conditioned` rejection recorded above is narrowed
+by ADR-0062: the combination is accepted **iff** `flow_map = true` (the
+anchored flow map consumes the anchor state through the TC formulation).
+Plain time-conditioning still consumes no evolving state, and the
+rejection stands whenever `flow_map = false`. An adjustment, not a
+reversal — recorded per the index-README amendment mechanism.
