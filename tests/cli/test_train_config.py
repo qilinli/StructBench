@@ -267,6 +267,9 @@ flow_map_anchor_time = true   # ADR-0062 (inert when flow_map = false)
 flow_map_max_dt = 0           # ADR-0062 training dt cap (0 = no cap)
 flow_map_eval_intervals = []  # ADR-0062 m sweep (flow-map only)
 flow_map_canonical_interval = 0  # ADR-0062 (0 = first listed interval)
+flow_map_pushforward = false  # ADR-0063 anchor-chain knob (off = reference)
+flow_map_anchor_noise_pos = 0.0  # ADR-0063 common-mode anchor noise (0 = off)
+flow_map_anchor_noise_vel = 0.0  # ADR-0063 differential anchor noise (0 = off)
 
 [train]
 batch_size = 8
@@ -841,10 +844,60 @@ def test_flowmap_fleet_configs_load():
     fleet = sorted(
         (REPO_ROOT / "configs" / "taylor_impact_2d").glob("transolver-flowmap-*.toml")
     )
-    assert len(fleet) == 12
+    # The original 12-arm ADR-0062 fleet has since grown (budget fleet,
+    # ADR-0063 repair fleet); every present flow-map config must load.
+    assert len(fleet) >= 12
     for path in fleet:
         rc = load_run_config(path)
         assert rc.model.flow_map is True
         assert rc.model.aux_input is True
         canonical = rc.model.flow_map_canonical_interval
         assert canonical in rc.model.flow_map_eval_intervals
+
+
+# --- ADR-0063: anchor-contraction knobs ------------------------------------
+
+
+def test_adr0063_knobs_require_flow_map(tmp_path):
+    for old, new, match in (
+        (
+            "flow_map_pushforward = false",
+            "flow_map_pushforward = true",
+            "flow_map_pushforward requires flow_map=true",
+        ),
+        (
+            "flow_map_anchor_noise_pos = 0.0",
+            "flow_map_anchor_noise_pos = 0.5",
+            "flow_map_anchor_noise_pos requires flow_map=true",
+        ),
+        (
+            "flow_map_anchor_noise_vel = 0.0",
+            "flow_map_anchor_noise_vel = 0.05",
+            "flow_map_anchor_noise_vel requires flow_map=true",
+        ),
+    ):
+        cfg = VALID_TRANSOLVER.replace(old, new)
+        with pytest.raises(ConfigError, match=match):
+            load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0063_negative_noise_rejected(tmp_path):
+    cfg = _fm_toml(
+        **{"flow_map_anchor_noise_pos = 0.0": "flow_map_anchor_noise_pos = -0.1"}
+    )
+    with pytest.raises(ConfigError, match="must be >= 0"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0063_happy_path_loads(tmp_path):
+    cfg = _fm_toml(
+        **{
+            "flow_map_pushforward = false": "flow_map_pushforward = true",
+            "flow_map_anchor_noise_pos = 0.0": "flow_map_anchor_noise_pos = 0.66",
+            "flow_map_anchor_noise_vel = 0.0": "flow_map_anchor_noise_vel = 0.03",
+        }
+    )
+    rc = load_run_config(_write(tmp_path, cfg))
+    assert rc.model.flow_map_pushforward is True
+    assert rc.model.flow_map_anchor_noise_pos == 0.66
+    assert rc.model.flow_map_anchor_noise_vel == 0.03

@@ -101,6 +101,9 @@ def _run_transolver_smoke(
     flow_map_max_dt: int = 0,
     flow_map_eval_intervals: tuple[int, ...] = (),
     flow_map_canonical_interval: int = 0,
+    flow_map_pushforward: bool = False,
+    flow_map_anchor_noise_pos: float = 0.0,
+    flow_map_anchor_noise_vel: float = 0.0,
 ):
     """Shared spec/data/train setup for both smoke tests below.
 
@@ -144,6 +147,9 @@ def _run_transolver_smoke(
         flow_map_max_dt=flow_map_max_dt,
         flow_map_eval_intervals=flow_map_eval_intervals,
         flow_map_canonical_interval=flow_map_canonical_interval,
+        flow_map_pushforward=flow_map_pushforward,
+        flow_map_anchor_noise_pos=flow_map_anchor_noise_pos,
+        flow_map_anchor_noise_vel=flow_map_anchor_noise_vel,
         # time-conditioning is history-free / non-autoregressive: noise is inert
         noise_std=0.0 if time_conditioned else TransolverConfig().noise_std,
     )
@@ -511,3 +517,37 @@ def test_transolver_flow_map_train_and_evaluate_smoke(tmp_path, monkeypatch):
     assert all(math.isfinite(v) for v in per_case["qoi_error"].values())
     # Rollout artifacts written from the canonical pass.
     assert (out / "rollouts" / f"val-{ids['val'][0]}.npz").exists()
+
+
+def test_transolver_flow_map_chain_train_and_evaluate_smoke(tmp_path, monkeypatch):
+    """ADR-0063 end-to-end: pushforward chains + structured anchor noise
+    through _train_transolver_fm (chain dataset, two step-A queries,
+    detached re-anchor, step-B loss) and evaluate()'s per-interval keys."""
+    import structbench.cli.train as cli_train
+
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path,
+        time_conditioned=True,
+        aux_input=True,
+        aux_input_noise_std=0.15,
+        flow_map=True,
+        flow_map_max_dt=3,
+        flow_map_eval_intervals=(1, 3),
+        flow_map_canonical_interval=3,
+        flow_map_pushforward=True,
+        flow_map_anchor_noise_pos=0.05,
+        flow_map_anchor_noise_vel=0.01,
+    )
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    assert record["model"]["flow_map_pushforward"] is True
+    assert record["model"]["flow_map_anchor_noise_pos"] == 0.05
+    ckpts = list(out.glob("model-*.pt"))
+    assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    per_case = metrics["cases"][ids["val"][0]]
+    assert per_case["one_step_position_rmse"] is None
+    for m in (1, 3):
+        for prefix in (f"rollout_m{m}", f"rollout_oracle_m{m}"):
+            assert np.isfinite(per_case[f"{prefix}_rel_l2_aux"])

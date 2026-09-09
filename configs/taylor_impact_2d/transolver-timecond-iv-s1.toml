@@ -43,6 +43,9 @@ flow_map_anchor_time = true   # ADR-0062 anchor-time feature (inert when flow_ma
 flow_map_max_dt = 0           # ADR-0062 training dt cap (0 = no cap)
 flow_map_eval_intervals = []  # ADR-0062 re-anchoring m sweep (flow-map only)
 flow_map_canonical_interval = 0  # ADR-0062 (0 = first listed interval)
+flow_map_pushforward = false  # ADR-0063 anchor-chain knob (off = reference)
+flow_map_anchor_noise_pos = 0.0  # ADR-0063 common-mode anchor noise, mm (0 = off)
+flow_map_anchor_noise_vel = 0.0  # ADR-0063 differential anchor noise, mm/frame (0 = off)
 
 [train]
 batch_size = 2                  # family reference (ADR-0044, matched to MGN)
