@@ -211,3 +211,16 @@ def test_set_anchor_requires_gt_aux_for_kinematic_clamp():
     )
     with pytest.raises(RuntimeError, match="gt_aux"):
         sim.set_anchor(1, positions[0], positions[1], aux[1], anchor_t_norm=0.2)
+
+
+def test_train_output_state_splits_raw_blocks():
+    """ADR-0063 helper: inverse-normalized (displacement, aux) split matches
+    the ADR-0061 aux helper and the target-normalizer inverse."""
+    sim = _sim()
+    g = torch.Generator().manual_seed(5)
+    pred = torch.rand((P, DIM + C), generator=g)
+    disp, aux = sim.train_output_state(pred)
+    torch.testing.assert_close(aux, sim.train_output_aux(pred))
+    raw = sim._target_normalizer.inverse(pred)
+    torch.testing.assert_close(disp, raw[:, :DIM])
+    assert disp.shape == (P, DIM) and aux.shape == (P, C)

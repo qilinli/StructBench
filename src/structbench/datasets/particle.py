@@ -211,6 +211,75 @@ class FlowMapPairDataset(Dataset):
         }
 
 
+class FlowMapChainDataset(Dataset):
+    """ADR-0063 ``(t0, t1, t2)`` chain samples for anchor-pushforward training.
+
+    One sample = one two-hop chain, uniform over valid triples (the
+    :class:`FlowMapPairDataset` enumeration convention; late-trajectory
+    anchors carry fewer triples — the recorded end-skew): anchor ``t0``
+    over ``[max(input_frames - 1, 1), ...]``, hop 1 ``t1 - t0 ∈ [2,
+    max_dt]`` (≥ 2 so BOTH frames of the rebuilt anchor pair are
+    predictions), hop 2 ``t2 - t1 ∈ [1, max_dt]``.
+
+    Sample contract extends :class:`FlowMapPairDataset`'s: ``position_seq``
+    is the GT anchor pair ``(t0-1, t0)`` and ``input_aux`` the anchor aux;
+    ``next_position``/``next_aux`` are the THREE query targets stacked as
+    ``(P, 3, dim)`` / ``(P, 3, C)`` in chain order ``(t1-1, t1, t2)`` (the
+    ADR-0051 target-span shape, so the shared collates concatenate them
+    unchanged — targets 0:2 double as the GT source for the step-B
+    kinematic clamps); ``chain_frame`` carries ``t1`` (per example);
+    ``target_frame`` is ``t2``.
+    """
+
+    def __init__(
+        self,
+        trajectories: list[CaseTrajectory],
+        input_frames: int,
+        max_dt: int,
+    ) -> None:
+        if max_dt < 2:
+            raise ValueError(
+                f"chain sampling needs max_dt >= 2 (hop 1 is >= 2), got {max_dt}"
+            )
+        self._index: list[tuple[CaseTrajectory, int, int, int, int]] = []
+        for traj_idx, tr in enumerate(trajectories):
+            n = int(tr.positions.shape[0])
+            for t0 in range(max(input_frames - 1, 1), n - 3):
+                for t1 in range(t0 + 2, min(t0 + max_dt, n - 2) + 1):
+                    for t2 in range(t1 + 1, min(t1 + max_dt, n - 1) + 1):
+                        self._index.append((tr, t0, t1, t2, traj_idx))
+
+    def __len__(self) -> int:
+        return len(self._index)
+
+    def __getitem__(self, i: int) -> dict[str, torch.Tensor | int]:
+        """Return one chain sample (see class docstring)."""
+        tr, t0, t1, t2, traj_idx = self._index[i]
+        pair = tr.positions[t0 - 1 : t0 + 1]  # (2, P, dim)
+        frames = (t1 - 1, t1, t2)
+        next_position = np.transpose(
+            np.stack([tr.positions[f] for f in frames]), (1, 0, 2)
+        )  # (P, 3, dim)
+        next_aux = np.transpose(
+            np.stack([tr.aux[f] for f in frames]), (1, 0, 2)
+        )  # (P, 3, C)
+        return {
+            "position_seq": torch.from_numpy(
+                np.ascontiguousarray(np.transpose(pair, (1, 0, 2)))
+            ),
+            "particle_type": torch.from_numpy(tr.particle_type),
+            "next_position": torch.from_numpy(np.ascontiguousarray(next_position)),
+            "next_aux": torch.from_numpy(np.ascontiguousarray(next_aux)),
+            "input_aux": torch.from_numpy(np.ascontiguousarray(tr.aux[t0])),
+            "n_particles": int(tr.positions.shape[1]),
+            "traj_idx": traj_idx,
+            "target_frame": t2,
+            "anchor_frame": t0,
+            # Mid-chain anchor frame (per example): step B re-anchors here.
+            "chain_frame": t1,
+        }
+
+
 def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:
     """Concatenate per-example particle rows into one batched graph.
 

@@ -347,6 +347,20 @@ class TransolverSimulator(CaseBoundSimulator):
         """
         return self._target_normalizer.inverse(pred_norm)[..., self._dim :]
 
+    def train_output_state(self, pred_norm: Tensor) -> tuple[Tensor, Tensor]:
+        """Raw-unit ``(displacement, aux)`` blocks of a TC/FM training output.
+
+        ADR-0063 chain helper: rebuilding a self-anchor from a step-A
+        ``forward_train_tc`` prediction needs BOTH raw blocks — the anchor
+        displacement/FD-velocity from the displacement slice and the anchor
+        state from the aux slice (``train_output_aux`` covers only the
+        latter). Inverts the target normalizer once and splits:
+        ``(P, dim+C)`` normalized -> (``(P, dim)`` raw displacement-from-rest,
+        ``(P, C)`` raw aux).
+        """
+        raw = self._target_normalizer.inverse(pred_norm)
+        return raw[..., : self._dim], raw[..., self._dim :]
+
     def reset_rollout(self) -> None:
         """Reset the step pointer, the ADR-0060 state cache, and the anchor."""
         super().reset_rollout()

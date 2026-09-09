@@ -346,6 +346,32 @@ class TransolverConfig:
         cross-run tooling reads flow-map runs unchanged). ``0`` (default) =
         the first (smallest) listed interval; otherwise must be a member of
         ``flow_map_eval_intervals``. Non-default requires ``flow_map = true``.
+    flow_map_pushforward : bool
+        ADR-0063 contraction knob 1: two-hop anchor chains. Each sample is
+        a triple ``(t0, t1, t2)``; step A teacher-forces the GT anchor at
+        ``t0`` and predicts the state at ``t1-1`` and ``t1`` (the pair a
+        re-anchor consumes), the anchor at ``t1`` is rebuilt from those
+        predictions DETACHED (house kinematic clamps), and step B predicts
+        ``t2`` from it. Loss = mean of the three query losses (2:1
+        clean:dirty); normalizers accumulate on the clean queries only.
+        Trains contraction of the model's own joint anchor error. ~3x
+        forward cost. Requires ``flow_map = true``. ``False`` (default) is
+        byte-identical.
+    flow_map_anchor_noise_pos : float
+        ADR-0063 contraction knob 2a: COMMON-MODE Gaussian noise on the
+        anchor position pair at train time — one draw per node added to
+        BOTH pair frames, corrupting the anchor displacement while
+        cancelling exactly in the FD velocity. Absolute working units (mm).
+        The component structure is measurement-dictated (anchor-pair error
+        correlation 0.991; independent per-frame noise mis-rehearses the
+        interface ~30x). Kinematic rows stay clean; targets stay clean GT.
+        Requires ``flow_map = true``. ``0.0`` (default) is byte-identical.
+    flow_map_anchor_noise_vel : float
+        ADR-0063 contraction knob 2b: DIFFERENTIAL Gaussian noise on the
+        anchor pair — a draw added to the ``t0-1`` frame only, corrupting
+        the FD velocity by its std while leaving the anchor position
+        untouched. Absolute working units (mm per frame). Requires
+        ``flow_map = true``. ``0.0`` (default) is byte-identical.
     """
 
     input_frames: int = 2
@@ -375,6 +401,9 @@ class TransolverConfig:
     flow_map_max_dt: int = 0
     flow_map_eval_intervals: tuple[int, ...] = ()
     flow_map_canonical_interval: int = 0
+    flow_map_pushforward: bool = False
+    flow_map_anchor_noise_pos: float = 0.0
+    flow_map_anchor_noise_vel: float = 0.0
 
 
 @dataclass
@@ -1067,6 +1096,26 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 "[model] flow_map_max_dt must be >= 0 (0 = no cap; "
                 f"ADR-0062); got {model.flow_map_max_dt}"
             )
+        # ADR-0063: chains need hop 1 >= 2, and an uncapped Δt would
+        # enumerate O(T^3) triples — reject both at load, not at trainer
+        # start (the loud-rejection precedent).
+        if getattr(model, "flow_map_pushforward", False) and (
+            getattr(model, "flow_map_max_dt", 0) < 2
+        ):
+            raise ConfigError(
+                "[model] flow_map_pushforward requires flow_map_max_dt >= 2 "
+                "(hop 1 spans two frames, and uncapped chains enumerate "
+                f"O(T^3) triples; ADR-0063); got {model.flow_map_max_dt}"
+            )
+        # ADR-0063: the anchor-noise components are absolute working-unit
+        # scales; a negative entry is a typo that would silently train the
+        # reference model while the record claims noise was on.
+        for knob in ("flow_map_anchor_noise_pos", "flow_map_anchor_noise_vel"):
+            if getattr(model, knob, 0.0) < 0:
+                raise ConfigError(
+                    f"[model] {knob} must be >= 0 (absolute working-unit "
+                    f"noise scale, ADR-0063); got {getattr(model, knob)}"
+                )
     else:
         # Non-default flow-map knobs without flow_map=true would be silently
         # inert — reject loudly (ADR-0061 inert-knob precedent).
@@ -1086,6 +1135,19 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 "[model] flow_map_canonical_interval requires flow_map=true "
                 "(ADR-0062)"
             )
+        # ADR-0063 contraction knobs are flow-map-only.
+        if getattr(model, "flow_map_pushforward", False):
+            raise ConfigError(
+                "[model] flow_map_pushforward requires flow_map=true "
+                "(ADR-0063: the chain re-anchors on the model's own "
+                "predictions)"
+            )
+        for knob in ("flow_map_anchor_noise_pos", "flow_map_anchor_noise_vel"):
+            if getattr(model, knob, 0.0) != 0.0:
+                raise ConfigError(
+                    f"[model] {knob} requires flow_map=true (ADR-0063: the "
+                    "knob perturbs the anchor kinematics)"
+                )
 
     return ResolvedRunConfig(
         family=family,

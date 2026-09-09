@@ -168,3 +168,35 @@ def test_flowmap_sample_contract():
     np.testing.assert_array_equal(s["input_aux"].numpy(), tr.aux[t0])
     np.testing.assert_array_equal(s["next_position"].numpy(), tr.positions[t])
     np.testing.assert_array_equal(s["next_aux"].numpy(), tr.aux[t])
+
+
+# --- ADR-0063: FlowMapChainDataset -----------------------------------------
+
+
+def test_flowmap_chain_index_and_contract():
+    from structbench.datasets import FlowMapChainDataset
+
+    tr = _pair_traj()  # T=8, P=4
+    ds = FlowMapChainDataset([tr], input_frames=2, max_dt=3)
+    # t0 in [1,4]; t1 in [t0+2, min(t0+3, 6)]; t2 in [t1+1, min(t1+3, 7)]:
+    # t0=1 -> 6, t0=2 -> 5, t0=3 -> 3, t0=4 -> 1 chains.
+    assert len(ds) == 15
+    s = ds[0]
+    t0, t1, t2 = int(s["anchor_frame"]), int(s["chain_frame"]), int(s["target_frame"])
+    assert (t0, t1, t2) == (1, 3, 4)
+    assert 2 <= t1 - t0 <= 3 and 1 <= t2 - t1 <= 3
+    # anchor pair (t0-1, t0); targets stacked (t1-1, t1, t2).
+    np.testing.assert_array_equal(
+        s["position_seq"].numpy(),
+        np.transpose(tr.positions[t0 - 1 : t0 + 1], (1, 0, 2)),
+    )
+    assert s["next_position"].shape == (4, 3, 2)
+    assert s["next_aux"].shape == (4, 3, 2)
+    for j, f in enumerate((t1 - 1, t1, t2)):
+        np.testing.assert_array_equal(
+            s["next_position"][:, j].numpy(), tr.positions[f]
+        )
+        np.testing.assert_array_equal(s["next_aux"][:, j].numpy(), tr.aux[f])
+    np.testing.assert_array_equal(s["input_aux"].numpy(), tr.aux[t0])
+    with pytest.raises(ValueError, match="max_dt"):
+        FlowMapChainDataset([tr], input_frames=2, max_dt=1)

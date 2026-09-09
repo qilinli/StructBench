@@ -58,6 +58,7 @@ from ..config import (
 )
 from ..datasets import (
     CaseTrajectory,
+    FlowMapChainDataset,
     FlowMapPairDataset,
     NormalizationStats,
     WindowDataset,
@@ -2060,6 +2061,43 @@ def _apply_lsq_gradient(edge_index: Tensor, coeff: Tensor, u: Tensor) -> Tensor:
     return grad
 
 
+def _anchor_kinematic_noise(
+    anchor_pair: Tensor,
+    noise_pos: float,
+    noise_vel: float,
+    is_kinematic: Tensor,
+) -> Tensor:
+    """ADR-0063 knob 2: structured Gaussian noise on the anchor position pair.
+
+    The component structure is measurement-dictated (anchor-pair error
+    correlation 0.991, `scratch/stage3/anchor_subchannel.json`): a
+    COMMON-MODE draw (``noise_pos``, mm) added to BOTH pair frames corrupts
+    the anchor displacement while cancelling exactly in the FD velocity,
+    and a DIFFERENTIAL draw (``noise_vel``, mm/frame) added to the ``t0-1``
+    frame only corrupts the FD velocity while leaving the anchor position
+    untouched. Independent per-frame noise would mis-rehearse the
+    interface ~30x (position-matched noise inflates the velocity error).
+    Kinematic rows stay clean (their fed kinematics are prescribed/GT at
+    rollout); targets stay clean GT. Zero scales return the input
+    unchanged (byte-identical off path).
+
+    ``anchor_pair`` is ``(P, 2, dim)`` — frames ``(t0-1, t0)``.
+    """
+    if noise_pos <= 0.0 and noise_vel <= 0.0:
+        return anchor_pair
+    noised = anchor_pair.clone()
+    keep = is_kinematic.unsqueeze(-1)
+    if noise_pos > 0.0:
+        common = noise_pos * torch.randn_like(anchor_pair[:, 0])
+        common = common.masked_fill(keep, 0.0)
+        noised = noised + common.unsqueeze(1)  # same draw on both frames
+    if noise_vel > 0.0:
+        diff = noise_vel * torch.randn_like(anchor_pair[:, 0])
+        diff = diff.masked_fill(keep, 0.0)
+        noised[:, 0] = noised[:, 0] + diff  # t0-1 frame only -> FD velocity
+    return noised
+
+
 def _train_transolver_fm(
     spec: BenchmarkSpec,
     cfg: TransolverConfig,
@@ -2070,7 +2108,7 @@ def _train_transolver_fm(
     device: str,
     data_root: Path,
 ) -> Path | None:
-    """Anchored flow-map Transolver training (ADR-0062).
+    """Anchored flow-map Transolver training (ADR-0062; ADR-0063 knobs).
 
     The TC formulation with a movable anchor: each sample is one uniformly
     drawn ``(anchor t0, query t)`` pair (:class:`FlowMapPairDataset`), and the
@@ -2078,11 +2116,18 @@ def _train_transolver_fm(
     prescribed boundary state at t, anchor state + kinematics at t0, anchor
     time?, offset Δt) -> absolute state at t``. The anchor aux receives the
     ADR-0061 batch-std-relative noise when ``aux_input_noise_std`` is on
-    (kinematic rows clean, clean targets); anchor kinematics are noise-free
-    (ADR-0062 v1). Targets, loss, optimizer recipe, and normalizer warmup
-    mirror :func:`_train_transolver_tc`; validation runs the SELF-ANCHORED
-    re-anchoring rollout at the canonical interval (the deployable mode,
-    ADR-0062) and selects on its mean position RMSE.
+    (kinematic rows clean, clean targets); the anchor KINEMATICS receive
+    the ADR-0063 structured noise when ``flow_map_anchor_noise_{pos,vel}``
+    are on. With ``flow_map_pushforward`` (ADR-0063 knob 1) each sample is
+    a two-hop chain (:class:`FlowMapChainDataset`): step A teacher-forces
+    the GT anchor at ``t0`` and predicts the pair ``(t1-1, t1)``, the
+    anchor at ``t1`` is rebuilt from those predictions DETACHED (house
+    kinematic clamps), and step B predicts ``t2`` from it — loss = mean of
+    the three query losses; normalizers accumulate on the clean step-A
+    queries only. Targets, loss shape, optimizer recipe, and normalizer
+    warmup mirror :func:`_train_transolver_tc`; validation runs the
+    SELF-ANCHORED re-anchoring rollout at the canonical interval (the
+    deployable mode, ADR-0062) and selects on its mean position RMSE.
     """
     if cfg.noise_std:
         logger.warning(
@@ -2146,14 +2191,24 @@ def _train_transolver_fm(
         encoding="utf-8",
     )
 
-    dataset = FlowMapPairDataset(
-        train_trajs, cfg.input_frames, max_dt=cfg.flow_map_max_dt
-    )
+    chain = cfg.flow_map_pushforward
+    if chain:
+        # ADR-0063 knob 1: two-hop chains. Config load guarantees
+        # flow_map_max_dt >= 2 with pushforward (uncapped chains would
+        # enumerate O(T^3) triples).
+        dataset = FlowMapChainDataset(
+            train_trajs, cfg.input_frames, max_dt=cfg.flow_map_max_dt
+        )
+    else:
+        dataset = FlowMapPairDataset(
+            train_trajs, cfg.input_frames, max_dt=cfg.flow_map_max_dt
+        )
     if len(dataset) == 0:
         raise ValueError(
             "empty training set: no TRAIN trajectory yields a valid "
-            f"(anchor, query) pair with input_frames = {cfg.input_frames} "
-            f"and flow_map_max_dt = {cfg.flow_map_max_dt} (ADR-0062)."
+            f"{'(t0, t1, t2) chain' if chain else '(anchor, query) pair'} "
+            f"with input_frames = {cfg.input_frames} and flow_map_max_dt = "
+            f"{cfg.flow_map_max_dt} (ADR-0062/0063)."
         )
     loader = DataLoader(
         dataset,
@@ -2165,6 +2220,7 @@ def _train_transolver_fm(
             loading_scalars=loading_scalars,
             include_target_frame=True,
             include_anchor_frame=True,
+            include_chain_frame=chain,
         ),
     )
     optimizer = torch.optim.AdamW(
@@ -2173,12 +2229,14 @@ def _train_transolver_fm(
 
     logger.info(
         "starting transolver training: %d steps, batch %d, anchored flow map "
-        "(ADR-0062), time_ref_frames=%d, %d (t0, t) pairs, max_dt=%d, "
+        "(ADR-0062%s), time_ref_frames=%d, %d %s, max_dt=%d, "
         "eval intervals %s (canonical m=%d)%s",
         train_cfg.training_steps,
         train_cfg.batch_size,
+        "; ADR-0063 pushforward chains" if chain else "",
         time_ref,
         len(dataset),
+        "(t0, t1, t2) chains" if chain else "(t0, t) pairs",
         cfg.flow_map_max_dt,
         intervals,
         canonical,
@@ -2192,8 +2250,10 @@ def _train_transolver_fm(
     while step < train_cfg.training_steps:
         for batch in loader:
             particle_type = batch["particle_type"].to(device)
-            next_position = batch["next_position"].to(device)  # (P, dim) GT at t
-            next_aux = batch["next_aux"].to(device)  # (P, C) GT aux at t
+            # (P, dim)/(P, C) GT at the query t — or, under ADR-0063
+            # pushforward, (P, 3, dim)/(P, 3, C) chain targets (t1-1, t1, t2).
+            next_position = batch["next_position"].to(device)
+            next_aux = batch["next_aux"].to(device)
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
             target_frame = batch["target_frame"].to(device)  # (B,)
@@ -2206,17 +2266,21 @@ def _train_transolver_fm(
                 loading_feature = loading_feature.to(device)
 
             is_kinematic = torch.isin(particle_type, kinematic)
+            # ADR-0063 knob 2: structured noise on the GT anchor kinematics
+            # (common-mode pos + differential vel; kinematic rows clean).
+            anchor_pair = _anchor_kinematic_noise(
+                anchor_pair,
+                cfg.flow_map_anchor_noise_pos,
+                cfg.flow_map_anchor_noise_vel,
+                is_kinematic,
+            )
             anchor_pos = anchor_pair[:, 1]
             anchor_disp = anchor_pos - reference_coords
             anchor_vel = anchor_pos - anchor_pair[:, 0]
-            # ADR-0061 noise on the anchor aux only; kinematics stay clean
-            # (ADR-0062 v1) and the targets stay clean GT.
+            # ADR-0061 noise on the anchor aux only; the targets stay clean.
             anchor_aux = _state_input_noise(
                 batch["input_aux"].to(device), aux_noise, is_kinematic
             )
-            dt_norm = (target_frame - anchor_frame).to(torch.float32) / (
-                time_ref - 1
-            )  # (B,)
             anchor_time_feature = None
             if cfg.flow_map_anchor_time:
                 # Per-example anchor time, broadcast to each example's rows
@@ -2228,20 +2292,100 @@ def _train_transolver_fm(
 
             accumulate = step < cfg.normalizer_warmup_steps
             optimizer.zero_grad()
-            pred, target = sim.forward_train_tc(
-                next_position,
-                next_aux,
-                particle_type,
-                reference_coords,
-                n_particles_per_example,
-                dt_norm,
-                accumulate=accumulate,
-                loading_feature=loading_feature,
-                anchor_disp=anchor_disp,
-                anchor_vel=anchor_vel,
-                anchor_aux=anchor_aux,
-                anchor_time_feature=anchor_time_feature,
-            )
+            if chain:
+                # ADR-0063 knob 1. Step A (teacher-forced GT anchor at t0):
+                # the TWO queries a re-anchor at t1 consumes — (t1-1, t1).
+                chain_frame = batch["chain_frame"].to(device)  # (B,) = t1
+                preds, targets = [], []
+                for j in (0, 1):
+                    dt_a = (chain_frame - 1 + j - anchor_frame).to(
+                        torch.float32
+                    ) / (time_ref - 1)
+                    p_j, t_j = sim.forward_train_tc(
+                        next_position[:, j],
+                        next_aux[:, j],
+                        particle_type,
+                        reference_coords,
+                        n_particles_per_example,
+                        dt_a,
+                        accumulate=accumulate,
+                        loading_feature=loading_feature,
+                        anchor_disp=anchor_disp,
+                        anchor_vel=anchor_vel,
+                        anchor_aux=anchor_aux,
+                        anchor_time_feature=anchor_time_feature,
+                    )
+                    preds.append(p_j)
+                    targets.append(t_j)
+                # Re-anchor at t1 on the DETACHED predictions: displacement /
+                # FD velocity from the two raw displacement slices (the
+                # reference cancels in the difference), aux from the t1
+                # prediction; kinematic rows clamped to GT — the exact analog
+                # of what the rollout hand-off feeds (ADR-0060 house clamp).
+                disp_a1, _aux_a1 = sim.train_output_state(preds[0].detach())
+                disp_a2, aux_a2 = sim.train_output_state(preds[1].detach())
+                anchor_disp_b = disp_a2
+                anchor_vel_b = disp_a2 - disp_a1
+                anchor_aux_b = aux_a2
+                if is_kinematic.any():
+                    anchor_disp_b = anchor_disp_b.clone()
+                    anchor_vel_b = anchor_vel_b.clone()
+                    anchor_aux_b = anchor_aux_b.clone()
+                    kin = is_kinematic
+                    anchor_disp_b[kin] = (
+                        next_position[:, 1] - reference_coords
+                    )[kin]
+                    anchor_vel_b[kin] = (
+                        next_position[:, 1] - next_position[:, 0]
+                    )[kin]
+                    anchor_aux_b[kin] = next_aux[:, 1][kin]
+                anchor_time_b = None
+                if cfg.flow_map_anchor_time:
+                    anchor_time_b = torch.repeat_interleave(
+                        chain_frame.to(torch.float32) / (time_ref - 1),
+                        n_particles_per_example,
+                    ).unsqueeze(1)
+                dt_b = (target_frame - chain_frame).to(torch.float32) / (
+                    time_ref - 1
+                )
+                # Step B: the contraction term (normalizers never warm on
+                # the dirty query; ADR-0063).
+                p_b, t_b = sim.forward_train_tc(
+                    next_position[:, 2],
+                    next_aux[:, 2],
+                    particle_type,
+                    reference_coords,
+                    n_particles_per_example,
+                    dt_b,
+                    accumulate=False,
+                    loading_feature=loading_feature,
+                    anchor_disp=anchor_disp_b,
+                    anchor_vel=anchor_vel_b,
+                    anchor_aux=anchor_aux_b,
+                    anchor_time_feature=anchor_time_b,
+                )
+                # (P, 3, dim+C): the rank-agnostic loss hunk below averages
+                # over the three query losses (2:1 clean:dirty, ADR-0063).
+                pred = torch.stack([*preds, p_b], dim=1)
+                target = torch.stack([*targets, t_b], dim=1)
+            else:
+                dt_norm = (target_frame - anchor_frame).to(torch.float32) / (
+                    time_ref - 1
+                )  # (B,)
+                pred, target = sim.forward_train_tc(
+                    next_position,
+                    next_aux,
+                    particle_type,
+                    reference_coords,
+                    n_particles_per_example,
+                    dt_norm,
+                    accumulate=accumulate,
+                    loading_feature=loading_feature,
+                    anchor_disp=anchor_disp,
+                    anchor_vel=anchor_vel,
+                    anchor_aux=anchor_aux,
+                    anchor_time_feature=anchor_time_feature,
+                )
             aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
             delta_v = pred[..., :-aux_c] - target[..., :-aux_c]
             delta_aux = pred[..., -aux_c:] - target[..., -aux_c:]

@@ -77,6 +77,7 @@ def collate_mesh_samples(
     loading_scalars: Sequence[float] | None = None,
     include_target_frame: bool = False,
     include_anchor_frame: bool = False,
+    include_chain_frame: bool = False,
 ) -> dict:
     """Collate a batch of windowed samples into one mesh-batched graph.
 
@@ -168,5 +169,11 @@ def collate_mesh_samples(
         # path's Δt and anchor-time conditioning (per-EXAMPLE, as above).
         out["anchor_frame"] = torch.tensor(
             [int(sample["anchor_frame"]) for sample in batch], dtype=torch.long
+        )
+    if include_chain_frame:
+        # ADR-0063: the mid-chain anchor frame t1 per example (B,) — step B
+        # of the anchor-pushforward chain re-anchors here.
+        out["chain_frame"] = torch.tensor(
+            [int(sample["chain_frame"]) for sample in batch], dtype=torch.long
         )
     return out
