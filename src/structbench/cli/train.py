@@ -2193,11 +2193,11 @@ def _train_transolver_fm(
 
     chain = cfg.flow_map_pushforward
     if chain:
-        # ADR-0063 knob 1: two-hop chains. An uncapped run (max_dt = 0)
-        # caps hops at the working horizon so the triple family is finite.
-        chain_cap = cfg.flow_map_max_dt or (min_len - 1)
+        # ADR-0063 knob 1: two-hop chains. Config load guarantees
+        # flow_map_max_dt >= 2 with pushforward (uncapped chains would
+        # enumerate O(T^3) triples).
         dataset = FlowMapChainDataset(
-            train_trajs, cfg.input_frames, max_dt=chain_cap
+            train_trajs, cfg.input_frames, max_dt=cfg.flow_map_max_dt
         )
     else:
         dataset = FlowMapPairDataset(
@@ -2250,8 +2250,10 @@ def _train_transolver_fm(
     while step < train_cfg.training_steps:
         for batch in loader:
             particle_type = batch["particle_type"].to(device)
-            next_position = batch["next_position"].to(device)  # (P, dim) GT at t
-            next_aux = batch["next_aux"].to(device)  # (P, C) GT aux at t
+            # (P, dim)/(P, C) GT at the query t — or, under ADR-0063
+            # pushforward, (P, 3, dim)/(P, 3, C) chain targets (t1-1, t1, t2).
+            next_position = batch["next_position"].to(device)
+            next_aux = batch["next_aux"].to(device)
             reference_coords = batch["reference_coords"].to(device)
             n_particles_per_example = batch["n_particles_per_example"].to(device)
             target_frame = batch["target_frame"].to(device)  # (B,)

@@ -1096,6 +1096,17 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 "[model] flow_map_max_dt must be >= 0 (0 = no cap; "
                 f"ADR-0062); got {model.flow_map_max_dt}"
             )
+        # ADR-0063: chains need hop 1 >= 2, and an uncapped Δt would
+        # enumerate O(T^3) triples — reject both at load, not at trainer
+        # start (the loud-rejection precedent).
+        if getattr(model, "flow_map_pushforward", False) and (
+            getattr(model, "flow_map_max_dt", 0) < 2
+        ):
+            raise ConfigError(
+                "[model] flow_map_pushforward requires flow_map_max_dt >= 2 "
+                "(hop 1 spans two frames, and uncapped chains enumerate "
+                f"O(T^3) triples; ADR-0063); got {model.flow_map_max_dt}"
+            )
         # ADR-0063: the anchor-noise components are absolute working-unit
         # scales; a negative entry is a typo that would silently train the
         # reference model while the record claims noise was on.

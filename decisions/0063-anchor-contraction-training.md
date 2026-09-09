@@ -90,8 +90,10 @@ compromise; the fleet prereg carries a generation-count diagnostic
 3-hop chain is the pre-registered escalation **if closure decreases
 with hand-off count** — not rejected outright.
 
-~3× forward cost per optimizer step. Requires `flow_map = true`;
-composable with knob 2 (below; the fleet tests each alone and the pair).
+~3× forward cost per optimizer step. Requires `flow_map = true` and a
+capped `flow_map_max_dt ≥ 2` (hop 1 spans two frames; uncapped chains
+would enumerate O(T³) triples — rejected at config load); composable
+with knob 2 (below; the fleet tests each alone and the pair).
 
 ### Knob 2 — structured anchor-kinematic noise (comparator):
 ### `flow_map_anchor_noise_pos: float = 0.0` and

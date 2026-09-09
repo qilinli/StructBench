@@ -893,6 +893,7 @@ def test_adr0063_happy_path_loads(tmp_path):
     cfg = _fm_toml(
         **{
             "flow_map_pushforward = false": "flow_map_pushforward = true",
+            "flow_map_max_dt = 0": "flow_map_max_dt = 5",
             "flow_map_anchor_noise_pos = 0.0": "flow_map_anchor_noise_pos = 0.66",
             "flow_map_anchor_noise_vel = 0.0": "flow_map_anchor_noise_vel = 0.03",
         }
@@ -901,3 +902,17 @@ def test_adr0063_happy_path_loads(tmp_path):
     assert rc.model.flow_map_pushforward is True
     assert rc.model.flow_map_anchor_noise_pos == 0.66
     assert rc.model.flow_map_anchor_noise_vel == 0.03
+
+
+def test_adr0063_pushforward_requires_capped_dt(tmp_path):
+    # Uncapped (0) and hop-incompatible (1) caps fail AT LOAD, not at
+    # trainer start (review finding; loud-rejection precedent).
+    for dt in ("0", "1"):
+        cfg = _fm_toml(
+            **{
+                "flow_map_pushforward = false": "flow_map_pushforward = true",
+                "flow_map_max_dt = 0": f"flow_map_max_dt = {dt}",
+            }
+        )
+        with pytest.raises(ConfigError, match="flow_map_max_dt >= 2"):
+            load_run_config(_write(tmp_path, cfg))
