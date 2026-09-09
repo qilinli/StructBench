@@ -1,6 +1,6 @@
 # 0063 — Anchor-interface contraction training (flow map)
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-09-10)
 **Type**: Durable
 **Date**: 2026-09-10
 
