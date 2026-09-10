@@ -21,6 +21,7 @@ flow_map_canonical_interval = 0  # ADR-0062 (0 = first listed interval)
 flow_map_pushforward = false  # ADR-0063 anchor-chain knob (off = reference)
 flow_map_anchor_noise_pos = 0.0  # ADR-0063 common-mode anchor noise, mm (0 = off)
 flow_map_anchor_noise_vel = 0.0  # ADR-0063 differential anchor noise, mm/frame (0 = off)
+flow_map_pushforward_generations = 1  # ADR-0063 amendment: chain-depth curriculum (1 = plain chain)
 input_frames = 2
 dim = 3
 hidden_dim = 16

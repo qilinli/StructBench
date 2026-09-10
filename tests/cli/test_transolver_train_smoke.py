@@ -104,6 +104,7 @@ def _run_transolver_smoke(
     flow_map_pushforward: bool = False,
     flow_map_anchor_noise_pos: float = 0.0,
     flow_map_anchor_noise_vel: float = 0.0,
+    flow_map_pushforward_generations: int = 1,
 ):
     """Shared spec/data/train setup for both smoke tests below.
 
@@ -150,6 +151,7 @@ def _run_transolver_smoke(
         flow_map_pushforward=flow_map_pushforward,
         flow_map_anchor_noise_pos=flow_map_anchor_noise_pos,
         flow_map_anchor_noise_vel=flow_map_anchor_noise_vel,
+        flow_map_pushforward_generations=flow_map_pushforward_generations,
         # time-conditioning is history-free / non-autoregressive: noise is inert
         noise_std=0.0 if time_conditioned else TransolverConfig().noise_std,
     )
@@ -551,3 +553,25 @@ def test_transolver_flow_map_chain_train_and_evaluate_smoke(tmp_path, monkeypatc
     for m in (1, 3):
         for prefix in (f"rollout_m{m}", f"rollout_oracle_m{m}"):
             assert np.isfinite(per_case[f"{prefix}_rel_l2_aux"])
+
+
+def test_transolver_flow_map_generation_curriculum_smoke(tmp_path):
+    """ADR-0063 amendment end-to-end: G=2 curriculum chains (anneal 1->2
+    within 50 steps) through _train_transolver_fm on the synthetic
+    benchmark — both curriculum phases execute and a checkpoint lands."""
+    _spec, _data_root, out, _cfg, _tcfg, _ids = _run_transolver_smoke(
+        tmp_path,
+        time_conditioned=True,
+        aux_input=True,
+        flow_map=True,
+        flow_map_max_dt=2,
+        flow_map_eval_intervals=(1, 2),
+        flow_map_canonical_interval=2,
+        flow_map_pushforward=True,
+        flow_map_anchor_noise_pos=0.05,
+        flow_map_anchor_noise_vel=0.01,
+        flow_map_pushforward_generations=2,
+    )
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    assert record["model"]["flow_map_pushforward_generations"] == 2
+    assert any(p.name.startswith("model-best-") for p in out.glob("model-*.pt"))

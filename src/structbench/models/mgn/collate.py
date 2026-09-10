@@ -171,9 +171,16 @@ def collate_mesh_samples(
             [int(sample["anchor_frame"]) for sample in batch], dtype=torch.long
         )
     if include_chain_frame:
-        # ADR-0063: the mid-chain anchor frame t1 per example (B,) — step B
-        # of the anchor-pushforward chain re-anchors here.
-        out["chain_frame"] = torch.tensor(
-            [int(sample["chain_frame"]) for sample in batch], dtype=torch.long
-        )
+        if "chain_frames" in batch[0]:
+            # ADR-0063 amendment: G re-anchor frames per example, (B, G).
+            out["chain_frames"] = torch.stack(
+                [sample["chain_frames"] for sample in batch]
+            )
+        else:
+            # ADR-0063: the mid-chain anchor frame t1 per example (B,) —
+            # step B of the anchor-pushforward chain re-anchors here.
+            out["chain_frame"] = torch.tensor(
+                [int(sample["chain_frame"]) for sample in batch],
+                dtype=torch.long,
+            )
     return out

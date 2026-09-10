@@ -236,24 +236,90 @@ class FlowMapChainDataset(Dataset):
         trajectories: list[CaseTrajectory],
         input_frames: int,
         max_dt: int,
+        generations: int = 1,
     ) -> None:
         if max_dt < 2:
             raise ValueError(
                 f"chain sampling needs max_dt >= 2 (hop 1 is >= 2), got {max_dt}"
             )
-        self._index: list[tuple[CaseTrajectory, int, int, int, int]] = []
-        for traj_idx, tr in enumerate(trajectories):
-            n = int(tr.positions.shape[0])
-            for t0 in range(max(input_frames - 1, 1), n - 3):
-                for t1 in range(t0 + 2, min(t0 + max_dt, n - 2) + 1):
-                    for t2 in range(t1 + 1, min(t1 + max_dt, n - 1) + 1):
-                        self._index.append((tr, t0, t1, t2, traj_idx))
+        if generations < 1:
+            raise ValueError(f"generations must be >= 1, got {generations}")
+        self._generations = generations
+        self._max_dt = max_dt
+        if generations == 1:
+            # ADR-0063 base: enumerated triples (byte-identical path).
+            self._index: list[tuple] = []
+            for traj_idx, tr in enumerate(trajectories):
+                n = int(tr.positions.shape[0])
+                for t0 in range(max(input_frames - 1, 1), n - 3):
+                    for t1 in range(t0 + 2, min(t0 + max_dt, n - 2) + 1):
+                        for t2 in range(t1 + 1, min(t1 + max_dt, n - 1) + 1):
+                            self._index.append((tr, t0, t1, t2, traj_idx))
+        else:
+            # ADR-0063 amendment (generation curriculum): the G-deep chain
+            # family is combinatorial, so the index enumerates ANCHORS only
+            # and hops are drawn per access (torch RNG — deterministic under
+            # the run seed with the in-process DataLoader). An anchor is
+            # valid iff a minimal chain (G pair hops of 2 + a final hop of
+            # 1) fits before the last frame.
+            self._index = []
+            for traj_idx, tr in enumerate(trajectories):
+                n = int(tr.positions.shape[0])
+                for t0 in range(max(input_frames - 1, 1), n - 1 - 2 * generations):
+                    self._index.append((tr, t0, traj_idx))
 
     def __len__(self) -> int:
         return len(self._index)
 
+    def _draw_chain(self, t0: int, n: int) -> list[int]:
+        """Draw frames ``t1..tG, t_final`` for a G-deep chain from ``t0``."""
+        g = self._generations
+        frames: list[int] = []
+        t = t0
+        for i in range(g):
+            # leave room for the remaining (g-1-i) pair hops (2 each) + final
+            hi_max = min(self._max_dt, (n - 2) - t - 2 * (g - 1 - i))
+            h = int(torch.randint(2, hi_max + 1, (1,)))
+            t += h
+            frames.append(t)
+        hf_max = min(self._max_dt, (n - 1) - t)
+        frames.append(t + int(torch.randint(1, hf_max + 1, (1,))))
+        return frames
+
     def __getitem__(self, i: int) -> dict[str, torch.Tensor | int]:
         """Return one chain sample (see class docstring)."""
+        if self._generations > 1:
+            tr, t0, traj_idx = self._index[i]
+            n = int(tr.positions.shape[0])
+            chain = self._draw_chain(t0, n)
+            t_final = chain[-1]
+            # target frames: (t_i - 1, t_i) per generation, then t_final.
+            frames = [f for t in chain[:-1] for f in (t - 1, t)] + [t_final]
+            pair = tr.positions[t0 - 1 : t0 + 1]
+            next_position = np.transpose(
+                np.stack([tr.positions[f] for f in frames]), (1, 0, 2)
+            )
+            next_aux = np.transpose(
+                np.stack([tr.aux[f] for f in frames]), (1, 0, 2)
+            )
+            return {
+                "position_seq": torch.from_numpy(
+                    np.ascontiguousarray(np.transpose(pair, (1, 0, 2)))
+                ),
+                "particle_type": torch.from_numpy(tr.particle_type),
+                "next_position": torch.from_numpy(
+                    np.ascontiguousarray(next_position)
+                ),
+                "next_aux": torch.from_numpy(np.ascontiguousarray(next_aux)),
+                "input_aux": torch.from_numpy(np.ascontiguousarray(tr.aux[t0])),
+                "n_particles": int(tr.positions.shape[1]),
+                "traj_idx": traj_idx,
+                "target_frame": t_final,
+                "anchor_frame": t0,
+                # Per-generation re-anchor frames t1..tG (G,), stacked to
+                # (B, G) by the collate (ADR-0063 amendment).
+                "chain_frames": torch.tensor(chain[:-1], dtype=torch.long),
+            }
         tr, t0, t1, t2, traj_idx = self._index[i]
         pair = tr.positions[t0 - 1 : t0 + 1]  # (2, P, dim)
         frames = (t1 - 1, t1, t2)
