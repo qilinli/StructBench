@@ -217,7 +217,7 @@ def test_flowmap_chain_generations():
     t0 = int(s["anchor_frame"])
     chain = [t0] + [int(f) for f in s["chain_frames"]] + [int(s["target_frame"])]
     # pair hops in [2, max_dt]; final hop in [1, max_dt]; strictly inside T.
-    for a, b in zip(chain[:-2], chain[1:-1]):
+    for a, b in zip(chain[:-2], chain[1:-1], strict=True):
         assert 2 <= b - a <= 4
     assert 1 <= chain[-1] - chain[-2] <= 4
     assert chain[-1] <= 19

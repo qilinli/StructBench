@@ -928,7 +928,11 @@ def test_adr0063_generations_validation(tmp_path):
     with pytest.raises(ConfigError, match="requires\\s+flow_map=true"):
         load_run_config(_write(tmp_path, cfg))
     cfg = _fm_toml(
-        **{"flow_map_pushforward_generations = 1": "flow_map_pushforward_generations = 4"}
+        **{
+            "flow_map_pushforward_generations = 1": (
+                "flow_map_pushforward_generations = 4"
+            )
+        }
     )
     with pytest.raises(ConfigError, match="requires\\s+flow_map_pushforward=true"):
         load_run_config(_write(tmp_path, cfg))
@@ -936,7 +940,10 @@ def test_adr0063_generations_validation(tmp_path):
         **{
             "flow_map_pushforward = false": "flow_map_pushforward = true",
             "flow_map_max_dt = 0": "flow_map_max_dt = 5",
-            "flow_map_pushforward_generations = 1": "flow_map_pushforward_generations = 4",
+            "flow_map_pushforward_generations = 1": (
+                "flow_map_pushforward_generations = 4"
+            ),
         }
     )
-    assert load_run_config(_write(tmp_path, cfg)).model.flow_map_pushforward_generations == 4
+    rc = load_run_config(_write(tmp_path, cfg))
+    assert rc.model.flow_map_pushforward_generations == 4
