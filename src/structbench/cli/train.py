@@ -2197,7 +2197,10 @@ def _train_transolver_fm(
         # flow_map_max_dt >= 2 with pushforward (uncapped chains would
         # enumerate O(T^3) triples).
         dataset = FlowMapChainDataset(
-            train_trajs, cfg.input_frames, max_dt=cfg.flow_map_max_dt
+            train_trajs,
+            cfg.input_frames,
+            max_dt=cfg.flow_map_max_dt,
+            generations=cfg.flow_map_pushforward_generations,
         )
     else:
         dataset = FlowMapPairDataset(
@@ -2206,9 +2209,11 @@ def _train_transolver_fm(
     if len(dataset) == 0:
         raise ValueError(
             "empty training set: no TRAIN trajectory yields a valid "
-            f"{'(t0, t1, t2) chain' if chain else '(anchor, query) pair'} "
-            f"with input_frames = {cfg.input_frames} and flow_map_max_dt = "
-            f"{cfg.flow_map_max_dt} (ADR-0062/0063)."
+            f"{'anchor chain' if chain else '(anchor, query) pair'} "
+            f"with input_frames = {cfg.input_frames}, flow_map_max_dt = "
+            f"{cfg.flow_map_max_dt}, generations = "
+            f"{cfg.flow_map_pushforward_generations} (a G-deep chain needs "
+            f"trajectories longer than input_frames + 2G + 1; ADR-0062/0063)."
         )
     loader = DataLoader(
         dataset,
@@ -2250,8 +2255,10 @@ def _train_transolver_fm(
     while step < train_cfg.training_steps:
         for batch in loader:
             particle_type = batch["particle_type"].to(device)
-            # (P, dim)/(P, C) GT at the query t — or, under ADR-0063
-            # pushforward, (P, 3, dim)/(P, 3, C) chain targets (t1-1, t1, t2).
+            # (P, dim)/(P, C) GT at the query t — or chain targets under
+            # ADR-0063 pushforward: (P, 3, dim) at G=1 (t1-1, t1, t2);
+            # (P, 2G+1, dim) under the generation curriculum
+            # (t1-1, t1, ..., tG-1, tG, t_final).
             next_position = batch["next_position"].to(device)
             next_aux = batch["next_aux"].to(device)
             reference_coords = batch["reference_coords"].to(device)
@@ -2292,7 +2299,98 @@ def _train_transolver_fm(
 
             accumulate = step < cfg.normalizer_warmup_steps
             optimizer.zero_grad()
-            if chain:
+            if chain and cfg.flow_map_pushforward_generations > 1:
+                # ADR-0063 amendment: GENERATION CURRICULUM. The chain
+                # deepens to g detached re-anchor events, g annealed in
+                # equal phases over training; each generation's pair is
+                # predicted from the previous generation's (detached,
+                # clamped) self-anchor. Only generation-1 queries are clean
+                # — they alone warm the normalizers.
+                gens = cfg.flow_map_pushforward_generations
+                g_level = min(
+                    gens, 1 + (step * gens) // train_cfg.training_steps
+                )
+                cf = batch["chain_frames"].to(device)  # (B, G)
+                preds: list[Tensor] = []
+                targets: list[Tensor] = []
+                cur_disp, cur_vel, cur_aux = anchor_disp, anchor_vel, anchor_aux
+                cur_time = anchor_time_feature
+                prev_frames = anchor_frame  # (B,)
+                for i in range(g_level):
+                    t_i = cf[:, i]
+                    pair_preds: list[Tensor] = []
+                    for j in (0, 1):
+                        dt_i = (t_i - 1 + j - prev_frames).to(torch.float32) / (
+                            time_ref - 1
+                        )
+                        p_k, t_k = sim.forward_train_tc(
+                            next_position[:, 2 * i + j],
+                            next_aux[:, 2 * i + j],
+                            particle_type,
+                            reference_coords,
+                            n_particles_per_example,
+                            dt_i,
+                            accumulate=accumulate and i == 0,
+                            loading_feature=loading_feature,
+                            anchor_disp=cur_disp,
+                            anchor_vel=cur_vel,
+                            anchor_aux=cur_aux,
+                            anchor_time_feature=cur_time,
+                        )
+                        preds.append(p_k)
+                        targets.append(t_k)
+                        pair_preds.append(p_k)
+                    d1, _a1 = sim.train_output_state(pair_preds[0].detach())
+                    d2, a2 = sim.train_output_state(pair_preds[1].detach())
+                    cur_disp, cur_vel, cur_aux = d2, d2 - d1, a2
+                    if is_kinematic.any():
+                        cur_disp = cur_disp.clone()
+                        cur_vel = cur_vel.clone()
+                        cur_aux = cur_aux.clone()
+                        kin = is_kinematic
+                        gt_pair0 = next_position[:, 2 * i]
+                        gt_pair1 = next_position[:, 2 * i + 1]
+                        cur_disp[kin] = (gt_pair1 - reference_coords)[kin]
+                        cur_vel[kin] = (gt_pair1 - gt_pair0)[kin]
+                        cur_aux[kin] = next_aux[:, 2 * i + 1][kin]
+                    cur_time = None
+                    if cfg.flow_map_anchor_time:
+                        cur_time = torch.repeat_interleave(
+                            t_i.to(torch.float32) / (time_ref - 1),
+                            n_particles_per_example,
+                        ).unsqueeze(1)
+                    prev_frames = t_i
+                # Final (dirty) query: at full depth it targets t_final; at
+                # a lower curriculum level it targets the next pair's first
+                # frame (dt in [1, max_dt - 1] — always a valid offset).
+                if g_level < gens:
+                    fin_idx = 2 * g_level
+                    fin_frames = cf[:, g_level] - 1
+                else:
+                    fin_idx = 2 * gens
+                    fin_frames = target_frame
+                dt_f = (fin_frames - prev_frames).to(torch.float32) / (
+                    time_ref - 1
+                )
+                p_k, t_k = sim.forward_train_tc(
+                    next_position[:, fin_idx],
+                    next_aux[:, fin_idx],
+                    particle_type,
+                    reference_coords,
+                    n_particles_per_example,
+                    dt_f,
+                    accumulate=False,
+                    loading_feature=loading_feature,
+                    anchor_disp=cur_disp,
+                    anchor_vel=cur_vel,
+                    anchor_aux=cur_aux,
+                    anchor_time_feature=cur_time,
+                )
+                preds.append(p_k)
+                targets.append(t_k)
+                pred = torch.stack(preds, dim=1)  # (P, 2*g_level+1, dim+C)
+                target = torch.stack(targets, dim=1)
+            elif chain:
                 # ADR-0063 knob 1. Step A (teacher-forced GT anchor at t0):
                 # the TWO queries a re-anchor at t1 consumes — (t1-1, t1).
                 chain_frame = batch["chain_frame"].to(device)  # (B,) = t1

@@ -217,3 +217,31 @@ any composition conclusion (the 2026-09-04 mispairing lesson).
   swept.
 - **ADR-0051**: the pushforward lineage (bundle-seam → state-channel →
   anchor-interface).
+
+## Amendment (2026-09-10, maintainer-directed): generation curriculum
+
+The repair fleet's branch-2 verdict (break-even at m ∈ {5, 15}; gap
+closure ~0.30 FLAT in m) left one regime untreated: m = 1, where 144
+hand-offs compound error generations the one-generation chain never
+rehearses (residual gap 16.4 vs ~9.5 at m=5) and where the prize is
+largest (oracle 13.4). On the maintainer's direction (GraphCast-style
+horizon curriculum), the chain gains a GENERATION dimension:
+`flow_map_pushforward_generations = G` deepens it to up to G successive
+DETACHED re-anchor events (each generation's anchor rebuilt from the
+previous generation's predicted pair with the house clamps; only
+generation-1 queries are clean and warm the normalizers), annealed in
+equal phases (`g(step) = min(G, 1 + floor(step·G/training_steps))`).
+Deliberate deviations from GraphCast, recorded: detached between
+generations (the ADR-0051/0061/0063 lineage — no BPTT through the
+chain; BPTT is the later escalation if detached saturates), and a
+generation curriculum rather than a step curriculum (the flow map's
+feedback unit is the hand-off, not the frame). At a curriculum level
+below G the final dirty query targets the next pair's first frame (a
+valid ≤ max_dt offset), so every phase trains 2g+1 queries. `G = 1`
+(default) is the plain two-hop chain, byte-identical. The G-deep chain
+family is combinatorial, so the dataset enumerates anchors and draws
+hops per access (torch RNG, deterministic under the run seed with the
+in-process loader) — a recorded departure from the enumerated-index
+convention. Fleet: `scratch/2026-09-10-anchor-contraction-fleet-
+prereg.md` addendum (PFKN-700K budget arms + PFKN-CURR curriculum arms,
+m=1 promoted to a primary readout for the curriculum).

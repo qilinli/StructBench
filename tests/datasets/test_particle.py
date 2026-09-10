@@ -200,3 +200,33 @@ def test_flowmap_chain_index_and_contract():
     np.testing.assert_array_equal(s["input_aux"].numpy(), tr.aux[t0])
     with pytest.raises(ValueError, match="max_dt"):
         FlowMapChainDataset([tr], input_frames=2, max_dt=1)
+
+
+def test_flowmap_chain_generations():
+    from structbench.datasets import FlowMapChainDataset
+
+    tr = _pair_traj(T=20)
+    ds = FlowMapChainDataset([tr], input_frames=2, max_dt=4, generations=3)
+    # anchors t0 in [1, T-2-2G] = [1, 12] -> 12 entries (anchor-enumerated).
+    assert len(ds) == 12
+    torch.manual_seed(0)
+    s = ds[0]
+    G = 3
+    assert s["next_position"].shape == (4, 2 * G + 1, 2)
+    assert s["chain_frames"].shape == (G,)
+    t0 = int(s["anchor_frame"])
+    chain = [t0] + [int(f) for f in s["chain_frames"]] + [int(s["target_frame"])]
+    # pair hops in [2, max_dt]; final hop in [1, max_dt]; strictly inside T.
+    for a, b in zip(chain[:-2], chain[1:-1], strict=True):
+        assert 2 <= b - a <= 4
+    assert 1 <= chain[-1] - chain[-2] <= 4
+    assert chain[-1] <= 19
+    # targets are the (t_i-1, t_i) pairs then t_final, in order.
+    frames = [f for t in chain[1:-1] for f in (t - 1, t)] + [chain[-1]]
+    for j, f in enumerate(frames):
+        np.testing.assert_array_equal(s["next_position"][:, j].numpy(), tr.positions[f])
+    # gens=1 path unchanged (enumerated triples).
+    ds1 = FlowMapChainDataset([tr], input_frames=2, max_dt=4, generations=1)
+    assert "chain_frame" in ds1[0] and "chain_frames" not in ds1[0]
+    with pytest.raises(ValueError, match="generations"):
+        FlowMapChainDataset([tr], input_frames=2, max_dt=4, generations=0)

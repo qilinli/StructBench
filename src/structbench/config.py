@@ -372,6 +372,18 @@ class TransolverConfig:
         the FD velocity by its std while leaving the anchor position
         untouched. Absolute working units (mm per frame). Requires
         ``flow_map = true``. ``0.0`` (default) is byte-identical.
+    flow_map_pushforward_generations : int
+        ADR-0063 amendment (2026-09-10): GraphCast-style GENERATION
+        curriculum on the pushforward chain. ``G > 1`` deepens the chain to
+        up to ``G`` successive detached re-anchor events (each generation's
+        anchor built from the previous generation's predicted pair, house
+        clamps throughout), annealed in equal phases over training
+        (``g(step) = min(G, 1 + floor(step * G / training_steps))``) so the
+        model meets its own 2nd..Gth-generation anchor-error distribution
+        only after learning the earlier ones. ``1`` (default) is the plain
+        ADR-0063 two-hop chain, byte-identical. Requires
+        ``flow_map_pushforward = true`` when ``> 1``. Forward cost of phase
+        ``g`` is ``2g + 1`` queries per step.
     """
 
     input_frames: int = 2
@@ -404,6 +416,7 @@ class TransolverConfig:
     flow_map_pushforward: bool = False
     flow_map_anchor_noise_pos: float = 0.0
     flow_map_anchor_noise_vel: float = 0.0
+    flow_map_pushforward_generations: int = 1
 
 
 @dataclass
@@ -1107,6 +1120,19 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 "(hop 1 spans two frames, and uncapped chains enumerate "
                 f"O(T^3) triples; ADR-0063); got {model.flow_map_max_dt}"
             )
+        # ADR-0063 amendment: the generation curriculum rides the chain.
+        gens = getattr(model, "flow_map_pushforward_generations", 1)
+        if gens < 1:
+            raise ConfigError(
+                "[model] flow_map_pushforward_generations must be >= 1 "
+                f"(1 = plain two-hop chain; ADR-0063); got {gens}"
+            )
+        if gens > 1 and not getattr(model, "flow_map_pushforward", False):
+            raise ConfigError(
+                "[model] flow_map_pushforward_generations > 1 requires "
+                "flow_map_pushforward=true (the curriculum deepens the "
+                "chain; ADR-0063)"
+            )
         # ADR-0063: the anchor-noise components are absolute working-unit
         # scales; a negative entry is a typo that would silently train the
         # reference model while the record claims noise was on.
@@ -1148,6 +1174,11 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                     f"[model] {knob} requires flow_map=true (ADR-0063: the "
                     "knob perturbs the anchor kinematics)"
                 )
+        if getattr(model, "flow_map_pushforward_generations", 1) != 1:
+            raise ConfigError(
+                "[model] flow_map_pushforward_generations requires "
+                "flow_map=true (ADR-0063)"
+            )
 
     return ResolvedRunConfig(
         family=family,

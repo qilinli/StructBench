@@ -270,6 +270,7 @@ flow_map_canonical_interval = 0  # ADR-0062 (0 = first listed interval)
 flow_map_pushforward = false  # ADR-0063 anchor-chain knob (off = reference)
 flow_map_anchor_noise_pos = 0.0  # ADR-0063 common-mode anchor noise (0 = off)
 flow_map_anchor_noise_vel = 0.0  # ADR-0063 differential anchor noise (0 = off)
+flow_map_pushforward_generations = 1  # ADR-0063 amendment (1 = plain chain)
 
 [train]
 batch_size = 8
@@ -916,3 +917,33 @@ def test_adr0063_pushforward_requires_capped_dt(tmp_path):
         )
         with pytest.raises(ConfigError, match="flow_map_max_dt >= 2"):
             load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0063_generations_validation(tmp_path):
+    # > 1 requires pushforward (and flow_map); >= 1 enforced.
+    cfg = VALID_TRANSOLVER.replace(
+        "flow_map_pushforward_generations = 1",
+        "flow_map_pushforward_generations = 4",
+    )
+    with pytest.raises(ConfigError, match="requires\\s+flow_map=true"):
+        load_run_config(_write(tmp_path, cfg))
+    cfg = _fm_toml(
+        **{
+            "flow_map_pushforward_generations = 1": (
+                "flow_map_pushforward_generations = 4"
+            )
+        }
+    )
+    with pytest.raises(ConfigError, match="requires\\s+flow_map_pushforward=true"):
+        load_run_config(_write(tmp_path, cfg))
+    cfg = _fm_toml(
+        **{
+            "flow_map_pushforward = false": "flow_map_pushforward = true",
+            "flow_map_max_dt = 0": "flow_map_max_dt = 5",
+            "flow_map_pushforward_generations = 1": (
+                "flow_map_pushforward_generations = 4"
+            ),
+        }
+    )
+    rc = load_run_config(_write(tmp_path, cfg))
+    assert rc.model.flow_map_pushforward_generations == 4

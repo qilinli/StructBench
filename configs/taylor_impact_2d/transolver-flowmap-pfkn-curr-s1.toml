@@ -1,7 +1,9 @@
-# taylor_impact_2d — ADR-0062 flow-map fleet arm FM-N0, seed 1:
-# FM-FULL with aux_input_noise_std = 0.0 — the anchor-noise ablation
-# (prereg branch 5: is anchor-state noise load-bearing under re-anchoring?).
-# Pre-registered in scratch/2026-09-08-flowmap-fleet-prereg.md (BINDING).
+# taylor_impact_2d — ADR-0063 follow-up arm PFKN-CURR, seed 1:
+# GraphCast-style GENERATION curriculum on the winner: chains deepen
+# 1 -> 4 detached re-anchor generations in equal 50k phases (ADR-0063
+# amendment). Target regime = m=1 (144 hand-offs; the one regime the
+# one-generation chain can't rehearse). ~24h wall. Pre-registered in
+# scratch/2026-09-10-pfkn-followup-fleet-prereg.md (BINDING).
 
 [run]
 benchmark = "taylor_impact_2d"
@@ -30,25 +32,25 @@ time_conditioned = true          # ADR-0054: faithful thuml native structural sc
 adaptive_temperature = false     # ADR-0057 (off = byte-identical)
 slice_reparam = false            # ADR-0057 (off = byte-identical)
 aux_input = true  # ADR-0062: the anchor state is the scheme's interface
-aux_input_noise_std = 0.0  # ADR-0061 noise on the anchor aux
+aux_input_noise_std = 0.15  # ADR-0061 noise on the anchor aux
 aux_input_pushforward = false # ADR-0061 stability knob (off = reference)
 flow_map = true  # ADR-0062 anchored flow map
 flow_map_anchor_time = true  # ADR-0062
-flow_map_max_dt = 0  # ADR-0062 training dt cap (0 = no cap)
-flow_map_eval_intervals = [1, 5, 15, 48, 145]  # ADR-0062 m sweep
-flow_map_canonical_interval = 15  # ADR-0062 canonical m (standard keys/artifacts)
-flow_map_pushforward = false  # ADR-0063 anchor-chain knob (off = reference)
-flow_map_anchor_noise_pos = 0.0  # ADR-0063 common-mode anchor noise, mm (0 = off)
-flow_map_anchor_noise_vel = 0.0  # ADR-0063 differential anchor noise, mm/frame (0 = off)
-flow_map_pushforward_generations = 1  # ADR-0063 amendment: chain-depth curriculum (1 = plain chain)
+flow_map_max_dt = 15  # ADR-0062 training dt cap (0 = no cap)
+flow_map_eval_intervals = [1, 5, 15]  # ADR-0062 m sweep
+flow_map_canonical_interval = 5  # ADR-0063 fleet: selection + standard keys at the win-condition m
+flow_map_pushforward = true  # ADR-0063 knob 1 (anchor chains)
+flow_map_anchor_noise_pos = 0.66  # ADR-0063 knob 2a (mm, common-mode)
+flow_map_anchor_noise_vel = 0.03  # ADR-0063 knob 2b (mm/frame, differential)
+flow_map_pushforward_generations = 4  # ADR-0063 amendment: curriculum depth
 
 [train]
 batch_size = 2                  # family reference (ADR-0044, matched to MGN)
 lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
 lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
                                 # ADR-0044); present because [train] is family-uniform.
-training_steps = 100_000        # CGN-matched budget (ADR-0047 §6), not DP's 10M
-val_every = 2000                # CGN taylor cadence
+training_steps = 200_000  # 4 equal curriculum phases of 50k
+val_every = 5000  # ~40 self-anchored val rollouts
 w_pos = 1.0
 w_aux = 1.0
 aux_tail_weight = 0.0
