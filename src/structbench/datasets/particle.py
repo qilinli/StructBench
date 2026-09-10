@@ -229,6 +229,14 @@ class FlowMapChainDataset(Dataset):
     unchanged — targets 0:2 double as the GT source for the step-B
     kinematic clamps); ``chain_frame`` carries ``t1`` (per example);
     ``target_frame`` is ``t2``.
+
+    **generations > 1** (ADR-0063 amendment — the curriculum contract):
+    the index enumerates ANCHORS only and hops are drawn per access
+    (torch RNG); targets become ``(P, 2G+1, dim)`` / ``(P, 2G+1, C)`` in
+    order ``(t1-1, t1, ..., tG-1, tG, t_final)`` and the per-example key
+    is ``chain_frames`` (``(G,)`` — re-anchor frames ``t1..tG``) instead
+    of ``chain_frame``; ``target_frame`` is ``t_final``. A dataset
+    instance emits exactly one of the two key forms.
     """
 
     def __init__(

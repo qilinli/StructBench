@@ -2209,9 +2209,11 @@ def _train_transolver_fm(
     if len(dataset) == 0:
         raise ValueError(
             "empty training set: no TRAIN trajectory yields a valid "
-            f"{'(t0, t1, t2) chain' if chain else '(anchor, query) pair'} "
-            f"with input_frames = {cfg.input_frames} and flow_map_max_dt = "
-            f"{cfg.flow_map_max_dt} (ADR-0062/0063)."
+            f"{'anchor chain' if chain else '(anchor, query) pair'} "
+            f"with input_frames = {cfg.input_frames}, flow_map_max_dt = "
+            f"{cfg.flow_map_max_dt}, generations = "
+            f"{cfg.flow_map_pushforward_generations} (a G-deep chain needs "
+            f"trajectories longer than input_frames + 2G + 1; ADR-0062/0063)."
         )
     loader = DataLoader(
         dataset,
@@ -2253,8 +2255,10 @@ def _train_transolver_fm(
     while step < train_cfg.training_steps:
         for batch in loader:
             particle_type = batch["particle_type"].to(device)
-            # (P, dim)/(P, C) GT at the query t — or, under ADR-0063
-            # pushforward, (P, 3, dim)/(P, 3, C) chain targets (t1-1, t1, t2).
+            # (P, dim)/(P, C) GT at the query t — or chain targets under
+            # ADR-0063 pushforward: (P, 3, dim) at G=1 (t1-1, t1, t2);
+            # (P, 2G+1, dim) under the generation curriculum
+            # (t1-1, t1, ..., tG-1, tG, t_final).
             next_position = batch["next_position"].to(device)
             next_aux = batch["next_aux"].to(device)
             reference_coords = batch["reference_coords"].to(device)
