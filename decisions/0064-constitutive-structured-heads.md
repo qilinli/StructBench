@@ -15,148 +15,184 @@ model of record (PFKN-100k, m=5):
 - **Consistency**: the direct-vm baseline convention emits 10.3%
   physically impossible stresses, undetectably and unfixably; the
   complete-state route is self-auditing and EVAL-TIME enforceable at
-  measured-zero cost (yield projection: D2 6.4% → 0 at vm 0.282 →
-  0.282; monotone clamp: D3 41.3% → 0 at peeq 0.088 → 0.091).
+  ≈zero pooled cost (yield projection: D2 6.4% → 0 at vm 0.282 → 0.282;
+  monotone clamp: D3 42.8% → 0 — seed mean, `scratch/stage3/
+  consistency_comparison.json` — at peeq 0.088 → 0.091, i.e. +3.4% on
+  that one channel; `scratch/stage3/handoff_dose_derivation.json`).
   Enforcement is currently post-hoc — the model itself is trained
   unconstrained and routinely proposes inadmissible states. The
   maintainer's directive: bake the physics into TRAINING, not only
   evaluation.
-- **Accuracy**: the residual oracle-vs-self gap (~9.5 pooled at m=5) is
-  now measured **~100% aux-channel** (gap-analysis probe,
-  `scratch/stage3/gap_analysis.json`: GT-aux anchors reach 15.55 ≈ the
-  15.53 oracle, s_xy 0.79 → 0.46, composed vm 0.285 → **0.183 ≈ the
-  registered direct head's 0.175**; GT kinematics buys 0.03 — the
-  ADR-0063 kinematic repair is complete, post-repair anchor position
-  error 0.66 → 0.097 mm). Every EVAL-TIME aux treatment is measured
-  dead or marginal: in-loop projection neutral (25.00 vs 25.04),
-  EMA-smoothed aux anchors flat-to-worse (25.07 / 25.55), TC-sourced
-  anchors −3.4% (two-model cost), self-hierarchical anchors worse.
-  **The aux hand-off must be repaired in training.**
+- **Accuracy**: the residual oracle-vs-self gap (~9.5 pooled at m=5)
+  is measured **~100% aux-channel** (gap-analysis probe on pfkn-s1
+  — SINGLE-SEED eval probe, noted per F-002;
+  `scratch/stage3/gap_analysis.json`): GT-aux anchors reach 15.55 ≈
+  the 15.53 oracle; s_xy 0.79 → 0.46; composed vm 0.285 → 0.183
+  (within 4.6% of the registered direct head's 0.175). GT kinematics
+  buys 0.03 — the ADR-0063 kinematic repair is complete (post-repair
+  anchor position error 0.66 → 0.097 mm). Every EVAL-TIME aux
+  treatment is measured dead or marginal: in-loop projection neutral
+  (25.00 vs 25.04), EMA-smoothed aux anchors flat-to-worse
+  (25.07 / 25.55), TC-sourced anchors −3.4% (two-model cost),
+  self-hierarchical anchors worse. **The aux hand-off must be
+  repaired in training.**
 
 Two more measured facts shape HOW:
 
 - The house prior on soft losses is strongly negative for aux accuracy
-  (F-011: no training-signal manipulation improved an aux field;
-  WAUX3's loss re-weighting was rejected with the primary field
-  paying), and in-manifold drift — not unphysicality — is the
-  compounding driver (stability probes; projection closes ≤ 10%).
-  Soft consistency penalties are therefore the WEAK bet and run only
-  as the comparator.
-- The per-channel hand-off error is grossly mis-matched to the uniform
-  ADR-0061 noise dose (`scratch/stage3/ema_aux_probe.json` /
-  probe printout): relative anchor errors (s_xx, s_yy, s_xy, peeq, E,
-  rho) = (0.40, 0.38, **0.78**, 0.08, 0.10, 0.002) vs the flat 0.15 —
-  s_xy under-rehearsed ~5×, peeq over-rehearsed ~2×. Re-dosing is a
-  pure config arm (the knob is already per-channel).
+  (F-011; WAUX3 rejected with the primary field paying), and
+  in-manifold drift — not unphysicality — is the compounding driver
+  (stability probes; in-loop projection neutral). Soft consistency
+  penalties are the WEAK bet and run only as the comparator.
+- The per-channel hand-off error, measured in the noise knob's own
+  batch-std-relative units (`handoff_dose_derivation.json`,
+  `dose_vs_std`): (s_xx, s_yy, s_xy, peeq, E, rho) =
+  (0.58, 0.55, 0.78, 0.10, 0.12, 0.01) vs the flat 0.15 — the shear
+  channel under-rehearsed ~5×, the normal deviators ~4×. Re-dosing is
+  a pure config arm (the knob is already per-channel).
 
 ## Decision
 
-**Restructure the flow-map state head so admissibility holds BY
-CONSTRUCTION, at training and deployment alike — the return-mapping
-structure of computational plasticity as the decoder's hypothesis
-class — with a soft-hinge comparator; select by fleet (pre-registered
-separately) against both goals at once.**
+**Restructure the flow-map state head so yield admissibility and
+anchor-relative irreversibility hold BY CONSTRUCTION, at training and
+deployment alike — the return-mapping structure of computational
+plasticity as the decoder's hypothesis class — with a soft-hinge
+comparator; select by fleet (pre-registered separately) against both
+goals at once.**
 
 ### Knob 1 — `TransolverConfig.flow_map_structured_heads: bool = False` (primary)
 
-The decoder's raw state slice is reinterpreted; the emitted state is:
+The decoder's raw state slice keeps its width (6) but is reinterpreted;
+the emitted state is:
 
-- **peeq** `= peeq_anchor + softplus(raw_Δ)` — non-decreasing from the
-  anchor by construction (D3 ≡ 0 across anchors and within segments;
-  the flow-map anchor supplies the reference, which is why this head
-  is flow-map-native).
-- **deviator** `= r · σ_y(peeq) · u / ‖u‖_vm` where `r = sigmoid(raw_r)`
-  ∈ [0, 1], `u` the raw 3-vector direction, and `‖u‖_vm` its von Mises
-  norm — so the composed vm equals `r · σ_y(peeq)` EXACTLY and can
-  never exceed the yield surface (D2 ≡ 0 by construction). The
-  magnitude/direction decomposition is the structured-deviator
-  parameterisation previously motivated for the s_xy channel
-  (vm-route fleet, branch 4).
-- **internal energy, density**: unconstrained (v1).
+- **peeq** `= peeq_anchor + softplus(raw_Δ)` — never below the anchor,
+  by construction. `peeq_anchor` is the FED anchor value exactly as the
+  interface supplies it (ADR-0061-noised at chain step A, the detached
+  prediction at step B, the fed-back prediction at deployment) — the
+  train/deploy-consistent choice. Two recorded costs of the hard
+  floor: (a) when noise or an over-shoot lifts the base above the GT
+  target, the target increment is unrepresentable — the
+  **unreachable-target fraction at the fleet doses is a binding
+  readout**, and the across-hand-off ratchet is a known cost (the
+  eval clamp's measured +3.4% on peeq is its existing estimate);
+  (b) softplus is strictly positive, so exactly-elastic phases can
+  only be approximated — a peeq-creep bias that compounds with
+  hand-off count (an **elastic-subset increment readout** binds in the
+  prereg; ReLU would give exact zeros at the cost of a dead-gradient
+  zone — recorded alternative, not taken in v1).
+- **deviator** `= σ_y(peeq) · v · tanh(‖v‖_vm) / ‖v‖_vm` with `v` the
+  raw 3-vector and `‖·‖_vm` the plane-strain von Mises norm — smooth
+  at `v → 0` (tanh(x)/x → 1; no ε-guard, no separate magnitude
+  channel), and the composed vm equals `σ_y(peeq)·tanh(‖v‖_vm)`
+  **≤ σ_y(peeq) by construction** (D2 ≡ 0). The direction/magnitude
+  structure is the parameterisation previously motivated for s_xy
+  (vm-route fleet, branch 4). Recorded trade: at-yield states need
+  `tanh → 1` (saturation with decaying gradients over the dominant
+  plastic regime) — the prereg's one-sided info guard is the check.
+- **internal energy, density**: unconstrained (v1 — their measured
+  hand-off doses are 0.12/0.01; constraining them has no driver).
+
+**What is and is NOT guaranteed** (scope, stated precisely): D2 ≡ 0
+everywhere, and peeq monotone ACROSS THE ANCHOR CHAIN (every emission
+≥ its anchor; hand-off-level D3 ≡ 0). Within-segment queries are
+independent (ADR-0062), so frame-to-frame peeq between two queries of
+the SAME anchor is not ordered by construction — trajectory-level
+D3 ≡ 0 is completed by the measured-free eval clamp, which under this
+head only ever corrects within-segment ripples bounded below by the
+anchor. Any nonzero D2, or peeq below its anchor, IS an implementation
+bug; within-segment D3 is a readout, not a tripwire.
 
 The hardening curve `σ_y(peeq)` enters as a fixed per-benchmark table
-(the Taylor curve already used by every admissibility analysis),
-supplied through the benchmark spec at build time. Loss unchanged in
-form: structured raw outputs are passed through the existing target
-normalizer so `w_pos`/`w_aux` semantics and all metrics are untouched.
-Requires `flow_map = true` and the 6-channel state block layout
-(deviatoric_stress_2d + effective_plastic_strain + internal_energy +
-density — validated at load). `False` (default) byte-identical.
-
-**What this buys per goal**: (V&V) the model *cannot emit* an
-inadmissible state — projection becomes verification, not repair; the
-guarantee holds inside the hand-off loop, in training, and at
-deployment. (Accuracy) the aux hand-off error the residual gap is made
-of gets a better-conditioned parameterisation exactly where it is
-worst — s_xy through the bounded direction field, peeq through
-increments — a hypothesis, priced by the fleet, not asserted.
+via a new benchmark-spec hook (Taylor-only v1) — **units MPa, knots
+verbatim from the deck (including the non-monotone 251.1 → 250.9
+knot), `np.interp` end-clamped semantics as the contract**; this hook
+becomes the ONE authoritative table and the analysis scripts
+(`consistency_comparison.py`, `gap_analysis_probe.py`,
+`tools/state_probe`) migrate to it — retiring copies, not adding one.
+Structured raw outputs pass through the existing target normalizer for
+the loss, so the `w_pos`/`w_aux` loss FORM and every metric are
+unchanged — noting honestly that the structure re-routes gradients
+(σ_y′ couples deviator-channel error into the peeq head at a magnitude
+comparable to peeq's own signal); that coupling is the mechanism, not
+a side effect. One shared decode helper serves `forward_train_tc` AND
+`predict_state_at` so train and eval cannot diverge. Requires
+`flow_map = true` and the 6-channel state layout (validated at load).
+`False` (default) byte-identical.
 
 ### Knob 2 — `TransolverConfig.flow_map_consistency_hinge: float = 0.0` (comparator)
 
-Soft admissibility penalties on the unstructured head, added to the
-standard loss with weight λ: `relu(vm_comp − σ_y(peeq_pred))/σ_y0`
-(yield hinge) + `relu(peeq_anchor − peeq_pred)/peeq_scale`
-(irreversibility hinge — again anchored, flow-map-native). Two λ
-scales fleet-swept (ADR-0049). Expected weaker per F-011; it exists so
-"hard vs soft constraints" is measured, not assumed. Requires
-`flow_map = true`; `0.0` byte-identical. Mutually exclusive with
-knob 1 (a structured head has nothing to penalize).
+Soft admissibility penalties on the unstructured head, weight λ:
+`relu(vm_comp − σ_y(peeq_pred))/σ_y0` + `relu(peeq_anchor −
+peeq_pred)/peeq_scale`, with `peeq_anchor` the same fed reference as
+knob 1 (same rationale, same unreachable-target caveat). Two λ scales
+fleet-swept; per the ADR-0049/0063 convention a third scale is owed
+before any wrong-mechanism conclusion if both are null — accepted for
+a comparator and recorded. Expected weaker per F-011 — it exists so
+hard-vs-soft is measured, not assumed. Requires `flow_map = true`;
+`0.0` byte-identical. Mutually exclusive with knob 1 (both hinges are
+identically zero on structured outputs).
 
 ### Explicitly not in this ADR (fleet-config arms, no new surface)
 
-- **Aux-noise re-dose** at the measured per-channel hand-off structure
-  (the existing per-channel `aux_input_noise_std`) with the kinematic
-  dose reduced to its post-repair magnitudes.
-- **Capacity arm** (hidden 256): the gap now tracks the oracle, which
-  may be trunk-limited; existing knob.
-- Eval-side projection/clamp productization for UNSTRUCTURED runs — a
-  small separate follow-up (measured free); structured heads make it
-  moot for their runs.
+- **Aux-noise re-dose** at the measured per-channel structure IN THE
+  KNOB'S UNITS — [0.58, 0.55, 0.78, 0.10, 0.12, 0.01] — with the
+  kinematic dose UNCHANGED (0.66/0.03): the measured dose–response
+  says reducing it trips the displacement guard (KN-03 at 0.2 failed
+  0.0169), and one-mechanism-per-arm is the house rule. Adverse prior
+  stated up front: uniform aux noise was measured inert (FM-N0 ≈
+  FM-FULL); the arm's hypothesis is *wrong structure, not wrong
+  mechanism* — priced, not assumed.
+- **Capacity arm** (hidden 256): the gap tracks the oracle, which may
+  be trunk-limited; existing knob; measured cost precedent ~1.4×
+  (ADR-0049 big arm).
+- Eval-side projection/clamp productization for unstructured runs — a
+  small separate follow-up (measured ≈free).
 
 ## Alternatives considered
 
-- **Keep enforcing at eval only**: measured — projection/clamp are free
-  correctors of outputs but neutral to accuracy, and they leave the
-  training-time model proposing inadmissible states the chain then
-  rehearses; contradicts the maintainer's directive.
-- **Soft penalties as the primary**: against F-011 and the WAUX3
-  rejection; demoted to comparator.
-- **Structured heads for AR/TC too**: TC has no anchor peeq for the
-  increment head (frame-0 anchoring would pin peeq to a full-history
-  increment — a different design); AR is retired for this thread.
-  Flow-map-scoped v1.
-- **Constrain E/ρ too** (positivity etc.): tiny measured error
-  (rel 0.10/0.002); complexity without a driver. Deferred.
+- **Keep enforcing at eval only**: measured accuracy-neutral, leaves
+  training rehearsing inadmissible states, contradicts the directive.
+- **Soft penalties as primary**: against F-011/WAUX3; demoted to
+  comparator.
+- **`r·sigmoid` magnitude + ε-guarded unit direction**: needs the
+  ε-guard (degenerate gradient at dev → 0, which is COMMON —
+  pre-arrival particles), an extra raw channel, and a saturation
+  cliff; the tanh form is smooth at zero at equal expressiveness.
+- **ReLU increment for exact elastic zeros**: dead-gradient zone;
+  recorded alternative, revisit if the elastic-creep readout binds.
+- **Structured heads for TC/AR**: TC lacks an anchor reference for the
+  increment head; AR is retired. Flow-map-scoped v1.
 
 ## Consequences
 
 - **Surface changed** (on acceptance): `config.py` (two knobs +
-  validation incl. mutual exclusion and the state-layout check),
-  benchmark spec (a `hardening_curve` hook, Taylor-only v1),
-  `models/transolver/simulator.py` (structured decode in the TC/FM
-  target path + the raw→normalized loss bridge; `train_output_state`
-  and `set_anchor` unchanged — they consume raw states), `cli/train.py`
-  (hinge terms in the fm loss), mandatory two-key migration across the
-  ~110 transolver TOMLs, tests (byte-identity off; D2/D3 ≡ 0 on
-  structured outputs as an IMPLEMENTATION check; hinge gradients;
-  head-shape round-trip; chain smoke with structured heads).
-- Structured runs' D2-own/D3 metrics double as implementation
-  tripwires (any nonzero = bug, not physics).
-- The fleet (pre-registered separately,
-  `scratch/2026-09-12-structured-heads-fleet-prereg.md`) prices both
-  pillars in one round against the measured door: GT-quality aux
-  anchors reach 15.5 — the decisive bar (17.4) is INSIDE the door the
-  residual analysis opened.
+  validation incl. mutual exclusion and the layout check), benchmark
+  spec (`hardening_curve` hook, Taylor v1, single-source contract as
+  above), `models/transolver/simulator.py` (one shared structured
+  decode used by both the training forward and `predict_state_at`;
+  `train_output_state`/`set_anchor` unchanged — raw-state consumers),
+  `cli/train.py` (hinge terms in the fm loss), mandatory two-key
+  migration across the ~110 transolver TOMLs, analysis-script
+  migration to the hardening hook, tests (byte-identity off; D2 ≡ 0
+  and peeq ≥ anchor on structured outputs as implementation checks;
+  tanh-form smoothness at v = 0; hinge gradients; chain smoke).
+- The structured arms' D2-own and hand-off-level D3 double as
+  implementation tripwires; within-segment D3 and the two recorded
+  cost readouts (unreachable-target fraction, elastic-subset
+  increment) are diagnostics.
+- The fleet (`scratch/2026-09-12-structured-heads-fleet-prereg.md`,
+  BINDING) prices both pillars in one round; the decisive bar (17.4)
+  sits inside the measured single-seed door (15.55), which the fleet's
+  seed-matched arms will confirm or shrink honestly.
 
 ## Relationship to other ADRs
 
-- **ADR-0063**: the chain + kinematic noise stay the base recipe (the
-  kinematic channel is measured fully repaired); this ADR targets the
-  remaining aux channel and converts eval-time physics enforcement
-  into architecture.
+- **ADR-0063**: chains + kinematic noise stay the base recipe (that
+  channel is measured repaired); this ADR targets the remaining aux
+  channel and converts eval-time enforcement into architecture.
 - **ADR-0062**: scheme unchanged; the anchor interface is what makes
-  both heads well-posed (anchored increments; state-complete anchors).
-- **ADR-0059**: channel conventions unchanged; the structured head
-  emits the same 6 channels in the same order and units.
-- **F-011 / WAUX3**: the reason soft constraints are the comparator,
-  not the bet.
+  both heads well-posed (anchored increments, state-complete anchors).
+- **ADR-0059**: channel conventions unchanged (same 6 channels, same
+  order/units).
+- **F-011 / WAUX3 / FM-N0**: the adverse priors this ADR's bets are
+  structured around rather than against.
