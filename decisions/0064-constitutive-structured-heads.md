@@ -1,6 +1,6 @@
 # 0064 — Constitutively-structured admissible heads (physics baked into training)
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-09-12)
 **Type**: Durable
 **Date**: 2026-09-12
 
