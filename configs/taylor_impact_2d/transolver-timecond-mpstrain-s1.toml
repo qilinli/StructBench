@@ -52,6 +52,8 @@ flow_map_pushforward = false  # ADR-0063 anchor-chain knob (off = reference)
 flow_map_anchor_noise_pos = 0.0  # ADR-0063 common-mode anchor noise, mm (0 = off)
 flow_map_anchor_noise_vel = 0.0  # ADR-0063 differential anchor noise, mm/frame (0 = off)
 flow_map_pushforward_generations = 1  # ADR-0063 amendment: chain-depth curriculum (1 = plain chain)
+flow_map_structured_heads = false  # ADR-0064 knob 1 (return-map decoder)
+flow_map_consistency_hinge = 0.0  # ADR-0064 knob 2 (soft comparator; exclusive with knob 1)
 
 [train]
 batch_size = 2                  # family reference (ADR-0044, matched to MGN)

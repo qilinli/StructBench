@@ -271,6 +271,8 @@ flow_map_pushforward = false  # ADR-0063 anchor-chain knob (off = reference)
 flow_map_anchor_noise_pos = 0.0  # ADR-0063 common-mode anchor noise (0 = off)
 flow_map_anchor_noise_vel = 0.0  # ADR-0063 differential anchor noise (0 = off)
 flow_map_pushforward_generations = 1  # ADR-0063 amendment (1 = plain chain)
+flow_map_structured_heads = false  # ADR-0064 return-map decoder (off = reference)
+flow_map_consistency_hinge = 0.0  # ADR-0064 soft comparator (0 = off)
 
 [train]
 batch_size = 8
@@ -947,3 +949,124 @@ def test_adr0063_generations_validation(tmp_path):
     )
     rc = load_run_config(_write(tmp_path, cfg))
     assert rc.model.flow_map_pushforward_generations == 4
+
+
+#: The canonical 6-channel state block the structured heads require
+#: (ADR-0064; deviator 3 + peeq + energy + density).
+_STATE_BLOCK = (
+    'aux_fields = ["deviatoric_stress_2d", "effective_plastic_strain", '
+    '"internal_energy", "density"]'
+)
+
+
+def _sh_toml(**replacements) -> str:
+    """_fm_toml with the canonical state block and structured heads on."""
+    s = _fm_toml(
+        **{
+            "flow_map_structured_heads = false": (
+                "flow_map_structured_heads = true"
+            ),
+            "[train]": f"[train]\n{_STATE_BLOCK}",
+        }
+    )
+    for old, new in replacements.items():
+        assert old in s, old
+        s = s.replace(old, new)
+    return s
+
+
+def test_adr0064_knobs_require_flow_map(tmp_path):
+    cfg = VALID_TRANSOLVER.replace(
+        "flow_map_structured_heads = false", "flow_map_structured_heads = true"
+    )
+    with pytest.raises(ConfigError, match="requires flow_map=true"):
+        load_run_config(_write(tmp_path, cfg))
+    cfg = VALID_TRANSOLVER.replace(
+        "flow_map_consistency_hinge = 0.0", "flow_map_consistency_hinge = 0.1"
+    )
+    with pytest.raises(ConfigError, match="requires flow_map=true"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0064_negative_hinge_rejected(tmp_path):
+    cfg = _fm_toml(
+        **{"flow_map_consistency_hinge = 0.0": "flow_map_consistency_hinge = -0.1"}
+    )
+    with pytest.raises(ConfigError, match="must be >= 0"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0064_mutual_exclusion(tmp_path):
+    cfg = _sh_toml(
+        **{"flow_map_consistency_hinge = 0.0": "flow_map_consistency_hinge = 0.1"}
+    )
+    with pytest.raises(ConfigError, match="mutually exclusive"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0064_structured_requires_state_block(tmp_path):
+    # missing aux_fields: the effective layout is the benchmark default
+    cfg = _fm_toml(
+        **{
+            "flow_map_structured_heads = false": (
+                "flow_map_structured_heads = true"
+            )
+        }
+    )
+    with pytest.raises(ConfigError, match="canonical state block"):
+        load_run_config(_write(tmp_path, cfg))
+    # wrong order is also rejected (channel INDICES are the contract)
+    cfg = _sh_toml(
+        **{
+            _STATE_BLOCK: (
+                'aux_fields = ["effective_plastic_strain", '
+                '"deviatoric_stress_2d", "internal_energy", "density"]'
+            )
+        }
+    )
+    with pytest.raises(ConfigError, match="canonical state block"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0064_hinge_requires_state_block(tmp_path):
+    # Review finding: the hinge slices the canonical channel indices too,
+    # so it gets the same load-time layout guard as the structured heads.
+    cfg = _fm_toml(
+        **{"flow_map_consistency_hinge = 0.0": "flow_map_consistency_hinge = 0.1"}
+    )
+    with pytest.raises(ConfigError, match="canonical state block"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0064_knobs_require_benchmark_hardening_curve(tmp_path):
+    # deforming_plate has no hardening_curve: both knobs must fail AT LOAD
+    # (review finding — previously died mid-run on the cluster).
+    with pytest.raises(ConfigError, match="hardening_curve"):
+        load_run_config(_write(tmp_path, _sh_toml()))
+    cfg = _sh_toml(
+        **{
+            "flow_map_structured_heads = true": (
+                "flow_map_structured_heads = false"
+            ),
+            "flow_map_consistency_hinge = 0.0": (
+                "flow_map_consistency_hinge = 1.0"
+            ),
+        }
+    )
+    with pytest.raises(ConfigError, match="hardening_curve"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0064_happy_path_loads_fleet_configs():
+    # The real pre-registered fleet arms are the happy path: Taylor has the
+    # curve and the canonical state block.
+    rc = load_run_config(
+        REPO_ROOT / "configs" / "taylor_impact_2d" / "transolver-flowmap-sh-s1.toml"
+    )
+    assert rc.model.flow_map_structured_heads is True
+    assert rc.model.flow_map_consistency_hinge == 0.0
+    rc = load_run_config(
+        REPO_ROOT / "configs" / "taylor_impact_2d" / "transolver-flowmap-hglo-s1.toml"
+    )
+    assert rc.model.flow_map_structured_heads is False
+    assert rc.model.flow_map_consistency_hinge == 0.1

@@ -17,6 +17,7 @@ import h5py
 import numpy as np
 from numpy.typing import NDArray
 
+from structbench.benchmarks import get_benchmark
 from structbench.datasets.canonical import n_valid_frames, von_mises_from_voigt
 
 # --- Physical constants -------------------------------------------------
@@ -24,7 +25,7 @@ from structbench.datasets.canonical import n_valid_frames, von_mises_from_voigt
 # from dataset statistics: dataset stats move when cases are added, physical
 # constants do not, and the yield bound stays expressible in normalised units.
 
-SIGMA_Y_MAX = 422.2e6  # Pa, top of the hardening table
+SIGMA_Y_MAX = 422.2e6  # Pa, top of the hardening table (== HARDEN_SY[-1])
 S_SCALE = SIGMA_Y_MAX * np.sqrt(2.0 / 3.0)  # 3.447e8 Pa, max |s| on the surface
 PEEQ_SCALE = 1.5  # hardening-table knot
 E_SCALE = 0.05  # J, round number above the observed per-particle max
@@ -35,16 +36,11 @@ X_SCALE = 0.1  # m, longest bar; fixed so geometries stay comparable
 #: ``*MAT_ELASTIC_PLASTIC_HYDRO`` hardening curve from the deck.
 #: Note ``es[1] > es[2]`` -- a 0.2 MPa non-monotonicity present in the source
 #: deck, kept verbatim rather than smoothed.
-HARDEN_EPS = np.array(
-    [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 10, 15, 20], float
-)
-HARDEN_SY = 1e6 * np.array(
-    [
-        199.3, 251.1, 250.9, 321.4, 344.8, 362.8, 376.6, 387.7,
-        395.4, 406.4, 415.9, 416.7, 419.0, 421.1, 422.2, 422.2,
-    ],
-    float,
-)
+#: ADR-0064: sourced from the benchmark spec's ``hardening_curve`` hook (the
+#: ONE authoritative table; the spec stores MPa, this probe works in Pa).
+_HARDENING_MPA = get_benchmark("taylor_impact_2d").hardening_curve
+HARDEN_EPS = np.array(_HARDENING_MPA[0], float)
+HARDEN_SY = 1e6 * np.array(_HARDENING_MPA[1], float)
 
 #: Field name -> component count. Order defines the packed state layout.
 FIELDS: tuple[tuple[str, int], ...] = (

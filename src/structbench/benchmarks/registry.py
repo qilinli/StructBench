@@ -105,6 +105,16 @@ class BenchmarkSpec:
     construction. ``None`` leaves the family default (the ADR-0043
     ``(1,)``); Taylor pins its wall type here (ADR-0047), whose scripted
     velocity is identically zero."""
+    hardening_curve: tuple[tuple[float, ...], tuple[float, ...]] | None = None
+    """ADR-0064: the benchmark's isotropic hardening curve as
+    ``(peeq_knots, sigma_y_knots)`` — sigma_y in the WORKING aux unit (MPa),
+    knots verbatim from the solver deck (including any non-monotone knot),
+    ``np.interp`` end-clamped semantics as the contract. The ONE
+    authoritative table: consumed by the structured admissible heads and
+    the consistency-hinge loss (both flow-map training paths) and by the
+    admissibility analyses. ``None`` when the benchmark has no plasticity
+    (structured heads are then rejected at train time)."""
+
     loading_scalar: Callable[[str], float] | None = None
     """Maps a case id to its scalar loading parameter (impact velocity),
     consumed by the Transolver ``impact_velocity_feature`` (ADR-0051 B): the
@@ -125,6 +135,23 @@ class BenchmarkSpec:
         return (self.aux_field,)
 
     def __post_init__(self) -> None:
+        # ADR-0064: a malformed hardening curve must fail at spec
+        # construction, not inside torch.bucketize (which returns wrong
+        # intervals SILENTLY on unsorted knots — review finding).
+        if self.hardening_curve is not None:
+            peeq_knots, sy_knots = self.hardening_curve
+            if len(peeq_knots) < 2 or len(peeq_knots) != len(sy_knots):
+                raise ValueError(
+                    "hardening_curve needs >= 2 (peeq, sigma_y) knot pairs "
+                    f"of equal length; got {len(peeq_knots)}/{len(sy_knots)}"
+                )
+            if any(
+                later <= earlier
+                for earlier, later in zip(peeq_knots[:-1], peeq_knots[1:], strict=True)
+            ):
+                raise ValueError(
+                    "hardening_curve peeq knots must be strictly increasing"
+                )
         for required in ("train", "val"):
             if required not in self.splits:
                 raise ValueError(f"splits must include {required!r}")
