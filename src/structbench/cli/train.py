@@ -87,7 +87,11 @@ from ..models.mgn import (
     collate_mesh_samples,
     mesh_static_from_trajectory,
 )
-from ..models.transolver import TransolverSimulator
+from ..models.transolver import (
+    TransolverSimulator,
+    hardening_sigma_y,
+    plane_strain_vm,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -399,6 +403,7 @@ def build_transolver_simulator(
     kinematic_types: tuple[int, ...],
     scripted_types: tuple[int, ...] | None = None,
     n_aux: int = 1,
+    hardening_curve: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
     device: str,
 ) -> TransolverSimulator:
     """Construct a :class:`TransolverSimulator` from a :class:`TransolverConfig`.
@@ -450,6 +455,10 @@ def build_transolver_simulator(
         aux_input=cfg.aux_input,
         flow_map=cfg.flow_map,
         flow_map_anchor_time=cfg.flow_map_anchor_time,
+        # ADR-0064: the benchmark's sigma_y(peeq) table; consumed by the
+        # simulator exactly when flow_map_structured_heads is on.
+        flow_map_structured_heads=cfg.flow_map_structured_heads,
+        hardening_curve=hardening_curve,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         n_aux=n_aux,
@@ -1710,6 +1719,7 @@ def _train_transolver(
         n_aux=int(train_trajs[0].aux.shape[-1]),  # ADR-0059
         kinematic_types=spec.kinematic_types,
         scripted_types=spec.scripted_types,
+        hardening_curve=spec.hardening_curve,
         device=device,
     )
     sim.to(device)
@@ -2098,6 +2108,31 @@ def _anchor_kinematic_noise(
     return noised
 
 
+def _fm_admissibility_hinge(
+    aux_raw: Tensor,
+    anchor_peeq: Tensor,
+    knots: tuple[Tensor, Tensor],
+    peeq_scale: Tensor,
+) -> Tensor:
+    """ADR-0064 knob 2: per-particle admissibility hinge for ONE fm query.
+
+    ``relu(vm_comp - sigma_y(peeq_pred)) / sigma_y0`` (yield admissibility)
+    plus ``relu(anchor_peeq - peeq_pred) / peeq_scale`` (anchor-relative
+    irreversibility), both dimensionless. ``aux_raw`` is the query's RAW
+    working-unit aux block (gradients intact); ``anchor_peeq`` the FED
+    anchor's peeq channel — the same reference the structured heads build
+    on (ADR-0064); ``peeq_scale`` a detached batch-GT scale.
+    """
+    dev = aux_raw[..., :3]
+    peeq = aux_raw[..., 3]
+    vm = plane_strain_vm(dev)
+    sy = hardening_sigma_y(peeq, knots[0], knots[1])
+    return (
+        torch.relu(vm - sy) / knots[1][0]
+        + torch.relu(anchor_peeq - peeq) / peeq_scale
+    )
+
+
 def _train_transolver_fm(
     spec: BenchmarkSpec,
     cfg: TransolverConfig,
@@ -2162,6 +2197,7 @@ def _train_transolver_fm(
         n_aux=int(train_trajs[0].aux.shape[-1]),  # ADR-0059
         kinematic_types=spec.kinematic_types,
         scripted_types=spec.scripted_types,
+        hardening_curve=spec.hardening_curve,
         device=device,
     )
     sim.to(device)
@@ -2174,6 +2210,25 @@ def _train_transolver_fm(
         cfg.aux_input_noise_std, int(train_trajs[0].aux.shape[-1])
     )
     intervals, canonical = _fm_intervals_and_canonical(cfg)
+    # ADR-0064 knob 2: the soft comparator needs the benchmark's hardening
+    # table (the structured heads get theirs through the simulator ctor).
+    hinge_w = cfg.flow_map_consistency_hinge
+    hinge_knots: tuple[torch.Tensor, torch.Tensor] | None = None
+    if hinge_w > 0:
+        if spec.hardening_curve is None:
+            raise ValueError(
+                f"benchmark {spec.card.name!r} has no hardening_curve, but "
+                "the transolver config sets flow_map_consistency_hinge="
+                f"{hinge_w} (ADR-0064)"
+            )
+        hinge_knots = (
+            torch.tensor(
+                spec.hardening_curve[0], dtype=torch.float32, device=device
+            ),
+            torch.tensor(
+                spec.hardening_curve[1], dtype=torch.float32, device=device
+            ),
+        )
 
     (out_dir / "config.json").write_text(
         json.dumps(
@@ -2299,6 +2354,11 @@ def _train_transolver_fm(
 
             accumulate = step < cfg.normalizer_warmup_steps
             optimizer.zero_grad()
+            # ADR-0064 knob 2: one hinge term per query, each against the
+            # anchor actually FED to that query; empty when the knob is off.
+            hinge_terms: list[Tensor] = []
+            if hinge_knots is not None:
+                peeq_scale = next_aux[..., 3].std().detach().clamp(min=1e-6)
             if chain and cfg.flow_map_pushforward_generations > 1:
                 # ADR-0063 amendment: GENERATION CURRICULUM. The chain
                 # deepens to g detached re-anchor events, g annealed in
@@ -2340,6 +2400,15 @@ def _train_transolver_fm(
                         preds.append(p_k)
                         targets.append(t_k)
                         pair_preds.append(p_k)
+                        if hinge_knots is not None:
+                            hinge_terms.append(
+                                _fm_admissibility_hinge(
+                                    sim.train_output_state(p_k)[1],
+                                    cur_aux[..., 3],
+                                    hinge_knots,
+                                    peeq_scale,
+                                )
+                            )
                     d1, _a1 = sim.train_output_state(pair_preds[0].detach())
                     d2, a2 = sim.train_output_state(pair_preds[1].detach())
                     cur_disp, cur_vel, cur_aux = d2, d2 - d1, a2
@@ -2388,6 +2457,15 @@ def _train_transolver_fm(
                 )
                 preds.append(p_k)
                 targets.append(t_k)
+                if hinge_knots is not None:
+                    hinge_terms.append(
+                        _fm_admissibility_hinge(
+                            sim.train_output_state(p_k)[1],
+                            cur_aux[..., 3],
+                            hinge_knots,
+                            peeq_scale,
+                        )
+                    )
                 pred = torch.stack(preds, dim=1)  # (P, 2*g_level+1, dim+C)
                 target = torch.stack(targets, dim=1)
             elif chain:
@@ -2415,6 +2493,15 @@ def _train_transolver_fm(
                     )
                     preds.append(p_j)
                     targets.append(t_j)
+                    if hinge_knots is not None:
+                        hinge_terms.append(
+                            _fm_admissibility_hinge(
+                                sim.train_output_state(p_j)[1],
+                                anchor_aux[..., 3],
+                                hinge_knots,
+                                peeq_scale,
+                            )
+                        )
                 # Re-anchor at t1 on the DETACHED predictions: displacement /
                 # FD velocity from the two raw displacement slices (the
                 # reference cancels in the difference), aux from the t1
@@ -2462,6 +2549,15 @@ def _train_transolver_fm(
                     anchor_aux=anchor_aux_b,
                     anchor_time_feature=anchor_time_b,
                 )
+                if hinge_knots is not None:
+                    hinge_terms.append(
+                        _fm_admissibility_hinge(
+                            sim.train_output_state(p_b)[1],
+                            anchor_aux_b[..., 3],
+                            hinge_knots,
+                            peeq_scale,
+                        )
+                    )
                 # (P, 3, dim+C): the rank-agnostic loss hunk below averages
                 # over the three query losses (2:1 clean:dirty, ADR-0063).
                 pred = torch.stack([*preds, p_b], dim=1)
@@ -2484,6 +2580,15 @@ def _train_transolver_fm(
                     anchor_aux=anchor_aux,
                     anchor_time_feature=anchor_time_feature,
                 )
+                if hinge_knots is not None:
+                    hinge_terms.append(
+                        _fm_admissibility_hinge(
+                            sim.train_output_state(pred)[1],
+                            anchor_aux[..., 3],
+                            hinge_knots,
+                            peeq_scale,
+                        )
+                    )
             aux_c = next_aux.shape[-1]  # ADR-0059: trailing aux block
             delta_v = pred[..., :-aux_c] - target[..., :-aux_c]
             delta_aux = pred[..., -aux_c:] - target[..., -aux_c:]
@@ -2495,6 +2600,11 @@ def _train_transolver_fm(
                 loss = per_particle[free].mean()
             else:
                 loss = per_particle.new_tensor(0.0, requires_grad=True)
+            if hinge_terms and free.any():
+                # ADR-0064 knob 2: mean over queries then free rows — the
+                # primary loss's pooling.
+                hinge_pp = torch.stack(hinge_terms, dim=1).mean(dim=1)
+                loss = loss + hinge_w * hinge_pp[free].mean()
 
             loss.backward()
             if cfg.max_grad_norm > 0:
@@ -2659,6 +2769,7 @@ def _train_transolver_tc(
         n_aux=int(train_trajs[0].aux.shape[-1]),  # ADR-0059
         kinematic_types=spec.kinematic_types,
         scripted_types=spec.scripted_types,
+        hardening_curve=spec.hardening_curve,
         device=device,
     )
     sim.to(device)
@@ -3609,6 +3720,7 @@ def evaluate(
             n_aux=n_aux_c,
             kinematic_types=spec.kinematic_types,
             scripted_types=spec.scripted_types,
+            hardening_curve=spec.hardening_curve,
             device=device,
         )
     elif family == "geoflare":

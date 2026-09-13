@@ -30,6 +30,39 @@ from ..mgn.normalizers import OnlineNormalizer
 from .network import TransolverNet
 
 
+def hardening_sigma_y(peeq: Tensor, knots_peeq: Tensor, knots_sy: Tensor) -> Tensor:
+    """Piecewise-linear ``sigma_y(peeq)`` with ``np.interp`` end-clamp semantics.
+
+    ADR-0064: the ONE torch implementation of the benchmark hardening curve,
+    shared by the structured decode and the ``flow_map_consistency_hinge``
+    loss. Differentiable in ``peeq`` (gradient = the local hardening slope;
+    zero outside the knot range, where the value is clamped to the end
+    knots exactly as ``np.interp`` does). Knots must be strictly increasing
+    in ``peeq``; the ``sigma_y`` values are used verbatim (a non-monotone
+    sigma_y knot is legal — deck tables are the contract, ADR-0064).
+    """
+    x = torch.clamp(peeq, knots_peeq[0], knots_peeq[-1])
+    idx = torch.bucketize(x, knots_peeq, right=True).clamp(1, knots_peeq.numel() - 1)
+    x0, x1 = knots_peeq[idx - 1], knots_peeq[idx]
+    y0, y1 = knots_sy[idx - 1], knots_sy[idx]
+    return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+
+
+def plane_strain_vm(dev: Tensor) -> Tensor:
+    """Von Mises norm of the plane-strain deviator block ``(s_xx, s_yy, s_xy)``.
+
+    ADR-0059 channel convention: ``s_zz = -(s_xx + s_yy)`` (trace-free
+    deviator). The zero-point is regularised (``sqrt`` of a clamped
+    argument) so gradients stay finite at ``dev = 0``; the value error of
+    the clamp is <= 1e-12 in working units (MPa).
+    """
+    q = (
+        1.5 * (dev[..., 0] ** 2 + dev[..., 1] ** 2 + (dev[..., 0] + dev[..., 1]) ** 2)
+        + 3.0 * dev[..., 2] ** 2
+    )
+    return torch.sqrt(q.clamp(min=1e-24))
+
+
 class TransolverSimulator(CaseBoundSimulator):
     """Transolver (Physics-Attention) simulator with per-case GT binding.
 
@@ -108,6 +141,8 @@ class TransolverSimulator(CaseBoundSimulator):
         aux_input: bool = False,
         flow_map: bool = False,
         flow_map_anchor_time: bool = True,
+        flow_map_structured_heads: bool = False,
+        hardening_curve: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -201,6 +236,42 @@ class TransolverSimulator(CaseBoundSimulator):
         self._aux_input = aux_input
         self._flow_map = flow_map
         self._flow_map_anchor_time = flow_map_anchor_time
+        # ADR-0064: constitutively-structured admissible heads. The raw state
+        # slice keeps its width; the decode reinterprets it (return-map
+        # structure). Guarded at config load too; defense in depth here.
+        if flow_map_structured_heads and not flow_map:
+            raise ValueError(
+                "flow_map_structured_heads requires flow_map=True (ADR-0064)"
+            )
+        if flow_map_structured_heads and n_aux != 6:
+            raise ValueError(
+                "flow_map_structured_heads requires the canonical 6-channel "
+                f"state block (deviator 3 + peeq + energy + density); got "
+                f"n_aux={n_aux} (ADR-0064)"
+            )
+        if flow_map_structured_heads and hardening_curve is None:
+            raise ValueError(
+                "flow_map_structured_heads requires the benchmark's "
+                "hardening_curve (sigma_y(peeq) table; ADR-0064)"
+            )
+        self._structured_heads = flow_map_structured_heads
+        if flow_map_structured_heads:
+            assert hardening_curve is not None
+            he = torch.tensor(hardening_curve[0], dtype=torch.float32)
+            hs = torch.tensor(hardening_curve[1], dtype=torch.float32)
+            if he.numel() < 2 or he.numel() != hs.numel():
+                raise ValueError(
+                    "hardening_curve needs >= 2 (peeq, sigma_y) knot pairs "
+                    f"of equal length; got {he.numel()}/{hs.numel()}"
+                )
+            if not bool((he[1:] > he[:-1]).all()):
+                raise ValueError(
+                    "hardening_curve peeq knots must be strictly increasing"
+                )
+            # Registered ONLY when the knob is on, so the off-path
+            # state_dict (and every existing checkpoint) is untouched.
+            self.register_buffer("_hardening_peeq", he)
+            self.register_buffer("_hardening_sy", hs)
         # ADR-0062 anchor cache (eval path): set via set_anchor(), cleared on
         # bind_case()/reset_rollout(). The training path passes anchor parts
         # per batch instead and never touches the cache.
@@ -360,6 +431,43 @@ class TransolverSimulator(CaseBoundSimulator):
         """
         raw = self._target_normalizer.inverse(pred_norm)
         return raw[..., : self._dim], raw[..., self._dim :]
+
+    def _decode_structured(self, net_out: Tensor, anchor_peeq: Tensor) -> Tensor:
+        """ADR-0064 return-map decode: net output -> raw admissible state.
+
+        The ONE structured decode, shared by :meth:`forward_train_tc` and
+        :meth:`predict_state_at` so train and eval cannot diverge. The raw
+        network slice ``(P, dim + 6)`` is reinterpreted:
+
+        - displacement, internal energy, density: the plain
+          target-normalizer inverse of their slices (unconstrained);
+        - ``peeq = anchor_peeq + softplus(raw_delta)`` — never below the
+          FED anchor value, so hand-off-level D3 = 0 by construction;
+        - deviator ``= sigma_y(peeq) * v * tanh(|v|_vm) / |v|_vm`` with
+          ``v`` the raw 3-vector — smooth at ``v -> 0`` (tanh(x)/x -> 1)
+          and, since the vm norm is 1-homogeneous, the composed von Mises
+          equals ``sigma_y(peeq) * tanh(|v|_vm) <= sigma_y(peeq)`` (D2 = 0
+          by construction).
+
+        Returns the full raw state ``(P, dim + 6)`` in working units (the
+        same contract as the target-normalizer inverse).
+        """
+        dim = self._dim
+        raw_lin = self._target_normalizer.inverse(net_out)
+        v = net_out[..., dim : dim + 3]
+        peeq = anchor_peeq + F.softplus(net_out[..., dim + 3])
+        sy = hardening_sigma_y(peeq, self._hardening_peeq, self._hardening_sy)
+        vmn = plane_strain_vm(v)
+        dev = (sy * torch.tanh(vmn) / vmn).unsqueeze(-1) * v
+        return torch.cat(
+            [
+                raw_lin[..., :dim],
+                dev,
+                peeq.unsqueeze(-1),
+                raw_lin[..., dim + 4 :],
+            ],
+            dim=-1,
+        )
 
     def reset_rollout(self) -> None:
         """Reset the step pointer, the ADR-0060 state cache, and the anchor."""
@@ -987,10 +1095,21 @@ class TransolverSimulator(CaseBoundSimulator):
         )
         node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
 
-        pred_norm = self._net(node_feats, n_particles_per_example, t=t_norm)
-
+        # Target first: under structured heads the prediction re-enters the
+        # target normalizer (accumulate=False), so the GT accumulation must
+        # already have happened for warmup batches to see clean stats. For
+        # the unstructured path the order is inert (pred never consults the
+        # target normalizer) — byte-identical.
         target_raw = torch.cat([gt_position - reference_coords, gt_aux], dim=1)
         target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
+
+        pred_norm = self._net(node_feats, n_particles_per_example, t=t_norm)
+        if self._structured_heads:
+            # anchor_aux is required under flow_map (structured implies it);
+            # channel 3 is peeq in the canonical layout (validated at load).
+            assert anchor_aux is not None
+            raw = self._decode_structured(pred_norm, anchor_aux[..., 3])
+            pred_norm = self._target_normalizer(raw, accumulate=False)
         return pred_norm, target_norm
 
     def predict_state_at(self, frame: int, t_norm: float) -> tuple[Tensor, Tensor]:
@@ -1082,7 +1201,13 @@ class TransolverSimulator(CaseBoundSimulator):
             device=reference_coords.device,
         )
         out = self._net(node_feats, None, t=t)  # (P, dim+C)
-        out = self._target_normalizer.inverse(out)
+        if self._structured_heads:
+            # ADR-0064: the emitted state is the structured decode itself
+            # (exact softplus/tanh guarantees — no normalize/inverse round
+            # trip), against the CACHED anchor's fed peeq.
+            out = self._decode_structured(out, self._anchor_aux[..., 3])
+        else:
+            out = self._target_normalizer.inverse(out)
         displacement = out[:, : self._dim]
         stress = out[:, self._dim :]
         positions = (reference_coords + displacement).clone()

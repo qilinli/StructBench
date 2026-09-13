@@ -372,6 +372,23 @@ class TransolverConfig:
         the FD velocity by its std while leaving the anchor position
         untouched. Absolute working units (mm per frame). Requires
         ``flow_map = true``. ``0.0`` (default) is byte-identical.
+    flow_map_structured_heads : bool
+        ADR-0064: constitutively-structured admissible state heads (the
+        return-map decoder). The state slice is reinterpreted: peeq =
+        fed-anchor-peeq + softplus(raw) (never below its anchor — hand-off
+        level D3 = 0 by construction) and deviator = sigma_y(peeq) * v *
+        tanh(|v|_vm)/|v|_vm (composed von Mises <= sigma_y by construction,
+        D2 = 0); internal energy/density unconstrained. Requires
+        ``flow_map = true``, the benchmark's ``hardening_curve``, and the
+        canonical 6-channel state block (validated at load). Mutually
+        exclusive with ``flow_map_consistency_hinge``. ``False`` (default)
+        is byte-identical.
+    flow_map_consistency_hinge : float
+        ADR-0064 comparator: soft admissibility penalties on the
+        unstructured head, weight lambda on relu(vm_comp - sigma_y(peeq))/
+        sigma_y0 + relu(peeq_anchor - peeq)/peeq_scale. Requires
+        ``flow_map = true``; ``0.0`` (default) is byte-identical; >= 0;
+        mutually exclusive with ``flow_map_structured_heads``.
     flow_map_pushforward_generations : int
         ADR-0063 amendment (2026-09-10): GraphCast-style GENERATION
         curriculum on the pushforward chain. ``G > 1`` deepens the chain to
@@ -417,6 +434,8 @@ class TransolverConfig:
     flow_map_anchor_noise_pos: float = 0.0
     flow_map_anchor_noise_vel: float = 0.0
     flow_map_pushforward_generations: int = 1
+    flow_map_structured_heads: bool = False
+    flow_map_consistency_hinge: float = 0.0
 
 
 @dataclass
@@ -1133,6 +1152,39 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 "flow_map_pushforward=true (the curriculum deepens the "
                 "chain; ADR-0063)"
             )
+        # ADR-0064: structured heads / hinge comparator.
+        sh = getattr(model, "flow_map_structured_heads", False)
+        hinge = getattr(model, "flow_map_consistency_hinge", 0.0)
+        if hinge < 0:
+            raise ConfigError(
+                "[model] flow_map_consistency_hinge must be >= 0 "
+                f"(ADR-0064); got {hinge}"
+            )
+        if sh and hinge != 0.0:
+            raise ConfigError(
+                "[model] flow_map_structured_heads and "
+                "flow_map_consistency_hinge are mutually exclusive "
+                "(both hinges are identically zero on structured outputs; "
+                "ADR-0064)"
+            )
+        if sh:
+            # Effective layout: an omitted train.aux_fields falls back to
+            # the benchmark's single default field (never the state block).
+            layout = tuple(train_cfg.aux_fields or ())
+            if not layout and bench in available_benchmarks():
+                layout = (get_benchmark(bench).aux_field,)
+            required = (
+                "deviatoric_stress_2d",
+                "effective_plastic_strain",
+                "internal_energy",
+                "density",
+            )
+            if layout != required:
+                raise ConfigError(
+                    "[model] flow_map_structured_heads requires the "
+                    f"canonical state block train.aux_fields = {required} "
+                    f"(ADR-0064); got {layout}"
+                )
         # ADR-0063: the anchor-noise components are absolute working-unit
         # scales; a negative entry is a typo that would silently train the
         # reference model while the record claims noise was on.
@@ -1178,6 +1230,16 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             raise ConfigError(
                 "[model] flow_map_pushforward_generations requires "
                 "flow_map=true (ADR-0063)"
+            )
+        if getattr(model, "flow_map_structured_heads", False):
+            raise ConfigError(
+                "[model] flow_map_structured_heads requires flow_map=true "
+                "(ADR-0064)"
+            )
+        if getattr(model, "flow_map_consistency_hinge", 0.0) != 0.0:
+            raise ConfigError(
+                "[model] flow_map_consistency_hinge requires flow_map=true "
+                "(ADR-0064)"
             )
 
     return ResolvedRunConfig(

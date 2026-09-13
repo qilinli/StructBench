@@ -1,0 +1,58 @@
+# taylor_impact_2d — ADR-0064 structured-heads-fleet arm HG-HI: soft admissibility hinge, lambda = 1.0 (ADR-0064 knob 2 comparator —
+# high scale; a 3rd scale is owed before any wrong-mechanism read).
+# Base = PFKN recipe verbatim (ADR-0063 chains + kin noise 0.66/0.03, canonical m=5).
+# Seed 2. Pre-registered in scratch/2026-09-12-structured-heads-fleet-prereg.md (BINDING).
+
+[run]
+benchmark = "taylor_impact_2d"
+seed = 2
+
+[model]
+family = "transolver"
+input_frames = 6                # taylor card protocol (ADR-0035); see header
+dim = 2
+hidden_dim = 128                # ADR-0044 family reference
+n_layers = 8
+n_heads = 8
+slice_num = 64
+mlp_ratio = 1
+dropout = 0.0
+node_type_size = 3              # raw ids: 1 = bar SPH, 2 = wall (ADR-0047; max id + 1)
+noise_std = 0.0                  # inert under time-conditioning (no rollout; ADR-0054)
+normalizer_warmup_steps = 1000
+weight_decay = 1e-5             # AdamW, thuml reference (ADR-0044)
+max_grad_norm = 0.1             # global-norm clip, thuml reference
+
+history_frames = 0              # REQUIRED 0 for time-conditioning (ADR-0054/0053)
+frames_per_call = 1             # REQUIRED 1 for time-conditioning (ADR-0054)
+impact_velocity_feature = true  # ADR-0051 B
+time_conditioned = true          # ADR-0054: faithful thuml native structural scheme
+adaptive_temperature = false     # ADR-0057 (off = byte-identical)
+slice_reparam = false            # ADR-0057 (off = byte-identical)
+aux_input = true  # ADR-0062: the anchor state is the scheme's interface
+aux_input_noise_std = 0.15  # ADR-0061 noise on the anchor aux
+aux_input_pushforward = false # ADR-0061 stability knob (off = reference)
+flow_map = true  # ADR-0062 anchored flow map
+flow_map_anchor_time = true  # ADR-0062
+flow_map_max_dt = 15  # ADR-0062 training dt cap (0 = no cap)
+flow_map_eval_intervals = [1, 5, 15]  # ADR-0062 m sweep
+flow_map_canonical_interval = 5  # ADR-0063 fleet: selection + standard keys at the win-condition m
+flow_map_pushforward = true  # ADR-0063 knob 1 (anchor chains)
+flow_map_anchor_noise_pos = 0.66  # ADR-0063 knob 2a (mm, common-mode)
+flow_map_anchor_noise_vel = 0.03  # ADR-0063 knob 2b (mm/frame, differential)
+flow_map_pushforward_generations = 1  # ADR-0063 amendment: chain-depth curriculum (1 = plain chain)
+flow_map_structured_heads = false  # ADR-0064 knob 1 (return-map decoder)
+flow_map_consistency_hinge = 1.0  # ADR-0064 knob 2 — THE ARM (high scale)
+
+[train]
+batch_size = 2                  # family reference (ADR-0044, matched to MGN)
+lr_init = 1e-3                  # thuml reference start rate (ADR-0044)
+lr_decay = 0.1                  # UNUSED by the transolver family (cosine anneal,
+                                # ADR-0044); present because [train] is family-uniform.
+training_steps = 100_000        # CGN-matched budget (ADR-0047 §6), not DP's 10M
+val_every = 2000                # CGN taylor cadence
+w_pos = 1.0
+w_aux = 1.0
+aux_tail_weight = 0.0
+aux_fields = ["deviatoric_stress_2d", "effective_plastic_strain", "internal_energy", "density"]  # Stage-3 arm STATE target block (ADR-0059)
+train_frames = 0
