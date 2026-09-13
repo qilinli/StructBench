@@ -111,6 +111,7 @@ What becomes easier, harder, or constrained as a result.
 | 0061 | State-feedback stability: input noise and pushforward on the state channel | Durable | Accepted |
 | 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Durable | Accepted (verdict note 2026-09-12) |
 | 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Durable | Accepted (amended 2026-09-10; verdict note 2026-09-12) |
+| 0064 | Constitutively-structured admissible heads: return-map decoder structure (D2/D3 by construction) + consistency-hinge comparator | Durable | Proposed |
 
 ---
 
