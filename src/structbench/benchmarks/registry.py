@@ -135,6 +135,23 @@ class BenchmarkSpec:
         return (self.aux_field,)
 
     def __post_init__(self) -> None:
+        # ADR-0064: a malformed hardening curve must fail at spec
+        # construction, not inside torch.bucketize (which returns wrong
+        # intervals SILENTLY on unsorted knots — review finding).
+        if self.hardening_curve is not None:
+            peeq_knots, sy_knots = self.hardening_curve
+            if len(peeq_knots) < 2 or len(peeq_knots) != len(sy_knots):
+                raise ValueError(
+                    "hardening_curve needs >= 2 (peeq, sigma_y) knot pairs "
+                    f"of equal length; got {len(peeq_knots)}/{len(sy_knots)}"
+                )
+            if any(
+                later <= earlier
+                for earlier, later in zip(peeq_knots[:-1], peeq_knots[1:], strict=True)
+            ):
+                raise ValueError(
+                    "hardening_curve peeq knots must be strictly increasing"
+                )
         for required in ("train", "val"):
             if required not in self.splits:
                 raise ValueError(f"splits must include {required!r}")

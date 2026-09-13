@@ -78,6 +78,18 @@ def _bind(sim, seed: int = 0):
     return positions, aux, reference
 
 
+def test_spec_table_is_this_table():
+    """One-authoritative-table tripwire (review finding): this file's local
+    HE/HS copy must equal the registered Taylor spec hook — a typo edit to
+    either is caught here instead of passing the whole suite."""
+    from structbench.benchmarks import get_benchmark
+
+    curve = get_benchmark("taylor_impact_2d").hardening_curve
+    assert curve is not None
+    assert tuple(curve[0]) == HE
+    assert tuple(curve[1]) == HS
+
+
 def test_ctor_guards():
     with pytest.raises(ValueError, match="requires flow_map=True"):
         _sim(time_conditioned=False, aux_input=False, flow_map=False)
@@ -226,3 +238,31 @@ def test_hinge_helper_values_and_gradients():
     bad_peeq = torch.tensor([[0.0, 0.0, 0.0, 0.1, 0.2, 8900.0]])
     h = _fm_admissibility_hinge(bad_peeq, torch.tensor([0.6]), knots, scale)
     np.testing.assert_allclose(float(h), (0.6 - 0.1) / 0.5, rtol=1e-6)
+
+
+def test_structured_checkpoint_round_trip(tmp_path):
+    """A structured checkpoint reloads into an identically-built sim with
+    identical decode outputs; a sim built against a DIFFERENT hardening
+    table must reject the checkpoint LOUDLY (review finding: buffers are
+    overwritten by load_state_dict, silently diverging from the registry
+    table otherwise)."""
+    torch.manual_seed(0)
+    sim = _sim()
+    ckpt = tmp_path / "sh.pt"
+    sim.save(str(ckpt))
+
+    torch.manual_seed(1)  # different init: load must restore everything
+    sim2 = _sim()
+    sim2.load(str(ckpt))
+    g = torch.Generator().manual_seed(7)
+    net_out = torch.rand((11, DIM + C), generator=g)
+    anchor_peeq = torch.rand(11, generator=g)
+    torch.testing.assert_close(
+        sim._decode_structured(net_out, anchor_peeq),
+        sim2._decode_structured(net_out, anchor_peeq),
+    )
+
+    shifted = (tuple(k + 0.001 for k in HE), HS)
+    sim3 = _sim(hardening_curve=shifted)
+    with pytest.raises(ValueError, match="differs from the benchmark spec"):
+        sim3.load(str(ckpt))

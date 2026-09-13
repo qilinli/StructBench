@@ -89,6 +89,10 @@ the emitted state is:
   (vm-route fleet, branch 4). Recorded trade: at-yield states need
   `tanh → 1` (saturation with decaying gradients over the dominant
   plastic regime) — the prereg's one-sided info guard is the check.
+  *Sharpened by review: in float32 the decay is an EXACT dead zone
+  (`1 − tanh²` underflows to 0 for `‖v‖_vm ≳ 9`), so a saturated
+  at-yield particle's vm can move only through the σ_y(peeq)
+  coupling — read the info guard with this in mind.*
 - **internal energy, density**: unconstrained (v1 — their measured
   hand-off doses are 0.12/0.01; constraining them has no driver).
 
@@ -100,7 +104,14 @@ the SAME anchor is not ordered by construction — trajectory-level
 D3 ≡ 0 is completed by the measured-free eval clamp, which under this
 head only ever corrects within-segment ripples bounded below by the
 anchor. Any nonzero D2, or peeq below its anchor, IS an implementation
-bug; within-segment D3 is a readout, not a tripwire.
+bug; within-segment D3 is a readout, not a tripwire. *Precision
+(post-implementation review, 2026-09-12): the guarantees are exact in
+real arithmetic; in float32 the RECOMPUTED vm/sigma_y ratio can exceed
+1 by ~2 ulp under tanh saturation, and the training-side peeq floor is
+normalize/inverse-round-trip-approximate (eval emissions are exact
+decodes). The instrument tolerance (1.001) is the operative tripwire;
+a strict-zero recomputed check would fire spuriously at the ulp
+level.*
 
 The hardening curve `σ_y(peeq)` enters as a fixed per-benchmark table
 via a new benchmark-spec hook (Taylor-only v1) — **units MPa, knots
@@ -184,6 +195,28 @@ identically zero on structured outputs).
   BINDING) prices both pillars in one round; the decisive bar (17.4)
   sits inside the measured single-seed door (15.55), which the fleet's
   seed-matched arms will confirm or shrink honestly.
+
+### Post-implementation review hardening (2026-09-12)
+
+Three-agent adversarial review of the implementation (decode math /
+trainer wiring / config-migration-prereg conformance); all
+by-construction claims, anchor references, device placement, and
+byte-identity checks verified. Hardened in response: the hinge gets
+the SAME load-time guards as the structured heads (canonical-layout +
+benchmark-curve presence — it slices the same channel indices);
+`hardening_curve` is validated at spec construction (torch.bucketize
+is silently wrong on unsorted knots); `load()` rejects a checkpoint
+whose hardening buffers differ from the spec table (the
+one-authoritative-table contract at the artifact boundary); the hinge
+`peeq_scale` floor raised 1e-6 → 0.05 (an all-elastic batch would
+otherwise amplify the irreversibility term ~1e5× into clip-saturating
+spikes that distort exactly the hard-vs-soft comparison); a
+one-table-tripwire test pins the spec knots. Recorded residuals, not
+fixed: the five hinge insertion sites have no committed end-to-end CI
+coverage (evidenced instead by the real-data micro-train and the
+byte-gate; the CI smoke benchmark has no 6-channel state block), and
+the GPU path is unexercised until the fleet's first minutes (buffers
+and knots are constructed on-device; checked in review).
 
 ## Relationship to other ADRs
 

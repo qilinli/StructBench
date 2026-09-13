@@ -272,6 +272,11 @@ class TransolverSimulator(CaseBoundSimulator):
             # state_dict (and every existing checkpoint) is untouched.
             self.register_buffer("_hardening_peeq", he)
             self.register_buffer("_hardening_sy", hs)
+            # Ctor-time copies for the load() consistency check (buffers
+            # are overwritten by load_state_dict; a checkpoint trained on
+            # a since-corrected table must fail LOUD, not silently diverge
+            # from the registry table the analysis instruments use).
+            self._hardening_ctor = (he.clone(), hs.clone())
         # ADR-0062 anchor cache (eval path): set via set_anchor(), cleared on
         # bind_case()/reset_rollout(). The training path passes anchor parts
         # per batch instead and never touches the cache.
@@ -417,6 +422,30 @@ class TransolverSimulator(CaseBoundSimulator):
         trailing aux block. ``(P, dim+C)`` normalized -> ``(P, C)`` raw.
         """
         return self._target_normalizer.inverse(pred_norm)[..., self._dim :]
+
+    def load(self, path) -> None:
+        """Load a checkpoint; verify its hardening table matches the spec's.
+
+        ADR-0064 review finding: ``load_state_dict`` overwrites the
+        ``_hardening_*`` buffers with the CHECKPOINT's table. If the
+        benchmark's registry curve is ever corrected, the decode
+        (checkpoint values) and every analysis instrument (registry
+        values) would silently diverge — phantom or masked yield
+        violations at the mismatch magnitude. Fail loud instead.
+        """
+        super().load(path)
+        if self._structured_heads:
+            he, hs = self._hardening_ctor
+            if not (
+                torch.equal(self._hardening_peeq.cpu(), he.cpu())
+                and torch.equal(self._hardening_sy.cpu(), hs.cpu())
+            ):
+                raise ValueError(
+                    f"checkpoint {path!s} carries a hardening table that "
+                    "differs from the benchmark spec's hardening_curve; "
+                    "the checkpoint was trained against a different table "
+                    "(ADR-0064 one-authoritative-table contract)"
+                )
 
     def train_output_state(self, pred_norm: Tensor) -> tuple[Tensor, Tensor]:
         """Raw-unit ``(displacement, aux)`` blocks of a TC/FM training output.

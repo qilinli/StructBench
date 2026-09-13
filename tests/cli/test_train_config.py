@@ -1028,20 +1028,45 @@ def test_adr0064_structured_requires_state_block(tmp_path):
         load_run_config(_write(tmp_path, cfg))
 
 
-def test_adr0064_happy_path_loads(tmp_path):
-    rc = load_run_config(_write(tmp_path, _sh_toml()))
+def test_adr0064_hinge_requires_state_block(tmp_path):
+    # Review finding: the hinge slices the canonical channel indices too,
+    # so it gets the same load-time layout guard as the structured heads.
+    cfg = _fm_toml(
+        **{"flow_map_consistency_hinge = 0.0": "flow_map_consistency_hinge = 0.1"}
+    )
+    with pytest.raises(ConfigError, match="canonical state block"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0064_knobs_require_benchmark_hardening_curve(tmp_path):
+    # deforming_plate has no hardening_curve: both knobs must fail AT LOAD
+    # (review finding — previously died mid-run on the cluster).
+    with pytest.raises(ConfigError, match="hardening_curve"):
+        load_run_config(_write(tmp_path, _sh_toml()))
+    cfg = _sh_toml(
+        **{
+            "flow_map_structured_heads = true": (
+                "flow_map_structured_heads = false"
+            ),
+            "flow_map_consistency_hinge = 0.0": (
+                "flow_map_consistency_hinge = 1.0"
+            ),
+        }
+    )
+    with pytest.raises(ConfigError, match="hardening_curve"):
+        load_run_config(_write(tmp_path, cfg))
+
+
+def test_adr0064_happy_path_loads_fleet_configs():
+    # The real pre-registered fleet arms are the happy path: Taylor has the
+    # curve and the canonical state block.
+    rc = load_run_config(
+        REPO_ROOT / "configs" / "taylor_impact_2d" / "transolver-flowmap-sh-s1.toml"
+    )
     assert rc.model.flow_map_structured_heads is True
     assert rc.model.flow_map_consistency_hinge == 0.0
     rc = load_run_config(
-        _write(
-            tmp_path,
-            _fm_toml(
-                **{
-                    "flow_map_consistency_hinge = 0.0": (
-                        "flow_map_consistency_hinge = 1.0"
-                    )
-                }
-            ),
-        )
+        REPO_ROOT / "configs" / "taylor_impact_2d" / "transolver-flowmap-hglo-s1.toml"
     )
-    assert rc.model.flow_map_consistency_hinge == 1.0
+    assert rc.model.flow_map_structured_heads is False
+    assert rc.model.flow_map_consistency_hinge == 0.1

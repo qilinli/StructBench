@@ -2358,7 +2358,13 @@ def _train_transolver_fm(
             # anchor actually FED to that query; empty when the knob is off.
             hinge_terms: list[Tensor] = []
             if hinge_knots is not None:
-                peeq_scale = next_aux[..., 3].std().detach().clamp(min=1e-6)
+                # Review finding: a physical floor, not an epsilon — an
+                # all-elastic batch has GT peeq std ~0, and a 1e-6 floor
+                # would amplify the irreversibility term ~1e5x into
+                # clip-saturating spikes that distort the comparator arms.
+                # Taylor's per-batch peeq std is O(0.4); 0.05 never binds
+                # on normal batches and caps the amplifier at ~20x.
+                peeq_scale = next_aux[..., 3].std().detach().clamp(min=0.05)
             if chain and cfg.flow_map_pushforward_generations > 1:
                 # ADR-0063 amendment: GENERATION CURRICULUM. The chain
                 # deepens to g detached re-anchor events, g annealed in

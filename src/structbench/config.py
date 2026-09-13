@@ -1167,7 +1167,18 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 "(both hinges are identically zero on structured outputs; "
                 "ADR-0064)"
             )
-        if sh:
+        if sh or hinge > 0:
+            # Both ADR-0064 knobs consume the canonical channel INDICES
+            # (deviator 0:3, peeq 3) and the benchmark's hardening curve —
+            # review finding: the hinge must get the same load-time guards
+            # as the structured heads (a wrong layout would train a
+            # silently-wrong physics penalty; a short one IndexErrors
+            # mid-run on the cluster).
+            knob = (
+                "flow_map_structured_heads"
+                if sh
+                else "flow_map_consistency_hinge"
+            )
             # Effective layout: an omitted train.aux_fields falls back to
             # the benchmark's single default field (never the state block).
             layout = tuple(train_cfg.aux_fields or ())
@@ -1181,9 +1192,18 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             )
             if layout != required:
                 raise ConfigError(
-                    "[model] flow_map_structured_heads requires the "
+                    f"[model] {knob} requires the "
                     f"canonical state block train.aux_fields = {required} "
                     f"(ADR-0064); got {layout}"
+                )
+            if (
+                bench in available_benchmarks()
+                and get_benchmark(bench).hardening_curve is None
+            ):
+                raise ConfigError(
+                    f"[model] {knob} requires a benchmark with a "
+                    f"hardening_curve (sigma_y(peeq) table); benchmark "
+                    f"{bench!r} has none (ADR-0064)"
                 )
         # ADR-0063: the anchor-noise components are absolute working-unit
         # scales; a negative entry is a typo that would silently train the
