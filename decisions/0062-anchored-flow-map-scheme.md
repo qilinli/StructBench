@@ -294,3 +294,26 @@ The fleet itself is launched under a separate binding pre-registration
 - **ADR-0050/0051**: completes the prediction-scheme axis those ADRs
   opened; the k-frames bundling axis remains separate and mutually
   exclusive.
+
+## Verdict note (2026-09-12, fleets of 2026-09-08..12)
+
+The scheme was measured end to end (32 runs, all pre-registered:
+scheme fleet, budget fleet, ADR-0063 repair fleet + follow-up).
+Un-repaired, the flow map loses to TC at every re-anchoring interval:
+the anchor's information decays with offset (oracle cash
++0.89/+0.70/+0.43/+0.07/~0 at Δt-ranges 1/5/15/48/145 at full coverage
+— half-life ~15 frames), while self-anchoring collapses at small m;
+the two curves leave no positive window. The blocker was isolated to
+the anchor hand-off and repaired by ADR-0063 (trained contraction),
+reaching BREAK-EVEN: state-field parity with the TC control and
+registered-row-grade displacement at m=5, restart-capable. Depth and
+budget escalations both closed null-to-marginal (2026-09-12). Final
+standing: **TC remains the leaderboard scheme of record; the flow map
+is the simulator-class scheme** (consumes and produces the complete
+state), with `runs/taylor-transolver-flowmap-pfkn-s{1,2}` as its model
+of record and the oracle-vs-self gap (14.9-15.5 vs 24.8-25.0 at m=5)
+measured, attributed, and priced as the remaining headroom. Results
+chain: scratch/2026-09-08-flowmap-fleet-results.md,
+2026-09-09-flowmap-budget-fleet-results.md,
+2026-09-10-anchor-contraction-fleet-results.md,
+2026-09-12-pfkn-followup-fleet-results.md.

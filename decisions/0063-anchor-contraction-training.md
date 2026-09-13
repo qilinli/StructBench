@@ -245,3 +245,26 @@ in-process loader) — a recorded departure from the enumerated-index
 convention. Fleet: `scratch/2026-09-10-anchor-contraction-fleet-
 prereg.md` addendum (PFKN-700K budget arms + PFKN-CURR curriculum arms,
 m=1 promoted to a primary readout for the curriculum).
+
+## Verdict note (2026-09-12, repair fleet + follow-up fleet)
+
+Both mechanisms worked and COMPOSED exactly as the phase-0 attribution
+predicted: chains repaired the aux channel (self m=5 29.3->25.2, disp
+guard still failing), structured kinematic noise repaired displacement
+(0.070->0.0112, aux only to 26.6), and the joint arm (PFKN) reached
+**break-even with TC** — 25.0/24.5 pooled at m=5/15, displacement
+0.0095/0.0135 (ties the registered TC row interp, beats it extrap),
+all guards passing, selection delta zero (pre-registered branch 2).
+The follow-up closed both escalation axes (branch 4): the G=4
+generation curriculum (dated amendment above) was null-to-worse at its
+m=1 target and flat elsewhere at 4x compute; 7x budget moved m=5 by 1%
+(oracle improved but the gap widened to match) and tripped the extrap-
+displacement overfit guard, while genuinely maturing m=1 (disp
+0.055->0.0113). **Model of record: PFKN-100k**
+(`runs/taylor-transolver-flowmap-pfkn-s{1,2}`; the recipe = this ADR's
+two knobs at the measured 1.0x noise dose on the dt15 base, canonical
+m=5). The decisive bar (cash >= +0.5) is measured unreachable on this
+single-event benchmark; the mechanism's value transfers to any task
+that scores restart/multi-event prediction. Results:
+scratch/2026-09-10-anchor-contraction-fleet-results.md,
+scratch/2026-09-12-pfkn-followup-fleet-results.md.

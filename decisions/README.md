@@ -109,8 +109,8 @@ What becomes easier, harder, or constrained as a result.
 | 0059 | Auxiliary state channels: `aux` generalises from `(T, P)` to `(T, P, C)` | Durable | Accepted |
 | 0060 | Aux channels as model inputs: the state-feedback surface (Transolver AR) | Durable | Proposed (narrowed by 0062) |
 | 0061 | State-feedback stability: input noise and pushforward on the state channel | Durable | Accepted |
-| 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Durable | Accepted |
-| 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Durable | Accepted |
+| 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Durable | Accepted (verdict note 2026-09-12) |
+| 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Durable | Accepted (amended 2026-09-10; verdict note 2026-09-12) |
 
 ---
 
