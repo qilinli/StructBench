@@ -1,8 +1,15 @@
 # 0014 — StructBench is the substrate layer of a broader research program
 
-**Status**: Accepted
+**Status**: Superseded by 0065
 **Type**: Durable
 **Date**: 2026-05-23
+
+> **Superseded (2026-09-15):** `RESEARCH-PROGRAM.md` and the
+> substrate/brain/body layer model it described were retired in September
+> 2026. ADR-0065 restates the platform's identity as verification and
+> validation of learned surrogates, keeps the litmus test below in a form
+> restated for that role, and rules that `VISION.md` and the ADRs alone
+> define scope. The text below is kept as history.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # 0065 — StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014)
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-09-15)
 **Type**: Durable
 **Date**: 2026-09-15
 
@@ -151,8 +151,10 @@ read as a to-do list.
 
 - **`VISION.md` is rewritten by the maintainer outside a coding session**
   from the reviewed draft (`scratch/2026-09-15-vision-draft.md`, local).
-  This ADR moves to *Accepted* when that rewrite lands on `main`; ADR-0014
-  moves to *Superseded by 0065* in the index at the same time.
+  The ADR was accepted in-session on 2026-09-15 ahead of that rewrite, so
+  ADR-0014 is superseded from this date and `VISION.md` carries its
+  earlier wording until the maintainer applies the draft; `CLAUDE.md`'s
+  snapshot says so until then.
 
 - **Reading list and manual.** ADR-0009 (ephemeral) takes a dated note
   removing `RESEARCH-PROGRAM.md` and `research/FINDINGS.md` from the
