@@ -62,7 +62,7 @@ What becomes easier, harder, or constrained as a result.
 | 0011 | Case vocabulary for the data record | Durable | Accepted |
 | 0012 | Case schema field-level structure | Durable | Accepted |
 | 0013 | HDF5 persistence layout for the case schema | Durable | Accepted |
-| 0014 | StructBench is the substrate layer of a broader research program | Durable | Accepted |
+| 0014 | StructBench is the substrate layer of a broader research program | Durable | Superseded by 0065 |
 | 0015 | v0.1 ships existing LS-DYNA datasets as benchmarks with prior-paper GNN baselines (supersedes 0003) | Durable | Accepted (amended by 0021, 0024) |
 | 0016 | LS-DYNA d3plot is the canonical ingestion path; general adapter on lasso-python | Durable | Accepted |
 | 0017 | Relationship to NVIDIA PhysicsNeMo: independent substrate, opt-in model-edge interop | Durable | Accepted |
@@ -112,6 +112,7 @@ What becomes easier, harder, or constrained as a result.
 | 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Durable | Accepted (verdict note 2026-09-12) |
 | 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Durable | Accepted (amended 2026-09-10; verdict note 2026-09-12) |
 | 0064 | Constitutively-structured admissible heads: return-map decoder structure (D2/D3 by construction) + consistency-hinge comparator | Durable | Accepted |
+| 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session) |
 
 ---
 

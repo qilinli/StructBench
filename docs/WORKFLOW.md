@@ -73,7 +73,11 @@ prep) confirmed no private material has ever been tracked on any ref:
 `RESEARCH-PROGRAM.md`, `research/`, `scratch/`, `runs/`, and `models/`
 appear in no commit — the earlier version of this note assumed
 `RESEARCH-PROGRAM.md` existed in pre-2026-07-02 history, but it never
-landed. All five stay local-only and gitignored; keep them that way —
-private strategy, findings, run outputs, and checkpoint archives never
-enter git. *(Original note moved from ROADMAP.md at its retirement,
-2026-07-05; rewritten after the audit, 2026-08-27.)*
+landed. `scratch/`, `runs/`, and `models/` stay local-only and gitignored;
+keep them that way — dated notes, run outputs, and checkpoint archives
+never enter git. `RESEARCH-PROGRAM.md` and `research/` were retired in
+September 2026 (ADR-0065): the maintainer's research documents now live
+outside the repository altogether, nothing in the repo may depend on
+them, and their `.gitignore` entries stay as a guard against accidental
+re-creation. *(Original note moved from ROADMAP.md at its retirement,
+2026-07-05; rewritten after the audit, 2026-08-27; updated 2026-09-15.)*

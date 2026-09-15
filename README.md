@@ -1,17 +1,22 @@
 # StructBench
 
-**Standardized benchmarks for machine learning on structural simulation.**
-A task definition, a fixed split, metrics in physical units, and a reference
-baseline to beat — for structural response prediction across loading regimes,
-from quasi-static contact to impact and fracture.
+**Verification and validation benchmarks for learned surrogates of
+structural response.** Can a data-driven simulator be trusted? Reference
+data with declared uncertainty, a fixed task and split, evaluation protocols
+that test physical consistency alongside accuracy in physical units, and
+reference baselines you can rerun — for structural response across loading
+regimes, from quasi-static contact to impact and fracture.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 [![Release](https://img.shields.io/github/v/release/qilinli/StructBench)](https://github.com/qilinli/StructBench/releases)
 
-> **Status: four benchmarks, four model families; cross-method leaderboards
-> on Taylor, notch-impact, and DeformingPlate (wave-1D stays CGN-only).**
-> What exists is real and tested; what doesn't is on the [roadmap](#roadmap).
+> **Status: four benchmarks, four model families; cross-method comparison
+> tables on Taylor, notch-impact, and DeformingPlate (wave-1D stays
+> CGN-only). Reporting verification properties — constraint satisfaction,
+> state sufficiency, closure, error growth with horizon — alongside accuracy
+> is the next protocol step (ADR-0065).** What exists is real and tested;
+> what doesn't is on the [roadmap](#roadmap).
 
 ![Taylor bar rollout: ground truth vs CGN prediction, copper bar mushrooming against a rigid wall, colored by von Mises stress](assets/taylor_rollout.gif)
 
@@ -62,8 +67,17 @@ method-comparison tables live on the generated benchmark pages
 
 ## Why
 
-If you have trained ML surrogates on structural simulation data, you know the
-routine:
+Learned surrogates of structural simulation have become cheap to build and
+remain expensive to trust. A model can reproduce a simulation to a few
+percent and still emit stresses that are physically impossible, sensitivities
+that point the wrong way, or rollouts that collapse outside the training
+cases — and the reference data it learned from carries discretisation and
+constitutive uncertainty of its own. Finite element analysis has verification
+and validation standards for exactly this; learned models have none, and
+benchmarks borrowed from machine learning measure accuracy alone.
+
+The everyday symptoms are familiar to anyone who has trained on solver
+output:
 
 - **Every paper ships its own post-processing** — one-off scripts that pull
   just the fields that paper needed out of solver binaries, in whatever units
@@ -74,12 +88,13 @@ routine:
   codebases need compiled graph extensions matched to your exact
   torch + CUDA + OS combination.
 
-Underneath sits a question the field keeps circling: *can a learned simulator
-reproduce the full elasto-plastic response of a structure under impact, fast
-enough to be useful?* Explicit solvers cost minutes to days per run; design
-sweeps, probabilistic assessment, and inverse problems want thousands of runs.
-StructBench exists so answers to that question can be compared: standardized
-benchmarks, honest evaluation, reference baselines you can rerun.
+Speed is why surrogates are wanted — explicit solvers cost minutes to days
+per run, and design sweeps, probabilistic assessment, and inverse problems
+want thousands — but trust is what decides whether they get used. StructBench
+exists so that *can this surrogate be trusted?* has a standard answer:
+reproducible data with quantified uncertainty, evaluation protocols that
+report physical consistency alongside accuracy, and reference baselines you
+can rerun.
 
 ## Quickstart
 
