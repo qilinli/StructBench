@@ -13,17 +13,19 @@ ruled that the program informs direction but does not define StructBench's
 scope. Two things have changed since.
 
 **The program was rewritten.** `RESEARCH-PROGRAM.md` was retired in
-September 2026 and replaced by two maintainer documents — a research charter
-and a StructBench scale-structure document (both local-only, untracked,
-absent from clones, per the 2026-08-12 correction that keeps research
-strategy out of the public tree). The charter's thesis is that the
-bottleneck for learned surrogates in structural engineering is no longer
-building them but establishing that they can be trusted for an engineering
-decision: physical admissibility of their outputs, trustworthy
-sensitivities, bounded behaviour outside training, and reference data whose
-own uncertainty is quantified. It asks StructBench to carry that
-verification-and-validation (V&V) role rather than an accuracy-comparison
-role. The substrate/brain/body triad no longer exists in any document.
+September 2026. The maintainer's research program now lives in private
+documents kept outside the repository (per the 2026-08-12 correction that
+keeps research strategy out of the public tree); they guide the
+maintainer's research, of which StructBench is one instrument, and much of
+their content is not about StructBench. Their thesis, as far as it concerns
+the platform, is that the bottleneck for learned surrogates in structural
+engineering is no longer building them but establishing that they can be
+trusted for an engineering decision: physical admissibility of their
+outputs, trustworthy sensitivities, bounded behaviour outside training, and
+reference data whose own uncertainty is quantified. That asks StructBench
+to carry a verification-and-validation (V&V) role rather than an
+accuracy-comparison role. The substrate/brain/body triad no longer exists
+in any document.
 
 **The code moved first.** Every ADR since late August has been about
 carried state and physical consistency: complete-state channels (ADR-0059),
@@ -41,8 +43,9 @@ project's identity changed in practice and the files did not follow.
 Two constraints shape the decision. `VISION.md` and ADR-0014 are the only
 documents that define scope, and `VISION.md` is forbidden-tier in a coding
 session, so the rewrite is the maintainer's out-of-session act and this ADR
-records it. And the charter is private: it may reach the repo only through
-ADRs that restate what is public-safe, never by being read as a to-do list.
+records it. And the research documents are private: they may reach the
+repo only through ADRs that restate what is public-safe, never by being
+read as a to-do list.
 
 ## Decision
 
@@ -64,13 +67,19 @@ ADRs that restate what is public-safe, never by being read as a to-do list.
    its purpose: researchers may still compete architectures on StructBench
    benchmarks, and the platform no longer treats that as its focus.
 
-2. **The research charter and the scale-structure document replace
-   `RESEARCH-PROGRAM.md` as the program-level north star.** The asymmetry
-   of ADR-0014 stands: they inform direction and prioritisation; StructBench
-   scope is defined solely by `VISION.md` and the ADRs. The way the charter
-   reaches the repo is by ADR — each adoption of one of its requirements is
-   a recorded decision with a public-safe rationale. They join the
-   session-start reading list as context-only, local-only items.
+2. **`VISION.md` and the ADRs are the only definition of StructBench's
+   scope.** The maintainer's private research documents are the origin of
+   this decision, not a layer above it. They are untracked, absent from
+   clones, and nothing in the repository may depend on them: anything the
+   platform needs must be readable from the repository, where the private
+   documents supply reasons and ADRs record decisions. They reach the repo
+   only through ADRs that restate what is public-safe. Where they and the
+   repository disagree, `VISION.md` and the ADRs govern StructBench, and
+   the disagreement is a signal to revise one side — never a silent
+   override in either direction. ADR-0014's standing reading-list item for
+   a program document is retired with it; the private documents are
+   consulted as context when a session's task touches scope, benchmark
+   admission, or the roadmap, and only when present.
 
 3. **The substrate-layer litmus test is kept, restated for the V&V role.**
    A proposal for new work is gated by its primary output:
@@ -127,10 +136,11 @@ ADRs that restate what is public-safe, never by being read as a to-do list.
   duplicate the substrate and split a small community. The platform is
   the right home precisely because the tests are infrastructure.
 
-- **Fold the charter into `VISION.md`.** Rejected, for ADR-0014's reason
-  and one more: it erases the program/platform separation the litmus test
-  depends on, and it would move private research strategy into the public
-  tree, which the 2026-08-12 correction forbids.
+- **Fold the private research documents into `VISION.md`.** Rejected,
+  for ADR-0014's reason and one more: it erases the program/platform
+  separation the litmus test depends on, and it would move private
+  research strategy into the public tree, which the 2026-08-12 correction
+  forbids.
 
 - **Amend ADR-0014 in place with a dated note.** Rejected. This is a
   reversal of its framing — the program's demands now shape what the
@@ -145,11 +155,14 @@ ADRs that restate what is public-safe, never by being read as a to-do list.
   moves to *Superseded by 0065* in the index at the same time.
 
 - **Reading list and manual.** ADR-0009 (ephemeral) takes a dated note
-  replacing `RESEARCH-PROGRAM.md` and `research/FINDINGS.md` in items 3–4
-  with the charter and the scale-structure document — context-only,
-  local-only, skipped without error when absent. `CLAUDE.md` items 3–4 and
-  its *Project snapshot* paragraph are updated to match, and the
-  `WORKFLOW.md` publication note gains the two new local-only files.
+  removing `RESEARCH-PROGRAM.md` and `research/FINDINGS.md` from the
+  always-read items 3–4 (both retired) and adding the maintainer's private
+  research documents to the *conditional* list — read when the task
+  touches scope, benchmark admission, or the roadmap; skipped without
+  error when absent. `CLAUDE.md`'s reading list and *Project snapshot*
+  paragraph are updated to match, and the `WORKFLOW.md` publication note
+  records that the retired files and the private research documents live
+  outside the repository.
 
 - **Follow-up ADRs, each flag-first and not decided here:**
   1. *Protocol* — the properties block, decision tags on metrics, and the
@@ -168,8 +181,8 @@ ADRs that restate what is public-safe, never by being read as a to-do list.
      assembly-tier question. README Roadmap section.
 
 - **Existing benchmarks and registered results stand.** They are not
-  withdrawn or re-scored by this ADR. Under the data standards the charter
-  asks for, none of the four shipped benchmarks would be admitted today
+  withdrawn or re-scored by this ADR. Under the data standards the V&V
+  role asks for, none of the four shipped benchmarks would be admitted today
   (only Taylor has a convergence run and a measured noise floor; none has a
   survivor log, a physical-test anchor, a cross-solver reproduction, or a
   constitutive sensitivity study). Follow-up 2 makes that visible as a
