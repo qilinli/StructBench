@@ -618,7 +618,9 @@ E1–E10 are reported, not designed around.
 
 **Stage 0 — the requirement, written down.** E1–E10 land with ADR-0066. The
 LS-DYNA realisation (the standard input block) is verified against the
-keyword manual and documented under `data_generation/lsdyna/`.
+keyword manual and documented under `data_generation/lsdyna/` — written as
+`data_generation/lsdyna/STANDARD_INPUT_BLOCK.md`, a draft until the
+conformance run has exercised it; its open points are listed there.
 
 **Stage 0b — one conformance run** *(maintainer's decision; needs the
 licensed solver)*. A single test-bed case re-run with the standard input

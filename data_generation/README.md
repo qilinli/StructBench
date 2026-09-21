@@ -14,6 +14,15 @@ per-paper post-processing the substrate layer exists to end (ADR-0014, ADR-0016)
 
 ## LS-DYNA
 
+- `lsdyna/STANDARD_INPUT_BLOCK.md` — what every generated LS-DYNA input switches
+  on so that a run supplies the run evidence E1–E10 of ADR-0066 (energy ledger
+  with every term, per-part and reaction output, integration-point fields, one
+  sampling clock), and what to keep from the run folder. Draft until one
+  conformance run has exercised it.
+- `lsdyna/2D-Copper-Bar-Taylor-Impact/collect_run_evidence.py` — read each
+  Taylor run's message file and global statistics into one whitelisted
+  run-evidence record for `structbench.cli.datacheck measure --run-evidence`.
+  Paths are built from case ids; nothing of the raw text is kept.
 - `lsdyna/2D-Copper-Bar-Taylor-Impact/convert.py` — batch-convert the Taylor 2D
   copper-bar SPH impact sweep to canonical HDF5 via
   `structbench.core.io.lsdyna.lsdyna_to_case`. Start with
