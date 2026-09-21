@@ -108,12 +108,16 @@ def test_the_report_is_regenerated_from_the_record_alone() -> None:
 def test_the_report_separates_findings_data_gaps_and_platform_gaps() -> None:
     text = render_markdown(judge(_dataset()))
     verdicts, rest = text.split("## Findings")
-    findings, rest = rest.split("## Evidence the runs did not supply")
+    findings, rest = rest.split("## Not applicable to these runs")
+    skipped, rest = rest.split("## Evidence the runs did not supply")
     data_gaps, rest = rest.split("## Not yet checked by this instrument")
     platform_gaps, criteria = rest.split("## Criteria")
 
     assert "| `yield_table_monotone` | 1 | 0 … 1 | 1 | 1 |" in verdicts
-    assert "`eos_closure`" not in verdicts  # never measured anywhere: not a data row
+    # only measured quantities are table rows
+    for name in ("eos_closure", "energy_gain_max", "implicit_convergence"):
+        assert f"`{name}`" not in verdicts
+    assert skipped.strip() == "`implicit_convergence`"
     # measured with no criterion: published with its value and no verdict
     assert "| `yield_ratio_max` | 1 | 1.00035 |  |  |  |  | 2 | none |" in verdicts
     # an indicator with no level for this scope shows the levels that do exist

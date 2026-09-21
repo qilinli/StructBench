@@ -168,6 +168,8 @@ def render_markdown(report: DatasetReport) -> str:
         "",
         "## Verdicts",
         "",
+        "Quantities measured on at least one case.",
+        "",
         "| Quantity | Unit | Measured | pass | fail | review | n/a | not assessable"
         " | Criterion |",
         "|---|---|---|---|---|---|---|---|---|",
@@ -176,6 +178,8 @@ def render_markdown(report: DatasetReport) -> str:
         results = [r for _, r in checked[quantity]]
         count = Counter(r.verdict for r in results)
         values = [r.value for r in results if r.value is not None]
+        if not values:
+            continue  # listed below: not applicable, or evidence not supplied
         labels = sorted({r.criterion for r in results if r.criterion})
         if any(r.provisional for r in results):
             labels = [f"{label} (provisional)" for label in labels]
@@ -206,6 +210,14 @@ def render_markdown(report: DatasetReport) -> str:
         out.append(f"- **{verdict}** `{quantity}` = {_span(values)} — {_cases(ids)}")
     if not findings:
         out.append("None.")
+
+    out += ["", "## Not applicable to these runs", ""]
+    skipped = [
+        f"`{q}`"
+        for q, rs in sorted(checked.items())
+        if all(r.verdict is Verdict.NOT_APPLICABLE for _, r in rs)
+    ]
+    out.append(", ".join(skipped) if skipped else "None.")
 
     out += ["", "## Evidence the runs did not supply", ""]
     gaps: dict[tuple[str, tuple[str, ...]], dict[str, list[str]]] = defaultdict(dict)
