@@ -30,10 +30,11 @@ the smallest that works.
 
 1. **New top-level module, named `verification/`**, layered between
    `datasets/` and the modules that use it.
-2. **Acceptance criteria are platform-level and independent of our data**:
-   taken from a verified external source as the source states them, never
-   adjusted in light of a StructBench measurement. Until ratified a row reads
-   `not_assessable / no_ratified_criterion`.
+2. **Criteria are platform-level and independent of our data**: requirement
+   and tolerance bounds are definitional or mechanism-derived, reference
+   levels are fixed in advance from a verified external source as the source
+   states it, and none is adjusted in light of a StructBench measurement.
+   Until one exists a row reads `not_assessable / no_ratified_criterion`.
 3. **The published record is measurements, not verdicts**:
    `docs/datachecks/<benchmark>.json` plus a generated `.md`, with a
    data-free drift test.
@@ -46,6 +47,13 @@ the smallest that works.
    unrepresentative. What a quantity needs becomes a stated requirement;
    the legacy archives are a test bed, and nothing is shaped to make them
    assessable.
+7. **The energy criterion is a fixed general indicator, not a single hard
+   limit** — a residual in Belytschko's form, with levels fixed in advance
+   and related to the problem and the solver, and the final call on an
+   exceedance left to a person.
+8. **Units are checked, as a category of their own** — they are a large
+   source of error, and the one units error this repository has had was
+   invisible to every self-consistent check.
 
 ### Calls made in drafting — for the maintainer to confirm
 
@@ -60,6 +68,27 @@ the smallest that works.
 - **One conformance run** (below): an unpublished re-run of a single test-bed
   case with the standard input block. It needs the licensed solver and is
   therefore the maintainer's to decide and to execute.
+- **An exceedance is a fifth verdict, `review`,** rather than a `fail` the
+  user overrides; and whoever is accountable for a dataset may record a
+  dated *disposition* beside it that never changes the verdict.
+- **"Related to the problem and the solver" is read as scoping by run
+  traits derived from the input and the ledger** — time integrator, spatial
+  conservation class, energy source, mass scaling, friction, dimension —
+  not by solver product (ADR-0004) and not by a label a dataset gives
+  itself, which would let it choose its own level. Only quasi-static intent
+  is declared, because it cannot be derived.
+- **The general energy level applies to every explicit run, including
+  particle formulations that are not pairwise conservative.** The level's
+  rationale says an exceedance may be inherent to the formulation; deciding
+  that is the judgement `review` hands over. The alternative — no level for
+  such formulations — would leave the test bed's energy rise unflagged.
+- **The same indicator treatment is extended beyond energy** to the
+  zero-energy-mode ratio, added mass, contact energy, time-step collapse,
+  the quasi-static kinetic ratio, warning counts, particle-neighbour
+  statistics, and the plausibility screens. The dossier supports this for
+  zero-energy-mode, contact, and quasi-static limits (sources disagree or
+  are single rules of thumb); the added-mass sources *agree* at 5 %; the
+  rest have no surveyed source and stay without a level until one is found.
 
 ## How the design was reached
 
@@ -74,13 +103,26 @@ on the same three lenses caught. What follows is the result.
 **Two verbs.** `measure`: evidence → threshold-free measurement, or a typed
 absence. `judge`: measurements + criteria → verdicts; never touches data.
 
-**Four verdicts, fixed ownership and order.**
+**Five verdicts, fixed ownership and order.**
 
 | Order | Owner | Verdict |
 |---|---|---|
 | 1 | formulation traits | `not_applicable` — the quantity does not exist for this formulation |
 | 2 | evidence absence | `not_assessable` + reason + the missing evidence items |
-| 3 | measurement vs criterion | `pass` / `fail` |
+| 3 | measurement vs a requirement or instrument tolerance | `pass` / `fail` |
+| 3 | measurement vs an indicator's reference level | `pass` / `review` — above the level; a person decides whether it matters for their use |
+
+**Three kinds of criterion, fixed by where the bound comes from.** A
+*requirement*'s bound is definitional — zero, exact equality, or the input's
+own value. An *instrument tolerance*'s bound is computed from storage
+precision or a confirmed mechanism, including where it serves a requirement.
+An *indicator*'s bound is a sourced reference level: one fixed definition,
+levels scoped by run traits, each attachable only where the source's
+statistic, normalisation, and evaluation time match the quantity's
+definition. A `review` may carry a dated, attributed *disposition* —
+accepted or rejected, with a rationale, naming the definition version and
+level it answers — rendered beside the row; it never changes the measurement
+or the verdict, and a reader is free to disagree with it.
 
 The test between rows 1 and 2: *could better evidence change the answer?*
 Unknown traits give `not_assessable`, never `not_applicable`. Traits go first
@@ -102,6 +144,7 @@ element part, where it is a real gap in the energy balance.
 | `not_ingested` | platform | the solver wrote it; the adapter drops it |
 | `unsupported` | platform | evidence is present in a form, or for a material class, this version does not handle |
 | `no_ratified_criterion` | platform | measured; no criterion has been ratified |
+| `no_declaration_home` | platform | a declared fact is required but benchmarks have nowhere to record it yet |
 | `stale_definition` | platform | measured under an older definition; re-measure |
 
 Platform-side reasons are reported in a separate block, "not yet checked by
@@ -169,6 +212,7 @@ Points that matter in practice:
 | Numerical health | verdict logic, criteria | reading the termination record, diagnostics, time-integration record, identity | explicit vs implicit; zero-energy modes only for under-integrated parts; particle health only for particle parts | — | — |
 | Conservation | evaluating a declared balance identity; closures; active mass | mapping the solver's terms onto the identity; explaining each absent term | which terms are required (contact, rigid surfaces, damping, erosion, mass scaling) | equation-of-state closure | — |
 | Constitutive | kernels on plain arrays | keyword → class (ADR-0012's `canonical_model`, already stored with each case) | plane strain vs axisymmetric vs 3D; constitutive-point vs reduced data | admissibility functions, meaning and bounds of each state variable, which checks are assessable | the one yield table (`BenchmarkSpec.hardening_curve`) |
+| Units and dimensions | anchor comparison, plausibility ranges, dimensionless groups | the input's unit token; any unit declaration the input carries | which constants and magnitudes exist to screen | which constants anchor a class (density, modulus, yield stress) | the declared anchors; "synthetic by design" |
 | Data integrity | finite values, time axis, declared-vs-derived cross-checks, input lint, sampling clock | source-units token | alive mask under erosion | table matches input, is monotone, covers the strain range | declared fields, traits, state-variable meanings, units anchors |
 
 The constitutive kernels are the part reusable on model predictions; nothing
@@ -210,9 +254,9 @@ Sketch of the central types (signatures are pinned in the implementation
 plan):
 
 ```python
-class Verdict(str, Enum): PASS; FAIL; NOT_APPLICABLE; NOT_ASSESSABLE
+class Verdict(str, Enum): PASS; FAIL; REVIEW; NOT_APPLICABLE; NOT_ASSESSABLE
 class Location(str, Enum): CASE; INPUT; RUN; DECLARED
-class CriterionKind(str, Enum): ACCEPTANCE; INSTRUMENT
+class CriterionKind(str, Enum): REQUIREMENT; INSTRUMENT; INDICATOR
 class Status(str, Enum): SPECIFIED; IMPLEMENTED
 
 @dataclass(frozen=True)
@@ -237,13 +281,42 @@ class Measurement:                        # threshold-free
     detail: Mapping[str, float | int | str]   # strings restricted to enums / fixed patterns
 
 @dataclass(frozen=True)
-class Criterion:                          # platform standard
-    quantity: str; lo: float | None; hi: float | None
-    kind: CriterionKind; rationale: str; provisional: bool   # rationale non-blank
+class Scope:                              # every token must hold; empty = everywhere
+    run_traits: frozenset[RunTrait]       # derived from input and ledger: explicit, implicit,
+                                          # lagrangian_mesh, particle_conservative,
+                                          # particle_nonconservative, advecting_mesh, mass_scaled,
+                                          # frictionless_contact, initial_energy_driven,
+                                          # externally_driven, dim2, dim3
+    declared_intent: frozenset[Intent]    # only what cannot be derived: quasi_static
 
-def judge(measurements: DatasetMeasurements,
-          criteria: Mapping[str, Criterion]) -> DatasetReport: ...
+@dataclass(frozen=True)
+class Criterion:                          # platform standard
+    quantity: str; statistic: str         # must equal the catalogue row's definition token
+    lo: float | None; hi: float | None
+    kind: CriterionKind                   # REQUIREMENT/INSTRUMENT -> pass|fail; INDICATOR -> pass|review
+    scope: Scope
+    source: str                           # claim id in the source dossier; "" only for definitional bounds
+    rationale: str; provisional: bool     # rationale non-blank
+
+@dataclass(frozen=True)
+class Disposition:                        # deferred — see "Deliberately not built yet"
+    quantity: str; case_id: str | None    # None = the whole dataset
+    decision: Literal["accepted", "rejected"]
+    answers_definition_version: int; answers_level: str   # rendered stale when either changes
+    rationale: str; author: str; date: str
+
+def judge(measurements: DatasetMeasurements,       # carries scope_facts: run traits per part, declared intent
+          criteria: Sequence[Criterion]) -> DatasetReport: ...
+          # a run-global quantity's scope is the union over parts, and a level applies only if it
+          # covers all of them; scopes of one (quantity, statistic) are pairwise disjoint (data-free
+          # test), so at most one level applies; none -> no_ratified_criterion
+
+def render(report: DatasetReport, dispositions: Sequence[Disposition] = ()) -> str: ...
 ```
+
+`DeclaredFacts` carries the unit label, the three anchors, per-material
+state-variable meanings, an optional material family, and quasi-static
+intent. All of it is passed in by the caller.
 
 Every catalogue row carries a one-line **meaning of a violation**, rendered
 in the report. PASS on numerical-health and conservation rows is a necessary
@@ -253,54 +326,81 @@ evidence of accuracy.
 ## The catalogue
 
 Status: **S1** implemented in stage 1, **S2** in stage 2, **gate** = row and
-gates only (measure built when a run first supplies the evidence).
+gates only (measure built when a run first supplies the evidence). Judged
+as: **req** requirement (definitional bound), **tol** instrument tolerance,
+**ind** indicator with reference levels (`pass` / `review`), **—** measured
+and published with no criterion yet. E10a is the unit label, E10b the
+anchors.
 
-| Quantity | Requires | Exists when | Status |
-|---|---|---|---|
-| *Numerical health* | | | |
-| `terminated_normally` | E3 | always | S2 |
-| `reached_end_time` | E1, E8 | always | S1 |
-| `solver_diagnostics` (counts by class) | E3 | always | S2 (errors, warnings; further classes as first seen) |
-| `solver_identity_complete` | E2 | always | S2 |
-| `timestep_min_ratio` | E4 | explicit integration | S2 |
-| `added_mass_fraction` | E4 | explicit, mass scaling enabled | gate |
-| `implicit_convergence` | E4 | implicit integration | gate |
-| `zero_energy_mode_ratio` | E5, E6 | per part: under-integrated elements | gate |
-| `particle_deactivated_count` | E8 | particle part | S1 |
-| `particle_neighbors_min` · `particle_neighbors_growth` | E8 | particle part | S1 |
-| `smoothing_length_range` | E1, E8 | particle part | S1 |
-| `rigid_surface_penetration_max` | E1, E8 | rigid surface defined | S1 |
-| `prescribed_motion_realised` | E1, E7, E8 | prescribed motion defined | gate |
-| *Conservation* | | | |
-| `energy_gain_max` · `energy_loss_max` · `energy_residual_final` | E5 | always | S2 |
-| `quasi_static_kinetic_ratio` | E5 | task declared quasi-static | gate |
-| `kinetic_energy_closure` · `internal_energy_closure` | E5, E8, E9 | always | S2 |
-| `contact_energy_sign` | E6 | contact defined | gate |
-| `external_work_closure` | E5, E7 | loads defined | gate |
-| `momentum_impulse_balance` | E7, E8 | always | gate |
-| `active_mass_drift` | E8 | always | S1 |
-| `eos_closure` | E1, E8 | equation-of-state material | gate |
-| *Constitutive* | | | |
-| `yield_ratio_max` (+ detail) | E1, E8, declared | class with an assessable yield law | S1 — measured, no criterion |
-| `yield_saturation_min` | E1, E8, declared | same; constitutive-point data | S1 |
-| `state_variable_decrease_max` · `state_variable_min` | E8 | class with a monotone, bounded variable | S1 |
-| `plane_strain_ezz_max` | E1, E8 | plane-strain trait | S1 |
-| `out_of_plane_shear_max` | E8 | two-dimensional | S1 |
-| `pressure_trace_residual` | E8 | pressure stored as independent state | S1 — measured, no criterion |
-| *Data integrity* | | | |
-| `nonfinite_count` · `time_axis_monotone` · `terminal_artifact_frames` | E8 | always | S1 |
-| `elements_without_input_part` | E1, E8 | always | S1 |
-| `fields_match_declaration` | E8, declared | always | S1 |
-| `declared_traits_match_input` | E1, declared | always | S1 |
-| `density_slot_matches_input` | E1, E8 | always | S1 |
-| `yield_table_matches_input` · `yield_table_monotone` · `yield_table_covers_range` | E1, E8, declared | tabulated yield law | S1 |
-| `sampling_clock_consistent` | E5, E8, E9 | always | S2 |
-| `stored_globals_match_ledger` | E5, E8, E9 | the case's globals come from a stream independent of the ledger | S2 |
-| `units_anchors_consistent` | E1, E10 | always | gate (no home for the declaration yet) |
+| Quantity | Requires | Exists when | Judged as | Status |
+|---|---|---|---|---|
+| *Numerical health* | | | | |
+| `terminated_normally` | E3 | always | req | S2 |
+| `reached_end_time` | E1, E8 | always | tol | S1 |
+| `solver_error_count` (errors, inversions, non-finite kinematics) | E3 | always | req | S2 |
+| `solver_warning_count` (by class) | E3 | always | ind (no level yet) | S2 |
+| `solver_identity_complete` | E2 | always | req | S2 |
+| `timestep_min_ratio` | E4 | explicit integration | ind (no level yet) | S2 |
+| `timestep_vs_stability_estimate` (first step; a departure means the step is governed by something other than size and wave speed) | E1, E4, E8 | explicit integration | — | gate |
+| `added_mass_fraction` | E4 | explicit, mass scaling enabled | ind | gate |
+| `implicit_convergence` | E4 | implicit integration | req | gate |
+| `zero_energy_mode_ratio` (per part; the definition — peak over peak, or end over end — is fixed before any level) | E5, E6 | under-integrated elements | ind | gate |
+| `particle_deactivated_count` | E8 | particle part, erosion off | req | S1 |
+| `particle_neighbors_min` · `particle_neighbors_growth` | E8 | particle part | ind, level scoped by dimension and kernel support (no level yet); a req floor of d + 1 for corrected-kernel and moving-least-squares formulations | S1 |
+| `smoothing_length_within_input_bounds` (ingestion mapping) | E1, E8 | particle part | tol | S1 |
+| `smoothing_length_at_bound_fraction` (upper and lower separately) | E1, E8 | particle part, variable smoothing length | ind (no level yet) | S1 |
+| `rigid_surface_penetration_max` | E1, E4, E8 | rigid surface defined | tol where the surface is a kinematic constraint (bound: normal velocity × solver step); ind, normalised by local spacing, where it is a penalty | S1 |
+| `prescribed_motion_realised` | E1, E7, E8 | prescribed motion defined | tol | gate |
+| *Conservation* | | | | |
+| `energy_gain_max` · `energy_loss_max` (over-the-run extremes of r) | E5 | always | ind | S2 |
+| `energy_residual_final` (final value of r) | E5 | always | ind | S2 |
+| `quasi_static_kinetic_ratio` | E5 | declared quasi-static intent | ind | gate |
+| `kinetic_energy_closure` (ledger term against the field sum at shared sample times; rotary and rigid-body terms where the formulation has them) | E5, E8, E9 | always | tol | S2 |
+| `internal_energy_closure` | E5, E8, E9 | the field output carries internal energy per constitutive point | tol | S2 |
+| `contact_energy_ratio` · `contact_energy_negative_ratio` (per interface, over peak internal energy) | E5, E6 | contact defined | ind · ind (level scoped to frictionless contact) | gate |
+| `external_work_closure` | E5, E7 | loads defined | tol | gate |
+| `momentum_impulse_balance` | E7, E8 | always | tol | gate |
+| `active_mass_drift` | E8 | mass scaling off and deletion off | tol | S1 |
+| `mass_closure` (active + deleted − added = initial) | E4, E6, E8 | mass scaling or deletion enabled | tol | gate |
+| `eos_closure` | E1, E8 | equation-of-state material | tol | gate |
+| *Constitutive* | | | | |
+| `yield_ratio_max` (+ detail) | E1, E8, declared | class with an assessable yield law | — (mechanism unconfirmed) | S1 |
+| `yield_saturation_min` (largest yield ratio among samples whose plastic strain is increasing; a coarse scale screen, also a units row) | E1, E8, declared | same; constitutive-point data; at least one point yielding across two consecutive stored intervals | req, coarse scale bound | S1 |
+| `state_variable_decrease_max` · `state_variable_min` | E8 | class with a monotone, bounded variable | req | S1 |
+| `plane_strain_ezz_max` | E1, E8 | plane-strain trait | tol | S1 |
+| `out_of_plane_shear_max` | E8 | two-dimensional | tol | S1 |
+| `pressure_trace_residual` | E8 | pressure stored as independent state | — | S1 |
+| *Units and dimensions* | | | | |
+| `units_anchors_consistent` | E1, E10a, E10b | always | req (equality to the anchor's declared digits) | S1 — `not_assessable / no_declaration_home` until benchmarks can declare; the test-bed hand-run is given Taylor's three anchors |
+| `input_density_plausible` (condensed-matter range; the only family-free screen that sees a mass-unit error) | E1, E10a | always | ind | S1 |
+| `input_constants_plausible` (moduli, strengths, wave speed; discriminating only with a declared material family) | E1, E10a | always | ind | S1 |
+| `input_dimensionless_groups_plausible` (yield stress over modulus, elastic constants against one another; needs no unit) | E1 | always | ind | S1 |
+| `response_magnitudes_plausible` (velocity, strain, stress; no net mass dimension except stress) | E8, E10a | always | ind | S1 |
+| `input_unit_declaration_consistent` | E1, E10a | the input carries its own unit declaration | req | gate |
+| `density_slot_matches_input` (ingestion mapping — *not* a units check) | E1, E8 | always | tol | S1 |
+| *Data integrity* | | | | |
+| `nonfinite_count` · `time_axis_monotone` · `terminal_artifact_frames` | E8 | always | req | S1 |
+| `elements_without_input_part` | E1, E8 | always | req | S1 |
+| `fields_match_declaration` | E8, declared | always | req | S1 |
+| `declared_traits_match_input` | E1, declared | always | req | S1 |
+| `yield_table_matches_input` · `yield_table_monotone` · `yield_table_covers_range` | E1, E8, declared | tabulated yield law | req | S1 |
+| `sampling_clock_consistent` | E5, E8, E9 | always | req | S2 |
+| `stored_globals_match_ledger` | E5, E8, E9 | the case's globals come from a stream independent of the ledger | tol | S2 |
 
-Stage 1 is exactly the rows whose requirement lies within {E1, E8,
-declared}. A data-free test asserts that the union of all rows'
-requirements is E1–E10.
+Every stage-1 row's requirement lies within {E1, E4 for one bound, E8, E10,
+declared}; two rows inside that set stay `gate` because no test-bed run
+exercises them (`eos_closure`: no equation-of-state class is supported yet;
+`input_unit_declaration_consistent`: the test-bed input carries no unit
+declaration). A data-free test asserts that the union of all rows'
+requirements is E1–E10, and that no two levels share a quantity, statistic,
+and scope.
+
+Plausibility ranges are reference levels like any other: each cites a
+materials reference and none is set from StructBench data; none has been
+surveyed yet. A dataset whose anchors state `kind of source: synthetic` has
+no outside to be checked against — the report renders that beside the
+plausibility and anchor rows and says the anchors verify arithmetic only. It
+is a declared fact, not a disposition.
 
 ## Physics notes
 
@@ -314,22 +414,59 @@ requirements is E1–E10.
    impact velocity?), and a tolerance is derived from the mechanism once one
    is confirmed. The measurement reports the plastic strain at the maximum,
    the frame, the distance to the nearest knot, and the violation fraction.
-2. The yield check needs a **lower-bound companion**: if any sample has
-   yielded, some sample must sit near the surface. Without it, stress stored
-   a thousand times too small passes silently — the ADR-0030 bug class. It
-   is valid per case, not per sample, and only on constitutive-point data:
-   von Mises of an element average is below the average von Mises.
-3. Comparing stored density with input density is **not a units check** —
-   both pass through the same conversion factor — so it keeps the honest name
-   `density_slot_matches_input`, and E10 asks for anchors that can fail.
-4. **Energy is defined on the ledger and nowhere else**: signed excursions
-   (largest gain, largest loss, final), normalised by the largest of kinetic,
-   internal, and external-work magnitudes so that driven and from-rest
-   systems are defined, evaluated through the declared balance identity.
-   Closures compare a ledger term with the field sum at shared sample times
-   and need both; kinetic closure includes rotary and rigid-body terms where
-   the formulation has them, and its tolerance must name the half-step
-   velocity stagger of central-difference integration.
+2. The yield check needs a **lower-bound companion**: among samples whose
+   plastic strain is increasing, the largest yield ratio must not be far
+   below one. Without it, stress stored a thousand times too small passes
+   silently — the ADR-0030 bug class. It is a *scale screen*, not a
+   return-mapping tolerance: a point that yielded between two stored frames
+   need not sit on the surface at either, so a fine bound is not
+   definitional. The bound is set far below one and far above the reciprocal
+   of the smallest unit-error factor, and its rationale says so. It is valid
+   only on constitutive-point data: von Mises of an element average is below
+   the average von Mises.
+3. **Units cannot be checked from inside the data.** A consistently
+   mislabelled unit system survives every identity — energy closure, wave
+   speed, stored density against input density — so the ADR-0030 error would
+   have passed every self-consistent check. Only things outside the label
+   can fail. *Anchors*: three, of independent dimension (density, a
+   stress-dimension constant, a length — their exponent matrix over mass,
+   length, time is non-singular, so every single-factor mislabel fails at
+   least one); each states the SI value of a named input quantity to
+   declared digits, which makes agreement an equality, not a judgement about
+   handbook accuracy. *Plausibility*: without a declared material family
+   only density sees a mass-unit error — a family-free modulus range spans
+   several decades, and steel entered a thousand times too soft reads as a
+   plausible polymer. *Dimensionless groups* inside the input need no unit
+   and catch units mixed within a material definition. The solver's time
+   step against a stability estimate is **not** a units check — solver and
+   estimate use the same input numbers, and wave speed is blind to the mass
+   unit — so it sits in numerical health, where a departure means the step
+   is governed by something other than size and wave speed.
+4. **Energy is one general indicator, defined on the ledger and nowhere
+   else.** With `E_tot` the sum of every term of the declared balance
+   identity (each once, with its sign) and `t0` the first ledger sample:
+   `R(t) = [E_tot(t) − E_tot(t0)] − [W_ext(t) − W_ext(t0)]` and
+   `r(t) = R(t) / max(|E_tot(t0) + W_ext(t) − W_ext(t0)|, E_kin(t), E_tot(t) − E_kin(t))`.
+   This is Belytschko's form (dossier B-BLM-1) with its internal work read as
+   the work of *all* internal forces and with energy present at `t0`
+   counted as input — without that term an initial-velocity impact would
+   read about one from the first sample. `r > 0` is energy created. For a
+   run with no external work, `r` equals the solver-reported energy ratio
+   minus one (dossier L-C12), which gives the measure a check against the
+   solver's own number. What each source may be attached to, without
+   misrepresenting it: B-BLM-1 (order 10⁻², a stability check) to the
+   over-the-run gain and loss, for explicit time integration — with the
+   rationale noting that "order of" makes 0.01 a platform choice, that a
+   sampled maximum is weaker than the source's every-step check, and that
+   the source checks large models on subdomains; W-W179-02 (10 %,
+   start-to-end, relative to initial energy) to the final value, only for
+   runs with initial energy and negligible external work. The two vendor
+   statements (B-ABQ-1, B-RAD-2) attach to nothing — one states no
+   normalisation, the other excludes zero-energy-mode and contact energy —
+   and are context only. Closures compare a ledger term with the field sum
+   at shared sample times and need both; the kinetic closure's tolerance
+   must name the half-step velocity stagger of central-difference
+   integration.
 5. Termination and integrity checks read the **raw** time axis and all
    stored frames. Only checks that need a uniform interval apply
    `n_valid_frames` (ADR-0028); on the artifact-dropped axis a healthy run
@@ -365,8 +502,9 @@ or read once.
 
 **Stage 1 — evidence in the case file and its stored input.** Order: result
 types and invariants → catalogue rows and gates (all rows) → kernels →
-faithful input reader, `InputFacts`, `PartTraits` → measures → criteria and
-`judge` → report and CLI. Synthetic fixtures mirror real traps: a case with
+faithful input reader, `InputFacts`, `PartTraits` → measures (including the
+units category: anchors against passed-in declarations, and the two
+plausibility screens) → criteria with scopes and `judge` → report and CLI. Synthetic fixtures mirror real traps: a case with
 an element block that has no input part, and an input whose material card
 has a blank second row.
 *Hand-run acceptance*: on `T-20-60-100` reproduce the probe's recorded
@@ -386,12 +524,18 @@ that row is the acceptance fact. The hand-read facts to reproduce on Taylor
 `20100/100` (case `T-20-100-100`): normal termination, 3918 steps, time step
 7.46e-5 – 7.78e-5 ms, total-to-initial energy ratio peaking at 1.089 and
 ending at 1.070, rigid-surface energy 311 against initial kinetic energy
-4.45e4 (input units).
+4.45e4 (input units). With no external work the energy indicator equals the
+solver-reported ratio minus one, so the measure must return a largest gain
+of 0.089 and a final value of 0.070 on this run.
 
-**Stage 3 — ratify and publish.** The maintainer verifies external sources
-and commits acceptance criteria verbatim; `docs/datachecks/<benchmark>.json`
-and its generated `.md` land with the drift test. The energy criterion's
-rationale records that one test-bed value was known before ratification.
+**Stage 3 — fix the levels and publish.** The maintainer fixes reference
+levels from the source dossier, each scoped and attached only to the
+statistic its source states, and plausibility ranges from a cited materials
+reference (not yet surveyed); `docs/datachecks/<benchmark>.json` and its
+generated `.md` land with the drift test. The energy levels' rationale
+records that one test-bed value was known before they were fixed. Rows that
+read `review` are published as such; a disposition is the dataset owner's
+to add, or not.
 
 ## Deliberately not built yet
 
@@ -400,11 +544,12 @@ rationale records that one test-bed value was known before ratification.
 | Measures for `gate` rows (added mass, implicit convergence, zero-energy-mode ratio, contact-energy sign, external-work and momentum balances, prescribed-motion realisation, EOS closure) | the first run that supplies the evidence — the conformance run for most |
 | A dataset generated under E1–E10 (new, or a regenerated legacy sweep as a new dataset version) | the maintainer's decision |
 | Revision of E1–E10 and its term names | the second solver's adapter |
-| A home for E8's state-variable declarations and E10's anchors; `units_anchors_consistent` | the ADR that amends ADR-0027 (ADR-0065 follow-up 2) |
+| A home in the benchmark package for the declared facts — unit label and anchors, state-variable meanings, material family, quasi-static intent (the checks themselves are built against passed-in `DeclaredFacts`) | the ADR that amends ADR-0027 (ADR-0065 follow-up 2) |
 | Refinement, noise-floor, and cross-source quantities | ADR-0065 follow-up 2 defines those standards; the first dataset that meets them |
 | Selective or streamed reader in `core/io`; chunk-merged measures | cases of hundreds of MB |
 | Material classes beyond tabulated J2; the material-class enum ADR | the next material |
-| Waiver records | the first ratified criterion a shipped benchmark fails |
+| Disposition records (typed, dated literals; the ADR-0033 registry pattern is the candidate home) | the first published row that reads `review` |
+| Reference levels and plausibility ranges no source yet covers (time-step collapse, warning counts, neighbour counts, smoothing-length saturation, material-family ranges) | a verified source, or a dated note recording that none exists |
 | Input-derived operative yield table | the first dataset with no `BenchmarkSpec` |
 | Carrying the ledger inside the canonical file; ingesting the arrays the adapter discards; populating `Provenance` from E2 | a dated note on ADR-0016; the first dataset generated under E9 |
 | Binary solver-output reading | the first run whose ledger exists only in binary form; flag-first — whether it needs an import outside the approved list is unverified |
@@ -414,16 +559,14 @@ rationale records that one test-bed value was known before ratification.
 
 ## Open items for the maintainer
 
-1. **Confirm the three drafting calls** at the top of this document.
-2. **Ratify acceptance criteria from the source dossier**
+1. **Confirm the drafting calls** at the top of this document.
+2. **Fix reference levels from the source dossier**
    (`2026-09-21-reference-data-verification-sources.md`): 119 claims with
-   verbatim quotes, locators, and URLs, each independently re-checked. The
-   sources disagree — a roadside-safety report allows a 10 % start-to-end
-   change in total energy, a standard textbook gives an over-the-run residual
-   of order 10⁻², two vendors say about 1–2 % — so the choice is the
-   maintainer's, argued from applicability and never from a test-bed value.
-   The dossier proposes keeping them as two quantities, each judged as its
-   own source states it.
+   verbatim quotes, locators, and URLs, each independently re-checked. For
+   each indicator: which sourced level attaches to which statistic and
+   scope, as the source states it (physics note 4 works this through for
+   energy). Indicators with no source stay without a level. Plausibility
+   ranges need a cited materials reference; none was surveyed.
 3. **Finalise the LS-DYNA realisation of E1–E10** from the dossier's draft
    table, against the release actually used (R13 and R15 were read; the
    legacy runs used R12). Two points need a run to settle: MPP executables
@@ -438,8 +581,8 @@ rationale records that one test-bed value was known before ratification.
 ## Verification
 
 - Every stage: `ruff format --check . && ruff check . && mypy src && pytest`.
-- Synthetic tests exercise all four verdict branches per implemented
-  quantity, both gates for every row, every fail-closed input path, a
+- Synthetic tests exercise every verdict branch per implemented quantity
+  (including `review` for indicators and scope selection in `judge`), both gates for every row, every fail-closed input path, a
   byte-identical re-run, the privacy scan, the union-equals-E1–E10 check, and
   an import-boundary test that resolves relative imports.
 - Real data is never a test dependency; environment-gated tests assert the

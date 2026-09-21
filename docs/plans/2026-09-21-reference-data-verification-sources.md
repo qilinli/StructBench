@@ -1,10 +1,11 @@
-# Source dossier: acceptance criteria and the LS-DYNA realisation of E1–E10
+# Source dossier: published limits and the LS-DYNA realisation of E1–E10
 
 **Date**: 2026-09-21
 **Status**: Evidence for maintainer ratification — nothing here is a decision
-**Serves**: ADR-0066 clause 7 (acceptance criteria are taken from a verified
-external source, as the source states them) and clause 2 (each solver's way
-of meeting E1–E10 is checked against its manual before it is written down).
+**Serves**: ADR-0066 clause 7 (an indicator's reference levels cite a
+verified external source, as the source states it, scoped by problem class
+and formulation) and clause 2 (each solver's way of meeting E1–E10 is checked
+against its manual before it is written down).
 
 ---
 
@@ -39,7 +40,7 @@ Limits of the reading, to weigh before ratifying anything:
   guidance, EN 16303 / CEN/TR 16303, the LSTC `energy_balance` FAQ file, the
   Abaqus Analysis User's Guide. Nothing is claimed about their content.
 
-## What the sources say about acceptance criteria
+## What the sources say about limits
 
 The sources do **not** agree, and the differences are the finding. They are
 kept separate below and must not be merged into a number no source states.
@@ -72,11 +73,19 @@ Things the maintainer should know before choosing:
    *positive* error as the alarming direction (> +2 % must be explained);
    W179 and Belytschko are sign-agnostic.
 
-A way to stay faithful to "as the source states them" without picking a
-winner by discretion: make them **two quantities**, each judged by its own
-source — an over-the-run balance residual in Belytschko's form, and a
-start-to-end total-energy change in W179's form. That is a proposal, not a
-decision.
+**How ADR-0066 (Proposed) uses this.** On the maintainer's direction the
+energy criterion is a fixed general indicator rather than a single hard
+limit: a signed residual in Belytschko's normalised form with the energy
+present at the start counted as input, reported as its largest gain, largest
+loss, and final value. A source's number becomes a *reference level* only
+where its statistic, normalisation, and evaluation time match the quantity:
+B-BLM-1 attaches to the over-the-run gain and loss for explicit time
+integration; W-W179-02 attaches to the final value for runs with initial
+energy and negligible external work; the two vendor statements attach to
+nothing and are context. Exceeding a level yields `review`, and the call is
+a person's. Extending the same treatment to the hourglass, added-mass, and
+contact-energy limits in the table is the drafter's proposal, to be
+confirmed.
 
 ## Findings that bear on the design
 

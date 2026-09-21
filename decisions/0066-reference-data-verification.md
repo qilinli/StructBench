@@ -45,8 +45,11 @@ this ADR closes. The figures are in the design doc's test plan.
 A first draft was reviewed in-session (2026-09-21) for repository
 governance, computational mechanics, and buildability. The maintainer then
 reversed its evidence model (see the first rejected alternative), and the
-revision was reviewed again on the same three lenses. This ADR records the
-result.
+revision was reviewed again on the same three lenses. External sources for
+criteria and for the LS-DYNA realisation were then read and independently
+re-checked; the claims, quotes, and locators are in
+`docs/plans/2026-09-21-reference-data-verification-sources.md`. This ADR
+records the result.
 
 Binding constraints: ADR-0004 (no solver vocabulary outside adapters),
 ADR-0010 (a solver abstraction layer was rejected as premature — "needs at
@@ -95,7 +98,7 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
    | E7 | applied-load resultants, including loads the solver computes internally, and boundary and contact reactions, over time |
    | E8 | field output at the points where the constitutive update is performed, or with the reduction declared: displacement, velocity, mass; stress and strain with their measure, frame, and shear convention declared; every argument of the material's admissibility functions as the update used it, declared per material from a closed vocabulary; pressure, density, and specific internal energy where an equation of state makes them independent state; section-point stresses, or section resultants with their conjugate deformations, for structural elements; neighbour count, smoothing length, and activity flag for particle methods; the deletion flag under erosion |
    | E9 | ledger, loads, and reactions sampled at an interval that divides the field-output interval and is no longer than a declared fraction of the shortest physical time scale of interest; both declared |
-   | E10 | the input's units of mass, length, and time (and temperature where thermal), plus three SI anchors of independent dimension — a density, a modulus or velocity, a characteristic length — each naming the input quantity it corresponds to and its kind of source |
+   | E10 | (a) the input's units of mass, length, and time (and temperature where thermal); (b) three SI anchors of independent dimension — a density; a stress-dimension constant (a modulus or a strength), or a wave velocity for a material that has none; a characteristic length — each naming the input quantity it corresponds to, stating the SI value of that input quantity to a declared number of significant digits, and giving its kind of source (handbook, specimen measurement, test report, synthetic) |
 
    The items are stated from the mechanics — every mechanism that does work
    on, or removes energy or mass from, the discretised system has its own
@@ -118,6 +121,38 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
    verdict is `not_assessable` with the missing items named; there are no
    degraded-mode substitutes computed from whatever a file happens to hold.
    The same row is therefore the feedback a contributor needs.
+
+   *Units are verified from outside the label.* A consistently mislabelled
+   unit system cannot be detected from inside the data — every identity
+   survives the relabel, so the error recorded in ADR-0030 would have passed
+   every self-consistent check. Units therefore form their own catalogue
+   category, judged only against things outside the label. *Anchors*
+   (E10b): the named input quantity, converted with the declared units, must
+   equal the anchor to the anchor's declared digits, otherwise `fail`;
+   anchors verify the label for the anchored constants only. *Plausibility
+   screens* on the SI-converted input constants and response magnitudes need
+   the unit label (E10a) but no anchors, and an excursion is `review`.
+   Without a declared material family only density, judged against the range
+   of condensed matter, can catch a mass-unit error; modulus and strength
+   ranges discriminate only when the dataset declares a material family, and
+   each range cites a materials reference; quantities with no net mass
+   dimension (wave speed, velocity, strain) screen length and time only.
+   *Dimensionless groups* formed inside the input (yield stress over
+   modulus, the elastic constants against one another) need no unit at all
+   and catch an input that mixes units within a material definition. Any
+   unit declaration the input itself carries is cross-checked. A dataset
+   that declares its anchors synthetic has no outside to be checked against:
+   its anchors verify arithmetic only, and the report says so. Two
+   comparisons stay in the catalogue but are *not* units checks, because
+   both sides use the input's own numbers: stored density against the
+   input's density (an ingestion-mapping check), and the solver's time step
+   against a stability estimate (numerical health). The anchor check is
+   built in the first slice as a deliberate exception to clause 5's
+   build-on-first-evidence rule, because its evidence is a declaration, not
+   solver output: the maintainer supplies the test bed's three anchors to
+   the hand-run. Where a benchmark records its declarations is decided by
+   the ADR that amends ADR-0027; until then their absence reads
+   `not_assessable / no_declaration_home`, a platform-side reason.
 
    *What this ADR does not decide.* Data generated in this repository is
    built to meet the requirement, and a contributed dataset is measured
@@ -176,13 +211,16 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
    are therefore a pure function of committed measurements and tracked
    criteria, and no command-line flag alters a criterion.
 
-5. **Four verdicts, one owner each, evaluated in a fixed order.**
+5. **Five verdicts, one owner each, evaluated in a fixed order.**
 
    1. Formulation traits own `not_applicable` — the quantity does not exist
       for this formulation.
    2. Evidence absence owns `not_assessable`, always with a typed reason and
       the missing evidence items named.
-   3. Measurement against a criterion owns `pass` and `fail`.
+   3. Measurement against a criterion owns the rest: `pass` or `fail` for a
+      requirement or an instrument tolerance; `pass` or `review` for an
+      indicator (clause 7). `review` means the indicator exceeds its
+      reference level; this instrument reports it and does not decide it.
 
    The test between the first two is whether better evidence could change
    the answer. Unknown traits yield `not_assessable`, never
@@ -190,7 +228,8 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
    `not_requested`, `not_computed`, `source_missing`, `unparsable`,
    `source_unreadable`. *Nobody, for this solver*:
    `not_available_from_solver`. *The platform*: `not_ingested`,
-   `unsupported`, `no_ratified_criterion`, `stale_definition` — these are
+   `unsupported`, `no_ratified_criterion`, `no_declaration_home`,
+   `stale_definition` — these are
    reported in a separate block ("not yet checked by this instrument") and
    never count as a dataset's gap.
 
@@ -232,36 +271,110 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
    bound is reported as one-sided and its lower-bound companion is
    `not_assessable`.
 
-7. **Criteria are the platform's standard, of two kinds that are never
-   mixed.** *Acceptance criteria* (energy balance, added mass,
-   zero-energy-mode ratio, time-step collapse, implicit convergence) are
-   taken from an external source the maintainer has verified, as the source
-   states them — limit, normalisation, and whether it applies at the end of
-   the run or over its whole duration — and are never adjusted in light of
-   any StructBench measurement; the criterion record cites the source and
-   the date it was verified. Measurements may exist first; they render
-   `not_assessable / no_ratified_criterion` until ratification, and a
-   criterion ratified after a test-bed value was already known says so in
-   its rationale. *Instrument tolerances* (closure sums, end-time match)
-   derive from storage precision or from a named and confirmed algorithmic
-   mechanism, and the bound is computed from that mechanism; they are never
-   fitted to values measured on the test bed. A quantity whose mechanism is
-   unconfirmed is measured and published with no criterion. Every criterion
-   is a record with a required, rendered rationale. Benchmarks cannot loosen
-   a criterion; when first needed, a dated waiver may annotate a `fail` with
-   the maintainer's acknowledgement, and it never changes the verdict. A
-   grandfathered benchmark may visibly fail. Gates, severities, and scores
-   are not introduced without a further ADR.
+7. **Criteria are the platform's standard, of three kinds fixed by where
+   the bound comes from.** A *requirement*'s bound is definitional — zero,
+   exact equality, or the input's own value: no non-finite values, normal
+   termination, no increment accepted without convergence, state variables
+   within their bounds and monotone where the material says so, declared
+   facts that agree with the input. An *instrument tolerance*'s bound is
+   computed from storage precision or from a named and confirmed algorithmic
+   mechanism, including where it serves a requirement (the end time reached,
+   closure sums); it is never fitted to values measured on the test bed, and
+   a quantity whose mechanism is unconfirmed is measured and published with
+   no criterion. Both yield `pass` or `fail`. An *indicator*'s bound is a
+   sourced *reference level*, and it yields `pass` or `review`. The design
+   doc's catalogue is authoritative on which quantity is judged how.
+
+   *Why indicators.* Some error measures have no definitional bound: how
+   much energy imbalance, zero-energy-mode energy, added mass, or contact
+   energy is tolerable depends on the problem and the formulation. The
+   source survey behind this ADR found the published limits for these to be
+   community-practice limits scoped to a domain — a ten-percent start-to-end
+   change in total energy in roadside crash practice; an over-the-run
+   residual "on the order of 10⁻²" in a standard text, given as a stability
+   check; a descriptive "generally less than 1 %" with no normalisation in
+   one vendor's guide; one to two percent for energy creation only, on a
+   statistic that excludes zero-energy-mode and contact energy, in
+   another's; no number at all in a third's — and none is presented as a
+   derivation in the passages read. No published limit was found for
+   time-step collapse, and none has yet been surveyed for plausibility
+   ranges. So an indicator has one fixed definition and reference levels,
+   not a universal limit.
+
+   *The energy indicator* is the signed residual of the run's declared
+   balance identity (E5). Let `E_tot(t)` be the sum of every term the
+   identity declares, each taken once with its declared sign and no
+   contained term counted twice, and `t0` the first ledger sample. Then
+
+   ```
+   R(t) = [E_tot(t) − E_tot(t0)] − [W_ext(t) − W_ext(t0)]
+   r(t) = R(t) / max( |E_tot(t0) + W_ext(t) − W_ext(t0)|, E_kin(t), E_tot(t) − E_kin(t) )
+   ```
+
+   This is the form of Belytschko et al. with two things its three symbols
+   leave implicit made explicit: its internal work is the work of all
+   internal forces, so every non-kinetic ledger term belongs with it; and
+   energy present at `t0` — initial velocity, preload, stored chemical
+   energy — counts as input. External work includes the work of reactions at
+   prescribed-motion boundaries and of body forces. `r > 0` is energy
+   created; `r < 0` is energy unaccounted for. Reported: the largest gain
+   and the largest loss over the run, each with its sample time, and the
+   signed final value; being sampled, the extremes are lower bounds on the
+   solver-step extremes.
+
+   *Reference levels.* A level is fixed in advance, cites a verified source,
+   and is never adjusted in light of a StructBench measurement. It may be
+   attached to a quantity only where the source's statistic, normalisation,
+   and evaluation time are identical to the quantity's definition, or equal
+   to it under a condition the level's scope records; otherwise the source
+   is context in a rationale and yields no level, and where sources use
+   different statistics for one phenomenon, each statistic given a level is
+   its own catalogue quantity. Levels are scoped by run traits derived from
+   the input and the ledger — time integrator, spatial conservation class,
+   energy source, mass scaling, friction, dimension — and by declared intent
+   only where intent cannot be derived (a quasi-static task); a dataset
+   cannot select a level by labelling itself. For a run-global quantity
+   every part must fall inside the scope, and the scopes of one quantity's
+   levels are pairwise disjoint. A general level for explicit time
+   integration applies whatever the spatial discretisation: where a
+   formulation's ledger is not built from the work of its internal forces (a
+   particle method that is not pairwise conservative, an advecting mesh),
+   the level's rationale says that an exceedance may be inherent to the
+   formulation rather than an instability — which is exactly the judgement
+   `review` hands to a person. At or below the level the verdict is
+   `pass`; above it, `review`; with no level for the run's scope,
+   `not_assessable / no_ratified_criterion`.
+
+   *The call on a `review`* is not this instrument's. Whoever is
+   accountable for the dataset's entry in this repository — the maintainer
+   for shipped benchmarks; for a contribution, the contributor named in its
+   provenance, merged by the maintainer — may record a dated, attributed
+   *disposition*: accepted or rejected, with a rationale. It names the
+   `definition_version` and the reference level it answers, is rendered
+   beside the row, is shown as stale when either changes, and never changes
+   the measurement or the verdict; a reader is free to disagree with it. How
+   `fail`, `review`, and dispositions count towards a benchmark's
+   compliance or admission is ADR-0065 follow-up 2's decision.
+
+   Every criterion is a record with a required, rendered rationale.
+   Benchmarks cannot loosen a criterion or a reference level. Measurements
+   may exist before a criterion does; a criterion or level fixed after a
+   test-bed value was already known says so in its rationale. A
+   grandfathered benchmark may visibly fail or read `review`. Gates,
+   severities, and scores are not introduced without a further ADR.
 
 8. **Measurements are the committed record; verdicts are generated.** The
    JSON report carries a schema id, the package version, a per-quantity
    `definition_version`, the SHA-256 of each measured case file and of the
-   run-evidence record a `run` row was measured from, and values rounded to
-   fixed significant digits; it carries no timestamp, host, or path, and a
+   run-evidence record a `run` row was measured from, values rounded to
+   fixed significant digits, and the facts levels are scoped on — the run
+   traits derived from the input and the ledger, and any declared intent —
+   so that judging needs nothing but this file and the criteria; it carries no timestamp, host, or path, and a
    re-run is byte-identical. Working output goes to gitignored `runs/`. The
    published record is `docs/datachecks/<benchmark>.json` with a generated
    `.md`, pinned by a data-free test that the markdown equals
-   `render(judge(json, criteria))`. A stale `definition_version` is judged
+   `render(judge(json, criteria), dispositions)`; dispositions are tracked
+   literals, are not part of the JSON, and never enter `judge`. A stale `definition_version` is judged
    `not_assessable / stale_definition` for that row only. The CLI exits `0`
    on completion and `2` on usage or I/O errors; failing verdicts are
    reported in the output, not through the exit code, and an unreadable
@@ -320,9 +433,23 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
   assessable without a ledger.** Rejected: it keeps a second, ledger-free
   route to the same quantity. Closures compare a ledger term with the field
   sum and need both.
+- **One hard energy limit taken from a single source.** Rejected
+  (maintainer, 2026-09-21). The sources read disagree by an order of
+  magnitude, measure different statistics (start-to-end change against an
+  over-the-run residual), are scoped to their own domains, and rest on
+  community practice rather than derivation. A hard pass/fail would claim
+  an authority no source has. Hence a general indicator, reference levels
+  scoped by run traits, and a human call on `review`.
 - **Per-benchmark bounds ratified after measuring the benchmark.** Rejected:
-  the acceptance criterion becomes a function of the data it judges, and no
-  common standard remains.
+  the criterion becomes a function of the data it judges, and no common
+  standard remains. Reference levels differ from this in both respects: they
+  are scoped by run traits derived from the input and the ledger, not by
+  benchmark, and they
+  are fixed from a source before they are applied.
+- **A units check built from internal consistency** (stored density against
+  input density, wave speed, energy closure). Rejected: all of these survive
+  a consistent relabel, so none can fail on the error they are meant to
+  catch.
 - **Commit verdicts rather than measurements.** Rejected: every criterion
   change would need the data again, and a verdict stale against the code
   would be invisible.
@@ -360,7 +487,7 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
 - **Delivery is staged, with Taylor as the test bed**: the requirement and
   its LS-DYNA realisation first; then quantities whose evidence is in the
   case file and its stored input; then run-evidence quantities; then
-  ratification and publication. Because the legacy runs do not meet the
+  fixing reference levels and publication. Because the legacy runs do not meet the
   requirement, the staging includes — as the maintainer's decision — one
   unpublished *conformance run* made with the standard input block, so that
   the realisation and the measures for E4–E7 rest on real output. The
@@ -376,13 +503,16 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
 - **The grandfathered benchmarks will show honest gaps**, which is the
   visibility ADR-0065 asks for: rows that read `not_assessable` with the
   missing evidence named, a dataset with no solver input that is almost
-  entirely `not_assessable`, possibly a failed criterion. None of this
+  entirely `not_assessable`, possibly a failed requirement or a `review`. None of this
   withdraws or re-scores anything.
 - **Deferred.** The list with triggers lives in the design doc. The durable
   ones: measures for specified quantities (the first run that supplies the
   evidence); revision of E1–E10 (the second solver); a home for E8's
   declaration and E10's anchors (the ADR that amends 0027, ADR-0065
-  follow-up 2); the material-class enum (ADR-0012's follow-on); waiver
-  records (the first ratified criterion a shipped benchmark fails); carrying
+  follow-up 2); the material-class enum (ADR-0012's follow-on); disposition
+  records — typed, dated literals; the ADR-0033 registry pattern is the
+  candidate home, decided when first needed (the first published row that
+  reads `review`); a declared material family and declared quasi-static
+  intent, alongside the other declarations; reference levels for scopes no source yet covers; carrying
   the ledger inside the canonical file, and ingesting the arrays the adapter
   currently discards (a dated note on ADR-0016).
