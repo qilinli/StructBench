@@ -56,7 +56,8 @@ def _block(
     )
 
 
-_HEAD = " an invented impact\n                         ls-dyna mpp.123456 d           date 01/01/2020\n"
+_STAMP = "                         ls-dyna mpp.123456 d           date 01/01/2020"
+_HEAD = f" an invented impact\n{_STAMP}\n"
 _STATS = _HEAD + "".join(
     [
         _block(1, 0.0, 2000.0, 0.0, 0.0),
@@ -76,11 +77,11 @@ _MESSAGES = "\n".join(
         " Input file: Q:\\secret\\folder\\model.k",
         " hostname build-box-17",
         " MPP execution with       4 procs",
-        "                         ls-dyna mpp.123456 d           date 01/01/2020",
-        "      52 t 4.0000E-03 dt 7.60E-05 write d3plot file            01/01/20 10:00:00",
+        _STAMP,
+        "      52 t 4.0000E-03 dt 7.60E-05 write d3plot file     01/01/20 10:00:00",
         " ",
         " *** termination time reached ***",
-        " N o r m a l    t e r m i n a t i o n                          01/01/20 10:00:01",
+        " N o r m a l    t e r m i n a t i o n                   01/01/20 10:00:01",
         " Problem time       =    4.0020E-03",
         " Problem cycle      =        52",
     ]
