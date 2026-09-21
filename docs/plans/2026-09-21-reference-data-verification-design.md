@@ -60,6 +60,36 @@ the smallest that works.
    plausibility screens. Where the source survey found no published limit,
    the quantity stays measured with no level until a source is found.
 
+Taken after stages 1 and 2 had run on the test bed (same day):
+
+10. **A frame written off the sampling interval is a fact, not a defect.**
+    A solver that writes its state at the exact termination time did
+    nothing wrong, and loaders already drop that frame (ADR-0028).
+    `terminal_artifact_frames` is measured and reported with no
+    criterion; it was first catalogued as a requirement.
+11. **Strength gets its own plausibility row**, `input_strength_plausible`,
+    against the sourced family-free range. It is the one stress-unit
+    screen that works on an input with no Young's modulus;
+    `input_constants_plausible` is Young's modulus only, because a level
+    attaches only to the statistic its source states.
+12. **For the kinetic-energy closure, shared sample instants found in the
+    files stand in for a declared sampling clock (E9).** A stored frame
+    and a ledger sample coincide within a hundredth of a stored interval;
+    a frame with no partner is left out. The closure ships measured, with
+    no tolerance yet. The other three E9 rows are decided after it has
+    been seen on the test bed.
+13. **No sourced reference level is ratified, so none gives a verdict.**
+    The maintainer cannot confirm the levels against their sources, two
+    of which were read only as page images or snippets. They are not
+    published as this platform's standard: every indicator is reported
+    as a measurement, with the published level shown beside it for
+    context (`not_assessable / no_ratified_criterion`). Verdicts come
+    from definitional requirements and instrument tolerances only. A
+    level starts judging when its record in `criteria.py` is marked
+    ratified — a one-line change that re-renders every report with no
+    data access. The record was published on this footing
+    (`docs/datachecks/taylor_impact_2d.{json,md}`).
+
 ### Calls made in drafting
 
 *Confirmed by the acceptance of ADR-0066 (2026-09-21), which encodes them —
@@ -361,7 +391,7 @@ anchors.
 | `energy_residual_final` (final value of r) | E5 | always | ind (no level; context) | S2 |
 | `total_energy_change_final` = [E_tot(t_end) − E_tot(t0)] / E_tot(t0), signed | E5 | energy present at the first sample | ind | S2 |
 | `quasi_static_kinetic_ratio` | E5 | declared quasi-static intent | ind | gate |
-| `kinetic_energy_closure` (ledger term against the field sum at shared sample times; rotary and rigid-body terms where the formulation has them) | E5, E8, E9 | always | tol | S2 |
+| `kinetic_energy_closure` (ledger term against the field sum at shared sample times, found in the files — decision 12; particle parts only so far; normalised by the peak ledger value) | E5, E8, E9 | always | — (a tolerance must name the half-step velocity stagger, not yet confirmed) | S2 |
 | `internal_energy_closure` | E5, E8, E9 | the field output carries internal energy per constitutive point | tol | S2 |
 | `contact_energy_ratio` · `contact_energy_negative_ratio` (per interface, over peak internal energy) | E5, E6 | contact defined | ind · ind (level scoped to frictionless contact) | gate |
 | `external_work_closure` | E5, E7 | loads defined | tol | gate |
@@ -379,13 +409,15 @@ anchors.
 | *Units and dimensions* | | | | |
 | `units_anchors_consistent` | E1, E10a, E10b | always | req (equality to the anchor's declared digits) | S1 — `not_assessable / no_declaration_home` until benchmarks can declare; the test-bed hand-run is given Taylor's three anchors |
 | `input_density_plausible` (condensed-matter range; the only family-free screen that sees a mass-unit error) | E1, E10a | always | ind | S1 |
-| `input_constants_plausible` (moduli, strengths, wave speed; discriminating only with a declared material family) | E1, E10a | always | ind | S1 |
+| `input_constants_plausible` (Young's modulus; discriminating only with a declared material family) | E1, E10a | a material states a Young's modulus | ind | S1 |
+| `input_strength_plausible` (the most extreme tabulated yield stress; gross stress-unit errors only — decision 11) | E1, E10a | a material states a strength | ind | S1 |
 | `input_dimensionless_groups_plausible` (yield stress over modulus, elastic constants against one another; needs no unit) | E1 | always | ind | S1 |
 | `response_magnitudes_plausible` (velocity, strain, stress; no net mass dimension except stress) | E8, E10a | always | ind | S1 |
 | `input_unit_declaration_consistent` | E1, E10a | the input carries its own unit declaration | req | gate |
 | `density_slot_matches_input` (ingestion mapping — *not* a units check) | E1, E8 | always | tol | S1 |
 | *Data integrity* | | | | |
-| `nonfinite_count` · `time_axis_monotone` · `terminal_artifact_frames` | E8 | always | req | S1 |
+| `nonfinite_count` · `time_axis_monotone` | E8 | always | req | S1 |
+| `terminal_artifact_frames` (frames written off the sampling interval; a fact — decision 10) | E8 | always | — | S1 |
 | `elements_without_input_part` | E1, E8 | always | req | S1 |
 | `fields_match_declaration` | E8, declared | always | req | S1 |
 | `declared_traits_match_input` | E1, declared | always | req | S1 |
@@ -586,7 +618,9 @@ E1–E10 are reported, not designed around.
 
 **Stage 0 — the requirement, written down.** E1–E10 land with ADR-0066. The
 LS-DYNA realisation (the standard input block) is verified against the
-keyword manual and documented under `data_generation/lsdyna/`.
+keyword manual and documented under `data_generation/lsdyna/` — written as
+`data_generation/lsdyna/STANDARD_INPUT_BLOCK.md`, a draft until the
+conformance run has exercised it; its open points are listed there.
 
 **Stage 0b — one conformance run** *(maintainer's decision; needs the
 licensed solver)*. A single test-bed case re-run with the standard input
@@ -630,7 +664,8 @@ initial total and becomes the denominator. `energy_gain_max` is at most
 that is not pairwise conservative, so no level covers it: the rows are
 published with values and out-of-scope levels, and no verdict.
 
-**Stage 3 — confirm the levels and publish.** The maintainer confirms the
+**Stage 3 — confirm the levels and publish.** *(As carried out: decision
+13 — published with no level ratified.)* The maintainer confirms the
 reference levels and plausibility ranges tabulated above, spot-checking the
 two sources read only as images or snippets; `docs/datachecks/<benchmark>.json` and its
 generated `.md` land with the drift test. The energy levels' rationale

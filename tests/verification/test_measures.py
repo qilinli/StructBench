@@ -279,6 +279,7 @@ _HEALTHY = {
     "units_anchors_consistent": 0.0,
     "input_density_plausible": 8900.0,
     "input_constants_plausible": 1.0e11,
+    "input_strength_plausible": 200.0e6,
     "input_dimensionless_groups_plausible": 1.0e-3,
     "response_magnitudes_plausible": 100.0,
     "density_slot_matches_input": 0.0,
@@ -564,3 +565,19 @@ def test_run_traits_assert_only_what_the_input_establishes() -> None:
     )
     assert run_traits(coupled) == {"explicit", "dim2"}
     assert run_traits(_facts(time_integration=None, dimension=None)) == frozenset()
+
+
+def test_a_strength_left_in_the_wrong_unit_is_the_one_reported() -> None:
+    in_mpa = ((0.0, 1.0), (100.0, 200.0))  # MPa entered where Pa was declared
+    materials = (
+        MaterialInput(2, "elastic_plastic_hydro", 8900.0, 4.0e10, 1.0e11, None, _TABLE),
+        MaterialInput(3, "elastic_plastic_hydro", 8900.0, 4.0e10, None, None, in_mpa),
+    )
+    row = _get(_run(facts=_facts(materials=materials)), "input_strength_plausible")
+    assert (row.value, row.n_samples) == (100.0, 4)
+
+
+def test_an_input_with_no_strength_has_no_strength_screen() -> None:
+    elastic = (MaterialInput(2, "rigid", 7850.0, None, 2.1e11, 0.3, None),)
+    result = _run(facts=_facts(materials=elastic))
+    assert _get(result, "input_strength_plausible").not_applicable

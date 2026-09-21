@@ -22,9 +22,10 @@ from ..results import CaseMeasurements, Measurement, Status
 from ..traits import run_traits
 from . import constitutive, health, integrity, units
 from ._common import MeasureFn
+from .closure import CLOSURE_MEASURES, shared_samples
 from .run import RUN_MEASURES
 
-__all__ = ["MEASURES", "RUN_MEASURES", "measure_case"]
+__all__ = ["CLOSURE_MEASURES", "MEASURES", "RUN_MEASURES", "measure_case"]
 
 MEASURES: dict[str, MeasureFn] = {
     **health.MEASURES,
@@ -34,7 +35,7 @@ MEASURES: dict[str, MeasureFn] = {
 }
 
 _IMPLEMENTED = {q.name for q in CATALOGUE if q.status is Status.IMPLEMENTED}
-_BUILT = set(MEASURES) | set(RUN_MEASURES)
+_BUILT = set(MEASURES) | set(RUN_MEASURES) | set(CLOSURE_MEASURES)
 if _BUILT != _IMPLEMENTED:  # the catalogue and the code must not drift apart
     raise RuntimeError(
         f"measures and catalogue disagree: {sorted(_BUILT ^ _IMPLEMENTED)}"
@@ -62,6 +63,8 @@ def _supplied(
             items.add(EvidenceItem.E4)
         if run.ledger is not None:
             items.add(EvidenceItem.E5)
+        if shared_samples(case, run)[0].size >= 2:
+            items.add(EvidenceItem.E9)  # found in the files, not declared
     if facts is not None:
         items.add(EvidenceItem.E1)
     if case is not None and case.response is not None:
@@ -110,7 +113,10 @@ def measure_case(
         row = gate(q, facts, declared, supplied)
         if row is None:
             try:
-                if q.name in RUN_MEASURES:
+                if q.name in CLOSURE_MEASURES:
+                    assert case is not None and run is not None
+                    row = CLOSURE_MEASURES[q.name](case, facts, run)
+                elif q.name in RUN_MEASURES:
                     assert run is not None  # the gate saw its evidence
                     row = RUN_MEASURES[q.name](run, facts)
                 else:
