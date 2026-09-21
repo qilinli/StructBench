@@ -476,8 +476,11 @@ class CaseReport:
 
 @dataclass(frozen=True)
 class DatasetReport:
+    """Verdicts, with the measurements and criteria that produced them."""
+
     measurements: DatasetMeasurements
     cases: tuple[CaseReport, ...]
+    criteria: tuple[Criterion, ...]
 
 
 def _judge_one(
@@ -559,4 +562,4 @@ def judge(
         )
         for case in measurements.cases
     )
-    return DatasetReport(measurements, cases)
+    return DatasetReport(measurements, cases, tuple(criteria))
