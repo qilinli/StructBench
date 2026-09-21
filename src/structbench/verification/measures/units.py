@@ -12,7 +12,14 @@ import math
 
 import numpy as np
 
-from ...core import AbsenceReason, Case, DeclaredFacts, InputFacts, UnitsAnchor
+from ...core import (
+    AbsenceReason,
+    Case,
+    DeclaredFacts,
+    InputFacts,
+    MaterialInput,
+    UnitsAnchor,
+)
 from ..results import Location, Measurement
 from ._common import (
     MeasureFn,
@@ -21,6 +28,7 @@ from ._common import (
     input_gap,
     known_particles,
     needs_case,
+    not_applicable,
     particle_field,
     value,
 )
@@ -95,16 +103,28 @@ def _input_density_plausible(
     )
 
 
+def _youngs_modulus(material: MaterialInput) -> float | None:
+    """Young's modulus as the input gives it, or from ``E = 2 G (1 + nu)``."""
+    if material.youngs_modulus:
+        return material.youngs_modulus
+    if material.shear_modulus and material.poisson_ratio is not None:
+        return 2.0 * material.shear_modulus * (1.0 + material.poisson_ratio)
+    return None
+
+
 def _input_constants_plausible(
     case: Case | None, facts: InputFacts | None, declared: DeclaredFacts | None
 ) -> Measurement:
+    """The most extreme Young's modulus — the one modulus with a sourced range.
+
+    A shear modulus alone is not screened: no surveyed source gives its
+    range, and a level attaches only to the statistic its source states.
+    """
     name = "input_constants_plausible"
     assert facts is not None
-    moduli = [
-        v for m in facts.materials for v in (m.shear_modulus, m.youngs_modulus) if v
-    ]
+    moduli = [e for e in map(_youngs_modulus, facts.materials) if e]
     if not moduli:
-        return input_gap(name, facts)
+        return not_applicable(name)  # no material here defines a Young's modulus
     return value(name, _most_extreme(moduli, _MODULUS_CENTRE), INPUT, n=len(moduli))
 
 

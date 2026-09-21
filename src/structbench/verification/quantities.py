@@ -468,7 +468,7 @@ _ROWS = (
         _U,
         "Pa",
         {E.E1, E.E10A},
-        "an elastic modulus is outside its plausible range",
+        "a Young's modulus is outside its plausible range",
         implemented=True,
     ),
     _row(

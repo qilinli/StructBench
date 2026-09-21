@@ -124,7 +124,7 @@ def _facts(**overrides: object) -> InputFacts:
         "parts": (PartTraits(1, 2, "particle", None),),
         "materials": (
             MaterialInput(
-                2, "elastic_plastic_hydro", 8900.0, 4.0e10, None, None, _TABLE
+                2, "elastic_plastic_hydro", 8900.0, 4.0e10, 1.0e11, None, _TABLE
             ),
         ),
         "time_integration": "explicit",
@@ -278,8 +278,8 @@ _HEALTHY = {
     "active_mass_drift": 0.0,
     "units_anchors_consistent": 0.0,
     "input_density_plausible": 8900.0,
-    "input_constants_plausible": 4.0e10,
-    "input_dimensionless_groups_plausible": 100.0e6 / (3.0 * 4.0e10),
+    "input_constants_plausible": 1.0e11,
+    "input_dimensionless_groups_plausible": 1.0e-3,
     "response_magnitudes_plausible": 100.0,
     "density_slot_matches_input": 0.0,
     "yield_table_matches_input": 0.0,
