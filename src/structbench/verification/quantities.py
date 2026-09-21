@@ -466,9 +466,9 @@ _ROWS = (
     _row(
         "input_constants_plausible",
         _U,
-        "1",
+        "Pa",
         {E.E1, E.E10A},
-        "a modulus, strength or wave speed is outside its plausible range",
+        "an elastic modulus is outside its plausible range",
         implemented=True,
     ),
     _row(
@@ -482,9 +482,9 @@ _ROWS = (
     _row(
         "response_magnitudes_plausible",
         _U,
-        "1",
+        "m/s",
         {E.E8, E.E10A},
-        "a response magnitude is outside its plausible range",
+        "a response speed is outside the structural-impact regime",
         implemented=True,
     ),
     _row(
