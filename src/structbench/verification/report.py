@@ -1,4 +1,4 @@
-"""The committed record (JSON) and the generated report (Markdown) — ADR-0066 cl. 8.
+"""The committed record (JSON) — ADR-0066 clause 8. The report is ``markdown.py``.
 
 Measurements are what is committed; verdicts are generated from them and the
 criteria, so ``render_markdown(judge(from_json(text)))`` needs no data. Both
@@ -8,25 +8,20 @@ outputs are deterministic and carry no time, host, or path.
 from __future__ import annotations
 
 import json
-from collections import Counter, defaultdict
 from typing import Any
 
-from ..core import PLATFORM_REASONS, Absence, AbsenceReason, EvidenceItem
-from .criteria import CheckResult, DatasetReport
+from ..core import Absence, AbsenceReason, EvidenceItem
+from .markdown import render_markdown
 from .results import (
     CaseMeasurements,
     DatasetMeasurements,
     Location,
     Measurement,
-    Verdict,
 )
 
 __all__ = ["SCHEMA_ID", "from_json", "render_markdown", "to_json"]
 
 SCHEMA_ID = "structbench.verification/1"
-
-_PLATFORM = {str(r) for r in PLATFORM_REASONS}
-_JUDGED = (Verdict.PASS, Verdict.FAIL, Verdict.REVIEW)
 
 
 def _round(x: float | int | str) -> float | int | str:
@@ -122,141 +117,3 @@ def from_json(text: str) -> DatasetMeasurements:
             for case in raw["cases"]
         ),
     )
-
-
-def _cases(ids: list[str], limit: int = 6) -> str:
-    shown = ", ".join(f"`{i}`" for i in ids[:limit])
-    return shown if len(ids) <= limit else f"{shown}, … ({len(ids)} cases)"
-
-
-def _span(values: list[float]) -> str:
-    if not values:
-        return "—"
-    lo, hi = min(values), max(values)
-    return f"{lo:.6g}" if lo == hi else f"{lo:.6g} … {hi:.6g}"
-
-
-def render_markdown(report: DatasetReport) -> str:
-    """The human-readable report: what was judged, what was not, and why."""
-    data = report.measurements
-    rows: dict[str, list[tuple[str, CheckResult]]] = defaultdict(list)
-    for case in report.cases:
-        for result in case.results:
-            rows[result.quantity].append((case.case_id, result))
-
-    def is_platform_gap(results: list[tuple[str, CheckResult]]) -> bool:
-        return all(
-            r.verdict is Verdict.NOT_ASSESSABLE
-            and r.reason in _PLATFORM
-            and r.value is None
-            for _, r in results
-        )
-
-    checked = {q: rs for q, rs in rows.items() if not is_platform_gap(rs)}
-    out = [
-        f"# Reference-data verification: {data.benchmark or 'unregistered runs'}",
-        "",
-        f"- Dataset revision: {data.dataset_revision or 'not recorded'}",
-        f"- Cases: {len(report.cases)}",
-        f"- Instrument: structbench {data.structbench_version}, `{SCHEMA_ID}`",
-        "",
-        "Generated from the committed measurements and the platform criteria; no"
-        " data was read to produce it. A `pass` on numerical health or"
-        " conservation is a necessary solution-verification indicator, not"
-        " evidence of accuracy. Verdicts come from definitional requirements and"
-        " instrument tolerances only. Published reference levels are shown beside"
-        " the measurement for context: none has been confirmed against its source"
-        " by the maintainer, so none is this platform's standard and none gives a"
-        " verdict.",
-        "",
-        "## Verdicts",
-        "",
-        "Quantities measured on at least one case.",
-        "",
-        "| Quantity | Unit | Measured | pass | fail | review | n/a | not assessable"
-        " | Criterion |",
-        "|---|---|---|---|---|---|---|---|---|",
-    ]
-    for quantity in sorted(checked):
-        results = [r for _, r in checked[quantity]]
-        count = Counter(r.verdict for r in results)
-        values = [r.value for r in results if r.value is not None]
-        if not values:
-            continue  # listed below: not applicable, or evidence not supplied
-        labels = sorted({r.criterion for r in results if r.criterion})
-        if any(r.provisional for r in results):
-            labels = [f"{label} (provisional)" for label in labels]
-        levels = sorted({lv for r in results for lv in r.out_of_scope_levels})
-        shown = sorted({r.unratified_level for r in results if r.unratified_level})
-        criterion = "; ".join(labels) or "none"
-        if shown:
-            criterion += " — published level, not ratified: " + "; ".join(shown)
-        if levels:
-            criterion += " — out of scope: " + "; ".join(levels)
-        out.append(
-            f"| `{quantity}` | {results[0].unit} | {_span(values)} | "
-            + " | ".join(str(count[v] or "") for v in _JUDGED)
-            + f" | {count[Verdict.NOT_APPLICABLE] or ''}"
-            + f" | {count[Verdict.NOT_ASSESSABLE] or ''} | {criterion} |"
-        )
-
-    out += ["", "## Findings", ""]
-    findings = [
-        (quantity, verdict, [cid for cid, r in rs if r.verdict is verdict])
-        for quantity, rs in sorted(checked.items())
-        for verdict in (Verdict.FAIL, Verdict.REVIEW)
-    ]
-    findings = [f for f in findings if f[2]]
-    for quantity, verdict, ids in findings:
-        values = [
-            r.value
-            for cid, r in checked[quantity]
-            if cid in ids and r.value is not None
-        ]
-        out.append(f"- **{verdict}** `{quantity}` = {_span(values)} — {_cases(ids)}")
-    if not findings:
-        out.append("None.")
-
-    out += ["", "## Not applicable to these runs", ""]
-    skipped = [
-        f"`{q}`"
-        for q, rs in sorted(checked.items())
-        if all(r.verdict is Verdict.NOT_APPLICABLE for _, r in rs)
-    ]
-    out.append(", ".join(skipped) if skipped else "None.")
-
-    out += ["", "## Evidence the runs did not supply", ""]
-    gaps: dict[tuple[str, tuple[str, ...]], dict[str, list[str]]] = defaultdict(dict)
-    for quantity, rs in sorted(checked.items()):
-        for cid, r in rs:
-            if r.verdict is Verdict.NOT_ASSESSABLE and r.reason not in _PLATFORM:
-                gaps[(r.reason, r.missing)].setdefault(quantity, []).append(cid)
-    for (reason, missing), quantities in sorted(gaps.items()):
-        items = f" ({', '.join(missing)})" if missing else ""
-        names = ", ".join(f"`{q}`" for q in quantities)
-        n_cases = len({cid for ids in quantities.values() for cid in ids})
-        out.append(f"- `{reason}`{items}, {n_cases} cases: {names}")
-    if not gaps:
-        out.append("None.")
-
-    out += [
-        "",
-        "## Not yet checked by this instrument",
-        "",
-        "Gaps in the platform, not in the data: a quantity the instrument cannot"
-        " measure yet, or a declaration it has no home for.",
-        "",
-    ]
-    for quantity in sorted(set(rows) - set(checked)):
-        reasons = sorted({r.reason for _, r in rows[quantity]})
-        out.append(f"- `{quantity}` — {', '.join(reasons)}")
-
-    out += ["", "## Criteria", ""]
-    used = {q for q, rs in checked.items() if any(r.criterion for _, r in rs)}
-    for c in sorted(report.criteria, key=lambda c: (c.quantity, c.label())):
-        if c.quantity in used:
-            tags = [str(c.kind)] + (["provisional"] if c.provisional else [])
-            source = f" Source: {c.source}." if c.source else ""
-            head = f"- `{c.quantity}` {c.label()} ({', '.join(tags)})."
-            out.append(f"{head} {c.rationale}{source}")
-    return "\n".join(out) + "\n"

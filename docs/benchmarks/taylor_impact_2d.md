@@ -75,6 +75,7 @@ on this benchmark.
 - Particles per case: 4800-8000; 152 frames at 0.002 ms; 2.4 GB on disk
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, shell/stress, shell/effective_plastic_strain, shell/internal_energy, shell/thickness, shell/is_alive, global/kinetic_energy, global/internal_energy, global/total_energy
 - Provenance: LS-DYNA parametric sweep (3 bar lengths x 11 impact velocities) produced by Curtin collaborators; benchmark protocol per ADR-0019. One extra Convergence run is held aside for a mesh-resolution check.
+- Verification: what was checked about these simulation runs, and what was found — [verification report](../datachecks/taylor_impact_2d.md)
 - License: CC BY 4.0
 - Data: public on Hugging Face — [StructBench/taylor-impact-2d](https://huggingface.co/datasets/StructBench/taylor-impact-2d)
 

@@ -43,7 +43,7 @@ def _case(case_id: str, table_dips: float) -> CaseMeasurements:
         _value("nonfinite_count", 0.0, n_samples=23355104),
         _value(
             "yield_ratio_max",
-            1.0003531234567,
+            1.0003531234567 + 0.001 * (1.0 - table_dips),  # differs by case
             locations=frozenset({Location.CASE, Location.DECLARED}),
             detail={"frame": 33, "state_at_max": 0.500852123456},
         ),
@@ -105,40 +105,94 @@ def test_the_report_is_regenerated_from_the_record_alone() -> None:
     assert direct.endswith("\n") and not direct.endswith("\n\n")
 
 
-def test_the_report_separates_findings_data_gaps_and_platform_gaps() -> None:
+def _sections(text: str) -> dict[str, str]:
+    parts = text.split("\n## ")
+    return {part.split("\n", 1)[0]: part for part in parts[1:]}
+
+
+def test_the_report_opens_with_a_bottom_line() -> None:
     text = render_markdown(judge(_dataset()))
-    verdicts, rest = text.split("## Findings")
-    findings, rest = rest.split("## Not applicable to these runs")
-    skipped, rest = rest.split("## Evidence the runs did not supply")
-    data_gaps, rest = rest.split("## Not yet checked by this instrument")
-    platform_gaps, criteria = rest.split("## Criteria")
+    assert text.startswith("# taylor_impact_2d — reference-data verification\n")
+    summary = _sections(text)["Summary"]
+    assert "**1 check passes** wherever it applies." in summary
+    assert "**1 finding**: dips in the input's hardening table." in summary
+    assert "**2 quantities are measured but not judged**" in summary
+    assert "**2 checks could not be made**" in summary
+    assert "1 check does not apply to these runs." in summary
+    # the scorecard counts quantities by category
+    assert "| Data integrity | 1 | 1 |  |  |  |" in summary
+    assert "| Energy and mass conservation |  |  |  | 2 |  |" in summary
 
-    assert "| `yield_table_monotone` | 1 | 0 … 1 | 1 | 1 |" in verdicts
-    # only measured quantities are table rows
-    for name in ("eos_closure", "energy_gain_max", "implicit_convergence"):
-        assert f"`{name}`" not in verdicts
-    assert skipped.strip() == "`implicit_convergence`"
-    # measured with no criterion: published with its value and no verdict
-    assert "| `yield_ratio_max` | 1 | 1.00035 |  |  |  |  | 2 | none |" in verdicts
-    # an indicator with no level for this scope shows the levels that do exist
-    assert (
-        "out of scope"
-        not in verdicts.split("`input_density_plausible`")[1].split("\n")[0]
-    )
 
-    assert "- **fail** `yield_table_monotone` = 1 — `T-1`" in findings
+def test_a_finding_says_what_was_found_what_was_required_and_what_it_means() -> None:
+    findings = _sections(render_markdown(judge(_dataset())))["Findings"]
+    assert "### Dips in the input's hardening table — fail" in findings
+    assert "- Found: 1 in `T-1`." in findings
+    assert "- Required: must be zero." in findings
+    assert "- What it means: the input's hardening table is not monotone" in findings
     assert "review" not in findings  # no sourced level is ratified: none judges
-    assert "- `source_missing` (E5), 2 cases: `energy_gain_max`" in data_gaps
-    assert "- `eos_closure` — unsupported" in platform_gaps
-    assert "`energy_gain_max`" not in platform_gaps
-    assert "`yield_table_monotone` <= 0 any run (requirement)." in criteria
-    assert "input_density_plausible" not in criteria  # shown, never applied
-    shown = (
-        "published level, not ratified: 16 <= x <= 22590 any run [M-D6, M-D5, M-D10]"
+
+
+def test_results_are_grouped_by_category_in_plain_words() -> None:
+    results = _sections(render_markdown(judge(_dataset())))["Results by category"]
+    integrity = results.split("### Data integrity")[1].split("###")[0]
+    assert (
+        "| Non-finite values (NaN, infinity) | 0 | all cases | pass | must be zero |"
+        in integrity
     )
-    assert shown in verdicts
-    assert "none is this platform's standard" in verdicts
-    assert "energy_gain_max" not in criteria  # unused criteria are not listed
+    assert (
+        "| Dips in the input's hardening table | 0 to 1 | `T-1` | **fail** (1 of 2) |"
+        in integrity
+    )
+    assert "nonfinite_count" not in results  # names a reader never sees
+    health = results.split("### Numerical health of the runs")[1].split("###")[0]
+    assert "Does not apply to these runs: implicit increments accepted" in health
+
+
+def test_unjudged_numbers_carry_their_context_but_no_verdict() -> None:
+    text = render_markdown(judge(_dataset()))
+    measured = _sections(text)["Measured, not judged"]
+    assert "**Most extreme input density**: 8.9e-09 kg/m^3." in measured
+    shown = (
+        "not confirmed by this platform: between 16 kg/m^3 and 22590 kg/m^3"
+        " [M-D6, M-D5, M-D10]"
+    )
+    assert shown in measured
+    assert (
+        "**Largest stress relative to the yield surface**: 1.00035 to 1.00135"
+        in measured
+    )
+    assert "(worst: `T-2`)" in measured
+    assert "not this platform's standard" in measured
+
+
+def test_what_could_not_be_checked_says_why_in_plain_words() -> None:
+    gaps = _sections(render_markdown(judge(_dataset())))["What could not be checked"]
+    assert (
+        "- Because the runs did not supply the global energy ledger: largest energy"
+        " gain during the run." in gaps
+    )
+    assert (
+        "- Because this instrument cannot measure it yet: pressure against the"
+        " equation of state." in gaps
+    )
+
+
+def test_per_case_values_list_only_the_unjudged_quantities_that_vary() -> None:
+    table = _sections(render_markdown(judge(_dataset())))["Per-case values"]
+    assert "| Case | Largest stress relative to the yield surface |" in table
+    assert "| `T-1` | 1.00035 |" in table and "| `T-2` | 1.00135 |" in table
+    assert "input density" not in table  # identical in every case
+
+
+def test_the_reading_guide_gives_each_applied_bound_its_rationale() -> None:
+    guide = _sections(render_markdown(judge(_dataset())))["How to read this report"]
+    assert (
+        "*Non-finite values (NaN, infinity)* — must be zero. A stored response" in guide
+    )
+    assert "Published levels shown for context (not applied)" in guide
+    assert "*Most extreme input density* — between 16 kg/m^3 and 22590 kg/m^3" in guide
+    assert "Largest energy gain" not in guide  # never measured here: nothing to show
 
 
 def test_no_artefact_carries_a_path_a_host_or_a_licence() -> None:

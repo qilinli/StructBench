@@ -12,6 +12,7 @@ instrument gap, never a verdict about a dataset.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from ..core import (
     Absence,
@@ -70,6 +71,12 @@ class Quantity:
     gate : TraitGate
     meaning : str
         What a violation means, in one line; rendered in reports.
+    title : str
+        The short phrase a report shows instead of ``name``.
+    display : {"plain", "percent", "count", "flag"}
+        How a report formats the value.
+    lower_is_worse : bool
+        Whether the smallest value across cases is the one to look at.
     status : Status
     definition_version : int or None
         ``None`` while the row is only specified.
@@ -84,6 +91,155 @@ class Quantity:
     meaning: str
     status: Status
     definition_version: int | None
+    title: str = ""
+    display: Literal["plain", "percent", "count", "flag"] = "plain"
+    lower_is_worse: bool = False
+
+
+#: What a reader sees instead of the quantity's name: a short noun phrase.
+_TITLES: dict[str, str] = {
+    # numerical health
+    "terminated_normally": "Solver terminated normally",
+    "reached_end_time": "Run reached its requested end time",
+    "solver_error_count": "Solver errors",
+    "solver_warning_count": "Solver warnings",
+    "solver_identity_complete": "Solver version and precision recorded",
+    "timestep_min_ratio": "Smallest time step, relative to the first",
+    "timestep_vs_stability_estimate": "Time step against a stability estimate",
+    "added_mass_fraction": "Mass added by mass scaling, whole model",
+    "added_mass_top_part_fraction": "Mass added by mass scaling, worst part",
+    "added_mass_moving_fraction": "Mass added by mass scaling, moving parts",
+    "implicit_convergence": "Implicit increments accepted without convergence",
+    "zero_energy_mode_final_over_initial_total": "Hourglass energy vs initial energy",
+    "zero_energy_mode_final_over_internal_final": "Hourglass energy vs internal energy",
+    "zero_energy_mode_peak_over_internal_peak": (
+        "Peak hourglass vs peak internal energy"
+    ),
+    "zero_energy_mode_top_part_final_over_internal_final": (
+        "Hourglass energy, worst part"
+    ),
+    "particle_deactivated_count": "Particles deactivated without erosion",
+    "particle_neighbors_min": "Fewest neighbours of any particle",
+    "particle_neighbors_growth": "Growth of the largest neighbour count",
+    "smoothing_length_within_input_bounds": "Smoothing length within input bounds",
+    "smoothing_length_at_bound_fraction": "Particles with smoothing length at a bound",
+    "rigid_surface_penetration_max": "Deepest penetration of a rigid surface",
+    "prescribed_motion_realised": "Prescribed motion achieved",
+    # conservation
+    "energy_gain_max": "Largest energy gain during the run",
+    "energy_loss_max": "Largest energy loss during the run",
+    "energy_residual_final": "Energy imbalance at the end of the run",
+    "total_energy_change_final": "Change in total energy, start to end",
+    "quasi_static_kinetic_ratio": "Kinetic energy in a quasi-static run",
+    "kinetic_energy_closure": "Kinetic energy: stored fields vs solver ledger",
+    "internal_energy_closure": "Internal energy: stored fields vs solver ledger",
+    "contact_energy_ratio": "Contact energy against internal energy",
+    "contact_energy_negative_ratio": "Negative contact energy",
+    "external_work_closure": "External work against the applied loads",
+    "momentum_impulse_balance": "Momentum change against applied impulse",
+    "active_mass_drift": "Drift of the total mass",
+    "mass_closure": "Mass bookkeeping with scaling or deletion",
+    "eos_closure": "Pressure against the equation of state",
+    # constitutive
+    "yield_ratio_max": "Largest stress relative to the yield surface",
+    "yield_saturation_min": "Yielding material sits on the yield surface",
+    "state_variable_decrease_max": "Plastic state never decreases",
+    "state_variable_min": "Plastic state never negative",
+    "plane_strain_ezz_max": "Out-of-plane strain in a plane-strain run",
+    "out_of_plane_shear_max": "Out-of-plane shear in a two-dimensional run",
+    "pressure_trace_residual": "Stored pressure against the stress trace",
+    # units
+    "units_anchors_consistent": "Declared unit anchors agree with the input",
+    "input_density_plausible": "Most extreme input density",
+    "input_constants_plausible": "Most extreme Young's modulus in the input",
+    "input_strength_plausible": "Most extreme yield stress in the input",
+    "input_dimensionless_groups_plausible": "Largest first-yield strain in the input",
+    "response_magnitudes_plausible": "Largest speed in the response",
+    "input_unit_declaration_consistent": "The input's own unit declaration",
+    "density_slot_matches_input": "Stored density against the input's density",
+    # data integrity
+    "nonfinite_count": "Non-finite values (NaN, infinity)",
+    "time_axis_monotone": "Time steps that go backward",
+    "terminal_artifact_frames": "Frames written off the sampling interval",
+    "elements_without_input_part": "Stored elements that no input part owns",
+    "fields_match_declaration": "Stored fields against the declared field list",
+    "declared_traits_match_input": "Declared traits against the solver input",
+    "yield_table_matches_input": "Declared yield table against the input's",
+    "yield_table_monotone": "Dips in the input's hardening table",
+    "yield_table_covers_range": "Plastic strain reached, relative to the table's range",
+    "sampling_clock_consistent": "Energy ledger sampled on the field-output clock",
+    "stored_globals_match_ledger": "Stored global energies against the solver's ledger",
+}
+
+#: Ratios a reader takes in as a percentage.
+_PERCENT = frozenset(
+    {
+        "added_mass_fraction",
+        "added_mass_top_part_fraction",
+        "added_mass_moving_fraction",
+        "zero_energy_mode_final_over_initial_total",
+        "zero_energy_mode_final_over_internal_final",
+        "zero_energy_mode_peak_over_internal_peak",
+        "zero_energy_mode_top_part_final_over_internal_final",
+        "smoothing_length_at_bound_fraction",
+        "energy_gain_max",
+        "energy_loss_max",
+        "energy_residual_final",
+        "total_energy_change_final",
+        "quasi_static_kinetic_ratio",
+        "kinetic_energy_closure",
+        "internal_energy_closure",
+        "contact_energy_ratio",
+        "contact_energy_negative_ratio",
+        "external_work_closure",
+        "momentum_impulse_balance",
+        "active_mass_drift",
+        "mass_closure",
+        "eos_closure",
+        "density_slot_matches_input",
+        "pressure_trace_residual",
+    }
+)
+#: Whole numbers.
+_COUNTS = frozenset(
+    {
+        "solver_error_count",
+        "solver_warning_count",
+        "solver_identity_complete",
+        "implicit_convergence",
+        "particle_deactivated_count",
+        "particle_neighbors_min",
+        "units_anchors_consistent",
+        "nonfinite_count",
+        "time_axis_monotone",
+        "terminal_artifact_frames",
+        "elements_without_input_part",
+        "fields_match_declaration",
+        "declared_traits_match_input",
+        "yield_table_monotone",
+    }
+)
+#: One means yes.
+_FLAGS = frozenset({"terminated_normally"})
+#: Quantities whose *smallest* value is the one to look at.
+_LOWER_IS_WORSE = frozenset(
+    {
+        "terminated_normally",
+        "reached_end_time",
+        "timestep_min_ratio",
+        "particle_neighbors_min",
+        "yield_saturation_min",
+        "state_variable_min",
+    }
+)
+
+
+def _display(name: str) -> Literal["plain", "percent", "count", "flag"]:
+    if name in _PERCENT:
+        return "percent"
+    if name in _COUNTS:
+        return "count"
+    return "flag" if name in _FLAGS else "plain"
 
 
 def _row(
@@ -107,6 +263,9 @@ def _row(
         meaning,
         Status.IMPLEMENTED if implemented else Status.SPECIFIED,
         1 if implemented else None,
+        _TITLES[name],  # a row without a title is a KeyError at import
+        _display(name),
+        name in _LOWER_IS_WORSE,
     )
 
 
@@ -572,9 +731,9 @@ _ROWS = (
         _D,
         "1",
         {E.E8},
-        "a fact, not a defect: frames written off the sampling interval, such as"
-        " the state a solver writes at the termination time (loaders drop them,"
-        " ADR-0028)",
+        "frames were written off the sampling interval - a fact, not a defect: a"
+        " solver writes its state at the termination time and loaders drop it"
+        " (ADR-0028)",
         implemented=True,
     ),
     _row(

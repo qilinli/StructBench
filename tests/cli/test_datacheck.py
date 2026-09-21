@@ -177,7 +177,7 @@ def test_judge_needs_only_the_record(tmp_path: Path, capsys) -> None:  # noqa: A
 
     assert main(["judge", "--measurements", str(record_path)]) == 0
     printed = capsys.readouterr().out
-    assert "# Reference-data verification: DatacheckSmoke" in printed
+    assert "# DatacheckSmoke — reference-data verification" in printed
     assert (
         main(
             ["judge", "--measurements", str(record_path), "--report", str(report_path)]
