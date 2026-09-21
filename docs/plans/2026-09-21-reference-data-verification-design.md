@@ -78,6 +78,17 @@ Taken after stages 1 and 2 had run on the test bed (same day):
     a frame with no partner is left out. The closure ships measured, with
     no tolerance yet. The other three E9 rows are decided after it has
     been seen on the test bed.
+13. **No sourced reference level is ratified, so none gives a verdict.**
+    The maintainer cannot confirm the levels against their sources, two
+    of which were read only as page images or snippets. They are not
+    published as this platform's standard: every indicator is reported
+    as a measurement, with the published level shown beside it for
+    context (`not_assessable / no_ratified_criterion`). Verdicts come
+    from definitional requirements and instrument tolerances only. A
+    level starts judging when its record in `criteria.py` is marked
+    ratified — a one-line change that re-renders every report with no
+    data access. The record was published on this footing
+    (`docs/datachecks/taylor_impact_2d.{json,md}`).
 
 ### Calls made in drafting
 
@@ -651,7 +662,8 @@ initial total and becomes the denominator. `energy_gain_max` is at most
 that is not pairwise conservative, so no level covers it: the rows are
 published with values and out-of-scope levels, and no verdict.
 
-**Stage 3 — confirm the levels and publish.** The maintainer confirms the
+**Stage 3 — confirm the levels and publish.** *(As carried out: decision
+13 — published with no level ratified.)* The maintainer confirms the
 reference levels and plausibility ranges tabulated above, spot-checking the
 two sources read only as images or snippets; `docs/datachecks/<benchmark>.json` and its
 generated `.md` land with the drift test. The energy levels' rationale

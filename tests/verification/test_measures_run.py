@@ -257,14 +257,17 @@ def test_the_energy_rows_of_an_unscoped_particle_run_get_no_verdict() -> None:
     assert by_name["solver_warning_count"].verdict is Verdict.NOT_ASSESSABLE
 
 
-def test_a_meshed_explicit_run_is_judged_against_the_sourced_level() -> None:
+def test_a_meshed_explicit_run_is_shown_the_sourced_level_but_not_judged() -> None:
     meshed = _facts(parts=(PartTraits(1, 2, "solid", False),))
     case = _measure(_run(), meshed)
     (report,) = judge(DatasetMeasurements(None, None, "0", {}, (case,))).cases
     gain = next(r for r in report.results if r.quantity == "energy_gain_max")
-    assert (gain.verdict, gain.reason) == (Verdict.REVIEW, "exceeds_reference_level")
-    loss = next(r for r in report.results if r.quantity == "energy_loss_max")
-    assert loss.verdict is Verdict.PASS
+    assert (gain.verdict, gain.reason) == (
+        Verdict.NOT_ASSESSABLE,
+        "no_ratified_criterion",
+    )
+    assert gain.unratified_level.startswith("<= 0.01 {explicit, lagrangian_mesh}")
+    assert gain.value == pytest.approx(0.14 / 2.04)
 
 
 # --- closures -----------------------------------------------------------------

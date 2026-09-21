@@ -10,6 +10,9 @@ where its bound comes from:
   named mechanism, never fitted to a measured value — ``pass`` or ``fail``;
 * an **indicator**'s bound is a sourced *reference level*, scoped by run
   traits — ``pass`` or ``review``; the call on a ``review`` is a person's.
+  A level gives a verdict only once the maintainer has **ratified** it
+  against its source. None has been (maintainer decision 2026-09-21), so
+  every level below is shown beside its measurement and judges nothing.
 
 Source tokens (``W-…``, ``B-…``, ``M-…``) are claim ids in
 ``docs/plans/2026-09-21-reference-data-verification-sources.md``. A quantity
@@ -86,6 +89,9 @@ class Criterion:
         Why this bound; required and rendered.
     provisional : bool
         The bound awaits a confirmation its rationale names.
+    ratified : bool
+        Whether the maintainer has confirmed the bound against its source.
+        An unratified criterion is rendered for context and gives no verdict.
     """
 
     quantity: str
@@ -97,6 +103,7 @@ class Criterion:
     source: str
     rationale: str
     provisional: bool = False
+    ratified: bool = True
 
     def __post_init__(self) -> None:
         get_quantity(self.quantity)  # raises on an unknown name
@@ -171,6 +178,7 @@ def _level(
         source,
         rationale,
         provisional,
+        ratified=False,  # no sourced level has been confirmed by the maintainer
     )
 
 
@@ -475,7 +483,9 @@ class CheckResult:
     ``reason`` is ``""`` on a pass, an ``AbsenceReason`` value when not
     assessable, else ``"outside_bound"`` or ``"exceeds_reference_level"``.
     ``out_of_scope_levels`` lists the levels that exist for other scopes when
-    none covers this run, so a person can make the call.
+    none covers this run, so a person can make the call. ``unratified_level``
+    is the level that covers the run but has not been ratified: context,
+    never a verdict.
     """
 
     quantity: str
@@ -488,6 +498,7 @@ class CheckResult:
     criterion_source: str = ""
     provisional: bool = False
     out_of_scope_levels: tuple[str, ...] = ()
+    unratified_level: str = ""
 
 
 @dataclass(frozen=True)
@@ -512,7 +523,10 @@ def _judge_one(
     stale: bool,
 ) -> CheckResult:
     def not_assessable(
-        reason: str, missing: tuple[str, ...] = (), levels: tuple[str, ...] = ()
+        reason: str,
+        missing: tuple[str, ...] = (),
+        levels: tuple[str, ...] = (),
+        unratified: str = "",
     ) -> CheckResult:
         return CheckResult(
             m.quantity,
@@ -522,6 +536,7 @@ def _judge_one(
             reason,
             missing,
             out_of_scope_levels=levels,
+            unratified_level=unratified,
         )
 
     if m.not_applicable:
@@ -542,6 +557,11 @@ def _judge_one(
             levels=tuple(f"{c.label()} [{c.source}]" for c in mine),
         )
     criterion = covering[0]
+    if not criterion.ratified:
+        return not_assessable(
+            "no_ratified_criterion",
+            unratified=f"{criterion.label()} [{criterion.source}]",
+        )
     if criterion.admits(m.value):
         verdict, reason = Verdict.PASS, ""
     elif criterion.kind is CriterionKind.INDICATOR:

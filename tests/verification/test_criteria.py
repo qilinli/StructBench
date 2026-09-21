@@ -5,6 +5,7 @@ Data-free: ``judge`` sees only measurements and criteria.
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 
 import pytest
@@ -43,14 +44,21 @@ def _value(name: str, number: float) -> Measurement:
     return Measurement(name, number, get_quantity(name).unit)
 
 
+#: what the levels would do once the maintainer has confirmed them
+_RATIFIED = tuple(dataclasses.replace(c, ratified=True) for c in CRITERIA)
+
+
 def _judge_one(
     m: Measurement,
     traits: set[str] | None = None,
     versions: dict[str, int] | None = None,
+    *,
+    ratified: bool = False,
 ) -> CheckResult:
     case = CaseMeasurements("c", None, frozenset(traits or set()), frozenset(), (m,))
     data = DatasetMeasurements(None, None, "0", versions or {}, (case,))
-    return judge(data).cases[0].results[0]
+    criteria = _RATIFIED if ratified else CRITERIA
+    return judge(data, criteria).cases[0].results[0]
 
 
 # --- the records --------------------------------------------------------------
@@ -138,24 +146,41 @@ def test_an_instrument_tolerance_fails_and_says_it_is_provisional() -> None:
     assert (short.verdict, short.provisional) == (Verdict.FAIL, True)
 
 
-def test_an_indicator_above_its_level_is_a_review_never_a_fail() -> None:
-    result = _judge_one(_value("input_density_plausible", 8.9e-9))
+def test_an_unratified_level_is_shown_and_judges_nothing() -> None:
+    assert all(not c.ratified for c in CRITERIA if c.kind is CriterionKind.INDICATOR)
+    assert all(c.ratified for c in CRITERIA if c.kind is not CriterionKind.INDICATOR)
+    for number in (8.9e-9, 8900.0):  # far outside the range, and well inside it
+        result = _judge_one(_value("input_density_plausible", number))
+        assert (result.verdict, result.reason) == (
+            Verdict.NOT_ASSESSABLE,
+            "no_ratified_criterion",
+        )
+        assert result.value == number
+        assert result.unratified_level == "16 <= x <= 22590 any run [M-D6, M-D5, M-D10]"
+        assert result.criterion == ""  # nothing was applied
+
+
+def test_a_ratified_indicator_above_its_level_is_a_review_never_a_fail() -> None:
+    result = _judge_one(_value("input_density_plausible", 8.9e-9), ratified=True)
     assert (result.verdict, result.reason) == (
         Verdict.REVIEW,
         "exceeds_reference_level",
     )
     assert result.criterion_source == "M-D6, M-D5, M-D10"
-    assert _judge_one(_value("input_density_plausible", 8900.0)).verdict is Verdict.PASS
+    inside = _judge_one(_value("input_density_plausible", 8900.0), ratified=True)
+    assert inside.verdict is Verdict.PASS
 
 
 def test_a_level_applies_only_inside_its_scope() -> None:
     gain = _value("energy_gain_max", 0.07)
-    inside = _judge_one(gain, {"explicit", "lagrangian_mesh", "dim3"})
+    inside = _judge_one(gain, {"explicit", "lagrangian_mesh", "dim3"}, ratified=True)
     assert inside.verdict is Verdict.REVIEW
-    outside = _judge_one(gain, {"explicit", "dim2"})  # a particle run of unknown class
+    # a particle run of unknown class: no level covers it, ratified or not
+    outside = _judge_one(gain, {"explicit", "dim2"}, ratified=True)
     assert outside.verdict is Verdict.NOT_ASSESSABLE
     assert outside.reason == "no_ratified_criterion"
     assert outside.value == 0.07
+    assert outside.unratified_level == ""
     assert outside.out_of_scope_levels == (
         "<= 0.01 {explicit, lagrangian_mesh} [B-BLM-1, B-BLM-2]",
         "<= 0.01 {explicit, particle_conservative} [B-BLM-1, B-BLM-2]",

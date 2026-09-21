@@ -127,12 +127,17 @@ def test_the_report_separates_findings_data_gaps_and_platform_gaps() -> None:
     )
 
     assert "- **fail** `yield_table_monotone` = 1 — `T-1`" in findings
-    assert "- **review** `input_density_plausible` = 8.9e-09 — `T-1`, `T-2`" in findings
+    assert "review" not in findings  # no sourced level is ratified: none judges
     assert "- `source_missing` (E5), 2 cases: `energy_gain_max`" in data_gaps
     assert "- `eos_closure` — unsupported" in platform_gaps
     assert "`energy_gain_max`" not in platform_gaps
     assert "`yield_table_monotone` <= 0 any run (requirement)." in criteria
-    assert "Source: M-D6, M-D5, M-D10." in criteria
+    assert "input_density_plausible" not in criteria  # shown, never applied
+    shown = (
+        "published level, not ratified: 16 <= x <= 22590 any run [M-D6, M-D5, M-D10]"
+    )
+    assert shown in verdicts
+    assert "none is this platform's standard" in verdicts
     assert "energy_gain_max" not in criteria  # unused criteria are not listed
 
 

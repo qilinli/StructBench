@@ -163,8 +163,11 @@ def render_markdown(report: DatasetReport) -> str:
         "Generated from the committed measurements and the platform criteria; no"
         " data was read to produce it. A `pass` on numerical health or"
         " conservation is a necessary solution-verification indicator, not"
-        " evidence of accuracy. A `review` is an indicator above its reference"
-        " level: the call is a person's, not this instrument's.",
+        " evidence of accuracy. Verdicts come from definitional requirements and"
+        " instrument tolerances only. Published reference levels are shown beside"
+        " the measurement for context: none has been confirmed against its source"
+        " by the maintainer, so none is this platform's standard and none gives a"
+        " verdict.",
         "",
         "## Verdicts",
         "",
@@ -184,7 +187,10 @@ def render_markdown(report: DatasetReport) -> str:
         if any(r.provisional for r in results):
             labels = [f"{label} (provisional)" for label in labels]
         levels = sorted({lv for r in results for lv in r.out_of_scope_levels})
+        shown = sorted({r.unratified_level for r in results if r.unratified_level})
         criterion = "; ".join(labels) or "none"
+        if shown:
+            criterion += " — published level, not ratified: " + "; ".join(shown)
         if levels:
             criterion += " — out of scope: " + "; ".join(levels)
         out.append(

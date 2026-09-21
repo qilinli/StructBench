@@ -189,8 +189,11 @@ assets/            # figures embedded in the docs + landing pages
         identity), read from text by per-dataset glue; the energy indicator.~~
         The kinetic-energy closure runs on sample instants found in the
         files; the other sampling-clock rows are still open.
-  - [ ] Stage 3 — tolerances confirmed, first published datacheck record,
-        two-grid difference on the convergence case.
+  - [x] ~~Stage 3 (2026-09-21) — first published record,
+        [`docs/datachecks/taylor_impact_2d.md`](docs/datachecks/taylor_impact_2d.md);
+        sourced reference levels are shown for context and judge nothing
+        until ratified.~~ Still open: the standard LS-DYNA input block, one
+        conformance run, the two-grid difference on the convergence case.
 
 ### Inbox — untriaged, add freely
 
