@@ -82,22 +82,13 @@ the smallest that works.
   not by solver product (ADR-0004) and not by a label a dataset gives
   itself, which would let it choose its own level. Only quasi-static intent
   is declared, because it cannot be derived.
-- **Levels are scoped no wider than their source's domain.** The general
-  energy level comes from a finite-element text, so it covers a Lagrangian
-  mesh and a pairwise-conservative particle method, and nothing else. A run
-  outside every scope — a particle method that is not pairwise conservative,
-  an advecting mesh — has its indicator measured and rendered in the main
-  table with the out-of-scope levels shown as context, and no verdict.
-  *History:* an earlier draft applied the level to every explicit run and
-  justified it by noting that the test bed's energy rise would otherwise go
-  unflagged. That argued a scope from a measurement, which ADR clause 7
-  forbids; it is withdrawn, and recorded here rather than erased. The
-  maintainer may still choose the wider scope, but on source grounds only.
-- **Both wordings of the roadside-safety report's per-part hourglass row get
-  a quantity.** Its normative table and its worked example state different
-  statistics; the dossier asks for the variant to be named. Both are kept
-  below, the second marked as coming from a worked example. Dropping one is
-  the maintainer's call.
+- **Levels are scoped no wider than their source's domain** *(settled —
+  maintainer, 2026-09-21: keep it simple)*. The general energy level comes
+  from a finite-element text, so it covers a Lagrangian mesh and a
+  pairwise-conservative particle method. A run outside every scope has its
+  indicator measured and published with the out-of-scope levels as context,
+  and no verdict. An earlier draft argued a wider scope from a test-bed
+  measurement; that is withdrawn (ADR-0066, rejected alternatives).
 
 ## How the design was reached
 
@@ -354,7 +345,7 @@ anchors.
 | `added_mass_fraction` (whole model, maximum over the run) · `added_mass_top_part_fraction` (the one part with the most added mass, last sample) · `added_mass_moving_fraction` (parts given an initial velocity, last sample) | E4 | explicit, mass scaling enabled | ind | gate |
 | `implicit_convergence` | E4 | implicit integration | req | gate |
 | `zero_energy_mode_final_over_initial_total` · `zero_energy_mode_final_over_internal_final` · `zero_energy_mode_peak_over_internal_peak` (whole model) | E5 | under-integrated elements | ind | gate |
-| `zero_energy_mode_top_part_final_over_internal_final` · `zero_energy_mode_top_part_peak_over_initial_total` (the one part with the most zero-energy-mode energy) | E5, E6 | under-integrated elements | ind | gate |
+| `zero_energy_mode_top_part_final_over_internal_final` (the one part with the most zero-energy-mode energy) | E5, E6 | under-integrated elements | ind | gate |
 | `particle_deactivated_count` | E8 | particle part, erosion off | req | S1 |
 | `particle_neighbors_min` · `particle_neighbors_growth` | E8 | particle part | ind, level scoped by dimension and kernel support (no level yet); a req floor of d + 1 for corrected-kernel and moving-least-squares formulations | S1 |
 | `smoothing_length_within_input_bounds` (ingestion mapping) | E1, E8 | particle part | tol | S1 |
@@ -431,7 +422,6 @@ every energy level's rationale says so.
 | `zero_energy_mode_final_over_initial_total` | < 0.05 | {explicit, lagrangian_mesh, initial_energy_driven} | W-W179-03 | No provenance is stated for this figure in the pages read. |
 | `zero_energy_mode_final_over_internal_final` | < 0.10 | {explicit, lagrangian_mesh} | W-W179-04 | — |
 | `zero_energy_mode_top_part_final_over_internal_final` | < 0.10 | {explicit, lagrangian_mesh} | W-W179-05 | One part only — the part with the largest zero-energy-mode energy — not the worst ratio over all parts. |
-| `zero_energy_mode_top_part_peak_over_initial_total` | < 0.05 | {explicit, lagrangian_mesh, initial_energy_driven} | W-W179-11, W-R894-01 | The report's *worked-example* wording ("at any time during the run"), used by one later application; not its normative table. Maintainer to keep or drop. |
 | `zero_energy_mode_peak_over_internal_peak` | < 0.10 | {explicit, lagrangian_mesh} | W-ENCAP-01, W-ENCAP-02 | Occupant virtual-testing protocols; "max. internal energy" read as the full setup's. Extension beyond that domain is the platform's. |
 | `added_mass_fraction` | < 0.05 | {explicit, mass_scaled} | W-ENCAP-01, W-ENCAP-02 | The source says "max."; it also prints 2.5 % for separately built models, not adopted. W-W179-06 and B-RAD-3 corroborate the number without stating the evaluation time or the denominator. |
 | `added_mass_top_part_fraction` | < 0.10 | {explicit, mass_scaled} | W-W179-07 | The one part with the most added mass, at the last sample. |
@@ -442,7 +432,10 @@ the work of element internal forces as their solver books it — including
 stiffness-damping and artificial-viscosity dissipation, excluding
 zero-energy-mode, contact, rigid-surface, and mass-damping terms.
 
-**Context only — cited in rationales, attached to nothing.** The solver
+**Context only — cited in rationales, attached to nothing.** The
+roadside-safety report's worked-example wording of its per-part hourglass
+row (W-W179-11), which differs from its normative table; only the table is
+used. The solver
 vendor's per-part rule of thumb "< 10 %" of peak internal energy (B-LSD-2):
 the numerator's evaluation time is unstated. Contact energy "10 % of peak
 internal energy might be considered acceptable" (B-LSD-3): whole model versus
@@ -664,13 +657,10 @@ to add, or not.
 ## Open items for the maintainer
 
 1. **Confirm the drafting calls** at the top of this document.
-2. **Confirm the reference levels and plausibility ranges** tabulated above
-   (derivation record: dossier section V; material claims: section M). Two
-   things need a human eye before they are relied on: the roadside-safety
-   report was read as page images, and the energy-balance text as snippets.
-   Two are decisions: whether to keep the worked-example variant of the
-   per-part hourglass row, and the energy scope (first drafting call in the
-   second group above).
+2. **Spot-check two sources before the levels are relied on**: the
+   roadside-safety report was read as page images, and the energy-balance
+   text as snippets (derivation record: dossier section V; material claims:
+   section M).
 3. **Finalise the LS-DYNA realisation of E1–E10** from the dossier's draft
    table, against the release actually used (R13 and R15 were read; the
    legacy runs used R12). Two points need a run to settle: MPP executables
