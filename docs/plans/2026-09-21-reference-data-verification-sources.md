@@ -1643,3 +1643,651 @@ energy-balance criteria, **L** LS-DYNA energy ledger and time integration,
 - Releases R11-R14: not read. All quotes are from R15 only. The ftp.lstc.com manual directory returned HTTP 403; dynasupport.com PDFs could not be downloaded with curl from this machine. Note: a background curl I started for the R13 PDFs into <local scratch folder> reported exit 0 after I had moved on; I did not use or inspect its output. That folder also contains files (vol1_r13.pdf, vol1_r15.pdf, .txt extracts, etc.) wr…
 - SPH-specific d3plot output flags beyond NEIPH: none found on *DATABASE_EXTENT_BINARY in R15; *CONTROL_SPH and *DATABASE_SPHOUT/ *DATABASE_HISTORY_SPH were not reviewed for output content.
 
+
+---
+
+## M — Material property ranges (for the plausibility screens)
+
+Surveyed 2026-09-21 for ADR-0066 clause 2 (units are verified from outside the label). Same method as above: fetched sources, verbatim rows, independent re-check. Primary sources read: the Cambridge University Engineering Department *Materials Data Book* (2003 and 2011 editions), Ashby's *Materials Selection in Mechanical Design* (2nd ed.) and Granta chart booklet, Kaye & Laby online (archived), EN 1992-1-1:2004, Greaves et al. (Nature Materials 2011), Trachenko et al. (Science Advances 2020). Not accessible: CRC and ASM handbooks, fib Model Code, ACI 318 (quoted only through a reproduction), Kolsky, Meyers.
+
+### Density and elastic constants
+
+#### M-D1 — density · metals and alloys (ferrous: cast irons, carbon steels, low alloy, stainless)
+
+**Claim.** Cast irons 7.05-7.25; high/medium/low carbon steels 7.8-7.9; low alloy steels 7.8-7.9; stainless steels 7.6-8.1 Mg/m3
+
+> ρ (Mg/m3) Metals Ferrous Cast Irons 7.05 - 7.25 | High Carbon Steels 7.8 - 7.9 | Medium Carbon Steels 7.8 - 7.9 | Low Carbon Steels 7.8 - 7.9 | Low Alloy Steels 7.8 - 7.9 | Stainless Steels 7.6 - 8.1
+
+- Source: *Materials Data Book, Cambridge University Engineering Department* — 2003 Edition
+- Locator: Section II.2 DENSITY, printed p.10 (PDF p.12)
+- URL: <https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: Data credited to Granta Design CES 4.1 Level 2 educational database; row separators '|' added by me, values verbatim.
+
+#### M-D2 — density · metals and alloys (non-ferrous incl. aluminium and copper alloys)
+
+**Claim.** Aluminium alloys 2.5-2.9; copper alloys 8.93-8.94; lead alloys 10-11.4; magnesium alloys 1.74-1.95; nickel alloys 8.83-8.95; titanium alloys 4.4-4.8; zinc alloys 4.95-7 Mg/m3. Family min-max in this table: 1.74 to 11.4 Mg/m3.
+
+> Non-ferrous Aluminium Alloys 2.5 - 2.9 | Copper Alloys 8.93 - 8.94 | Lead Alloys 10 - 11.4 | Magnesium Alloys 1.74 - 1.95 | Nickel Alloys 8.83 - 8.95 | Titanium Alloys 4.4 - 4.8 | Zinc Alloys 4.95 - 7
+
+- Source: *Materials Data Book, Cambridge University Engineering Department* — 2003 Edition
+- Locator: Section II.2 DENSITY, printed p.10 (PDF p.12)
+- URL: <https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: The copper alloys range (8.93-8.94) is suspiciously narrow - it reads like pure copper, not brasses/bronzes (Kaye & Laby gives brass 8.4-8.5, phosphor-bronze 8.9). Table omits refractory and precious metals (W, Au, Pt, Os), so it is not the metals maximum.
+
+#### M-D3 — density · ceramics and glasses; concrete, brick, stone (porous ceramics)
+
+**Claim.** Glasses 2.17-2.8; brick 1.9-2.1; concrete (typical) 2.2-2.6; stone 2.5-3; technical ceramics 2.3 (silicon) to 15.9 (tungsten carbide) Mg/m3
+
+> Glasses Borosilicate Glass 2.2 - 2.3 | Glass Ceramic 2.2 - 2.8 | Silica Glass 2.17 - 2.22 | Soda-Lime Glass 2.44 - 2.49 | Porous Brick 1.9 - 2.1 | Concrete, typical 2.2 - 2.6 | Stone 2.5 - 3 | Technical Alumina 3.5 3.98 | Aluminium Nitride 3.26 - 3.33 | Boron Carbide 2.35 - 2.55 | Silicon 2.3 - 2.35 | Silicon Carbide 3 - 3.21 | Silicon Nitride 3 - 3.29 | Tungsten Carbide 15.3 - 15.9
+
+- Source: *Materials Data Book, Cambridge University Engineering Department* — 2003 Edition
+- Locator: Section II.2 DENSITY, printed p.10 (PDF p.12)
+- URL: <https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: The Alumina row has no dash in the source ('3.5 3.98'). 'Stone' is a single generic row; no per-rock-type breakdown.
+
+#### M-D4 — density · fibre composites; wood and natural materials
+
+**Claim.** Al/SiC 2.66-2.9; CFRP 1.5-1.6; GFRP 1.75-1.97; bamboo 0.6-0.8; cork 0.12-0.24; leather 0.81-1.05; wood (typical) 0.6-0.8 Mg/m3
+
+> Composites Metal Aluminium/Silicon Carbide 2.66 - 2.9 | Polymer CFRP 1.5 - 1.6 | GFRP 1.75 - 1.97 | Natural Bamboo 0.6 - 0.8 | Cork 0.12 - 0.24 | Leather 0.81 - 1.05 | Wood, typical (Longitudinal) 0.6 - 0.8 | Wood, typical (Transverse) 0.6 - 0.8
+
+- Source: *Materials Data Book, Cambridge University Engineering Department* — 2003 Edition
+- Locator: Section II.2 DENSITY, printed p.10 (PDF p.12)
+- URL: <https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: 'Wood, typical' understates the species range: Kaye & Laby (claim D8) lists balsa wood 0.1-0.2 and lignum vitae 1.3 g/cm3.
+
+#### M-D5 — density · polymers (elastomers, thermoplastics, thermosets)
+
+**Claim.** Elastomers 0.9-1.8; thermoplastics 0.89 (PP) to 2.2 (PTFE); thermosets 1.04-1.4 Mg/m3
+
+> Elastomer Butyl Rubber 0.9 - 0.92 | EVA 0.945 - 0.955 | Isoprene (IR) 0.93 - 0.94 | Natural Rubber (NR) 0.92 - 0.93 | Neoprene (CR) 1.23 - 1.25 | Polyurethane Elastomers (elPU) 1.02 - 1.25 | Silicone Elastomers 1.3 - 1.8 | Thermoplastic ABS 1.01 - 1.21 | Cellulose Polymers (CA) 0.98 - 1.3 | Ionomer (I) 0.93 - 0.96 | Nylons (PA) 1.12 - 1.14 | Polycarbonate (PC) 1.14 - 1.21 | PEEK 1.3 - 1.32 | Polyethylene (PE) 0.939 - 0.96 | PET 1.29 - 1.4 | Acrylic (PMMA) 1.16 - 1.22 | Acetal (POM) 1.39 - 1.43 | Polypropylene (PP) 0.89 - 0.91 | Polystyrene (PS) 1.04 - 1.05 | Polyurethane Thermoplastics (tpPU) 1.12 - 1.24 | PVC 1.3 - 1.58 | Teflon (PTFE) 2.14 - 2.2 | Thermoset Epoxies 1.11 - 1.4 | Phenolics …
+
+- Source: *Materials Data Book, Cambridge University Engineering Department* — 2003 Edition
+- Locator: Section II.2 DENSITY, printed p.10 (PDF p.12)
+- URL: <https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: Unfilled grades; filled/reinforced grades are not covered.
+
+#### M-D6 — density · polymer foams
+
+**Claim.** Flexible polymer foams 0.016-0.115 Mg/m3; rigid polymer foams 0.036-0.47 Mg/m3. Lowest tabulated engineering-solid density: 0.016 Mg/m3 (16 kg/m3).
+
+> Polymer Foams Flexible Polymer Foam (VLD) 0.016 - 0.035 | Flexible Polymer Foam (LD) 0.038 - 0.07 | Flexible Polymer Foam (MD) 0.07 - 0.115 | Rigid Polymer Foam (LD) 0.036 - 0.07 | Rigid Polymer Foam (MD) 0.078 - 0.165 | Rigid Polymer Foam (HD) 0.17 - 0.47
+
+- Source: *Materials Data Book, Cambridge University Engineering Department* — 2003 Edition
+- Locator: Section II.2 DENSITY, printed p.10 (PDF p.12)
+- URL: <https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: Aerogels and ultralight lattices lie below this range but are not in any source I read.
+
+#### M-D7 — density and Young's modulus (overall extremes) · all engineering solids
+
+**Claim.** Young's modulus of engineering materials spans 0.01 GPa (low-density foams) to 1000 GPa (diamond); density spans a factor of 2000, from less than 0.1 to 20 Mg/m3. The lower limit for true (non-foam, non-elastomer) solids is E ~ 1 GPa and density ~ 1 Mg/m3.
+
+> The chart shows that the modulus of engineering materials spans five decades*, from 0.01 GPa (low-density foams) to l000GPa (diamond); the density spans a factor of 2000, from less than 0.1 to 20 Mg/m'. ... Even the lightest atoms, packed in the most open way, give solids with a density of around 1 Mg/m3. Materials with lower densities than this are foams ... [E ≈ 1 GPa] This is the lower limit for true solids. The chart shows that many materials have moduli that are lower than this: they are either elastomers or foams.
+
+- Source: *M. F. Ashby, Materials Selection in Mechanical Design* — Second edition, Butterworth-Heinemann, 1999
+- Locator: Ch. 4, Section 4.3 'The modulus-density chart (Chart 1, Figure 4.3)', printed pp. 36-38 (PDF pp. 47-49)
+- URL: <https://www.utc.fr/~hagegebe/UV/MQ12/CORRECTIONS_TD/%5BASHBY99%5D%20-%20Materials%20Selection%20In%20Mechanical%20Design%202Ed.pdf>
+- Kind / confidence: primary / medium · Independent check: **confirmed**
+- Caveats: Scanned/OCR copy hosted on a university course page (not the publisher): 'l000GPa' and "20 Mg/m'" are OCR renderings of 1000 GPa and 20 Mg/m3. Internally inconsistent with the CUED tables (foam 0.016 Mg/m3, E down to 0.0003 GPa) - treat as rounded chart-level statements. 'five decades' carries a footnote I did not read. The upper 20 Mg/m3 excludes Os/Ir/Pt (21-22.6).
+
+#### M-D8 — density · commonly used materials (mixed: alloys, rock, wood, liquids)
+
+**Claim.** Approximate densities, g/cm3: carbon steel (<1% C) 7.8; mild steel 7.9; stainless steel 7.8; cast iron 7.0-7.4; brass (60/40) 8.4, (70/30) 8.5; phosphor-bronze 8.9; 'heavy alloy' 16.8-18.0; platinum-iridium (90/10) 21.5; tungsten carbide (6% Co) 15.0; granite 2.7; marble 2.7; slate 2.6-3.3; glass (soda) 2.5, (Pyrex) 2.23, (lead) 3-4; balsa wood 0.1-0.2; cork 0.25; lignum vitae 1.3; ice 0.92; sea water 1.03; petroleum 0.8; glycerine 1.3
+
+> Approximate densities of commonly used materials* Substance Density g cm−3 ... Balsa wood 0.1 - 0.2 ... Carbon steel (< 1 % C) 7.8 ... Cast iron 7.0–7.4 ... Cork 0.25 ... Glass (soda) 2.5 ,, (Pyrex) 2.23 ,, (lead) 3–4 ... Glycerine 1.3 ... Granite 2.7 ... 'Heavy alloy'† 16.8–18.0 ... Ice 0.92 ... Lignum vitae 1.3 ... Marble 2.7 ... Mild steel 7.9 ... Petroleum 0.8 ... Phosphor-bronze 8.9 ... Platinum-iridium (90/10) 21.5 ... Sea water 1.03 ... Slate 2.6 - 3.3 ... Stainless steel 7.8 ... Tungsten carbide (6% Co) 15.0
+
+- Source: *Kaye & Laby, Tables of Physical & Chemical Constants (online), NPL - Section 2.2.1 Densities* — Online Version 1.0/1.1 (page updated 21 Nov 2008; site archived 2017); Wayback capture 2019-04-22
+- Locator: Table 'Approximate densities of commonly used materials'
+- URL: <https://web.archive.org/web/20190422110321id_/http://www.kayelaby.npl.co.uk/general_physics/2_2/2_2_1.html>
+- Kind / confidence: primary / medium · Independent check: **confirmed**
+- Caveats: Three-column HTML table flattened to text; I matched each substance to the value immediately following it, and the ellipses mark rows I skipped. The '*' and '†' footnotes were not read. The page did not contain an osmium entry (elements are tabulated elsewhere in K&L).
+
+#### M-D9 — density (liquids, for context) · liquids
+
+**Claim.** Water 998.20 kg/m3 at 20 C (999.97 at 4 C, 958.34 at 100 C); mercury 13 545.85 kg/m3 at 20 C (13 595.08 at 0 C); heavy water 1105.34 kg/m3 at 20 C
+
+> Density of water (unit 1 kg m−3) Pure air-free water under a pressure of 101 325 Pa. ... 20 998.20 ... 100 958.34 ; Density of mercury (unit 1 kg m-3) Under a pressure of 101 325 Pa. ... Density at 0 °C = 13 595.08 kg m−3 ; [row 20:] 13 545.85 ; Density of heavy water ... 20 1105.34
+
+- Source: *Kaye & Laby, Tables of Physical & Chemical Constants (online), NPL - Section 2.2.1 Densities* — Online Version 1.1 (21 Nov 2008); Wayback capture 2019-04-22
+- Locator: Tables 'Density of water', 'Density of heavy water', 'Density of mercury'
+- URL: <https://web.archive.org/web/20190422110321id_/http://www.kayelaby.npl.co.uk/general_physics/2_2/2_2_1.html>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: Common liquids thus span roughly 0.8-1.3 g/cm3 (acetone/alcohol/petroleum 0.8, glycerine 1.3 in claim D8) with mercury at 13.5 as the outlier.
+
+#### M-D10 — density (maximum of any element) · metals - densest element
+
+**Claim.** Osmium: density 22.5872 g/cm3; stated to be the densest of all the elements.
+
+> Density (g cm −3 ) 22.5872 ... Appearance A shiny, silver metal that resists corrosion. It is the densest of all the elements and is twice as dense as lead.
+
+- Source: *Royal Society of Chemistry, Periodic Table - Osmium* — Web page as fetched 2026-09-21
+- Locator: 'Fact box' (density) and 'Appearance' paragraph
+- URL: <https://periodic-table.rsc.org/element/76/osmium>
+- Kind / confidence: secondary / medium · Independent check: **confirmed**
+- Caveats: The same page's podcast transcript hedges: 'while some rate it as densest others argue it's just pipped by ... iridium'. The definitive primary source (Arblaster, Johnson Matthey Technol. Rev. 58 (2014) 137: Os 22,589 ± 5 kg/m3 vs Ir 22,562 ± 11 kg/m3 at 293.15 K) was seen ONLY in a search-engine snippet - publisher returned HTTP 403 - so it is not claimed here. Also corroborated by an arXiv abstract I read (Sarlis & Skordas, arXiv:1512.02417): …
+
+#### M-D11 — density · metal foams
+
+**Claim.** Metallic foam density is adjustable over 0.05 to 10 g/cm3 depending on porosity and matrix metal.
+
+> The possibility to adjust the metallic foam density in a large range from 0.05 to 10 g/cm3 depending on the porosity and matrix metal allows for further properties, like buoyancy, which can be tailored varying the material density.
+
+- Source: *F. García-Moreno, 'Commercial Applications of Metal Foams: Their Properties and Production', Materials (MDPI), Review* — Published 29 January 2016
+- Locator: PDF p.9 (Section 3, functional properties)
+- URL: <https://pdfs.semanticscholar.org/e6c1/2c07e154fbfa2d105dfb0777facfa669fe0a.pdf>
+- Kind / confidence: primary / medium · Independent check: **confirmed**
+- Caveats: Peer-reviewed review; a single-sentence range, not a data table. Same paper (PDF p.6) gives the Gibson-Ashby scaling E*/Es ≈ k(ρ*/ρs)^2 with 'k ≈ (0.1 to 4) in the low-density limit' - no absolute modulus range for metal foams was found. Ashby et al., Metal Foams: A Design Guide (Table 4.1) could not be accessed.
+
+#### M-E1 — Young's modulus · metals and alloys
+
+**Claim.** Cast irons 165-180; carbon steels 200-216; low alloy steels 201-217; stainless 189-210; aluminium alloys 68-82; copper alloys 112-148; lead alloys 12.5-15; magnesium alloys 42-47; nickel alloys 190-220; titanium alloys 90-120; zinc alloys 68-95 GPa. Family min-max in this table: 12.5 to 220 GPa.
+
+> E (GPa) Metals Ferrous Cast Irons 165 - 180 | High Carbon Steels 200 - 215 | Medium Carbon Steels 200 - 216 | Low Carbon Steels 200 - 215 | Low Alloy Steels 201 - 217 | Stainless Steels 189 - 210 | Non-ferrous Aluminium Alloys 68 - 82 | Copper Alloys 112 - 148 | Lead Alloys 12.5 - 15 | Magnesium Alloys 42 - 47 | Nickel Alloys 190 - 220 | Titanium Alloys 90 - 120 | Zinc Alloys 68 - 95
+
+- Source: *Materials Data Book, Cambridge University Engineering Department* — 2003 Edition
+- Locator: Section II.3 YOUNG'S MODULUS, printed p.11 (PDF p.13)
+- URL: <https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: Excludes refractory metals: Kaye & Laby (claim E5) gives tungsten 411.0 GPa and chromium 279.1 GPa, so the all-metals maximum is higher than 220 GPa.
+
+#### M-E2 — Young's modulus · ceramics and glasses; concrete, brick, stone
+
+**Claim.** Glasses 61-110; brick 10-50; concrete (typical) 25-38; stone 6.9-21; technical ceramics 140 (silicon) to 720 (tungsten carbide) GPa
+
+> Glasses Borosilicate Glass 61 - 64 | Glass Ceramic 64 - 110 | Silica Glass 68 - 74 | Soda-Lime Glass 68 - 72 | Porous Brick 10 - 50 | Concrete, typical 25 - 38 | Stone 6.9 - 21 | Technical Alumina 215 413 | Aluminium Nitride 302 - 348 | Boron Carbide 400 - 472 | Silicon 140 - 155 | Silicon Carbide 300 - 460 | Silicon Nitride 280 - 310 | Tungsten Carbide 600 - 720
+
+- Source: *Materials Data Book, Cambridge University Engineering Department* — 2003 Edition
+- Locator: Section II.3 YOUNG'S MODULUS, printed p.11 (PDF p.13)
+- URL: <https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: The 'Stone 6.9-21 GPa' row looks low for dense igneous rock; I found no primary rock-mechanics table to cross-check (see not_found). Alumina row has no dash in the source.
+
+#### M-E3 — Young's modulus · fibre composites; wood and natural materials
+
+**Claim.** Al/SiC 81-100; CFRP 69-150; GFRP 15-28; bamboo 15-20; cork 0.013-0.05; leather 0.1-0.5; wood longitudinal 6-20, transverse 0.5-3 GPa
+
+> Composites Metal Aluminium/Silicon Carbide 81 - 100 | Polymer CFRP 69 - 150 | GFRP 15 - 28 | Natural Bamboo 15 - 20 | Cork 0.013 - 0.05 | Leather 0.1 - 0.5 | Wood, typical (Longitudinal) 6 - 20 | Wood, typical (Transverse) 0.5 - 3
+
+- Source: *Materials Data Book, Cambridge University Engineering Department* — 2003 Edition
+- Locator: Section II.3 YOUNG'S MODULUS, printed p.11 (PDF p.13)
+- URL: <https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: CFRP/GFRP rows are laminate-level (quasi-isotropic-like) values; unidirectional plies are far more anisotropic - Kaye & Laby lists unidirectional high-modulus carbon/epoxy E11 = 287 GPa, E22 = 7.80 GPa (claim E6).
+
+#### M-E4 — Young's modulus · polymers (elastomers, thermoplastics, thermosets) and polymer foams
+
+**Claim.** Elastomers 0.0007-0.04 GPa; thermoplastics 0.2 (ionomer) to 5 (POM) GPa; thermosets 2.07-4.83 GPa; flexible polymer foams 0.0003-0.012 GPa; rigid polymer foams 0.023-0.48 GPa
+
+> Elastomer Butyl Rubber 0.001 - 0.002 | EVA 0.01 - 0.04 | Isoprene (IR) 0.0014 - 0.004 | Natural Rubber (NR) 0.0015 - 0.0025 | Neoprene (CR) 0.0007 - 0.002 | Polyurethane Elastomers (elPU) 0.002 - 0.003 | Silicone Elastomers 0.005 - 0.02 | Thermoplastic ABS 1.1 - 2.9 | Cellulose Polymers (CA) 1.6 - 2 | Ionomer (I) 0.2 - 0.424 | Nylons (PA) 2.62 - 3.2 | Polycarbonate (PC) 2 - 2.44 | PEEK 3.5 - 4.2 | Polyethylene (PE) 0.621 - 0.896 | PET 2.76 - 4.14 | Acrylic (PMMA) 2.24 - 3.8 | Acetal (POM) 2.5 - 5 | Polypropylene (PP) 0.896 - 1.55 | Polystyrene (PS) 2.28 - 3.34 | Polyurethane Thermoplastics (tpPU) 1.31 - 2.07 | PVC 2.14 - 4.14 | Teflon (PTFE) 0.4 - 0.552 | Thermoset Epoxies 2.35 - 3.075 | Ph…
+
+- Source: *Materials Data Book, Cambridge University Engineering Department* — 2003 Edition
+- Locator: Section II.3 YOUNG'S MODULUS, printed p.11 (PDF p.13)
+- URL: <https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: Lowest tabulated E of any engineering solid here is 0.0003 GPa (0.3 MPa), 30x below Ashby's rounded '0.01 GPa' chart floor (claim D7). Polymers are viscoelastic; K&L notes values vary 'considerably with temperature and strain rate'.
+
+#### M-E5 — Young's, shear and bulk modulus with Poisson's ratio (tabulated together) · metals and alloys; glasses; tungsten carbide
+
+**Claim.** At 20 C (E GPa / G GPa / nu / K GPa): Aluminium 70.3/26.1/0.345/75.5; Copper 129.8/48.3/0.343/137.8; Chromium 279.1/115.4/0.210/160.1; Gold 78.0/27.0/0.44/217.0; Iron (soft) 211.4/81.6/0.293/169.8; Iron (cast) 152.3/60.0/0.27/109.5; Lead 16.1/5.59/0.44/45.8; Magnesium 44.7/17.3/0.291/35.6; Titanium 115.7/43.8/0.321/107.7; Tungsten 411.0/160.6/0.280/311.0; Zinc 108.4/43.4/0.249/72.0; Brass (70/30) 100.6/37.3/0.350/111.8; Steel (mild) 211.9/82.2/0.291/169.2; Steel stainless 215.3/83.9/0.293/166.0; Tungsten carbide 534.4/219.0/0.22/319.0. Glasses: heavy flint 80.1/31.5/0.27/57.6; crown 71.3/29.2/0.22/41.2; fused quartz 73.1/31.2/0.17/36.9. Across the metals table nu runs 0.210 (Cr) to 0.44 (Au, Pb); G 5.59-160.6 GPa; K 31.3-311.0 GPa.
+
+> Elasticities of metals and alloys Material 20 ºC | E GPa | G GPa | ν | K GPa :: Aluminium 70.3 | 26.1 | 0.345 | 75.5 :: Chromium 279.1 | 115.4 | 0.210 | 160.1 :: Copper 129.8 | 48.3 | 0.343 | 137.8 :: Gold 78.0 | 27.0 | 0.44 | 217.0 :: Iron (soft) 211.4 | 81.6 | 0.293 | 169.8 :: Iron (cast)† 152.3 | 60.0 | 0.27 | 109.5 :: Lead† 16.1 | 5.59 | 0.44 | 45.8 :: Magnesium 44.7 | 17.3 | 0.291 | 35.6 :: Titanium 115.7 | 43.8 | 0.321 | 107.7 :: Tungsten 411.0 | 160.6 | 0.280 | 311.0 :: Zinc 108.4 | 43.4 | 0.249 | 72.0 :: Brass (70 Zn, 30 Cu) 100.6 | 37.3 | 0.350 | 111.8 :: Steel (Mild) 211.9 | 82.2 | 0.291 | 169.2 :: ,, Stainless†† 215.3 | 83.9 | 0.293 | 166.0 :: Tungsten Carbide† 534.4 | 219.0 | 0.…
+
+- Source: *Kaye & Laby, Tables of Physical & Chemical Constants (online), NPL - Section 2.2.2 Elasticities and strengths* — Online Version 1.0 (site archived 2017); Wayback capture 2019-04-22
+- Locator: Tables 'Elasticities of metals and alloys' and 'Elasticities of glasses'
+- URL: <https://web.archive.org/web/20190422003653/http://www.kayelaby.npl.co.uk/general_physics/2_2/2_2_2.html>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: Subset of rows quoted; the full table has 33 rows (also Bi, Cd, Ni, Nb, Pt, Ag, Ta, Sn, V, constantan, Invar, tool steels). † = 'Approx. value or values for materials of variable composition'. The source prints 'Brass (70 Zn, 30 Cu)' - likely a transposition of 70 Cu/30 Zn, quoted as-is. Same page gives 'Bulk moduli of elements' incl. Carbon (diamond) 542.0 GPa, caesium 1.6 GPa.
+
+#### M-E6 — Young's modulus (anisotropic) and bulk modulus of liquids · wood; plastics; fibre composites; liquids
+
+**Claim.** Woods: EL 6 (balsa, rel. density 0.2) to 16 GPa (ash/birch/Douglas fir), ER 0.3-2.2 GPa, ET 0.1-1.1 GPa. Plastics E (20 C, slow strain rate): 0.4 (PTFE, HDPE lower bound) to 4.2 GPa (polystyrene upper bound). Unidirectional high-modulus carbon fibre/epoxy: E11 287, E22 7.80, E33 7.75, G12 6.7, G13 6.7, G23 2.5 GPa, v12 0.30, v21 0.01, v23 0.55. Liquid bulk moduli: water 2.05 GPa (15 C, 1-25 atm), mercury 26.2 GPa, glycerine 4.03 GPa, pentane 0.318 GPa.
+
+> Wood | Relative density | EL GPa | ER GPa | ET GPa :: Ash 0.7 | 16 | 1.6 | 0.9 :: Balsa 0.2 | 6 | 0.3 | 0.1 :: Beech 0.7 | 14 | 2.2 | 1.1 :: Birch 0.6 | 16 | 1.1 | 0.6 ... || Elasticities of plastics ... ABS 1.4–3.1 ; Polyethylene (high density) 0.4–1.3 ; Polystyrene 2.7–4.2 ; Polytetrafluoroethylene (PTFE) 0.4 ; Polyvinylchloride (PVC) (unplasticised) 2.4–4.1 || High Modulus Carbon Fibre/Epoxy –unidirectionally reinforced specimen 287 | 7.80 | 7.75 | 6.7 | 6.7 | 2.5 | 0.30 | 0.01 | 0.55 || Bulk moduli of liquids ... Water: 1–25 atm 15 2.05 ; Mercury: 8–37 atm 20 26.2 ; Glycerine 20.5 4.03 ; Pentane 20 0.318
+
+- Source: *Kaye & Laby, Tables of Physical & Chemical Constants (online), NPL - Section 2.2.2 Elasticities and strengths* — Online Version 1.0; Wayback capture 2019-04-22
+- Locator: Tables 'Elasticities of woods', 'Elasticities of plastics', 'Elasticities of fibre-reinforced plastics – full set', 'Bulk moduli of liquids'
+- URL: <https://web.archive.org/web/20190422003653/http://www.kayelaby.npl.co.uk/general_physics/2_2/2_2_2.html>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: Wood data attributed in-source to Hearmon (1948). The two-column liquids table was flattened; I matched rows by label/temperature. Note v23 = 0.55 > 0.5 is legitimate for an anisotropic ply.
+
+#### M-P1 — Poisson's ratio - theoretical bounds (isotropic linear elastic) · all isotropic solids
+
+**Claim.** For isotropic materials -1 <= nu <= 1/2; all stable isotropic materials lie between these limits.
+
+> The numerical limits are set by ½ and –1, between which all stable isotropic materials are found. ... For isotropic materials, ν must satisfy –1 ≤ ν ≤ ½ (Box 2).
+
+- Source: *G. N. Greaves, A. L. Greer, R. S. Lakes and T. Rouxel, 'Poisson's ratio and modern materials', Nature Materials 10, 823-837* — November 2011, DOI 10.1038/NMAT3134 (author-hosted PDF)
+- Locator: Abstract and p.823, section 'Definition and physical significance'; Fig. 1a caption ('Numerical window of Poisson's ratio ν, from –1 to ½')
+- URL: <https://silver.neep.wisc.edu/~lakes/PoiNatMat11.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: The paper writes the bounds as non-strict (<=); strict inequalities (-1 < nu < 0.5) follow from requiring K > 0 and G > 0 (see P2). An erratum exists (Nature Materials nmat3177) which I did not read.
+
+#### M-P2 — Poisson's ratio - bounds with stability derivation; isotropic relations · all isotropic solids
+
+**Claim.** Isotropic linear elasticity allows nu from -1 to 1/2 for an unconstrained object: positive bulk modulus implies nu > -1, positive shear modulus implies nu < 1/2. Relations: nu = (3K - 2G)/(6K + 2G); E = 2G(1 + nu); E = 3K(1 - 2nu). In anisotropic solids the range is unbounded.
+
+> The theory of isotropic linear elasticity (Sokolnikoff, 1983) allows Poisson's ratios in the range from -1 to 1/2 for an object with free surfaces with no constraint. This range is derived from concepts of stability. For an object without constraint to be stable, the elastic moduli (measures of material stiffness) must be positive. ... A positive bulk modulus implies Poisson's ratio greater than -1. A positive shear modulus implies Poisson's ratio less than 1/2. ... In anisotropic solids, the allowable range of Poisson's ratio is expanded: values from minus infinity to plus infinity are possible. || [PoissonIntro.html:] n = (3K - 2G)/(6K + 2G) E = 2G( 1 + n ) E = 3K(1 - 2 n )
+
+- Source: *R. S. Lakes (University of Wisconsin-Madison), 'Poisson's ratio range in linear isotropic classical elasticity' and 'Meaning of Poisson's ratio'* — Web pages as fetched 2026-09-21
+- Locator: Section 'Range for Poisson's ratio' and 'Anisotropy'; relations from https://silver.neep.wisc.edu/~lakes/PoissonIntro.html section 'Poisson's ratio: relation to elastic moduli in isotropic solids'
+- URL: <https://silver.neep.wisc.edu/~lakes/PoissonElas.html>
+- Kind / confidence: secondary / high · Independent check: **confirmed**
+- Caveats: Academic author page citing Sokolnikoff, Mathematical Theory of Elasticity (2nd ed., 1983), which I did not read. On the page 'n' is Greek nu rendered in Symbol font. Also states: 'Objects constrained at the surface can have a Poisson's ratio outside the above range and be stable.'
+
+#### M-P3 — isotropic relations among E, G, K, nu · all isotropic solids
+
+**Claim.** G = E / (2(1 + nu)); K = E / (3(1 - 2 nu)); K = EG / (3(3G - E)); M = K + (4/3)G. Rough guide for polycrystalline solids: nu ~ 1/3, G ~ 3E/8, K ~ E (breaks down for rubber and porous solids). Elastomers: nu = 1/2, G = E/3, K >> E.
+
+> [Kaye & Laby:] For a homogeneous isotropic solid, the following relations exist between the constants. (a) G = E / 2(1 + ν) (b) K = E / 3 (1 − 2ν) (c) K = (1/3) EG / (3G − E) [as laid out in source: 'K= 1/3 · EG / 3(3G − E)' fraction layout] (d) M = K + 4/3 G || [CUED Data Book:] ELASTIC MODULI G = E / 2(1+ν) K = E / 3(1−2ν) For polycrystalline solids, as a rough guide, Poisson's Ratio ν ≈ 1/3 Shear Modulus G ≈ 3/8 E Bulk Modulus K ≈ E These approximations break down for rubber and porous solids. || [Ashby:] we may approximate the shear modulus G by 3E/8 and the bulk modulus K by E , for all materials except elastomers (for which G = E / 3 and K >> E )
+
+- Source: *Kaye & Laby online Section 2.2.2; CUED Materials Data Book 2003; Ashby, Materials Selection in Mechanical Design 2nd ed. 1999* — K&L Version 1.0 (archived capture 2019-04-22); CUED 2003 Edition; Ashby 1999
+- Locator: K&L: 'Elastic properties – isotropic materials'. CUED: Section I 'ELASTIC MODULI', printed p.4 (PDF p.6), https://www-mdp.eng.cam.ac.uk/web/library/enginfo/cueddatabooks/materials.pdf. Ashby: eqs (3.1)-(3.2b) printed p.23 and text printed p.38.
+- URL: <https://web.archive.org/web/20190422003653/http://www.kayelaby.npl.co.uk/general_physics/2_2/2_2_2.html>
+- Kind / confidence: primary / high · Independent check: **quote-differs**
+- Verifier: Three of the four K&L relations, and the CUED and Ashby parts, are confirmed; relation (c) is NOT what the claim states. K&L 2.2.2 'Elastic properties – isotropic materials' HTML lays out: (a) G = E / 2(1 + ν); (b) K = E / 3 (1 − 2ν); (c) 'K =' followed by a stacked fraction 1 over 3, then a second stacked fraction EG over 3(3G − E) - i.e. as printed it reads K = (1/3) · EG / (3(3G − E)), which carries a spurious extra factor of 1/3 (the algebraically correct identity is K = EG/(3(3G − E))); (d) M = K + (4/3) G. So the claim's 'K = EG/(3(3G − E))' is the researcher's corrected form, not K&L's…
+- Caveats: All three sources render the equations as stacked fractions; in text extraction they arrive as separated numerators/denominators which I reassembled - the verbatim tokens are E, 2(1 + ν), 3 (1 − 2ν), EG, 3(3G − E), 4/3 G. K&L relation (c) has an ambiguous '1/3' fragment in the HTML layout; the algebraically correct form is K = EG/(3(3G − E)). Ashby's eq. (3.1)-(3.2) were too OCR-garbled to quote; only his prose at p.38 is quoted.
+
+#### M-P4 — Poisson's ratio - ranges by family · metals; polymers; ceramics, glasses, semiconductors; liquids/rubbers; cork; auxetic foams
+
+**Claim.** Metals: nu from 0.25 to 0.42 (B/G 1.7-5.6). Polymers: nu ~ 0.33. Ceramics, glasses and semiconductors: nu -> 1/4. Most well-known solids (metals, polymers, ceramics): 0.25 < nu < 0.35. Liquids and rubbers: nu -> 1/2. Cork: nu ~ 0. Re-entrant foams and some networks: nu < 0. Hard metals such as steel: nu ~ 1/3. Many glasses: 0.2; silica glass rises from 0.19 to 0.33 with densification.
+
+> Starting with compact, weakly compressible materials such as liquids and rubbers, where stress primarily results in shape change, ν → ½. For most well-known solids such as metals, polymers and ceramics, 0.25 <ν < 0.35. Glasses and minerals are more compressible, and for these ν → 0. For gases, ν = 0, and network structures can exhibit ν < 0 (ref. 7). ... will resist transverse contraction and exhibit ν ≈ 0 as cork does (Fig. 2d) or ν < 0 as some zeolites might (Fig. 2b)25. For ceramics, glasses and semiconductors, B/G ≈ 5/3 and ν →1/4 (refs 26–29). Likewise, metals are stiff 6,30,31, B/G ranging from 1.7 to 5.6 and ν from 0.25 to 0.42 (ref. 32; Fig. 1c). In sharp contrast, polymers are comp…
+
+- Source: *Greaves, Greer, Lakes and Rouxel, 'Poisson's ratio and modern materials', Nature Materials 10, 823-837* — November 2011, DOI 10.1038/NMAT3134 (author-hosted PDF)
+- Locator: pp. 823-824, sections 'Definition and physical significance' and 'Poisson's ratio and packing density'
+- URL: <https://silver.neep.wisc.edu/~lakes/PoiNatMat11.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: The 'metals 0.25-0.42' range is narrower than measured extremes in K&L (Cr 0.210, Au/Pb 0.44) and Lakes (Be 0.03) - see P5. Fig. 1c caption: 'B/G = 5/3 (ν = 0.25) relates to the lower limit of Poisson's ratio for most metals'. Hyphenation soft-breaks in the PDF text removed.
+
+#### M-P5 — Poisson's ratio - measured values spanning the range · elastomers; metals; polymers; polymer foam; glass; ice; auxetic foam
+
+**Claim.** Rubber 0.48-~0.5; indium 0.45; gold 0.42; lead 0.44; copper 0.37 / 0.35; aluminum 0.34; polystyrene 0.34; brass 0.33; ice 0.33; polystyrene foam 0.3; stainless steel 0.30; steel 0.29; tungsten 0.30 / 0.28; zinc 0.25; fused quartz 0.17; boron 0.08; beryllium 0.03; re-entrant foam -0.7. Beryllium has the lowest Poisson's ratio of any polycrystalline metal. Glassy polymers ~1/3, approaching 1/2 when rubbery.
+
+> Material: Isotropic upper limit [1] / Rubber [6] / Indium [11] / Gold [4] / Lead [4] / Copper [7] / Aluminum [4] / Copper [4] / Polystyrene [6] / Brass [1] / Ice [8] / Polystyrene foam [6] / Stainless Steel [7] / Steel [1] / Tungsten [4] / Tungsten / Zinc [5] / Fused quartz [9] / Boron [12] / Beryllium [4] / Re-entrant foam [10] / Isotropic lower limit [1] Poisson's ratio: 0.5 / 0.48- ~0.5 / 0.45 / 0.42 / 0.44 / 0.37 / 0.34 / 0.35 / 0.34 / 0.33 / 0.33 / 0.3 / 0.30 / 0.29 / 0.30 / 0.28 / 0.25 / 0.17 / 0.08 / 0.03 / -0.7 / -1 ... Beryllium has the lowest Poisson's ratio for any polycrystalline metal. ... For polymers in the glassy regime, Poisson's ratio is on the order 1/3. At higher tempera…
+
+- Source: *R. S. Lakes (University of Wisconsin-Madison), 'Meaning of Poisson's ratio'* — Web page as fetched 2026-09-21
+- Locator: Section 'Poisson's ratio in various materials: table of Poisson's ratio'; section 'Poisson's ratio in viscoelastic materials'
+- URL: <https://silver.neep.wisc.edu/~lakes/PoissonIntro.html>
+- Kind / confidence: secondary / medium · Independent check: **confirmed**
+- Caveats: The HTML table is two <br>-separated columns (22 materials, 22 values); I paired them by position - both lists have exactly 22 entries, but the pairing is positional, not row-tagged. The page itself cites primary references (Sokolnikoff; Samsonov; Simmons & Wang; Rinde 1970; AIP Handbook; Lakes, Science 235 (1987)) which I did not read.
+
+#### M-P6 — Poisson's ratio - usual range and anisotropic exceptions · isotropic solids; fibre composites
+
+**Claim.** Poisson's ratio is usually positive, lying between 0 and 1/2, but may be negative in some cases; it can exceed 0.5 in angle-ply or multidirectional laminates.
+
+> The value of Poisson's ratio is usually positive and lies between 0 and [1/2], but in some cases it may be negative. ... Poisson's ratio can be greater than 0.5 for angle-ply or multidirectionally reinforced materials.
+
+- Source: *Kaye & Laby online, NPL - Section 2.2.2 Elasticities and strengths* — Online Version 1.0; Wayback capture 2019-04-22
+- Locator: 'Elastic properties – isotropic materials' and 'Elastic properties – anisotropic materials'
+- URL: <https://web.archive.org/web/20190422003653/http://www.kayelaby.npl.co.uk/general_physics/2_2/2_2_2.html>
+- Kind / confidence: primary / medium · Independent check: **confirmed**
+- Caveats: The upper value in 'between 0 and ...' is an inline image in the HTML and did not extract as text; '[1/2]' is my inference from context, flagged as such.
+
+#### M-C1 — Young's modulus of concrete (design code) · concrete - normal-weight, strength classes C12/15 to C90/105
+
+**Claim.** Ecm (secant, 0 to 0.4 fcm, quartzite aggregate) = 27, 29, 30, 31, 33, 34, 35, 36, 37, 38, 39, 41, 42, 44 GPa for fck = 12, 16, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90 MPa. Range 27-44 GPa. Ecm = 22[(fcm)/10]^0.3 (fcm in MPa), fcm = fck + 8 MPa. Aggregate corrections: limestone -10%, sandstone -30%, basalt +20%. Recommended maximum class C90/105.
+
+> Table 3.1 Strength and deformation characteristics for concrete :: fck (MPa) 12 16 20 25 30 35 40 45 50 55 60 70 80 90 :: fck,cube (MPa) 15 20 25 30 37 45 50 55 60 67 75 85 95 105 :: fcm (MPa) 20 24 28 33 38 43 48 53 58 63 68 78 88 98 :: Ecm (GPa) 27 29 30 31 33 34 35 36 37 38 39 41 42 44 :: Analytical relation: fcm = fck+8(MPa) ; Ecm = 22[(fcm)/10]^0,3 (fcm in MPa) || 3.1.3(2): Approximate values for the modulus of elasticity Ecm, secant value between σc = 0 and 0,4fcm, for concretes with quartzite aggregates, are given in Table 3.1. For limestone and sandstone aggregates the value should be reduced by 10% and 30% respectively. For basalt aggregates the value should be increased by 20%.
+
+- Source: *EN 1992-1-1:2004 Eurocode 2: Design of concrete structures - Part 1-1: General rules and rules for buildings (BS EN 1992-1-1:2004)* — 2004 (E), incorporating corrigendum markers; public.resource.org scan
+- Locator: Table 3.1, printed p.29 (PDF p.31); clause 3.1.3(2) printed p.28; clause 3.1.2(2) Note (Cmax = C90/105) printed p.27
+- URL: <https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: Table is rotated in the scan and the OCR text layer is scrambled; I rendered the page to an image and read the rows visually - values above are from the image. Applying the aggregate factors to the table gives roughly 0.7 x 27 = 18.9 to 1.2 x 44 = 52.8 GPa (my arithmetic, not a quote). Mirror host, not CEN; EN 1992-1-1:2023 (2nd generation) not checked.
+
+#### M-C2 — Poisson's ratio of concrete (design code) · concrete
+
+**Claim.** nu = 0.2 for uncracked concrete and 0 for cracked concrete.
+
+> (4) Poisson's ratio may be taken equal to 0,2 for uncracked concrete and 0 for cracked concrete.
+
+- Source: *EN 1992-1-1:2004 Eurocode 2: Design of concrete structures - Part 1-1* — 2004 (E)
+- Locator: Clause 3.1.3(4), printed p.30 (PDF p.32)
+- URL: <https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: OCR renders the zero as a degree sign ('°'); read as 0.
+
+#### M-C3 — density classes and modulus of lightweight aggregate concrete (design code) · concrete - lightweight aggregate (LWAC)
+
+**Claim.** LWAC is defined as density not more than 2200 kg/m3. EN 206-1 density classes 1,0 / 1,2 / 1,4 / 1,6 / 1,8 / 2,0 = 801-1000 / 1001-1200 / 1201-1400 / 1401-1600 / 1601-1800 / 1801-2000 kg/m3; design densities plain 1050-2050, reinforced 1150-2150 kg/m3. Modulus: Elcm = Ecm x eta_E, eta_E = (rho/2200)^2.
+
+> 11.1.1 (4)P Lightweight aggregate concrete is concrete having a closed structure and a density of not more than 2200 kg/m3 consisting of or containing a proportion of artificial or natural lightweight aggregates having a particle density of less than 2000 kg/m3 || Table 11.1: Density classes and corresponding design densities of LWAC according to EN 206-1 :: Density class 1,0 1,2 1,4 1,6 1,8 2,0 :: Density (kg/m3) 801-1000 1001-1200 1201-1400 1401-1600 1601-1800 1801-2000 :: Density (kg/m3) Plain concrete 1050 1250 1450 1650 1850 2050 :: Reinforced concrete 1150 1350 1550 1750 1950 2150 || 11.3.2 (1) An estimate of the mean values of the secant modulus Elcm for LWAC may be obtained by multi…
+
+- Source: *EN 1992-1-1:2004 Eurocode 2: Design of concrete structures - Part 1-1* — 2004 (E)
+- Locator: Section 11: clause 11.1.1(4)P printed p.185 (PDF p.187); Table 11.1 and clause 11.3.2(1) printed p.186 (PDF p.188)
+- URL: <https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: OCR prints the table ranges as '801- 1000' on split lines and eta as '17E = (pI2200)2'; reassembled. Implied LWAC modulus floor: (800/2200)^2 x 27 GPa ≈ 3.6 GPa (my arithmetic, not a quote). EC2 does not itself state the normal-weight density band (EN 206: >2000 to 2600 kg/m3 - FROM MEMORY, UNVERIFIED, not claimed).
+
+#### M-C4 — concrete modulus and density range (ACI 318-19) · concrete - normalweight and lightweight
+
+**Claim.** ACI 318-19 19.2.2.1: for wc between 90 and 160 lb/ft3 (1440 and 2560 kg/m3), Ec = wc^1.5 x 33 sqrt(f'c) psi [= wc^1.5 x 0.043 sqrt(f'c) MPa]; for normalweight concrete Ec = 57,000 sqrt(f'c) psi [= 4700 sqrt(f'c) MPa]. Lightweight concrete defined as equilibrium density between 90 and 135 lb/ft3 (1440 and 2160 kg/m3). Default normalweight density 150 lb/ft3 (2400 kg/m3).
+
+> 19.2.2.1 It shall be permitted to calculate Ec in accordance with (a) or (b): (a) For values of wc between 90 and 160 lb/ft3 (1440 and 2560 kg/m3) Ec = wc^1.5 33√f′c (in psi) Ec = wc^1.5 0.043√f′c (in MPa) (19.2.2.1.a) (b) For normalweight concrete Ec = 57,000√f′c (in psi) Ec = 4700√f′c (in MPa) (19.2.2.1.b) || concrete, lightweight—concrete containing lightweight aggregate and having an equilibrium density, as determined by ASTM C567, between 90 and 135 lb/ft3 (1440 and 2160 kg/m3). || 27.4.6.5 Unless documentation or tests are available to confirm the density of normalweight concrete used in the structure, the density shall be taken as 150 lb/ft3 (2400 kg/m3).
+
+- Source: *ESCSI Information Sheet 7900.095-2019, 'Structural Lightweight Concrete in the Building Code Requirements for Structural Concrete (ACI 318-19)' - reproduces ACI 318-19 code text* — ESCSI 7900.095-2019, revised March 2024 (page footers: 'Revised July 2022')
+- Locator: Sheet p.17 (19.2.2 Modulus of elasticity); p.3 (2.3 Terminology); p.31 (27.4.6.5)
+- URL: <https://www.escsi.org/wp-content/uploads/2024/08/ESCSI_Technical-Sheet_7900.095-2019_FINAL.pdf>
+- Kind / confidence: secondary / medium · Independent check: **confirmed**
+- Caveats: Code text read in an industry-institute excerpt, NOT in the ACI 318-19 document itself (paywalled). The sheet says excerpts 'follow the same two-column format of the ACI Standard' with 'ACI 318M units in parenthesis'. Equation glyphs extracted as 'wc1.533√f′c'; the exponent/coefficient split (wc^1.5 x 33) is my reassembly.
+
+#### M-C5 — density and Young's modulus of reinforcing steel (design code) · carbon/structural steels (reinforcement)
+
+**Claim.** Reinforcing steel: mean density 7850 kg/m3; design modulus of elasticity Es = 200 GPa.
+
+> (3) The mean value of density may be assumed to be 7850 kg/m3. (4) The design value of the modulus of elasticity, Es may be assumed to be 200 GPa.
+
+- Source: *EN 1992-1-1:2004 Eurocode 2: Design of concrete structures - Part 1-1* — 2004 (E)
+- Locator: Clause 3.2.7(3) and (4), printed pp.40-41 (PDF pp.42-43)
+- URL: <https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: Clause number 3.2.7 inferred from position after Figure 3.8 ('Idealised and design stress-strain diagrams for reinforcing steel'); the sub-clause numbers (3),(4) are verbatim.
+
+**Verifier summary.** I checked all 28 claims against the cited sources, which I downloaded again and read myself rather than relying on memory. 27 are confirmed; one (P3) is quote-differs on a single sub-item. I found no hallucinated quotes, wrong editions, wrong units or misattributed documents. All 11 cited URLs returned HTTP 200. How each source was read: - **PDFs:** read page by page with PyMuPDF. - **EC2 Table 3.1:** also checked visually on a rendered image of the page. - **Kaye & Laby (K&L) pages:** the HTML was parsed cell by cell, so the substance-to-value pairings in D8, D9, E5 and E6 are verified rather than matched by position. **The one defect (P3).** K&L relation (c), as laid out in the HTML, prints K = (1/3) · EG / (3(3G − E)). That carries an extra factor of 1/3 and looks like a source typo. The claim's form, K = EG/(3(3G − E)), is the algebraically correct one, but it is the researcher's correction and not K&L's printed text. Do not cite it to K&L verbatim; derive it from relations (a) and (b), which are confirmed. The rest of P3 is confirmed: - K&L relations (a), (b) and (d). - The CUED printed p.4 formulae and rules of thumb. - The Ashby printed p.38 prose. Ashby's printed p.23 equations (3.1)-(3.2b) are in fact legible. They are where the elastomer statement "ν = 1/2" comes from. Points to carry into range-setting: 1. **D7:** Ashby's own footnote, which the researcher did not read, says "Very low density foams and gels ... can have moduli far lower than this". So 0.01 GPa is a chart-level rounding, not a floor. The quote also stitches passages together out of source order. 2. **E5:** the derived ranges "G 5.59-160.6" and "K 31.3-311.0" hold only if the Tungsten Carbide row is excluded. That row (G 219.0, K 319.0) sits in the same "metals and alloys" table. 3. **E3:** "laminate-level/quasi-isotropic" is the researcher's interpretation. The CUED table says nothing about lay-up. 4. **P1:** the Fig. 1 caption is on printed p.826, not p.823. 5. **P4:** Greaves et al. say both "Glasses and minerals ... ν → 0" and "ceramics, glasses and semiconductors ... ν → 1/4". Both are verbatim, so the source is loose on glasses. 6. **P5:** the pairing in the Lakes table is positional in the source itself. The page says element values are "via Web Elements", so this is a tertiary compilation. 7. **P6:** the "½" is an image, but its file name is half.jpg, which supports the inf…
+
+**Not found or not accessible.**
+
+- COULD NOT ACCESS: J. W. Arblaster, 'Is Osmium Always the Densest Metal?', Johnson Matthey Technology Review 58 (2014), the primary source for osmium vs iridium density. Both technology.matthey.com and ingentaconnect.com returned HTTP 403 to curl and WebFetch. The values (Os 22,589 ± 5 kg/m3, Ir 22,562 ± 11 kg/m3 at 293.15 K; Ir becomes denser above 2.98 GPa) were seen only in a search-engine snippet and are NOT veri…
+- COULD NOT ACCESS: CRC Handbook of Chemistry and Physics and ASM Handbook (both paywalled). I did not attempt them once the Cambridge data book and Kaye & Laby were readable.
+- COULD NOT ACCESS: fib Model Code 2010 (paywalled; not attempted). Its Eci formula and aggregate factor alpha_E are therefore not quoted. FROM MEMORY - UNVERIFIED: Eci = Ec0 * alpha_E * (fcm/10)^(1/3) with Ec0 = 21.5 GPa and alpha_E 0.7-1.2.
+- COULD NOT ACCESS: ACI 318-19 itself (paywalled). Claim C4 quotes its code text as reproduced in an ESCSI information sheet.
+- COULD NOT ACCESS: Ashby, Evans, Fleck, Gibson, Hutchinson and Wadley, 'Metal Foams: A Design Guide' (2000), Table 4.1 of commercial foam properties; only Google Books and Amazon listings were found. There is no verified Young's modulus range for metal foams. Only the density range (D11) and the Gibson-Ashby scaling with k ≈ 0.1-4 were read, in García-Moreno 2016.
+- NOT FOUND: a primary rock-mechanics table of density, E and nu by rock type. The only rock data read are the data book 'Stone' row (2.5-3 Mg/m3, 6.9-21 GPa) and Kaye & Laby approximate densities (granite 2.7, marble 2.7, slate 2.6-3.3 g/cm3). No verified Poisson's ratio for rock.
+- NOT FOUND: a tabulated Poisson's ratio range for wood, for fibre composites as a family, or for polymer and metal foams. Verified data points only: Kaye & Laby unidirectional carbon/epoxy v12 0.30, v21 0.01, v23 0.55; Lakes polystyrene foam 0.3 and re-entrant foam -0.7; Greaves et al. cork ~0. Ashby 2nd ed. has a balsa record with a Poisson's ratio field, but the OCR column alignment was too scrambled to quote.
+- NOT FOUND: a verbatim normal-weight concrete density band from a code. FROM MEMORY - UNVERIFIED: EN 206 gives normal-weight > 2000 to 2600 kg/m3 and heavyweight > 2600 kg/m3. EN 206 was not accessed. What was verified: the EC2 lightweight upper bound of 2200 kg/m3, Table 11.1 classes up to 2000 kg/m3, and the ACI default of 2400 kg/m3.
+- NOT FOUND: shear and bulk modulus ranges by family for polymers, elastomers, foams, concrete, ceramics or wood. Only metals, three glasses and WC are tabulated with G and K (Kaye & Laby, claim E5). For other families the sources give only G ≈ 3E/8 and K ≈ E, or G = E/3 and K >> E for elastomers (claim P3).
+- NOT READ: Sokolnikoff, Mathematical Theory of Elasticity (the textbook Lakes cites for the -1 to 1/2 bounds), and the erratum to Greaves et al. (Nature Materials nmat3177). Ashby 4th/5th edition Appendix A data tables were also not accessed; the 2nd edition I read has no family data tables.
+- OCR CAVEAT: the Ashby 2nd edition PDF came from a university course server as a scan. Equations (3.1)-(3.2) and the appendix material records are garbled in its text layer, so only clean prose was quoted.
+
+### Strength, yield strain, wave speed, impact velocity
+
+#### M-S1 — yield stress and tensile strength (metals and alloys) · metals and alloys (ferrous, aluminium, copper, others)
+
+**Claim.** Yield stress sigma_y and tensile strength sigma_ts, MPa, min-max per class. Across the listed metals, sigma_y spans 8 MPa (lead alloys) to 1245 MPa (titanium alloys), and sigma_ts spans 12 MPa (lead alloys) to 2240 MPa (stainless steels). Low carbon steels: sigma_y 250-395, sigma_ts 345-580. Aluminium alloys: sigma_y 30-500, sigma_ts 58-550. Copper alloys: sigma_y 30-500, sigma_ts 100-550.
+
+> sigma_y (MPa) | sigma_ts (MPa): Cast Irons 215 - 790 | 350 - 1000; High Carbon Steels 400 - 1155 | 550 - 1640; Medium Carbon Steels 305 - 900 | 410 - 1200; Low Carbon Steels 250 - 395 | 345 - 580; Low Alloy Steels 400 - 1100 | 460 - 1200; Stainless Steels 170 - 1000 | 480 - 2240; Aluminium Alloys 30 - 500 | 58 - 550; Copper Alloys 30 - 500 | 100 - 550; Lead Alloys 8 - 14 | 12 - 20; Magnesium Alloys 70 - 400 | 185 - 475; Nickel Alloys 70 - 1100 | 345 - 1200; Titanium Alloys 250 - 1245 | 300 - 1625; Zinc Alloys 80 - 450 | 135 - 520
+
+- Source: *Materials Data Book, 2011 Edition (Revised 2019), Cambridge University Engineering Department* — 2011 Edition, revised 2019
+- Locator: Section II.4 'Yield stress, sigma_y, and tensile strength, sigma_ts', printed page 12 (PDF page 14), left table, Metals block
+- URL: <https://teaching.eng.cam.ac.uk/sites/teaching.eng.cam.ac.uk/files/Documents/Databooks/MATERIALS%20DATABOOK%20(2011)%20version%20for%20Moodle.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: The page footer says the data were extracted from CES EduPack (Granta Design). The ranges are for commercial alloy classes, so ultra-high-strength grades outside these classes (maraging steels, drawn wire) are not included. Pure copper is not listed separately; only 'Copper Alloys' appears.
+
+#### M-S2 — compressive strength (listed in the yield column) and tensile strength · ceramics, glasses, concrete, stone, brick
+
+**Claim.** For ceramics the sigma_y column holds COMPRESSIVE strength, MPa. Concrete, typical: 32-60 compressive, 2-6 tensile. Stone: 34-248 compressive, 5-17 tensile. Brick: 50-140 compressive, 7-14 tensile. Glasses: 264-2129 compressive, 22-177 tensile. Technical ceramics: compressive 524 (silicon nitride minimum) to 6833 (tungsten carbide maximum), tensile 160-800. The source states that ceramics are of the order of 10 times stronger in compression than in tension.
+
+> Borosilicate Glass (*) 264 - 384 | 22 - 32; Glass Ceramic (*) 750 - 2129 | 62 - 177; Silica Glass (*) 1100 - 1600 | 45 - 155; Soda-Lime Glass (*) 360 - 420 | 31 - 35; Brick (*) 50 - 140 | 7 - 14; Concrete, typical (*) 32 - 60 | 2 - 6; Stone (*) 34 - 248 | 5 - 17; Alumina (*) 690 5500 | 350 665; Aluminium Nitride (*) 1970 - 2700 | 197 - 270; Boron Carbide (*) 2583 - 5687 | 350 - 560; Silicon (*) 3200 - 3460 | 160 - 180; Silicon Carbide (*) 1000 - 5250 | 370 - 680; Silicon Nitride (*) 524 - 5500 | 690 - 800; Tungsten Carbide (*) 3347 - 6833 | 370 - 550 ... (*) NB: For ceramics, yield stress is replaced by compressive strength, which is more relevant in ceramic design. Note that ceramics are o…
+
+- Source: *Materials Data Book, 2011 Edition (Revised 2019), Cambridge University Engineering Department* — 2011 Edition, revised 2019
+- Locator: Section II.4, printed page 12 (PDF page 14), Ceramics block and footnote (*)
+- URL: <https://teaching.eng.cam.ac.uk/sites/teaching.eng.cam.ac.uk/files/Documents/Databooks/MATERIALS%20DATABOOK%20(2011)%20version%20for%20Moodle.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: The Alumina row is printed without dashes ('690 5500', '350 665'). Diamond is not listed. 'Concrete, typical' is a single generic entry; use EN 1992-1-1 Table 3.1 (claim S5) for class-resolved concrete values.
+
+#### M-S3 — yield stress and tensile strength; Young's modulus (same book) for derived sigma_y/E · polymers (thermoplastic, thermoset), elastomers, polymer foams, fibre composites, wood and natural materials
+
+**Claim.** All values in MPa, as sigma_y | sigma_ts. Elastomers: 2-51 | 2.4-51. Thermoplastics: 8.3-95 | 17.2-165. Thermosets: 27.6-71.7 | 34.5-89.6. Polymer foams: 0.01-12 | 0.24-12.4. CFRP: 550-1050 | 550-1050. GFRP: 110-192 | 138-241. Al/SiC: 280-324 | 290-365. Wood, longitudinal: 30-70 | 60-100. Wood, transverse: 2-6 | 4-9. Cork: 0.3-1.5 | 0.5-2.5. Young's modulus from Table II.3 of the same book, in GPa: steels 189-217, aluminium alloys 68-82, copper alloys 112-148, concrete 15-25, stone 20-60, elastomers 0.0007-0.04, thermoplastics 0.2-5, thermosets 2.07-4.83, polymer foams 0.0003-0.48, CFRP 69-150, GFRP 15-28, wood (longitudinal) 6-20, tungsten carbide 600-720.
+
+> Butyl Rubber 2 - 3 | 5 - 10; EVA 12 - 18 | 16 - 20; Isoprene (IR) 20 - 25 | 20 - 25; Natural Rubber (NR) 20 - 30 | 22 - 32; Neoprene (CR) 3.4 - 24 | 3.4 - 24; Polyurethane Elastomers (elPU) 25 - 51 | 25 - 51; Silicone Elastomers 2.4 - 5.5 | 2.4 - 5.5; ABS 18.5 - 51 | 27.6 - 55.2; Ionomer (I) 8.3 - 15.9 | 17.2 - 37.2; Nylons (PA) 50 - 94.8 | 90 - 165; Polycarbonate (PC) 59 - 70 | 60 - 72.4; PEEK 65 - 95 | 70 - 103; Polyethylene (PE) 17.9 - 29 | 20.7 - 44.8; Teflon (PTFE) 15 - 25 | 20 - 30; Epoxies 36 - 71.7 | 45 - 89.6; Phenolics 27.6 - 49.7 | 34.5 - 62.1; Polyester 33 - 40 | 41.4 - 89.6; Flexible Polymer Foam (VLD) 0.01 - 0.12 | 0.24 - 0.85; Rigid Polymer Foam (HD) 0.8 - 12 | 1.2 - 12.4; Al…
+
+- Source: *Materials Data Book, 2011 Edition (Revised 2019), Cambridge University Engineering Department* — 2011 Edition, revised 2019
+- Locator: Section II.4, printed page 12 (PDF page 14); E values from Section II.3 'Young's modulus, E', printed page 11 (PDF page 13)
+- URL: <https://teaching.eng.cam.ac.uk/sites/teaching.eng.cam.ac.uk/files/Documents/Databooks/MATERIALS%20DATABOOK%20(2011)%20version%20for%20Moodle.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: The quote lists only some of the thermoplastic rows; the remaining rows (CA, PET, PMMA, POM, PP, PS, tpPU, PVC) fall inside the stated thermoplastic range. The E values were read from the page image of Table II.3 and are summarised here, not quoted row by row. The source does not tabulate sigma_y/E; any ratio formed from these two tables is a derivation. Metal foams are not listed in this book.
+
+#### M-S4 — definition of 'strength' per family; yield/failure strain sigma_f/E contours · all families (metals, polymers, ceramics and glasses, composites, elastomers)
+
+**Claim.** On Ashby's modulus-strength chart the plotted 'strength' differs by family: 0.2% offset yield for metals, 1% yield strength for polymers, compressive crushing strength for ceramics and glasses (roughly 15 times the tensile strength), tensile strength for composites, and tear strength for elastomers. The chart contours show the failure strain sigma_f/E. The contour labels printed on the chart are 10^-4, 10^-3, 10^-2 and 10^-1 (dimensionless), under the heading 'Yield strain sigma_f/E = 10^-4'.
+
+> The chart for elastic design. The "strength" for metals is the 0.2% offset yield strength. For polymers, it is the 1% yield strength. For ceramics and glasses, it is the compressive crushing strength; remember that this is roughly 15 times larger than the tensile (fracture) strength. For composites it is the tensile strength. For elastomers it is the tear-strength. ... The contours show the failure strain, sigma_f/E.
+
+- Source: *M. F. Ashby, 'Material and Process Selection Charts' (The CES EduPack Resource Booklet 2), Granta Design* — Version 1, (c) Granta Design, January 2010
+- Locator: Chart 3 'Young's modulus, E, against Strength, sigma_f', printed page 7 (PDF page 9). Chart 4, printed page 8: 'The contours show the yield strain, sigma_f/E.' Chart 2, printed page 6, says for polymers 'typically, a strain of abut 1%'.
+- URL: <http://users.fs.cvut.cz/libor.benes/vyuka/engineeringmaterials/2-Materials-Charts-2010.pdf>
+- Kind / confidence: primary / medium · Independent check: **confirmed**
+- Caveats: The booklet gives NO numeric text range of sigma_f/E per family. Only the contour labels (10^-4 to 10^-1) were read from the figure, and placing a family between contours would be a reading of a figure, not a quotation. The elastomer bubble extends past the 10^-1 contour on the chart, but no value is printed. The document is hosted on a university course server (CTU Prague), not by the publisher.
+
+#### M-S5 — concrete strength classes: characteristic and mean compressive strength, tensile strength, modulus, peak and ultimate strain · concrete (normal and high strength), design code
+
+**Claim.** Across the 14 strength classes: fck (cylinder) 12-90 MPa, fck,cube 15-105 MPa, fcm 20-98 MPa, fctm 1,6-5,0 MPa, fctk,0,05 1,1-3,5 MPa, fctk,0,95 2,0-6,6 MPa, Ecm 27-44 GPa, eps_c1 (strain at peak stress) 1,8-2,8 per mille, eps_cu1 3,5-2,8 per mille. The recommended maximum class is C90/105. Reinforcing steel: the application rules are valid for fyk = 400 to 600 MPa.
+
+> Table 3.1 Strength and deformation characteristics for concrete -- fck (MPa): 12 16 20 25 30 35 40 45 50 55 60 70 80 90; fck,cube (MPa): 15 20 25 30 37 45 50 55 60 67 75 85 95 105; fcm (MPa): 20 24 28 33 38 43 48 53 58 63 68 78 88 98; fctm (MPa): 1,6 1,9 2,2 2,6 2,9 3,2 3,5 3,8 4,1 4,2 4,4 4,6 4,8 5,0; fctk,0,05 (MPa): 1,1 1,3 1,5 1,8 2,0 2,2 2,5 2,7 2,9 3,0 3,1 3,2 3,4 3,5; fctk,0,95 (MPa): 2,0 2,5 2,9 3,3 3,8 4,2 4,6 4,9 5,3 5,5 5,7 6,0 6,3 6,6; Ecm (GPa): 27 29 30 31 33 34 35 36 37 38 39 41 42 44; eps_c1 (per mille): 1,8 1,9 2,0 2,1 2,2 2,25 2,3 2,4 2,45 2,5 2,6 2,7 2,8 2,8. Analytical relations: fcm = fck+8(MPa); fctm=0,30xfck^(2/3) <=C50/60; fctm=2,12 ln(1+(fcm/10)) > C50/60; fctk;0,05…
+
+- Source: *EN 1992-1-1:2004 Eurocode 2: Design of concrete structures - Part 1-1: General rules and rules for buildings (BS EN 1992-1-1:2004 print incorporating corrigendum AC2)* — EN 1992-1-1:2004 (E)
+- Locator: Table 3.1, printed page 29 (PDF page 31, rotated page, read from the rendered image); clause 3.1.2(2)P printed page 27 (PDF page 29); clause 3.2.2(3)P printed page 38 (PDF page 40); Annex C Table C.1 also gives 'Characteristic yield strength fyk or f0,2k (MPa) 400 to 600'
+- URL: <https://www.phd.eng.br/wp-content/uploads/2015/12/en.1992.1.1.2004.pdf>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: These are 28-day design-code values for normal-weight concrete. Lightweight concrete (Section 11, LC classes), mortar, very low strength cementitious materials and UHPC (above 90 MPa) are outside the table. Decimal commas are as printed in the source. The PDF is the public.resource.org scan mirrored on a third-party site, and its OCR text layer is poor, so the values were read from the page image.
+
+#### M-S6 — longitudinal (bar) wave speed sqrt(E/rho): contour range on the modulus-density chart · all engineering solids (foams and elastomers to technical ceramics)
+
+**Claim.** The contours on Ashby's E-rho chart are the longitudinal wave speed in m/s. The contours drawn and labelled on the chart are 10^2 m/s, 10^3 m/s and 10^4 m/s. The source also states that moduli of engineering materials span a range of 10^7 and densities a range of 3000.
+
+> This chart guides selection of materials for light, stiff, components. The moduli of engineering materials span a range of 10^7; the densities span a range of 3000. The contours show the longitudinal wave speed in m/s; natural vibration frequencies are proportional to this quantity.
+
+- Source: *M. F. Ashby, 'Material and Process Selection Charts' (The CES EduPack Resource Booklet 2), Granta Design* — Version 1, (c) Granta Design, January 2010
+- Locator: Chart 1 'Young's modulus, E and Density, rho', printed page 5 (PDF page 7). The contour labels '10^4 m/s', '10^3 m/s' and '10^2 m/s' were read from the figure under the heading 'Longitudinal wave speed'.
+- URL: <http://users.fs.cvut.cz/libor.benes/vyuka/engineeringmaterials/2-Materials-Charts-2010.pdf>
+- Kind / confidence: primary / medium · Independent check: **confirmed**
+- Caveats: The booklet's text gives no numeric min-max of wave speed. The 10^2-10^4 m/s figures are contour labels read off the chart, not a stated range. On the chart, the material bubbles (elastomers and flexible foams at the low end, technical ceramics at the high end) lie roughly between, and slightly beyond, these contours; that is a reading of the figure, not a quotation.
+
+#### M-S7 — dilatational (VL) and shear (VS) wave speeds, measured · metals, ceramics, glass, rock, concrete, wood, plastics, rubbers
+
+**Claim.** VL / VS in mm/us (= km/s). Beryllium 12.89 / 8.88; silicon carbide 13.06 / 7.27; sapphire 11.1 / 6.04; boron carbide 11.0; alumina 10.52; aluminium (rolled) 6.42 / 3.04; mild steel 5.9 / 3.2; stainless 347 5.79 / 3.10; iron 5.9 / 3.2; cast iron 4.6 / 2.6; copper (rolled) 5.01 / 2.27; titanium 6.1 / 3.1; tungsten 5.2 / 2.9; lead 2.2 / 0.7. VL only: granite 6.5; marble 3.8; brick 4.3; concrete 3.1. Glasses: fused silica 5.70 / 3.75; pyrex 5.64 / 3.28; soda lime VL 6.00. VL only: oak 4.0; pine 3.5; balsa 0.80; cork 0.5. Plastics VL about 1.59 (Bakelite) to 2.90 (Melopas), for example ABS 2.23, acrylic 2.75, nylon 6/6 2.6 (VS 1.1), polycarbonate 2.30. Rubbers VL: butyl 1.80, neoprene 1.6, silicone (Silastic) 1.02-1.04.
+
+> Columns: Material | Vendor | VL mm/us | VS mm/us | D g/cm3 | ZL MRayl | F | Loss dB/cm. Rows: 'CRC Beryllium 12.89 8.88 1.87 24.10 0.046'; 'Silicon carbide 13.06 7.27 3.217 42.0'; 'Sapphire (aluminum oxide) Z-axis 11.1 6.04 3.99 44.3'; 'CRC Aluminum - rolled 6.42 3.04 2.70 17.33 0.355'; 'Steel - mild 5.9 3.2 7.80 46.0 0.29'; 'CRC Copper, rolled 5.01 2.27 8.93 44.6 0.37'; 'Lead 2.2 0.7 11.2 24.6 0.44'; 'KF Concrete 3.1 2.6 8.0'; 'Granite 6.5 2.7 17.6'; 'Brick 4.3 1.7 7.4'; 'Fused silica Dyna 5.70 3.75 2.20 12.55 0.17'; 'KF Wood - oak 4.0 0.72 2.9'; 'KF Wood - cork 0.5 0.24 0.12'; 'PK Wood - balsa 0.80 0.10 0.08'; Rubbers: 'Butyl rubber 1.80 1.11 2.0'; 'Neoprene 1.6 1.31 2.1'; 'Dow Silastic R…
+
+- Source: *Onda Corporation, 'Acoustic Properties of Solids', 'Acoustic Properties of Plastics' and 'Acoustic Properties of Rubbers' tables* — Updated April 11, 2003
+- Locator: Solids.pdf pages 1-7 (alphabetical). Plastics: https://www.ondacorp.com/wp-content/uploads/2020/09/Plastics.pdf page 1. Rubbers: https://www.ondacorp.com/wp-content/uploads/2020/09/Rubbers.pdf page 1.
+- URL: <https://www.ondacorp.com/wp-content/uploads/2020/09/Solids.pdf>
+- Kind / confidence: secondary / medium · Independent check: **confirmed**
+- Caveats: This is a vendor-hosted compilation. Its 'Ref' codes (CRC, AS, KF, PK, M) are not expanded in the files I read, so the underlying primaries were NOT verified. VL is the bulk dilatational speed, NOT the bar speed sqrt(E/rho); no bar-speed column exists. For rubbers, VL of about 1-2 km/s reflects near-incompressibility, and the bar speed is orders of magnitude lower (see the S6 chart). Diamond is not in the table. The units column prints as 'mm/:s…
+
+#### M-S8 — upper bound on the speed of sound in condensed phases; diamond as the highest measured · absolute extreme, all solids
+
+**Claim.** The theoretical upper bound for the speed of sound in condensed phases is vu of about 36,100 m/s. Experimental longitudinal speeds in 133 systems all lie below it. vu is about twice the speed in diamond, which the paper calls the highest speed of sound measured at ambient conditions; the in-plane speed in graphite is slightly above that in diamond. A fit to the elemental data gives an intercept of 37,350 m/s.
+
+> we show that a combination of these two constants results in a new dimensionless constant which provides the upper bound for the speed of sound in condensed phases, vu. ... vu = alpha (me/2mp)^(1/2) c ~ 36,100 m/s, (9) ... We observe that experimental v are smaller than the upper theoretical bound vu in (9). vu is about twice as large as v in diamond, the highest speed of sound measured at ambient conditions (the in-plane speed of sound in graphite is slightly above v in diamond [10]).
+
+- Source: *K. Trachenko, B. Monserrat, C. J. Pickard, V. V. Brazhkin, 'Speed of sound from fundamental physical constants', Science Advances 6, eabc8662 (2020)* — arXiv:2004.04818 (version downloaded 2026-09-21)
+- Locator: Abstract (PDF page 1); Eq. (9) and the discussion of Figs. 1-2 (PDF pages 3-4)
+- URL: <https://arxiv.org/pdf/2004.04818>
+- Kind / confidence: primary / high · Independent check: **confirmed**
+- Caveats: The paper does not give a numeric value for diamond in the text I read ('about twice' implies roughly 18 km/s, but that is an inference). The bound is a theoretical estimate tied to atomic hydrogen, not an engineering-materials limit. Its experimental data come from the CRC Handbook (ed. Lide, 2004) and other compilations, which I did not read directly. I read the arXiv preprint, not the journal version of record.
+
+#### M-S9 — impact velocity regimes: hypervelocity threshold, orbital debris and meteoroid speeds · impact / response velocity plausibility
+
+**Claim.** NASA: hypervelocity is 'greater than 3 km/s'; about 3 km/s is described as 'low velocity' against 7 km/s. ESA: in hypervelocity impacts the projectile velocity exceeds the speed of sound within the target material; beyond 4 km/s (depending on materials) the projectile breaks up and melts completely; impact velocities can reach 15 km/s for space debris and 72 km/s for meteoroids, with about 14 km/s typical for debris; 'At low velocities, plastic deformation normally prevails.'
+
+> NASA: 'When a projectile traveling at hypervelocity (greater than 3 km/s) impacts a thin plate, like those found in many orbital debris shields, it fragments into smaller particles.' ... 'In fact, low velocity projectiles (~3 km/s) can cause more damage than faster moving projectile at 7 km/s.' ESA: 'This destructive energy is a consequence of high impact velocities, which can reach 15 km/s for space debris and 72 km/s for meteoroids.' ... 'Beyond 4 km/s (depending on the materials), an impact will lead to a complete break-up and melting of the projectile. Typical impact velocities are around 14 km/s for space debris, and significantly higher for meteroids. At low velocities, plastic deform…
+
+- Source: *NASA JSC ARES HyperVelocity Impact Technology, 'Impact Physics' web page; ESA 'Hypervelocity impacts and protecting spacecraft' web page* — Web pages as fetched 2026-09-21 (undated)
+- Locator: NASA: section 'The Debris Cloud' / 'Ballistic Limits'. ESA: https://www.esa.int/Space_Safety/Space_Debris/Hypervelocity_impacts_and_protecting_spacecraft, sections 'Effects of hypervelocity impacts' and 'Hypervelocity impact testing'.
+- URL: <https://hvit.jsc.nasa.gov/hypervelocity-testing/impact-physics.html>
+- Kind / confidence: primary / medium · Independent check: **confirmed**
+- Caveats: These are agency outreach and technical web pages, not standards. The two agencies define hypervelocity differently (NASA by a 3 km/s threshold, ESA by exceeding the target's sound speed). Neither page gives a ballistic, ordnance or sub-ordnance regime table, and the Zukas classification was not reached (see not_found). ESA's spelling 'meteroids' is as in the source.
+
+**Verifier summary.** All nine claims (S1-S9) are confirmed: every quoted number, unit, table row and sentence was found at the cited locator in the cited source. I re-downloaded each PDF myself into <local scratch folder> and fetched both web pages live. I read the sources with PyMuPDF text extraction. I also rendered page images for the Ashby Chart 1 and Chart 3 figures and for Eurocode 2 Table 3.1, which is a rotated page. I found no hallucinated values, no edition mismatches and no unit errors. One item is not independently confirmed. The '400 to 600' cell of EN 1992-1-1 Annex C Table C.1 (PDF page 207) has a poor OCR layer and I did not render it. The same fyk range is confirmed verbatim from clause 3.2.2(3)P. Points the researcher did not flag. None of them contradicts a claim, but they matter when setting ranges: - **S4:** The Ashby booklet disagrees with itself. The Chart 3 text says the ceramic and glass strength plotted is 'compressive crushing strength', but the legend box on the Chart 3 figure says 'Ceramics and glasses: MOR' and 'Elastomers: tensile tear strength'. The plotted ceramic strengths should not be assumed to be compressive. - **S7, vendor and material rows:** - A second cork row exists (PK, VL 1.150 mm/us) alongside the KF row at 0.5. - Teflon (VL 1.39) sits in Solids.pdf and is below the claimed plastics minimum of 1.59 (Bakelite). - Rubbers.pdf has RTV silicones down to 0.67 mm/us (tungsten-filled) and about 0.96-1.16 unfilled. The quoted elastomer VL values are therefore examples, not the file's full range. - **S7, column check:** Column alignment in the scrambled text layer was cross-checked with ZL = D x VL and is consistent. - **S8:** The '133 systems' in Trachenko et al. Fig. 2 are 124 solids plus 9 liquids. Only the arXiv preprint was read. - **S6 and S4:** The contour labels are figure readings, not stated ranges, as the researcher's caveats already say. - **S7 and S9:** S7 remains a secondary vendor compilation with unexpanded reference codes. S9 sources are undated agency web pages, not standards.
+
+**Not found or not accessible.**
+
+- NOT FOUND (verbatim): Ashby's numeric sigma_f/E ranges by family, from 'Materials Selection in Mechanical Design', chapter 4, modulus-strength chart text. I tried archive.org search-inside on the library scan materialsselecti0000ashb, which returned HTTP 403 'Item not available' because it is a lending-only item. The only other copy I found is a user-uploaded scan in archive.org's 'opensource' collection, which look…
+- NOT FOUND (verbatim): Ashby's text statement of the numeric range of longitudinal wave speed across materials. FROM MEMORY - UNVERIFIED: about 50 m/s for soft elastomers to a little over 10^4 m/s for stiff ceramics. Only the contour labels 10^2, 10^3 and 10^4 m/s were read (claim S6).
+- COULD NOT ACCESS: Kolsky, 'Stress Waves in Solids' (archive.org items stresswavesinsol0000kols and stresswavesinsol0000herb are lending-only), and Meyers, 'Dynamic Behavior of Materials' Table 2.1 (no lawful open copy found). No primary table of bar speed sqrt(E/rho) by material was read.
+- COULD NOT ACCESS: CRC Handbook of Chemistry and Physics, 'Speed of Sound in Various Media' (Section 14), which is paywalled. Wikipedia's 'Speeds of sound of the elements' page attributes these values to the CRC 84th edition, 2003: Be 12890 / 8880 / 12870 m/s (longitudinal / transversal / extensional), Al 6420 / 3040 / 5000, Fe 5950 / 3240 / 5120, Cu 4760 / 2325 / 3810, Pb 2160 / 700 / 1190, Ti 6070 / 3125 / 5090, W …
+- COULD NOT ACCESS: Kaye & Laby online section 2.4.1 (the NPL site was withdrawn, and WebFetch cannot reach web.archive.org).
+- NOT FOUND / COULD NOT ACCESS: the Zukas 'Impact Dynamics' regime table, the ballistic-to-hypervelocity classification by striking velocity and strain rate. The Northeastern University thesis that reproduces it returned HTTP 403, and DTIC ADA088030 returned 'The request is blocked'. A search-engine snippet, NOT verified in any source, gave rows '50-500 m/s primarily plastic', '500-1000 m/s viscous - material strength…
+- NOT FOUND: strength ranges for metal foams; the CUED Data Book lists polymer foams only. Also not found: yield strength for pure, unalloyed copper as a separate family row, ASM Handbook data, fib Model Code or ACI concrete tensile-strength tables (not attempted beyond Eurocode 2), and a citable per-family table of sigma_y/E ratios. A ratio can be computed from CUED Tables II.3 and II.4, but that is a derivation, not…
+
+---
+
+## V — Level derivation record
+
+How each reference level in the design doc was derived from the claims above under ADR-0066 clause 7's attachment rule, and what an adversarial pass said about it. The design doc's *Reference levels* table is the adjudicated result; this is the working record. "Proposed" is the first pass; "Adversary" is the second.
+
+**Adversary's overall finding.** Read-only adversarial review against the verbatim quotes in the sources dossier. 12 proposed levels: 1 sound, 8 sound with edits, 1 not attachable, 1 with hidden discretion, 1 whose scope was influenced by the known test-bed value. None of the numbers misreads its source. The defects are in scopes, in two evaluation-time readings, and in a doctrine the proposer invented. **Cross-cutting findings** 1. **The "one-directional difference" doctrine does not exist.** - The proposer tolerates statistic mismatches "on the precedent clause 7 sets for B-BLM-1". Clause 7 never names B-BLM-1. It says only that sampled extremes "are lower bounds on the solver-step extremes". - The B-BLM-1 attachment is asserted in design-doc physics note 4 and in the dossier header, and both are subordinate to the ADR. - The rule gives two routes: identical, or equal under a condition the scope records. A reading is not a scope-recordable condition. - Three attachments lean on the doctrine: W-W179-02 on `r_final`, B-LSD-2, and W-W179-06's evaluation time. Each must stand on the rule itself or go. 2. **The `{explicit}` energy scope carries a documented influence from the known value.** - The design doc ("Calls made in drafting") justifies including non-conservative particle formulations with "would leave the test bed's energy rise unflagged". - The proposer deletes that sentence, keeps the scope, and says "B-BLM-2's 'central difference method' wording already carries the scope". That wording supports `explicit` only. The source is a finite-element text and says nothing about particle or advecting formulations. - Clause 7 concedes that for those formulations the ledger "is not built from the work of its internal forces". By the attachment rule's own test, the quantity is then not the source's statistic there. - Deleting the sentence would erase the record of the influence and leave the scope it produced in place. The call has to be re-decided on source grounds and its history recorded. 3. **Domain generalisation of W-W179-02.** - W179's 10 % level is proposed at `{explicit, initial_energy_driven}` with no spatial trait. - A finite-element roadside-crash practice limit would therefore issue verdicts on particle runs, including the known test-bed run. - No ADR sentence extends W179 across discretisations. The "general level" sentence concerns the explicit-integration level. 4. **The physics-note-4 finding is right, but its example is wrong.** - With zero external work, the kinetic branch of r's denominator needs `E_kin(t) > E_tot(t0)`. That does not happen early in an impact. - The branch that matters is the non-kinetic one, late in an impact that comes to rest after a net gain. That is the normal end state for this platform's impact benchmarks, not a rare one. - Two consequences: - W179's start-to-end statistic and `r_final` differ systematically in that regime. This strengthens the case for a separate quantity. - The design doc's stage-2 acceptance sentence ("the measure must return ...") cannot be asserted from the solver ratio. It has to be recomputed from r's definition or restricted to the first-argument branch. - Neither consequence touches a level. 5. **Strictness conflicts with clause 7.** - Every proposed bound is written `<`. Clause 7 says "At or below the level the verdict is `pass`". - A `hi_strict` flag therefore needs an edit to clause 7, not only to `Criterion`. The alternative is for every "less than" rationale to state that equality passes here, contrary to the source. 6. **Evidence hygiene.** - The W-R894-01 quote is truncated at "The part/material with…". "Unchanged in Report 894" for the per-part and moving-part added-mass rows therefore rests on claim text, not a quote. - The proposer completes the truncated word "reflectio…" in W-W179-15. - W-W179-12 is listed as context-only although it is the only evidence for the energy denominator. 7. **Internal-energy composition is an undisclosed normalisation choice on four of the five rows that divide by internal energy.** - The sources' solver books stiffness-damping dissipation into internal energy (L-C14, L-C15). L-C17 extends this to bulk viscosity, flagged in the dossier as an inference…
+
+### V — `energy_gain_max`  <= 0.01
+
+- Statistic: Whole model. Maximum over all ledger samples t of r(t), counted where r > 0. r(t) = {[E_tot(t) - E_tot(t0)] - [W_ext(t) - W_ext(t0)]} / max(|E_tot(t0) + W_ext(t) - W_ext(t0)|, E_kin(t), E_tot(t) - E_kin(t)). E_tot is the sum of every term of the declared balance identity. t0 is the first ledger sample. Evaluation time: the whole run.
+- Scope proposed: {explicit}
+- Sources: B-BLM-1, B-BLM-2 · match: identical
+- Quote: > Energy conservation requires that | Wkin + Wint − Wext | ≤ε max. (. Wext , Wint , Wkin. ) (6.2.18) where e is a small tolerance, generally on the order of 10–2.
+- Discretion remaining: (1) 'On the order of 10^-2' is rendered as 0.01, the only number the source prints. The source does not delimit the band that 'order of' admits, so any other figure would be the platform's. (2) The source is sign-agnostic. Applying 0.01 separately to gain and loss is equivalent to |r| <= 0.01 at every sample. (3) The source checks every step, and the quantity is a sampled maximum, which is a lower bound. `review` is therefore sound and `pass` is weaker than the source's check. (4) For systems 'on the order of 10^5 nodes or larger' the source balances subdomains, but the quantity is whole-model. The scope vocabulary cannot record this condition. Publish the node count as a scope fact and state the point in the rationale. (5) Equations 6.2.14-17, which define the three symbols, were read only as snippets. Spot-check the full page before ratifying.
+- **Adversary: influenced-by-known-value.** 1. **The number stands.** - 0.01 is the only figure printed. - It is not sensitive to the known value under any half-decade reading of "order of". - Quote "generally" as well as "on the order of" in the hedge. 2. **Change `match` from "identical" to "equal under the reading clause 7 fixes".** - The reading: W_int is all non-kinetic ledger terms, and energy at t0 counts as input. - The match is literal only when E_tot(t0) = 0. No scope token records that. - Set `Criterion.provisional=True`. - Make reading the full p. 336 with eqs 6.2.14-17 a precondition of ratification, not a suggestion. 3. **Scope.** - Strike "B-BLM-2's 'central difference method' wording already carries the scope". That wording supports `explicit` only. - The only recorded argument for covering `particle_nonconservative` and `advecting_mesh` is the design-doc line "would leave the test bed's energy rise unflagged". That argues a scope from a measurement. - Do not just delete the line. Re-decide the call on source grounds and record that it was first argued from the known gain. - **Rule-derived scope:** two levels with the same bound, `{explicit, lagrangian_mesh}` and `{explicit, particle_conservative}`. - These are disjoint because every part must fall inside the scope. - `particle_nonconservative` and `advecting_mesh` get no level and read `no_ratified_criterion`, because clause 7 itself says their ledger "…
+
+### V — `energy_loss_max`  <= 0.01
+
+- Statistic: Whole model. Maximum over all ledger samples t of -r(t), counted where r < 0. r(t) is defined exactly as for `energy_gain_max`. Reported as a positive magnitude. Evaluation time: the whole run.
+- Scope proposed: {explicit}
+- Sources: B-BLM-1, B-BLM-2 · match: identical
+- Quote: > Energy conservation requires that | Wkin + Wint − Wext | ≤ε max. (. Wext , Wint , Wkin. ) (6.2.18) where e is a small tolerance, generally on the order of 10–2.
+- Discretion remaining: Same five points as `energy_gain_max`. One addition: the source's stated purpose is detecting 'spurious generation of energy', which is the gain direction. Applying the same number to losses follows the absolute value in the inequality itself, not the prose.
+- **Adversary: sound-with-edit.** - Apply edits 2-5 of `energy_gain_max` unchanged. Same source, same scope. - The known test-bed value is a gain, so neither the number nor the direction here is touched. - The scope is shared with the gain, so it inherits the same re-decision. - Keep the disclosed point that applying 0.01 to losses follows the inequality's absolute value, not the prose purpose.
+
+### V — `energy_residual_final`  abs <= 0.10
+
+- Statistic: Whole model. r(t_end), signed. r(t) is defined as for `energy_gain_max`. Evaluation time: the last ledger sample, measured against the first.
+- Scope proposed: {explicit, initial_energy_driven}
+- Sources: W-W179-02, W-W179-12, W-R894-01 · match: equal-under-condition
+- Quote: > Total energy of the analysis solution (i.e., kinetic, potential, contact, etc.) must not vary more than 10 percent from the beginning of the run to the end of the run.
+- Discretion remaining: (1) The number 10 % involves no discretion. (2) The denominator 'initial energy' is not in the table row. It comes from the narrative quote W-W179-12: 'change in energy ... as a percent of the initial energy'. (3) Condition (ii) is tolerated on the precedent of B-BLM-1: the difference is one-directional, bounded and stated. The strict-letter alternative is a separate quantity, `total_energy_change_final` = [E_tot(t_end) - E_tot(t0)] / E_tot(t0), gated on `initial_energy_driven`. That would leave r_final with no level. (4) Evaluating at end-of-run follows the row. The narrative's 'maximum change ... can be reported' and its 'e.g., say 5 or 10 percent' are illustration and yield nothing. (5) Including `explicit` is a domain choice. Implicit runs get no level rather than one taken out of domain.
+- **Adversary: discretion-hidden.** - **(a) Move the level off `r_final`.** - Add a catalogue row `total_energy_change_final` = [E_tot(t_end) − E_tot(t0)] / E_tot(t0), signed, with bound abs <= 0.10. - `r_final` has a different denominator whenever a bucket exceeds E_tot(t0). - That is the normal end state of an impact that comes to rest after a net gain. - The condition is a fact of the measurement that no scope token records. The rule's clause "each statistic given a level is its own catalogue quantity" therefore applies. - The proposer split hourglass energy six ways on the same ground. - `energy_residual_final` stays measured with no level. Do not tolerate the (0.10, 0.111] band on the invented "precedent". - **(b) Disclose the evaluation-time ambiguity.** - The proposer takes the denominator from W-W179-12 but dismisses the same passage's "maximum change ... over the simulation run" as illustration. It cannot have both. - The rationale must say: - The row is read as end versus start, as the ADR and dossier header finding 3 read it. - The narrative and the dossier caveat also admit a maximum-over-run reading. - Under that reading the source's statistic is >= this one, so `pass` is not guaranteed under both readings. - If the maintainer treats this as a hedge on "when", the proposer's own blocking rule makes the source context-only. - **(c) Add `lagrangian_mesh` to the scope: `{explicit, lagrangian_mesh, init…
+
+### V — `zero_energy_mode_final_over_initial_total`  < 0.05
+
+- Statistic: Whole model. Zero-energy-mode (hourglass) ledger term at the last ledger sample, divided by E_tot(t0), the sum of all balance-identity terms at the first sample.
+- Scope proposed: {explicit, initial_energy_driven}
+- Sources: W-W179-03, W-R894-01 · match: identical
+- Quote: > Hourglass Energy of the analysis solution at the end of the run is less than five percent of the total initial energy at the beginning of the run.
+- Discretion remaining: None in the number, body, denominator or time. 'Less than' is strict, while ADR clause 7 passes at equality (see the catalogue changes). The spatial class is left out of the scope on purpose: the gate already requires under-integrated parts, and the whole-model denominator is the same whatever else the model contains.
+- **Adversary: sound-with-edit.** - The statistic, the normalisation and the evaluation time are identical. Keep the level. - **Provenance.** Strike "The hourglass limits trace to Du Bois, NOTES, 1998" from this rationale. - Du Bois is cited only for the ~0.1 per-element ratio against internal energy. - Replace with: "no provenance is stated for the 5 %-of-initial-energy figure in the pages read". - **Trait gate.** Remove `initial_energy_driven` from the gate and keep it in the scope. - The quantity exists whenever under-integrated parts exist and E_tot(t0) > 0. - An externally driven run must read `no_ratified_criterion`, which the platform owns. - It must not read `not_applicable`, which clause 5 reserves for a quantity that does not exist for the formulation. - **Scope.** Add `lagrangian_mesh`, or state in the rationale that applying the level to mixed mesh-and-particle models is the platform's extension of a finite-element source. - **Strictness.** State that equality passes here although the source says "less than", or amend clause 7.
+
+### V — `zero_energy_mode_final_over_internal_final`  < 0.10
+
+- Statistic: Whole model. Zero-energy-mode ledger term at the last sample, divided by the ledger's internal-energy term at the last sample.
+- Scope proposed: {explicit}
+- Sources: W-W179-04 · match: identical
+- Quote: > Hourglass Energy of the analysis solution at the end of the run is less than ten percent of the total internal energy at the end of the run.
+- Discretion remaining: None in the number or the statistic. 'Internal energy' is the ledger's internal term as the balance identity declares it. The source does not define its composition. In the source's own solver it includes stiffness-damping and bulk-viscosity dissipation (L-C14, L-C15, L-C17).
+- **Adversary: sound-with-edit.** - The statistic and the evaluation time are identical. Keep the level. - **Fix the denominator token once in the catalogue.** Define "internal energy" in the sources' sense: - It is the work of element internal forces. - It includes dissipation the sources' solver books as internal: stiffness damping and bulk or artificial viscosity. - It excludes zero-energy-mode, contact, rigid-surface and mass-damping terms. - **Why the proposer's definition falls short.** - It excludes only the last group. - E5 requires damping and artificial viscosity as separate ledger terms. - A ledger that follows E5 literally would therefore give a smaller denominator than the source's, and `review` would be stricter than the source. - State this as a platform choice in the rationale of every row normalised by internal energy, not only this one. - Note that L-C17's placement of bulk viscosity is an inference.
+
+### V — `zero_energy_mode_top_part_final_over_internal_final`  < 0.10
+
+- Statistic: One part only. p* is the part with the largest zero-energy-mode energy at the last sample. The value is HG_p*(t_end) / IE_p*(t_end). This is NOT the maximum of the ratio over all parts.
+- Scope proposed: {explicit}
+- Sources: W-W179-05 · match: identical
+- Quote: > The part/material with the highest amount of hourglass energy at the end of the run is less than ten percent of the total internal energy of the part/material at the end of the run.
+- Discretion remaining: None, provided the part is selected as the source selects it, by absolute hourglass energy. Judging every part against 0.10 end-over-end would be a stricter statistic that no source states. That reading yields no level.
+- **Adversary: sound.** - None of substance. - The proposer's literal reading is the least discretionary one. - It is correctly distinguished from a maximum of the ratio over all parts. - **Minor.** - Say in the rationale that the tie-break (larger ratio) is a platform choice. - Carry the internal-energy composition sentence. - Add the strictness note.
+
+### V — `zero_energy_mode_top_part_peak_over_initial_total`  < 0.05
+
+- Statistic: Maximum over parts and over all ledger samples of the per-part zero-energy-mode energy, divided by the whole model's E_tot(t0).
+- Scope proposed: {explicit, initial_energy_driven}
+- Sources: W-W179-11, W-R894-01 · match: identical
+- Quote: > The part/material with the highest amount of hourglass energy at any time during the run is less than five percent of the total initial energy at the beginning of the run.
+- Discretion remaining: None in the number or the statistic. The report does not explain why Table 22 differs from Table E-1 (W-W179-11). Both wordings are verified quotes, so both are kept on separate quantities.
+- **Adversary: sound-with-edit.** - The statistic matches the wording. - **Present levelling both W179 variants as a decision for the maintainer, not as settled.** The dossier explicitly asks for the variant to be named. - **Rationale changes.** - Say that this wording comes from a worked example and from one user's application (Report 894), not from the normative table. - Say that W179's "must be satisfied" sentence does not cover it. - Replace "shows the variant is in practical use" with "one later application uses it (7 table instances)". - Replace "Domain and authority are as for the other W179 rows". No provenance is stated for the 5 % figure. - **Sampling.** Add the sampled-maximum caveat. - "At any time during the run" evaluated on E6 samples is a lower bound. - **Trait gate.** Make the same change as for `zero_energy_mode_final_over_initial_total`: `initial_energy_driven` belongs in the scope, not in the gate.
+
+### V — `zero_energy_mode_peak_over_internal_peak`  < 0.10
+
+- Statistic: Whole model. (Maximum over the run of the zero-energy-mode ledger term) divided by (maximum over the run of the internal-energy term). The two maxima are taken independently in time.
+- Scope proposed: {explicit}
+- Sources: W-ENCAP-01, W-ENCAP-02 · match: identical
+- Quote: > Max. Hourglass Energy of full setup must be < 10% of max. internal energy.
+- Discretion remaining: None in the number or the statistic. Scoping to `explicit` is inferred from the same criteria list, which carries a mass-scaling limit. That limit is a device of explicit integration.
+- **Adversary: sound-with-edit.** - Keep the level. - **Change "None in the number or the statistic" to list three discretions.** 1. "Max. internal energy" is read as that of the full setup, by parallel with the per-dummy bullet. The quote does not say so. 2. The composition of internal energy (see the row above). 3. The maxima are sampled maxima. - **Domain.** - Keep the rationale's domain sentence. - Add that no run trait can record "occupant / sled virtual testing". The extension to all explicit meshed runs is therefore the platform's. - Consider adding `lagrangian_mesh`. - Add the strictness note.
+
+### V — `zero_energy_mode_part_peak_over_internal_peak`  < 0.10
+
+- Statistic: Each under-integrated part p. (Maximum over the run of HG_p) divided by (maximum over the run of IE_p). Judged for every part, with the worst part reported.
+- Scope proposed: {explicit}
+- Sources: B-LSD-2, L-C43 · match: equal-under-condition
+- Quote: > The point is to confirm that the nonphysical HG energy is small relative to peak internal energy for each part (<10% as a rule-of-thumb).
+- Discretion remaining: The evaluation time of the numerator is unstated, and the dossier caveat says so. The denominator (the part's peak internal energy), the body (each part) and the number are all explicit. 'Rule-of-thumb' hedges authority, not the statistic, and is quoted. This is a borderline attachment. It rests on the one-directional-difference precedent that clause 7 sets for B-BLM-1.
+- **Adversary: not-attachable.** - **Demote to context-only.** - **Why it cannot attach.** - The numerator's evaluation time is not stated, so identity cannot be established. - The proposer's "equal-under-condition" rests on a reading, not on a condition a scope can record. - The proposer concedes this: "This condition is a reading, not a run trait". - Its only support is the "one-directional precedent", which clause 7 does not contain. - The proposer's own rule says a hedge on "when" blocks a level. It applies that rule to B-LSD-3 on the same page family. Apply it here too. - **Catalogue.** Drop this row from the six-way split. - Every-part peak over peak then has no level and reads `no_ratified_criterion`. - **Context use.** Mention B-LSD-2 in the Euro NCAP row's rationale as agreeing on the number and on peak normalisation. - **If the maintainer still wants it**, two things are needed: - An explicit amendment to clause 7 admitting "bounding readings". - `provisional=True` on the level.
+
+### V — `added_mass_fraction`  < 0.05
+
+- Statistic: Whole model. (Maximum over the run of non-physical mass added by mass scaling) divided by (physical model mass at the first sample).
+- Scope proposed: {explicit, mass_scaled}
+- Sources: W-ENCAP-01, W-ENCAP-02, W-W179-06, W-R894-01 · match: identical
+- Quote: > Max. mass added due to mass scaling to the total model is less than 5 % (2.5% in case of separate models) of the total model mass at the beginning of the run. / Mass added to the total model is less than five percent of the total model mass at the beginning of the run.
+- Discretion remaining: None in the number, body or denominator. The level applies whatever the declared intent. Excluding quasi-static runs would let a dataset shed the level by labelling itself, and the Scope type has no negation anyway. '2.5% in case of separate models' is not a derivable trait and is context only.
+- **Adversary: sound-with-edit.** - **Keep the level on Euro NCAP alone as the attached source.** It says "Max." and is identical. - Re-label W-W179-06 as corroborating under L-C32's condition (non-decreasing added mass, which no scope token records). It is not "identical". - Change "the one level with two independent sources stating the same statistic" to "same number and body; W179 states no evaluation time". - **Change "None in the number, body or denominator" to two disclosures.** 1. The source prints two numbers, 5 % and 2.5 %. The platform takes the one for a single complete model, because "separate models" is not derivable. 2. "Total model mass at the beginning of the run" is read as physical mass before scaling. - If it meant mass after first-step scaling, the statistic would be a/(1+a). - Verdicts would then differ only for a in (0.05, 0.0526]. - Add the sampled-maximum caveat and the strictness note. - Keep the refusal to let declared quasi-static intent shed the level.
+
+### V — `added_mass_top_part_fraction`  < 0.10
+
+- Statistic: One part only. p* is the part with the most added mass in absolute terms. The value is (maximum over the run of mass added to p*) / (physical mass of p* at the first sample). This is NOT the maximum of the ratio over all parts.
+- Scope proposed: {explicit, mass_scaled}
+- Sources: W-W179-07, W-R894-01 · match: identical
+- Quote: > The part/material with the most mass added had less than 10 percent of its initial mass added.
+- Discretion remaining: None, provided the part is selected as the source selects it. A level for every part has no source. W-W179-15's third basis is per element, not per part, and carries no number.
+- **Adversary: sound-with-edit.** - **(1) Evaluate at the last sample, not as a maximum over the run.** - Evaluate both the selection of p* and the value there. That is what "had ... added" says. - The proposer's maximum-over-run form equals it only when added mass is non-decreasing (L-C32), which no scope token records. - At the least, state the time at which p* is selected. The proposal leaves it unspecified. - **(2) Cite W-R894-01 as "claim text only; the verbatim quote is truncated before this row", or drop it.** - **(3) Quote W-W179-15 only as far as the dossier prints it ("...transmission and reflectio…").** Do not complete the word. - **(4) Disclose that "initial mass" is read as physical mass before scaling.** - **(5) Add the strictness note.** - The literal "one part only" reading is correct. Keep it.
+
+### V — `added_mass_moving_fraction`  < 0.05
+
+- Statistic: (Maximum over the run of mass added to the moving parts) / (physical mass of the moving parts at the first sample). 'Moving' means a part with non-zero initial kinetic energy.
+- Scope proposed: {explicit, mass_scaled, initial_energy_driven}
+- Sources: W-W179-08, W-W179-15, W-R894-01 · match: equal-under-condition
+- Quote: > The moving parts/materials in the model have less than five percent of mass added to the initial moving mass of the model.
+- Discretion remaining: The source does not define 'moving'. The rendering is taken from its stated rationale, not from the table row. The alternative reading, 'moves at any time', is degenerate after impact and was rejected. If the maintainer will not accept the rendering, this row is context only.
+- **Adversary: sound-with-edit.** - **Keep the level, with the discretion stated as the proposer states it.** - Strengthen the anchor. - The row's own words "initial moving mass" fix the denominator as the mass moving at the start. - The rendering therefore does not rest only on the narrative rationale. - **Define "moving" from the input, not from the ledger.** - A part counts as moving if it has any node assigned a non-zero initial velocity. - Traits are input-derived, and this avoids a kinetic-energy threshold. - **Evaluate at the last sample, as for the top-part row.** - **Change `match` from "equal-under-condition" to "identical under a stated rendering of an undefined source term".** - The condition is a reading, not a scope token. - The maintainer must accept it explicitly. Otherwise the row is context-only, as the proposer says. - Cite W-R894-01 as claim text only. - Add the strictness note. - Disclose the physical-mass reading of "initial".
+
+### V — Context only (no level)
+
+- B-RAD-1, B-RAD-2 (Energy error: positive +1 % or +2 % is acceptable, above 2 % must be explained, and -10 % to -15 % is called normal.): The Radioss statistic is (E_kin + E_rot + E_int) / (the same sum at the start + external work) - 1. It omits zero-energy-mode and contact energy by construction, its denominator differs from r's, and the quote states no evaluation time. It coincides with r only for a ledger that has no other terms, and the scope vocabulary cannot express that with positive tokens. Its scope would also overlap B-BLM-1's {explicit} on `energy_gain_max`, which the disjointness rule forbids. It could be made its ow…
+- B-ABQ-1 (Total energy 'generally with an error of less than 1%'.): It states no denominator and no evaluation time. It is descriptive ('generally'), not an acceptance statement.
+- B-LSD-1, L-C12, B-LSD-4, B-LSD-5, L-C11 (The energy ratio total / (initial + external work), the statement that the balance should hold at all times, and the qualitative implicit checks.): These give definitions and direction-of-error prose only, and no tolerance is stated anywhere. The implicit checks use '≪' and '≈'. Use: a cross-check of the measure, and support for evaluating over the run. Note that r = ratio - 1 holds only while r's denominator takes its first argument.
+- W-W179-12, W-W179-14 (Energy-change narrative ('e.g., say 5 or 10 percent') and practitioner survey bands.): The narrative's numbers are illustrative ('some threshold value (e.g., say ...)'), and it mixes energy with momentum. The survey reports the shares of respondents who picked each band, not a limit. Use: the denominator 'initial energy' for W-W179-02, and the community-practice provenance.
+- B-BLM-3 (Hourglass energy over total energy; 'large (on the order of 3% or 5%)'.): It states an error estimate ('the results will be in error by the same order of magnitude'), not an acceptability limit. The evaluation time is unstated, the composition of 'total energy' is unstated, it gives two numbers under 'on the order of', and it says large problems should be monitored on subdomains. Use: a rationale sentence for every zero-energy-mode level.
+- W-W179-13 (h_e / i_e <= lambda ~ 0.1, per element.): It is stated per element ('internal energy of the element'), is prefixed with 'say', and gives no evaluation time. E6 supplies per-part energies, not per-element energies. Use: provenance of the 10 % figure ('Du Bois, Paul, NOTES, 1998'), and the dilution warning for part-level ratios.
+- B-ABQ-2 (Artificial strain energy at about 2 % of internal energy is 'not a problem'; at about 15 % it is 'substantial'.): These are two worked examples read off history plots. They state no rule, no limit, and no end-or-peak convention.
+- W-ENCAP-01, W-ENCAP-02 (Per-dummy hourglass ratio; 2.5 % added mass for separate models; items monitored with no limit.): A dummy is a declared group of parts. 'Separate models' is a declared setup. Neither is a trait derived from the input or the ledger, so a dataset would be selecting its own level. The monitored items state no limit.
+- B-LSD-3, L-C44 (Frictionless net contact energy; '10% of peak internal energy might be considered acceptable'.): The hedge on authority would not block a level. The statistic does. The quote leaves three things unstated: whole-model or per-interface (the dossier caveat says so, and sleout reports per contact), whose internal energy is meant, and the numerator's time and sign. The whole-model and per-interface readings are not nested. Interface energies of opposite sign can cancel, and several small ones can sum to more than 10 %. So neither verdict is sound under both readings. It would attach only to run…
+- B-ABQ-3 (Quasi-static: kinetic energy of the deforming material 'typically 5% to 10%' of its internal energy 'throughout most of the process'; 'a few percent' in the forming example.): 'Throughout most of the process' fixes no evaluation time. The outermost reading, the maximum over the whole run, is degenerate because internal energy starts at zero. Any non-degenerate statistic requires the platform to choose the portion of the run to exclude. 'Deforming material' needs a rule for choosing parts. 'A few percent' is not a number. If a statistic were ever fixed, the least discretionary reading of the range is its lower end, 0.05, because `pass` would then hold under both figur…
+- B-RAD-3 (Added mass 'less than 5%'.): The quoted sentence names no denominator and no evaluation time. The denominator DM/M0 appears only in the claim text and in a caveat. It corroborates the 5 % whole-model level in its rationale and is not cited as an attached source. Its quasi-static exception is also rationale text.
+- B-BLM-4, B-LSD-7, L-C30, L-C09, L-C32, L-C33, W-W179-15 (Added mass: qualitative acceptability and reporting mechanics.): None of these gives a number ('if the mass increases remain insignificant'). L-C32 (added mass is non-decreasing) is the fact that makes the end-of-run and maximum readings coincide for the source's own solver. L-C09 and L-C33 say where the evidence is reported.
+- W-W179-09 (No shooting nodes; no negative volumes.): These are yes/no checks with a definitional bound of zero. They belong to the requirement row `solver_error_count` (inversions; out-of-range kinematics), not to an indicator. 'Shooting nodes' has no operational definition in the quote.
+- W-W179-10, W-W179-01, W-FHWA-01, W-RSVVP-01 (Mandatory status and footnoted exceptions; document identity; FHWA adoption; the RSVVP manual.): These are not statistics. W-W179-10 is rationale text: the source treats its rows as pass/fail with exceptions explained. The platform's `review` plus a disposition mirrors that.
+- B-LSD-6, L-C36, L-C31 (Time-step collapse: DTMIN, ENDENG, ENDMAS, TSSFAC.): These are termination mechanisms and defaults. The manual 'recommends no values'.
+- L-C39, L-C38, L-C40, L-C41, L-C42 (Particle-method settings.): These are settings and recommendations, such as a constant smoothing length for the moving-least-squares form. No neighbour-count or smoothing-length-saturation statistic or number is quoted.
+
+### V — Indicators left without a level
+
+- `contact_energy_ratio`: The only source (B-LSD-3 / L-C44) leaves the body, the denominator's body and the numerator's time unstated, and the possible readings are not nested. The row stays `ind` and reads `no_ratified_criterion`. The row's own definition must be fixed first.
+- `contact_energy_negative_ratio`: No dossier quote gives a number for negative contact energy. The 'Negative contact energy' section was read and nothing quantitative was quoted.
+- `quasi_static_kinetic_ratio`: B-ABQ-3 has no determinate evaluation time or part selection. B-LSD-7 gives no number ('very small relative to the peak internal energy').
+- `timestep_min_ratio`: No published limit was found. B-LSD-6 and L-C36 describe a termination mechanism with no recommended value.
+- `solver_warning_count`: No source was surveyed. F-C23 concerns message truncation, not an acceptable count.
+- `particle_neighbors_min`: The dossier has no sourced number. The d + 1 floor is a definitional requirement, not an indicator level, and needs its own row.
+- `particle_neighbors_growth`: No source.
+- `smoothing_length_at_bound_fraction`: No source. L-C39's recommendation of a constant smoothing length removes the quantity (its gate is a variable smoothing length). It does not bound it.
+- `rigid_surface_penetration_max (penalty enforcement, normalised by local spacing)`: No source.
+- `input_density_plausible / input_constants_plausible / input_dimensionless_groups_plausible / response_magnitudes_plausible`: No materials reference was surveyed, and the dossier contains none.
+- `energy_gain_max / energy_loss_max, implicit scope`: B-BLM-1 is an explicit-integration check. B-LSD-5's implicit checks carry no numbers.
+- `energy_residual_final, externally driven scope`: W179 has no external-work term. B-BLM-1 is already judged through the gain and loss, and a second level here would overlap scopes.
+- `zero-energy-mode and added-mass statistics judged for every part, end-over-end`: W179's rows concern only the part with the largest absolute hourglass energy or added mass. No source states an every-part end-of-run ratio.
+
+### V — Levels the adversary said were missed
+
+- **`total_energy_change_final`** = [E_tot(t_end) − E_tot(t0)] / E_tot(t0), signed. - Bound: abs <= 0.10. - Scope: `{explicit, lagrangian_mesh, initial_energy_driven}`. - Source: W-W179-02. The denominator comes from W-W179-12. - The proposer listed this only as a "strict-letter alternative". Under the attachment rule's clause "each statistic given a level is its own catalogue quantity", it is the correct home for the W179 level. `energy_residual_final` is then left unlevelled.
+- **A second B-BLM-1 level for `energy_gain_max` and `energy_loss_max`, if the scope is restricted as the rule requires.** - Scope: `{explicit, particle_conservative}`. Same bound, 0.01. - It is disjoint from `{explicit, lagrangian_mesh}`. - A pairwise-conservative particle ledger is built from the work of its internal forces, so the statistic identity holds there. - The rationale must say that the source, a finite-element text, does not itself cover particle methods.
+- **No other attachable level exists in the dossier.** - Every F-claim and the remaining L-claims were checked for limits. - They hold settings, defaults and reporting mechanics only. - Examples: DTMIN, ENDENG, ENDMAS, TSSFAC defaults; the smoothing-length recommendation for FORM=12. - No published number was found for time-step collapse, warning counts, neighbour counts, smoothing-length saturation, negative contact energy, or plausibility ranges. - Those rows correctly stay `ind (no level yet)`.
+
+### V — Exclusions the adversary commented on
+
+- **W-W179-12** - It is listed as context-only ("illustrative ... yields nothing"). Yet it is the sole evidence for the denominator of the 10 % energy level and is cited in that level's `source_claim_ids`. - The exclusion also drops two things that bear on the evaluation time: - The sentence "the maximum change in energy over the simulation run can be reported". - The dossier caveat that end-versus-start or maximum-over-run "is ambiguous in the source". - Mark it as load-bearing for the denominator, with the ambiguity disclosed.
+- **B-RAD-1 / B-RAD-2** - The exclusion is right, because no evaluation time appears in the quote. - Strike the reason "its scope would also overlap B-BLM-1's {explicit} ... which the disjointness rule forbids". - Disjointness applies within one (quantity, statistic). - A Radioss statistic would be its own quantity, so there is no overlap.
+- **B-ABQ-3** - The exclusion is right. "Throughout most of the process" fixes no evaluation time. - Strike the aside that pre-selects 0.05 as "the least discretionary reading of the range". - It fixes a number for a statistic nobody has defined. - That is a level decided outside the record.
+- **B-LSD-3 / L-C44** - The exclusion is right. - It is consistent only if B-LSD-2 is excluded too. Both leave the numerator's evaluation time unstated, and the proposer's blocking rule was applied to one and waived for the other.
+- **Dossier header finding 1** ("A ratified criterion has to name the variant") - It is not a source claim, but it was sidestepped by levelling both W179 per-part hourglass wordings. - Put it to the maintainer as a decision.

@@ -335,13 +335,16 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
    only where intent cannot be derived (a quasi-static task); a dataset
    cannot select a level by labelling itself. For a run-global quantity
    every part must fall inside the scope, and the scopes of one quantity's
-   levels are pairwise disjoint. A general level for explicit time
-   integration applies whatever the spatial discretisation: where a
-   formulation's ledger is not built from the work of its internal forces (a
-   particle method that is not pairwise conservative, an advecting mesh),
-   the level's rationale says that an exceedance may be inherent to the
-   formulation rather than an instability — which is exactly the judgement
-   `review` hands to a person. At or below the level the verdict is
+   levels are pairwise disjoint. A level is scoped no wider than its source's
+   own domain: a text on finite-element time integration yields a level for
+   a Lagrangian mesh, and for a particle method whose ledger is likewise
+   built from the work of its internal forces, and for nothing else. Where
+   no level covers a run's scope — a particle method that is not pairwise
+   conservative, an advecting mesh — the indicator is still measured and is
+   rendered in the dataset's main table with its value and with the levels
+   that exist for other scopes, labelled as out of scope, so that a person
+   can make the call the platform has no sourced basis to make. A level
+   records whether its bound is strict, as its source states it. At or below the level the verdict is
    `pass`; above it, `review`; with no level for the run's scope,
    `not_assessable / no_ratified_criterion`.
 
@@ -440,6 +443,15 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
   community practice rather than derivation. A hard pass/fail would claim
   an authority no source has. Hence a general indicator, reference levels
   scoped by run traits, and a human call on `review`.
+- **Apply the general explicit-integration energy level to every spatial
+  discretisation.** An earlier draft did, arguing that otherwise the test
+  bed's energy rise would go unflagged. Withdrawn: that is a scope argued
+  from a measurement, which clause 7 forbids, and the source is a
+  finite-element text — for a formulation whose ledger is not built from
+  the work of its internal forces, the quantity is not the source's
+  statistic. The value is still published, with the out-of-scope levels as
+  context, so the person relying on the data sees exactly what the platform
+  does and does not know.
 - **Per-benchmark bounds ratified after measuring the benchmark.** Rejected:
   the criterion becomes a function of the data it judges, and no common
   standard remains. Reference levels differ from this in both respects: they

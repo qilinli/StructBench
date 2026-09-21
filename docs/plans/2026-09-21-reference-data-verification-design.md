@@ -54,6 +54,11 @@ the smallest that works.
 8. **Units are checked, as a category of their own** — they are a large
    source of error, and the one units error this repository has had was
    invisible to every self-consistent check.
+9. **The indicator treatment extends beyond energy** to the zero-energy-mode
+   ratio, added mass, contact energy, time-step collapse, the quasi-static
+   kinetic ratio, warning counts, particle-neighbour statistics, and the
+   plausibility screens. Where the source survey found no published limit,
+   the quantity stays measured with no level until a source is found.
 
 ### Calls made in drafting — for the maintainer to confirm
 
@@ -77,18 +82,22 @@ the smallest that works.
   not by solver product (ADR-0004) and not by a label a dataset gives
   itself, which would let it choose its own level. Only quasi-static intent
   is declared, because it cannot be derived.
-- **The general energy level applies to every explicit run, including
-  particle formulations that are not pairwise conservative.** The level's
-  rationale says an exceedance may be inherent to the formulation; deciding
-  that is the judgement `review` hands over. The alternative — no level for
-  such formulations — would leave the test bed's energy rise unflagged.
-- **The same indicator treatment is extended beyond energy** to the
-  zero-energy-mode ratio, added mass, contact energy, time-step collapse,
-  the quasi-static kinetic ratio, warning counts, particle-neighbour
-  statistics, and the plausibility screens. The dossier supports this for
-  zero-energy-mode, contact, and quasi-static limits (sources disagree or
-  are single rules of thumb); the added-mass sources *agree* at 5 %; the
-  rest have no surveyed source and stay without a level until one is found.
+- **Levels are scoped no wider than their source's domain.** The general
+  energy level comes from a finite-element text, so it covers a Lagrangian
+  mesh and a pairwise-conservative particle method, and nothing else. A run
+  outside every scope — a particle method that is not pairwise conservative,
+  an advecting mesh — has its indicator measured and rendered in the main
+  table with the out-of-scope levels shown as context, and no verdict.
+  *History:* an earlier draft applied the level to every explicit run and
+  justified it by noting that the test bed's energy rise would otherwise go
+  unflagged. That argued a scope from a measurement, which ADR clause 7
+  forbids; it is withdrawn, and recorded here rather than erased. The
+  maintainer may still choose the wider scope, but on source grounds only.
+- **Both wordings of the roadside-safety report's per-part hourglass row get
+  a quantity.** Its normative table and its worked example state different
+  statistics; the dossier asks for the variant to be named. Both are kept
+  below, the second marked as coming from a worked example. Dropping one is
+  the maintainer's call.
 
 ## How the design was reached
 
@@ -292,7 +301,7 @@ class Scope:                              # every token must hold; empty = every
 @dataclass(frozen=True)
 class Criterion:                          # platform standard
     quantity: str; statistic: str         # must equal the catalogue row's definition token
-    lo: float | None; hi: float | None
+    lo: float | None; hi: float | None; strict: bool   # strict as the source states it ("less than" vs "not more than")
     kind: CriterionKind                   # REQUIREMENT/INSTRUMENT -> pass|fail; INDICATOR -> pass|review
     scope: Scope
     source: str                           # claim id in the source dossier; "" only for definitional bounds
@@ -342,9 +351,10 @@ anchors.
 | `solver_identity_complete` | E2 | always | req | S2 |
 | `timestep_min_ratio` | E4 | explicit integration | ind (no level yet) | S2 |
 | `timestep_vs_stability_estimate` (first step; a departure means the step is governed by something other than size and wave speed) | E1, E4, E8 | explicit integration | — | gate |
-| `added_mass_fraction` | E4 | explicit, mass scaling enabled | ind | gate |
+| `added_mass_fraction` (whole model, maximum over the run) · `added_mass_top_part_fraction` (the one part with the most added mass, last sample) · `added_mass_moving_fraction` (parts given an initial velocity, last sample) | E4 | explicit, mass scaling enabled | ind | gate |
 | `implicit_convergence` | E4 | implicit integration | req | gate |
-| `zero_energy_mode_ratio` (per part; the definition — peak over peak, or end over end — is fixed before any level) | E5, E6 | under-integrated elements | ind | gate |
+| `zero_energy_mode_final_over_initial_total` · `zero_energy_mode_final_over_internal_final` · `zero_energy_mode_peak_over_internal_peak` (whole model) | E5 | under-integrated elements | ind | gate |
+| `zero_energy_mode_top_part_final_over_internal_final` · `zero_energy_mode_top_part_peak_over_initial_total` (the one part with the most zero-energy-mode energy) | E5, E6 | under-integrated elements | ind | gate |
 | `particle_deactivated_count` | E8 | particle part, erosion off | req | S1 |
 | `particle_neighbors_min` · `particle_neighbors_growth` | E8 | particle part | ind, level scoped by dimension and kernel support (no level yet); a req floor of d + 1 for corrected-kernel and moving-least-squares formulations | S1 |
 | `smoothing_length_within_input_bounds` (ingestion mapping) | E1, E8 | particle part | tol | S1 |
@@ -353,7 +363,8 @@ anchors.
 | `prescribed_motion_realised` | E1, E7, E8 | prescribed motion defined | tol | gate |
 | *Conservation* | | | | |
 | `energy_gain_max` · `energy_loss_max` (over-the-run extremes of r) | E5 | always | ind | S2 |
-| `energy_residual_final` (final value of r) | E5 | always | ind | S2 |
+| `energy_residual_final` (final value of r) | E5 | always | ind (no level; context) | S2 |
+| `total_energy_change_final` = [E_tot(t_end) − E_tot(t0)] / E_tot(t0), signed | E5 | energy present at the first sample | ind | S2 |
 | `quasi_static_kinetic_ratio` | E5 | declared quasi-static intent | ind | gate |
 | `kinetic_energy_closure` (ledger term against the field sum at shared sample times; rotary and rigid-body terms where the formulation has them) | E5, E8, E9 | always | tol | S2 |
 | `internal_energy_closure` | E5, E8, E9 | the field output carries internal energy per constitutive point | tol | S2 |
@@ -401,6 +412,99 @@ surveyed yet. A dataset whose anchors state `kind of source: synthetic` has
 no outside to be checked against — the report renders that beside the
 plausibility and anchor rows and says the anchors verify arithmetic only. It
 is a declared fact, not a disposition.
+
+## Reference levels
+
+Fixed from the source dossier under ADR clause 7's attachment rule: a
+source's number becomes a level only on the statistic, normalisation, and
+evaluation time the source states, within the source's own domain. Each was
+proposed by one pass and attacked by a second; the record is in the
+dossier's section V. None was chosen or adjusted in light of a StructBench
+measurement — and because one test-bed value (a legacy particle run whose
+total energy rises by several percent) was known before these were fixed,
+every energy level's rationale says so.
+
+| Quantity | Bound | Scope (run traits) | Source | Notes |
+|---|---|---|---|---|
+| `energy_gain_max`, `energy_loss_max` | ≤ 0.01 | {explicit, lagrangian_mesh} · {explicit, particle_conservative} | B-BLM-1, B-BLM-2 | Equal under the reading clause 7 fixes (internal work = every non-kinetic term; energy at the first sample is input). "Generally on the order of 10⁻²" is rendered as the one number the source prints. A stability check, not an accuracy limit; the source checks every step and balances large models on subdomains, so a sampled whole-model `pass` is weaker than the source's check. **Provisional**: the book was read as snippets only. |
+| `total_energy_change_final` | abs ≤ 0.10 | {explicit, lagrangian_mesh, initial_energy_driven} | W-W179-02, W-W179-12 | "must not vary more than 10 percent from the beginning of the run to the end of the run"; denominator is the initial total energy; the source has no external-work term. Community practice for roadside crash with finite elements. |
+| `zero_energy_mode_final_over_initial_total` | < 0.05 | {explicit, lagrangian_mesh, initial_energy_driven} | W-W179-03 | No provenance is stated for this figure in the pages read. |
+| `zero_energy_mode_final_over_internal_final` | < 0.10 | {explicit, lagrangian_mesh} | W-W179-04 | — |
+| `zero_energy_mode_top_part_final_over_internal_final` | < 0.10 | {explicit, lagrangian_mesh} | W-W179-05 | One part only — the part with the largest zero-energy-mode energy — not the worst ratio over all parts. |
+| `zero_energy_mode_top_part_peak_over_initial_total` | < 0.05 | {explicit, lagrangian_mesh, initial_energy_driven} | W-W179-11, W-R894-01 | The report's *worked-example* wording ("at any time during the run"), used by one later application; not its normative table. Maintainer to keep or drop. |
+| `zero_energy_mode_peak_over_internal_peak` | < 0.10 | {explicit, lagrangian_mesh} | W-ENCAP-01, W-ENCAP-02 | Occupant virtual-testing protocols; "max. internal energy" read as the full setup's. Extension beyond that domain is the platform's. |
+| `added_mass_fraction` | < 0.05 | {explicit, mass_scaled} | W-ENCAP-01, W-ENCAP-02 | The source says "max."; it also prints 2.5 % for separately built models, not adopted. W-W179-06 and B-RAD-3 corroborate the number without stating the evaluation time or the denominator. |
+| `added_mass_top_part_fraction` | < 0.10 | {explicit, mass_scaled} | W-W179-07 | The one part with the most added mass, at the last sample. |
+| `added_mass_moving_fraction` | < 0.05 | {explicit, mass_scaled, initial_energy_driven} | W-W179-08 | "Moving" is input-derived: a part with a node given a non-zero initial velocity. |
+
+In every zero-energy-mode ratio, "internal energy" has the sources' meaning:
+the work of element internal forces as their solver books it — including
+stiffness-damping and artificial-viscosity dissipation, excluding
+zero-energy-mode, contact, rigid-surface, and mass-damping terms.
+
+**Context only — cited in rationales, attached to nothing.** The solver
+vendor's per-part rule of thumb "< 10 %" of peak internal energy (B-LSD-2):
+the numerator's evaluation time is unstated. Contact energy "10 % of peak
+internal energy might be considered acceptable" (B-LSD-3): whole model versus
+per interface is not stated. "Generally with an error of less than 1 %"
+(B-ABQ-1): no normalisation. Kinetic energy "typically 5 % to 10 %" of
+internal energy "throughout most of the process" (B-ABQ-3): no determinate
+evaluation time. "+1 % or +2 % is acceptable" (B-RAD-2): a different ledger
+subset. Hourglass over total energy "on the order of 3 % or 5 %" (B-BLM-3):
+an error estimate, not a limit.
+
+**No level — measured and published, `no_ratified_criterion`.**
+`energy_residual_final`; both contact-energy ratios; the quasi-static
+kinetic ratio; time-step collapse; warning counts; neighbour counts;
+smoothing-length saturation; penalty penetration; and every energy indicator
+for a run outside the scopes above. No published number was found for any
+of them.
+
+## Plausibility ranges
+
+From the dossier's section M (37 claims; 36 confirmed, one source typo).
+Values are the sources' own; SI conversion is ours. These are reference
+levels for the units category: an excursion is `review`.
+
+**Family-free — needs only the unit label.**
+
+| Constant | Range | Source | What it can see |
+|---|---|---|---|
+| Density | 16 kg/m³ (flexible polymer foam) to 22 590 kg/m³ (osmium); fully dense solids from about 890 kg/m³ | M-D6, M-D5, M-D10 (secondary; M-D8 gives 21 500 for a platinum alloy from a primary table) | a mass-unit error — the one screen that can, without a declared family |
+| Young's modulus | 3 × 10⁵ Pa (flexible foam) to 10¹² Pa (diamond) | M-E4, M-D7 | length or time errors of several decades; not a factor of 1000 within a family |
+| Poisson's ratio | −1 ≤ ν ≤ ½ for an isotropic solid — a **requirement**, not an indicator | M-P1, M-P2 | a mis-entered constant |
+| Elastic-constant relations | G = E / 2(1 + ν), K = E / 3(1 − 2ν) — a **requirement**, to an instrument tolerance | M-P3 (relations (a) and (b); the source's printed relation (c) carries a typo and is not cited) | constants mixed across unit systems within one material |
+| Strength | 10⁴ Pa (foam) to 6.8 × 10⁹ Pa (tungsten carbide, compressive) | M-S1, M-S2, M-S3 | gross errors only |
+| Bar wave speed √(E/ρ) | 10² to 10⁴ m/s across engineering solids; absolute bound about 36 100 m/s | M-S6, M-S8 | length and time only — blind to mass |
+| Response velocity | above 3 km/s is the hypervelocity regime, outside structural impact | M-S9 | length and time only |
+
+**By declared material family** (density in kg/m³, modulus in GPa, yield or
+compressive strength in MPa; Cambridge *Materials Data Book* unless noted):
+
+| Family | Density | Young's modulus | Strength | Claims |
+|---|---|---|---|---|
+| Carbon and low-alloy steels | 7800–7900 | 200–217 | yield 250–395 (low carbon) | M-D1, M-E1, M-S1, M-C5 |
+| Aluminium alloys | 2500–2900 | 68–82 | yield 30–500 | M-D2, M-E1, M-S1 |
+| Copper alloys | 8930–8940 | 112–148 | yield 30–500 | M-D2, M-E1, M-S1 |
+| Metals and alloys, all | 1740–11 400 | 12.5–220 | yield 8–1245 | M-D2, M-E1, M-S1 |
+| Concrete, normal weight | 2200–2600 | 25–38 (data book); 27–44 (EN 1992-1-1 Table 3.1) | compressive 12–90 characteristic; tensile 1.6–5.0 mean | M-D3, M-E2, M-C1, M-S5 |
+| Concrete, lightweight aggregate | 800–2000 by class; ≤ 2200 by definition | E_cm × (ρ/2200)² | — | M-C3 |
+| Stone · brick | 2500–3000 · 1900–2100 | 6.9–21 · 10–50 | compressive 34–248 · 50–140 | M-D3, M-E2, M-S2 |
+| Glasses | 2170–2800 | 61–110 | compressive 264–2129 | M-D3, M-E2, M-S2 |
+| Technical ceramics | 2300–15 900 | 140–720 | compressive 524–6833 | M-D3, M-E2, M-S2 |
+| Thermoplastics · thermosets | 890–2200 · 1040–1400 | 0.2–5 · 2.07–4.83 | yield 8.3–95 · 27.6–71.7 | M-D5, M-E4, M-S3 |
+| Elastomers | 900–1800 | 0.0007–0.04 | 2–51 | M-D5, M-E4, M-S3 |
+| Polymer foams | 16–470 | 0.0003–0.48 | 0.01–12 | M-D6, M-E4, M-S3 |
+| Fibre composites (CFRP · GFRP) | 1500–1600 · 1750–1970 | 69–150 · 15–28 | 550–1050 · 110–192 | M-D4, M-E3, M-S3 |
+| Wood (longitudinal) | 600–800 | 6–20 | 30–70 | M-D4, M-E3, M-S3 |
+
+**Still unsourced.** A numeric range of yield strain (strength over modulus)
+by family — only the chart's contour labels, 10⁻⁴ to 10⁻¹, were read
+(M-S4); a family-by-family ratio can be derived from the two tables above,
+but that is a derivation, not a quotation. A primary table of wave speeds by
+family. Rock by type. Metal-foam strength. Until then
+`input_dimensionless_groups_plausible` judges the elastic-constant
+relations and Poisson bound only, and reports yield strain with no level.
 
 ## Physics notes
 
@@ -452,19 +556,15 @@ is a declared fact, not a disposition.
    counted as input — without that term an initial-velocity impact would
    read about one from the first sample. `r > 0` is energy created. For a
    run with no external work, `r` equals the solver-reported energy ratio
-   minus one (dossier L-C12), which gives the measure a check against the
-   solver's own number. What each source may be attached to, without
-   misrepresenting it: B-BLM-1 (order 10⁻², a stability check) to the
-   over-the-run gain and loss, for explicit time integration — with the
-   rationale noting that "order of" makes 0.01 a platform choice, that a
-   sampled maximum is weaker than the source's every-step check, and that
-   the source checks large models on subdomains; W-W179-02 (10 %,
-   start-to-end, relative to initial energy) to the final value, only for
-   runs with initial energy and negligible external work. The two vendor
-   statements (B-ABQ-1, B-RAD-2) attach to nothing — one states no
-   normalisation, the other excludes zero-energy-mode and contact energy —
-   and are context only. Closures compare a ledger term with the field sum
-   at shared sample times and need both; the kinetic closure's tolerance
+   minus one (dossier L-C12) only while the first argument of the
+   denominator is the largest; once the kinetic or the non-kinetic bucket
+   exceeds the initial total — the normal end state of an impact that has
+   gained energy and come to rest — the denominator is larger and `r` is
+   smaller. That is why the roadside-safety level has its own quantity,
+   `total_energy_change_final`, which *is* the ratio minus one at the last
+   sample. The levels, and the statistic each attaches to, are in
+   *Reference levels* above. Closures compare a ledger term with the field
+   sum at shared sample times and need both; the kinetic closure's tolerance
    must name the half-step velocity stagger of central-difference
    integration.
 5. Termination and integrity checks read the **raw** time axis and all
@@ -524,14 +624,18 @@ that row is the acceptance fact. The hand-read facts to reproduce on Taylor
 `20100/100` (case `T-20-100-100`): normal termination, 3918 steps, time step
 7.46e-5 – 7.78e-5 ms, total-to-initial energy ratio peaking at 1.089 and
 ending at 1.070, rigid-surface energy 311 against initial kinetic energy
-4.45e4 (input units). With no external work the energy indicator equals the
-solver-reported ratio minus one, so the measure must return a largest gain
-of 0.089 and a final value of 0.070 on this run.
+4.45e4 (input units). From the last ledger sample (total 4.76245e4,
+kinetic 76.8, no external work) the measures must return
+`total_energy_change_final` = 0.0702 and `energy_residual_final` = 0.0657 —
+the second is smaller because the non-kinetic bucket, 4.7548e4, exceeds the
+initial total and becomes the denominator. `energy_gain_max` is at most
+0.089 and is computed from the ledger. This run is a particle formulation
+that is not pairwise conservative, so no level covers it: the rows are
+published with values and out-of-scope levels, and no verdict.
 
-**Stage 3 — fix the levels and publish.** The maintainer fixes reference
-levels from the source dossier, each scoped and attached only to the
-statistic its source states, and plausibility ranges from a cited materials
-reference (not yet surveyed); `docs/datachecks/<benchmark>.json` and its
+**Stage 3 — confirm the levels and publish.** The maintainer confirms the
+reference levels and plausibility ranges tabulated above, spot-checking the
+two sources read only as images or snippets; `docs/datachecks/<benchmark>.json` and its
 generated `.md` land with the drift test. The energy levels' rationale
 records that one test-bed value was known before they were fixed. Rows that
 read `review` are published as such; a disposition is the dataset owner's
@@ -549,7 +653,7 @@ to add, or not.
 | Selective or streamed reader in `core/io`; chunk-merged measures | cases of hundreds of MB |
 | Material classes beyond tabulated J2; the material-class enum ADR | the next material |
 | Disposition records (typed, dated literals; the ADR-0033 registry pattern is the candidate home) | the first published row that reads `review` |
-| Reference levels and plausibility ranges no source yet covers (time-step collapse, warning counts, neighbour counts, smoothing-length saturation, material-family ranges) | a verified source, or a dated note recording that none exists |
+| Reference levels no source yet covers (energy for non-conservative particle and advecting-mesh formulations, contact energy, the quasi-static ratio, time-step collapse, warning counts, neighbour counts, smoothing-length saturation); numeric yield-strain ranges; wave speeds and rock by type | a verified source, or a dated note recording that none exists |
 | Input-derived operative yield table | the first dataset with no `BenchmarkSpec` |
 | Carrying the ledger inside the canonical file; ingesting the arrays the adapter discards; populating `Provenance` from E2 | a dated note on ADR-0016; the first dataset generated under E9 |
 | Binary solver-output reading | the first run whose ledger exists only in binary form; flag-first — whether it needs an import outside the approved list is unverified |
@@ -560,13 +664,13 @@ to add, or not.
 ## Open items for the maintainer
 
 1. **Confirm the drafting calls** at the top of this document.
-2. **Fix reference levels from the source dossier**
-   (`2026-09-21-reference-data-verification-sources.md`): 119 claims with
-   verbatim quotes, locators, and URLs, each independently re-checked. For
-   each indicator: which sourced level attaches to which statistic and
-   scope, as the source states it (physics note 4 works this through for
-   energy). Indicators with no source stay without a level. Plausibility
-   ranges need a cited materials reference; none was surveyed.
+2. **Confirm the reference levels and plausibility ranges** tabulated above
+   (derivation record: dossier section V; material claims: section M). Two
+   things need a human eye before they are relied on: the roadside-safety
+   report was read as page images, and the energy-balance text as snippets.
+   Two are decisions: whether to keep the worked-example variant of the
+   per-part hourglass row, and the energy scope (first drafting call in the
+   second group above).
 3. **Finalise the LS-DYNA realisation of E1–E10** from the dossier's draft
    table, against the release actually used (R13 and R15 were read; the
    legacy runs used R12). Two points need a run to settle: MPP executables
