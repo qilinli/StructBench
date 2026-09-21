@@ -272,7 +272,8 @@ src/structbench/
     quantities.py           catalogue rows: name, category, requires, trait gate, meaning, status
     measure.py              measure_case(case | None, input_facts, run_evidence, declared) -> CaseMeasurements
     criteria.py             Criterion records, the platform standard, judge()
-    report.py               JSON and markdown
+    report.py               the JSON record
+    markdown.py             the reader-facing report, generated from the record
   cli/datacheck.py          python -m structbench.cli.datacheck measure | judge
 data_generation/lsdyna/     the standard input block (README) + per-dataset evidence glue
 tests/{core,verification,cli}/
