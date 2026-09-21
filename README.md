@@ -157,7 +157,7 @@ assets/            # figures embedded in the docs + landing pages
      crossed-out block may be compressed to one line. Reasoning lives in
      decisions/, not here. Substrate-layer work only (ADR-0014). -->
 
-*Last revised: 2026-08-29.*
+*Last revised: 2026-09-21.*
 
 ### Shipped
 
@@ -174,6 +174,20 @@ assets/            # figures embedded in the docs + landing pages
       GeoFLARE (+ off-by-default Transolver++) provisional, ranked
       cross-method leaderboards, the prediction-scheme axis, relative-L2
       headline metric (ADRs 0041–0057).~~
+
+### In progress
+
+- **Reference-data verification** (ADR-0066; first work under the ADR-0065
+  scope) — a `verification/` module that measures a run against a catalogue
+  of numerical-health, conservation, constitutive, units and integrity
+  quantities, and judges the measurements against platform criteria.
+  - [x] ~~Stage 1 (2026-09-21) — the quantities measurable from a canonical
+        case and its solver input; criteria, JSON record, generated report;
+        `python -m structbench.cli.datacheck measure|judge`.~~
+  - [ ] Stage 2 — run evidence (solver messages, energy ledger): termination,
+        time step, the energy indicator, closures.
+  - [ ] Stage 3 — tolerances confirmed, first published datacheck record,
+        two-grid difference on the convergence case.
 
 ### Inbox — untriaged, add freely
 

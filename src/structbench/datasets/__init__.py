@@ -8,6 +8,7 @@ from .canonical import (
     aux_channel_units,
     available_aux_fields,
     load_case_trajectory,
+    n_valid_frames,
     von_mises_from_voigt,
 )
 from .normalization import (
@@ -35,6 +36,7 @@ __all__ = [
     "aux_channel_units",
     "available_aux_fields",
     "load_case_trajectory",
+    "n_valid_frames",
     "von_mises_from_voigt",
     "NormalizationStats",
     "aux_forward_transform",

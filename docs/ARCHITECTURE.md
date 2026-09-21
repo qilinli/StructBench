@@ -20,9 +20,10 @@ src/structbench/
 ├── benchmarks/    # benchmark problem definitions (split + protocol + card)
 ├── models/        # reference ML models (cgn/, mgn/, transolver/, geoflare/) + shared base (common/)
 ├── datasets/      # canonical loaders, windowing, normalization
+├── verification/  # reference-data verification: measure, judge, report (ADR-0066)
 ├── eval/          # metrics and evaluation protocols
 ├── viz/           # FEM-style visualization of physics fields
-├── cli/           # command-line interfaces (structbench-train)
+├── cli/           # command-line interfaces (structbench-train, datacheck)
 └── config.py      # grouped run configuration: typed sections, strict loading (ADR-0032)
 
 # Reserved namespaces (declared but not yet implemented)
@@ -77,6 +78,14 @@ The schema for what's *inside* the data files lives in `core/`. The mechanics of
 
 **ML data flow.** A canonical case (strict SI, HDF5) is loaded and converted to a `CaseTrajectory` — positions in mm plus one auxiliary target field selected by name (`aux_field`, e.g. von Mises stress for Taylor), per the owning benchmark's spec (ADR-0019, ADR-0027) — so that ported CGN hyperparameters transfer without rescaling. The trajectory is then split into overlapping windows (`WindowDataset`) and normalised via velocity/acceleration statistics (`compute_stats`). The windowed, normalised samples feed the CGN simulator (`models/cgn`), whose predictions are compared to ground truth by `eval.rollout` — a full autoregressive rollout returning a `RolloutResult` with per-step and cumulative RMSE plus the benchmark's QoI values and errors, and a teacher-forced `one_step_position_rmse` that isolates single-step accuracy (ADR-0019 §5). The benchmark module is responsible for supplying the train/val/test split and for encoding the boundary-condition feature that conditions each particle's neighbourhood message.
 
+### `verification/`
+
+Reference-data verification (ADR-0066): whether a simulation run can be trusted as reference data. Two verbs are kept strictly apart. **measure** turns a canonical case, the facts its solver input establishes (`core.InputFacts`, read fail-closed by `core/io/lsdyna_run.py`), and the benchmark's declarations into threshold-free `Measurement` records — a value, a typed absence, or not-applicable — one per row of the quantity catalogue (`quantities.py`, rows as data). **judge** turns those records and the platform criteria (`criteria.py`) into one of five verdicts and never touches data, so the committed record is the measurements JSON and the Markdown report is regenerated from it (`report.py`).
+
+What varies has one home each: solver vocabulary stays in `core/io/`; material-class semantics (what the state variable means, which yield law is assessable) in `materials.py`; run traits that scope reference levels in `traits.py`; array-level kernels, written on plain arrays so the model-side checks of ADR-0065 can reuse them, in `kernels.py`. Benchmarks declare facts; they cannot loosen a criterion.
+
+`verification/` depends on `core/` and `datasets/` only, and sits below `eval/` and `benchmarks/` so both can import its result types and kernels without a cycle. It is distinct from `core/validation.py`, which checks that a case is a *valid schema instance*; this module asks whether the run behind it is *trustworthy*. The entry point is `python -m structbench.cli.datacheck measure|judge`.
+
 ### `eval/`
 
 Metrics and evaluation protocols. Each benchmark declares its own evaluation metrics; this module implements them in a model-agnostic way. A leaderboard submission validator and cross-benchmark evaluation utilities are planned here (see the Roadmap section of README.md) but do not exist yet.
@@ -124,9 +133,13 @@ Allowed import directions between modules:
                      │
        ┌─────────────┼─────────────┬─────────────┐
        ▼             ▼             ▼             ▼
-  benchmarks/     models/        eval/         viz/
+  benchmarks/      eval/        models/        viz/
        │             │             │             │
-       └─────────────┴──────┬──────┴─────────────┘
+       └──────┬──────┘             │             │
+              ▼                    │             │
+        verification/              │             │
+              │                    │             │
+              └─────────────┬──────┴─────────────┘
                             ▼
                         datasets/
                             │
@@ -139,6 +152,7 @@ Rules:
 - `core/` has no upstream dependencies within the package.
 - `datasets/` depends only on `core/`.
 - `models/` and `viz/`'s plotting core may depend on `core/` and `datasets/` only — a model is not coupled to a specific benchmark, and visualization plots arrays rather than models.
+- `verification/` depends only on `core/` and `datasets/` (ADR-0066); `benchmarks/` and `eval/` may depend on it (they also reach `datasets/` directly), `models/` and `viz/` do not. An import-boundary test enforces its side.
 - `eval/` may depend on `core/` and `datasets/`; it does not depend on `models/` (evaluation is a property of the benchmark, not the model).
 - **`benchmarks/` depends on `eval/`** in the current code: each benchmark references the QoI protocol type and QoI implementations that live in `eval/`. This coupling arrived with the QoI-owned-by-benchmark design (ADR-0032) and the original "peer modules do not depend on each other" rule was never amended for it. It is a live architectural question — either bless the dependency with an amending ADR, or move the QoI protocol/type down into `core/` so `benchmarks/` and `eval/` both depend on it rather than on each other. *(Flagged 2026-07-06; pending a decision.)*
 - `config.py` (top-level module) depends on nothing internal and sits below `cli/` and `viz/`.
