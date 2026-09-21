@@ -19,6 +19,7 @@ __all__ = [
     "RatioExtreme",
     "abs_max",
     "decrease_max",
+    "energy_residual",
     "interp_yield_stress",
     "nearest_knot_distance",
     "nonfinite_count",
@@ -172,3 +173,32 @@ def signed_distance_to_plane(
     p = np.asarray(point[:dim], dtype=np.float64)
     n = np.asarray(normal[:dim], dtype=np.float64)
     return np.asarray((x - p) @ n, dtype=np.float64)
+
+
+def energy_residual(
+    total: ArrayLike, external_work: ArrayLike, kinetic: ArrayLike
+) -> NDArray[np.float64]:
+    """The signed energy indicator ``r(t)`` of ADR-0066 clause 7.
+
+    ::
+
+        R(t) = [E_tot(t) - E_tot(t0)] - [W_ext(t) - W_ext(t0)]
+        r(t) = R(t) / max(|E_tot(t0) + W_ext(t) - W_ext(t0)|,
+                          E_kin(t), E_tot(t) - E_kin(t))
+
+    ``r > 0`` is energy created, ``r < 0`` energy unaccounted for. Energy
+    present at the first sample counts as input, so an initial-velocity
+    impact reads zero, not one, at the start. Where every scale is zero
+    nothing has happened and ``r`` is zero.
+
+    Parameters
+    ----------
+    total, external_work, kinetic : array_like, shape (T,)
+        The identity's total, the external work, and the kinetic term, in
+        one energy unit.
+    """
+    e, w, k = (np.asarray(a, dtype=np.float64) for a in (total, external_work, kinetic))
+    work = w - w[0]
+    residual = (e - e[0]) - work
+    scale = np.maximum.reduce([np.abs(e[0] + work), k, e - k])
+    return np.divide(residual, scale, out=np.zeros_like(residual), where=scale > 0.0)

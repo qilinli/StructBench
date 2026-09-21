@@ -127,7 +127,14 @@ _STATE = TraitGate(needs_monotone_state_variable=True)
 
 _ROWS = (
     # ------------------------------------------------------ numerical health
-    _row("terminated_normally", _H, "1", {E.E3}, "the solver did not finish the run"),
+    _row(
+        "terminated_normally",
+        _H,
+        "1",
+        {E.E3},
+        "the solver did not finish the run",
+        implemented=True,
+    ),
     _row(
         "reached_end_time",
         _H,
@@ -136,13 +143,21 @@ _ROWS = (
         "the stored response stops short of the requested end time",
         implemented=True,
     ),
-    _row("solver_error_count", _H, "1", {E.E3}, "the solver reported errors"),
+    _row(
+        "solver_error_count",
+        _H,
+        "1",
+        {E.E3},
+        "the solver reported errors",
+        implemented=True,
+    ),
     _row(
         "solver_warning_count",
         _H,
         "1",
         {E.E3},
         "the solver reported warnings that may affect the result",
+        implemented=True,
     ),
     _row(
         "solver_identity_complete",
@@ -150,6 +165,7 @@ _ROWS = (
         "1",
         {E.E2},
         "the run cannot be attributed to a solver version and precision",
+        implemented=True,
     ),
     _row(
         "timestep_min_ratio",
@@ -158,6 +174,7 @@ _ROWS = (
         {E.E4},
         "the time step collapsed during the run",
         gate=_EXPLICIT,
+        implemented=True,
     ),
     _row(
         "timestep_vs_stability_estimate",
@@ -294,15 +311,37 @@ _ROWS = (
         gate=TraitGate(needs_prescribed_motion=True),
     ),
     # --------------------------------------------------------- conservation
-    _row("energy_gain_max", _C, "1", {E.E5}, "energy was created during the run"),
-    _row("energy_loss_max", _C, "1", {E.E5}, "energy went unaccounted for"),
-    _row("energy_residual_final", _C, "1", {E.E5}, "the energy balance does not close"),
+    _row(
+        "energy_gain_max",
+        _C,
+        "1",
+        {E.E5},
+        "energy was created during the run",
+        implemented=True,
+    ),
+    _row(
+        "energy_loss_max",
+        _C,
+        "1",
+        {E.E5},
+        "energy went unaccounted for",
+        implemented=True,
+    ),
+    _row(
+        "energy_residual_final",
+        _C,
+        "1",
+        {E.E5},
+        "the energy balance does not close",
+        implemented=True,
+    ),
     _row(
         "total_energy_change_final",
         _C,
         "1",
         {E.E5},
         "total energy changed between the start and the end of the run",
+        implemented=True,
     ),
     _row(
         "quasi_static_kinetic_ratio",

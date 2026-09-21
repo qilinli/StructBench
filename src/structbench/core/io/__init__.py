@@ -42,7 +42,7 @@ from .lsdyna import (
     read_d3plot,
     unit_factors,
 )
-from .lsdyna_run import read_input_facts
+from .lsdyna_run import read_input_facts, read_run_evidence
 from .meshgraphnets import build_deforming_plate_case, parse_meta
 
 __all__ = [
@@ -50,6 +50,7 @@ __all__ = [
     "write_case",
     "lsdyna_to_case",
     "read_input_facts",
+    "read_run_evidence",
     "read_d3plot",
     "build_case",
     "extract_geometry",

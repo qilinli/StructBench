@@ -107,6 +107,9 @@ def test_only_indicators_are_scoped_or_sourced() -> None:
 def test_the_quantities_shipped_without_a_criterion_are_the_named_ones() -> None:
     implemented = {q.name for q in CATALOGUE if q.status is Status.IMPLEMENTED}
     assert implemented - {c.quantity for c in CRITERIA} == {
+        "energy_residual_final",
+        "solver_warning_count",
+        "timestep_min_ratio",
         "input_dimensionless_groups_plausible",
         "particle_neighbors_growth",
         "particle_neighbors_min",
