@@ -2,15 +2,18 @@
 
 Two verbs, kept apart::
 
-    python -m structbench.cli.datacheck measure --benchmark NAME \
-        --data-root DIR [--case ID ...] --out FILE.json
-    python -m structbench.cli.datacheck judge --measurements FILE.json \
-        [--report FILE.md]
+    python -m structbench.cli.datacheck measure
+        --benchmark NAME --data-root DIR [--case ID ...]
+        [--run-evidence FILE.json] --out FILE.json
+    python -m structbench.cli.datacheck judge
+        --measurements FILE.json [--report FILE.md]
 
-``measure`` reads canonical case files and writes the measurements record;
-``judge`` reads only that record. No flag alters a criterion. The exit code is
-0 when the command completed — failed checks are in the record, not in the
-exit code — and 2 on a usage or I/O error.
+``measure`` reads canonical case files — and, when given, the whitelisted
+run-evidence record a dataset's glue wrote, never a run directory — and
+writes the measurements record; ``judge`` reads only that record. No flag
+alters a criterion. The exit code is 0 when the command completed — failed
+checks are in the record, not in the exit code — and 2 on a usage or I/O
+error.
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ import hashlib
 import logging
 import re
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from .. import __version__
@@ -29,9 +32,11 @@ from ..core import (
     Absence,
     AbsenceReason,
     DeclaredFacts,
+    RunEvidence,
     read_case,
     read_input_facts,
 )
+from ..core.io import load_run_evidence
 from ..verification.criteria import judge
 from ..verification.measures import measure_case
 from ..verification.quantities import CATALOGUE
@@ -92,6 +97,7 @@ def measure_dataset(
     case_ids: Sequence[str] | None = None,
     *,
     dataset_revision: str | None = None,
+    run_evidence: Mapping[str, RunEvidence] | None = None,
 ) -> DatasetMeasurements:
     """Measure ``<data_root>/<case_id>.h5`` for every case (ADR-0066).
 
@@ -109,11 +115,14 @@ def measure_dataset(
         Defaults to every case in the benchmark's splits.
     dataset_revision : str, optional
         The dataset tag the files came from.
+    run_evidence : mapping of str to RunEvidence, optional
+        The run record of each case, by case id (E2-E5).
     """
     if case_ids is None:
         case_ids = sorted({cid for ids in spec.splits.values() for cid in ids})
     declared = declared_from_spec(spec)
     cases = []
+    runs = run_evidence or {}
     for case_id in sorted(set(case_ids)):
         path = data_root / f"{case_id}.h5"
         digest = None
@@ -125,7 +134,14 @@ def measure_dataset(
                 read_input_facts(deck, source_units=units) if deck and units else None
             )
             cases.append(
-                measure_case(case, facts, declared, case_id=case_id, file_sha256=digest)
+                measure_case(
+                    case,
+                    facts,
+                    declared,
+                    case_id=case_id,
+                    file_sha256=digest,
+                    run=runs.get(case_id),
+                )
             )
         except Exception:  # noqa: BLE001 - recorded, never an abort
             logger.warning("case %s could not be read", case_id)
@@ -154,8 +170,19 @@ def _measure(args: argparse.Namespace) -> int:
     except KeyError as error:
         print(f"error: {error}")
         return 2
+    runs = None
+    if args.run_evidence is not None:
+        try:
+            runs = load_run_evidence(args.run_evidence.read_text(encoding="utf-8"))
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            print(f"error: cannot read run evidence: {error}")
+            return 2
     record = measure_dataset(
-        spec, args.data_root, args.case or None, dataset_revision=args.dataset_revision
+        spec,
+        args.data_root,
+        args.case or None,
+        dataset_revision=args.dataset_revision,
+        run_evidence=runs,
     )
     _write(args.out, to_json(record))
     print(f"measured {len(record.cases)} cases -> {args.out}")
@@ -191,6 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     measure.add_argument("--data-root", required=True, type=Path)
     measure.add_argument("--case", action="append", help="case id; repeatable")
     measure.add_argument("--dataset-revision", default=None)
+    measure.add_argument("--run-evidence", default=None, type=Path)
     measure.add_argument("--out", required=True, type=Path)
     measure.set_defaults(run=_measure)
     judged = verbs.add_parser("judge", help="judge a measurements record")

@@ -187,6 +187,23 @@ _BLM = (
 )
 
 _REQUIREMENTS = (
+    Criterion(
+        "terminated_normally",
+        1.0,
+        None,
+        False,
+        CriterionKind.REQUIREMENT,
+        Scope(),
+        "",
+        "Every phase and restart segment ends with the solver's normal-termination"
+        " statement.",
+    ),
+    _zero("solver_error_count", "The solver's record mentions no error."),
+    _zero(
+        "solver_identity_complete",
+        "The record names the solver's version, revision, precision and parallel"
+        " layout; none is missing.",
+    ),
     _zero("nonfinite_count", "A stored response contains no NaN or infinity."),
     _zero("time_axis_monotone", "Stored times strictly increase."),
     _zero(

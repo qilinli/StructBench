@@ -15,21 +15,28 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Literal
 
 __all__ = [
+    "LEDGER_TERMS",
     "PLATFORM_REASONS",
     "Absence",
     "AbsenceReason",
     "DeclaredFacts",
+    "EnergyLedger",
     "Discretisation",
     "EvidenceItem",
     "InputFacts",
     "MaterialInput",
     "PartTraits",
     "RigidPlane",
+    "RunEvidence",
+    "SolverIdentity",
+    "TerminationRecord",
     "UnitsAnchor",
 ]
 
@@ -333,3 +340,174 @@ class DeclaredFacts:
             raise ValueError(
                 f"material_family must be a token, got {self.material_family!r}"
             )
+
+
+#: Version-like identifiers: no spaces, no path separators, bounded length.
+_VERSION = re.compile(r"^[A-Za-z0-9_.+-]{1,32}$")
+
+#: The closed vocabulary of energy-ledger terms (E5). ``external_work`` is
+#: the input side of the balance; every other term is a store or a sink.
+LEDGER_TERMS: frozenset[str] = frozenset(
+    {
+        "kinetic",
+        "internal",
+        "external_work",
+        "zero_energy_mode",
+        "contact",
+        "rigid_surface",
+        "damping",
+        "discrete_element",
+        "eroded_kinetic",
+        "eroded_internal",
+        "eroded_zero_energy_mode",
+    }
+)
+
+
+@dataclass(frozen=True)
+class SolverIdentity:
+    """Which solver produced the run (evidence item E2).
+
+    The precision of each *output stream* is part of E2 but no run has
+    supplied it yet, so it has no field (ADR-0066 clause 3).
+
+    Parameters
+    ----------
+    name : str
+        Lower-case token, e.g. ``"ls-dyna"``.
+    version, revision : str or None
+        Version-like tokens as the solver prints them.
+    precision : {"single", "double"} or None
+        Floating-point precision of the solver executable.
+    parallel_layout : str or None
+        Token ``"<kind>:<n>"``, e.g. ``"mpp:8"``.
+    """
+
+    name: str
+    version: str | None = None
+    revision: str | None = None
+    precision: Literal["single", "double"] | None = None
+    parallel_layout: str | None = None
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", self.name):
+            raise ValueError(f"solver name must be a token, got {self.name!r}")
+        for label in ("version", "revision"):
+            text = getattr(self, label)
+            if text is not None and not _VERSION.fullmatch(text):
+                raise ValueError(f"{label} must be a version token, got {text!r}")
+        layout = self.parallel_layout
+        if layout is not None and not re.fullmatch(r"[a-z]+:[0-9]+", layout):
+            raise ValueError(f"parallel_layout must be 'kind:n', got {layout!r}")
+
+
+@dataclass(frozen=True)
+class TerminationRecord:
+    """How one analysis phase or restart segment ended (evidence item E3).
+
+    Parameters
+    ----------
+    status : {"normal", "error", "none"}
+        ``"none"``: the record ends without a termination statement.
+    final_time : float or None
+        Solver time at the end of the segment [s].
+    n_steps : int or None
+        Steps or increments taken.
+    criterion : str or None
+        What ended it: ``"end_time"`` or a token from
+        ``InputFacts.other_termination_criteria``; ``None`` when the record
+        does not say.
+    """
+
+    status: Literal["normal", "error", "none"]
+    final_time: float | None = None
+    n_steps: int | None = None
+    criterion: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.criterion is not None and not _TOKEN.fullmatch(self.criterion):
+            raise ValueError(f"criterion must be a token, got {self.criterion!r}")
+
+
+@dataclass(frozen=True)
+class EnergyLedger:
+    """The global energy ledger over time, with its balance identity (E5).
+
+    Parameters
+    ----------
+    time : tuple of float
+        Sample times [s].
+    terms : mapping of str to tuple of float
+        One series [J] per term; names from :data:`LEDGER_TERMS`.
+    identity : mapping of str to int
+        The declared balance identity: the terms that sum to the total
+        energy, each with its sign (+1 or -1). A term present in ``terms``
+        but absent here is contained in another term or is external work.
+    solver_total : tuple of float or None
+        The solver's own total [J], kept to check the identity against.
+    origin : {"solver", "derived"}
+        Whether the solver kept the ledger or it was derived from outputs.
+    """
+
+    time: tuple[float, ...]
+    terms: Mapping[str, tuple[float, ...]]
+    identity: Mapping[str, int]
+    solver_total: tuple[float, ...] | None = None
+    origin: Literal["solver", "derived"] = "solver"
+
+    def __post_init__(self) -> None:
+        unknown = set(self.terms) - LEDGER_TERMS
+        if unknown:
+            raise ValueError(f"unknown ledger terms {sorted(unknown)}")
+        series = [*self.terms.values()]
+        if self.solver_total is not None:
+            series.append(self.solver_total)
+        if any(len(s) != len(self.time) for s in series):
+            raise ValueError("every ledger series must have one value per sample")
+        if not all(math.isfinite(x) for s in (self.time, *series) for x in s):
+            raise ValueError("ledger values must be finite")
+        if not set(self.identity) <= set(self.terms) - {"external_work"}:
+            raise ValueError("identity terms must be ledger terms other than the input")
+        if "kinetic" not in self.identity or set(self.identity.values()) - {1, -1}:
+            raise ValueError("the identity needs kinetic energy and signs of +1 or -1")
+        object.__setattr__(self, "terms", MappingProxyType(dict(self.terms)))
+        object.__setattr__(self, "identity", MappingProxyType(dict(self.identity)))
+
+
+@dataclass(frozen=True)
+class RunEvidence:
+    """What the solver's run record establishes (evidence items E2-E5).
+
+    A field is ``None`` when the run did not supply that item. E6, E7 and E9
+    have no field yet: no run has supplied them (ADR-0066 clause 3).
+
+    Parameters
+    ----------
+    identity : SolverIdentity or None
+        E2.
+    termination : tuple of TerminationRecord or None
+        E3, one record per phase or restart segment.
+    n_errors, n_warnings : int or None
+        E3, the solver's diagnostics reduced to counts.
+    timestep : (tuple of float, tuple of float) or None
+        E4 for explicit integration: sample times and time steps [s].
+    ledger : EnergyLedger or None
+        E5.
+    unparsable : frozenset of str
+        Tokens for constructs the reader refused to resolve.
+    """
+
+    identity: SolverIdentity | None = None
+    termination: tuple[TerminationRecord, ...] | None = None
+    n_errors: int | None = None
+    n_warnings: int | None = None
+    timestep: tuple[tuple[float, ...], tuple[float, ...]] | None = None
+    ledger: EnergyLedger | None = None
+    unparsable: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        for token in self.unparsable:
+            if not _TOKEN.fullmatch(token):
+                raise ValueError(f"unparsable entries must be tokens, got {token!r}")
+        if self.timestep is not None and len(self.timestep[0]) != len(self.timestep[1]):
+            raise ValueError("timestep needs one step per sample time")

@@ -42,14 +42,19 @@ from .lsdyna import (
     read_d3plot,
     unit_factors,
 )
-from .lsdyna_run import read_input_facts
+from .lsdyna_run import read_input_facts, read_run_evidence
 from .meshgraphnets import build_deforming_plate_case, parse_meta
+from .run_evidence import RUN_EVIDENCE_SCHEMA, dump_run_evidence, load_run_evidence
 
 __all__ = [
     "read_case",
     "write_case",
     "lsdyna_to_case",
     "read_input_facts",
+    "read_run_evidence",
+    "RUN_EVIDENCE_SCHEMA",
+    "dump_run_evidence",
+    "load_run_evidence",
     "read_d3plot",
     "build_case",
     "extract_geometry",

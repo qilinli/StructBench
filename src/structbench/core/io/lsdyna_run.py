@@ -1,4 +1,8 @@
-"""Fail-closed reader of an LS-DYNA keyword input into :class:`InputFacts` (ADR-0066).
+"""Fail-closed readers of an LS-DYNA run: its input and its run record (ADR-0066).
+
+``read_input_facts`` reads the keyword input into :class:`InputFacts`;
+``read_run_evidence`` reads the message and global-statistics text into
+:class:`RunEvidence`.
 
 The canonical adapter's ``_card_blocks`` drops blank and non-numeric rows, so
 positional extraction from it can return a plausible but wrong table. This
@@ -20,12 +24,23 @@ All LS-DYNA vocabulary of the verification subsystem lives in this file
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
+from typing import Literal
 
-from ..evidence import InputFacts, MaterialInput, PartTraits, RigidPlane
+from ..evidence import (
+    EnergyLedger,
+    InputFacts,
+    MaterialInput,
+    PartTraits,
+    RigidPlane,
+    RunEvidence,
+    SolverIdentity,
+    TerminationRecord,
+)
 from .lsdyna import _CANONICAL_MAT, unit_factors
 
-__all__ = ["read_input_facts"]
+__all__ = ["read_input_facts", "read_run_evidence"]
 
 _WIDTH = 10
 _FIELDS = 8
@@ -356,4 +371,195 @@ def read_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
         particle_pairwise_conservative=None,
         smoothing_length_scale_bounds=bounds,
         unparsable=frozenset(tokens),
+    )
+
+
+# --- the run record (E2-E5) ---------------------------------------------------
+
+#: Global-statistics labels that are ledger terms, in the solver-neutral
+#: vocabulary of ``core.evidence.LEDGER_TERMS``.
+_LEDGER_LABELS = {
+    "kinetic energy": "kinetic",
+    "internal energy": "internal",
+    "hourglass energy": "zero_energy_mode",
+    "stonewall energy": "rigid_surface",
+    "spring and damper energy": "discrete_element",
+    "system damping energy": "damping",
+    "sliding interface energy": "contact",
+    "external work": "external_work",
+    "eroded kinetic energy": "eroded_kinetic",
+    "eroded internal energy": "eroded_internal",
+    "eroded hourglass energy": "eroded_zero_energy_mode",
+}
+#: Labels that are read past: ratios and velocities derived from the above.
+_DERIVED_LABELS = frozenset(
+    {
+        "total energy / initial energy",
+        "energy ratio w/o eroded energy",
+        "global x velocity",
+        "global y velocity",
+        "global z velocity",
+        "time per zone cycle.(nanosec)",
+    }
+)
+#: The terms the solver's total is the sum of. Eroded terms are contained in
+#: the kinetic and internal terms; whether the discrete-element term is
+#: contained in the internal term is not established, so it is left out and
+#: the identity is checked against the solver's own total before it is used.
+_TOTAL_IS_SUM_OF = (
+    "kinetic",
+    "internal",
+    "zero_energy_mode",
+    "rigid_surface",
+    "damping",
+    "contact",
+)
+#: Six printed digits per term, six terms.
+_IDENTITY_RTOL = 1.0e-4
+
+_STAT_LINE = re.compile(r"^ (.{31})\s+(-?\d+\.\d+E[+-]\d+|\d+)(?:\s+wall#\s*\d+)?\s*$")
+_BANNER_DISCLAIMER = re.compile(r"errors encountered in either the documentation")
+
+
+def _ledger(
+    text: str, energy: float, time: float, tokens: set[str]
+) -> tuple[EnergyLedger | None, tuple[tuple[float, ...], tuple[float, ...]] | None]:
+    """The energy ledger and time-step history of a global-statistics file."""
+    blocks: list[dict[str, float]] = []
+    for line in text.splitlines():
+        found = _STAT_LINE.match(line)
+        if found is None:
+            continue
+        label, number = found.group(1).rstrip(". "), float(found.group(2))
+        if label == "time":
+            blocks.append({})
+        if not blocks or label in _DERIVED_LABELS:
+            continue
+        if label in _LEDGER_LABELS or label in ("time", "time step", "total energy"):
+            key = _LEDGER_LABELS.get(label, label)
+            blocks[-1][key] = blocks[-1].get(key, 0.0) + number  # walls add up
+        else:
+            tokens.add("unknown_ledger_label")
+    if not blocks or "unknown_ledger_label" in tokens:
+        return None, None
+    if any(block.keys() != blocks[0].keys() for block in blocks):
+        tokens.add("ragged_ledger")
+        return None, None
+    if not {"time", "time step", "kinetic", "total energy"} <= blocks[0].keys():
+        tokens.add("incomplete_ledger")
+        return None, None
+
+    def series(key: str, factor: float) -> tuple[float, ...]:
+        return tuple(block[key] * factor for block in blocks)
+
+    times = series("time", time)
+    steps = (times, series("time step", time))
+    terms = {
+        key: series(key, energy) for key in blocks[0] if key in _LEDGER_LABELS.values()
+    }
+    total = series("total energy", energy)
+    identity = {key: 1 for key in _TOTAL_IS_SUM_OF if key in terms}
+    scale = max(abs(x) for x in total) or 1.0
+    for i, printed in enumerate(total):
+        if (
+            abs(sum(terms[key][i] for key in identity) - printed)
+            > _IDENTITY_RTOL * scale
+        ):
+            tokens.add("ledger_identity_unverified")
+            return None, steps
+    return EnergyLedger(times, terms, identity, total), steps
+
+
+def _messages(
+    text: str, time: float, tokens: set[str]
+) -> tuple[SolverIdentity | None, TerminationRecord, int, int]:
+    """Identity, termination and diagnostic counts from a solver message file.
+
+    Only whitelisted patterns are read; nothing of the text is kept.
+    Diagnostics are counted fail-closed: every line that mentions a warning
+    or an error counts, except the banner's standing disclaimer.
+    """
+    identity = None
+    stamp = re.search(r"^\s*ls-dyna\s+(\S+)\s+([sd])\s+date\b", text, re.MULTILINE)
+    if stamp is not None:
+        revision = re.search(r"SVN Version:\s*(\d+)", text)
+        procs = re.search(r"MPP execution with\s+(\d+)\s+procs", text)
+        version = stamp.group(1)
+        if not re.fullmatch(r"[A-Za-z0-9_.+-]{1,32}", version):
+            tokens.add("solver_version")
+        else:
+            identity = SolverIdentity(
+                "ls-dyna",
+                version,
+                revision.group(1) if revision else None,
+                "double" if stamp.group(2) == "d" else "single",
+                f"mpp:{procs.group(1)}" if procs else None,
+            )
+
+    status: Literal["normal", "error", "none"] = "none"
+    if re.search(r"N o r m a l\s+t e r m i n a t i o n", text):
+        status = "normal"
+    elif re.search(r"E r r o r\s+t e r m i n a t i o n", text):
+        status = "error"
+    criterion = None
+    if "*** termination time reached ***" in text:
+        criterion = "end_time"
+    elif status == "normal":
+        tokens.add("termination_criterion")
+    final = re.search(r"Problem time\s*=\s*(\S+)", text)
+    cycles = re.search(r"Problem cycle\s*=\s*(\d+)", text)
+    record = TerminationRecord(
+        status,
+        float(final.group(1)) * time if final else None,
+        int(cycles.group(1)) if cycles else None,
+        criterion,
+    )
+
+    lines = [ln for ln in text.splitlines() if not _BANNER_DISCLAIMER.search(ln)]
+    n_errors = sum(bool(re.search(r"\berrors?\b", ln, re.IGNORECASE)) for ln in lines)
+    n_warnings = sum(
+        bool(re.search(r"\bwarnings?\b", ln, re.IGNORECASE)) for ln in lines
+    )
+    return identity, record, n_errors, n_warnings
+
+
+def read_run_evidence(
+    *,
+    messages_text: str | None,
+    global_statistics_text: str | None,
+    source_units: str,
+) -> RunEvidence:
+    """Read what a run's text records establish into ``RunEvidence`` (ADR-0066).
+
+    Takes text, never a directory, and keeps none of it: the record holds
+    numbers, enum values and version tokens only, so a licence number, a
+    host name or a path in the message file cannot reach a report. Unknown
+    ledger labels, a ragged ledger, or a balance identity the solver's own
+    total does not confirm yield no ledger and an ``unparsable`` token —
+    never a partial one.
+
+    Parameters
+    ----------
+    messages_text : str or None
+        The solver's message file (rank 0 of a parallel run).
+    global_statistics_text : str or None
+        The ASCII global-statistics file.
+    source_units : str
+        Unit system of the run, ``"mass-length-time"``.
+
+    Raises
+    ------
+    ValueError
+        If ``source_units`` is not a known unit system.
+    """
+    f = unit_factors(source_units)
+    tokens: set[str] = set()
+    ledger, steps = None, None
+    if global_statistics_text is not None:
+        ledger, steps = _ledger(global_statistics_text, f["energy"], f["time"], tokens)
+    if messages_text is None:
+        return RunEvidence(timestep=steps, ledger=ledger, unparsable=frozenset(tokens))
+    identity, record, n_errors, n_warnings = _messages(messages_text, f["time"], tokens)
+    return RunEvidence(
+        identity, (record,), n_errors, n_warnings, steps, ledger, frozenset(tokens)
     )

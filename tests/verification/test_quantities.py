@@ -22,6 +22,15 @@ _STAGE1 = frozenset({E.E1, E.E8, E.E10A})
 
 _IMPLEMENTED = {
     "active_mass_drift",
+    "energy_gain_max",
+    "energy_loss_max",
+    "energy_residual_final",
+    "solver_error_count",
+    "solver_identity_complete",
+    "solver_warning_count",
+    "terminated_normally",
+    "timestep_min_ratio",
+    "total_energy_change_final",
     "declared_traits_match_input",
     "density_slot_matches_input",
     "elements_without_input_part",
@@ -108,10 +117,12 @@ def test_stage_one_rows_are_implemented_and_versioned() -> None:
         assert q.meaning.strip() and "\n" not in q.meaning, q.name
 
 
-def test_stage_one_rows_need_only_the_case_the_input_and_declarations() -> None:
+def test_implemented_rows_need_only_evidence_a_run_has_supplied() -> None:
+    # E6, E7 and E9 have no record field yet: no run has supplied them
+    built = {E.E1, E.E2, E.E3, E.E4, E.E5, E.E8, E.E10A, E.E10B}
     for q in CATALOGUE:
         if q.status is Status.IMPLEMENTED:
-            assert q.requires <= {E.E1, E.E8, E.E10A, E.E10B}, q.name
+            assert q.requires <= built, q.name
 
 
 def test_get_quantity_names_the_valid_choices() -> None:
@@ -201,6 +212,6 @@ def test_an_unsupported_material_class_is_the_platforms_gap() -> None:
 
 def test_a_specified_row_with_all_its_evidence_is_an_instrument_gap() -> None:
     everything = frozenset(EvidenceItem)
-    row = gate(get_quantity("energy_gain_max"), _facts(), _DECLARED, everything)
+    row = gate(get_quantity("external_work_closure"), _facts(), _DECLARED, everything)
     assert row is not None and row.absence is not None
     assert row.absence.reason is AbsenceReason.UNSUPPORTED

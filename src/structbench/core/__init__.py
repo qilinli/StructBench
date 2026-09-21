@@ -8,15 +8,20 @@ validator, the custom exceptions, and the solver-neutral evidence records
 from __future__ import annotations
 
 from .evidence import (
+    LEDGER_TERMS,
     PLATFORM_REASONS,
     Absence,
     AbsenceReason,
     DeclaredFacts,
+    EnergyLedger,
     EvidenceItem,
     InputFacts,
     MaterialInput,
     PartTraits,
     RigidPlane,
+    RunEvidence,
+    SolverIdentity,
+    TerminationRecord,
     UnitsAnchor,
 )
 from .exceptions import SchemaError, StructBenchError
@@ -26,6 +31,7 @@ from .io import (
     parse_meta,
     read_case,
     read_input_facts,
+    read_run_evidence,
     write_case,
 )
 from .schema import (
@@ -42,7 +48,12 @@ from .schema import (
 from .validation import validate
 
 __all__ = [
+    "LEDGER_TERMS",
     "PLATFORM_REASONS",
+    "EnergyLedger",
+    "RunEvidence",
+    "SolverIdentity",
+    "TerminationRecord",
     "Absence",
     "AbsenceReason",
     "DeclaredFacts",
@@ -65,6 +76,7 @@ __all__ = [
     "StructBenchError",
     "read_case",
     "read_input_facts",
+    "read_run_evidence",
     "write_case",
     "lsdyna_to_case",
     "validate",
