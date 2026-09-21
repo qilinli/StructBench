@@ -443,15 +443,19 @@ def _fm_traj(T: int = 8, P: int = 3, dim: int = 2):
 def test_flow_map_rollout_schedule():
     tr = _fm_traj()  # T=8; input_frames=2 -> seed anchor t0=1, queries f=2..7
     sim = _AnchorRecorder(tr)
-    flow_map_rollout(sim, tr, input_frames=2, time_ref_frames=8, interval=2,
-                     anchor_mode="self")
+    flow_map_rollout(
+        sim, tr, input_frames=2, time_ref_frames=8, interval=2, anchor_mode="self"
+    )
     # Re-anchor after the query at f = t0 + m, never at the final frame.
     assert [a[0] for a in sim.anchors] == [1, 3, 5]
     assert [a[2] for a in sim.anchors] == [1 / 7, 3 / 7, 5 / 7]
     assert sim.queries == [
-        (2, round(1 / 7, 6)), (3, round(2 / 7, 6)),
-        (4, round(1 / 7, 6)), (5, round(2 / 7, 6)),
-        (6, round(1 / 7, 6)), (7, round(2 / 7, 6)),
+        (2, round(1 / 7, 6)),
+        (3, round(2 / 7, 6)),
+        (4, round(1 / 7, 6)),
+        (5, round(2 / 7, 6)),
+        (6, round(1 / 7, 6)),
+        (7, round(2 / 7, 6)),
     ]
 
 

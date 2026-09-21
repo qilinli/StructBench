@@ -51,7 +51,7 @@ mis-localises the response there, while relative-position message passing
 degrades more gracefully). Everything is scored over the 250 µs window (ADR-0039)
 in physical units — position RMSE in mm, strain RMSE — plus two quantities of
 interest: peak mid-span deflection and the end-state cracked fraction. The
-numbers, and the cross-method comparison, are below."""
+numbers, and the cross-method comparison, are below."""  # noqa: E501 - a markdown image line cannot wrap
 
 CARD = BenchmarkCard(
     name="NotchBeam2D-Impact",

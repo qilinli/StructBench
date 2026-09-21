@@ -26,9 +26,7 @@ def test_common_mode_cancels_in_fd_velocity():
     # position corrupted...
     assert not torch.allclose(noised[:, 1], pair[:, 1])
     # ...but the FD velocity is untouched (same draw on both frames).
-    torch.testing.assert_close(
-        noised[:, 1] - noised[:, 0], pair[:, 1] - pair[:, 0]
-    )
+    torch.testing.assert_close(noised[:, 1] - noised[:, 0], pair[:, 1] - pair[:, 0])
 
 
 def test_differential_hits_velocity_only():
@@ -39,9 +37,7 @@ def test_differential_hits_velocity_only():
     # anchor position (frame t0) untouched...
     torch.testing.assert_close(noised[:, 1], pair[:, 1])
     # ...FD velocity corrupted.
-    assert not torch.allclose(
-        noised[:, 1] - noised[:, 0], pair[:, 1] - pair[:, 0]
-    )
+    assert not torch.allclose(noised[:, 1] - noised[:, 0], pair[:, 1] - pair[:, 0])
 
 
 def test_kinematic_rows_stay_clean():

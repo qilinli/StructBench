@@ -51,7 +51,7 @@ fails outright (relative L2 > 1) - the sustained 30 ms reverberation
 recirculates rollout errors instead of letting them decay, and only CGN's
 relative-displacement particle-graph formulation survives it. The
 autoregressive rows are kept as deliberate negative results; the numbers
-are below."""
+are below."""  # noqa: E501 - a markdown image line cannot wrap
 
 CARD = BenchmarkCard(
     name="Wave1D-Propagation",

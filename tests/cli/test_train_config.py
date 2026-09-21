@@ -781,9 +781,7 @@ def test_flow_map_requires_aux_input(tmp_path):
 
 
 def test_flow_map_rejects_pushforward(tmp_path):
-    cfg = _fm_toml(
-        **{"aux_input_pushforward = false": "aux_input_pushforward = true"}
-    )
+    cfg = _fm_toml(**{"aux_input_pushforward = false": "aux_input_pushforward = true"})
     with pytest.raises(ConfigError, match="aux_input_pushforward is incompatible"):
         load_run_config(_write(tmp_path, cfg))
 
@@ -963,9 +961,7 @@ def _sh_toml(**replacements) -> str:
     """_fm_toml with the canonical state block and structured heads on."""
     s = _fm_toml(
         **{
-            "flow_map_structured_heads = false": (
-                "flow_map_structured_heads = true"
-            ),
+            "flow_map_structured_heads = false": ("flow_map_structured_heads = true"),
             "[train]": f"[train]\n{_STATE_BLOCK}",
         }
     )
@@ -1007,11 +1003,7 @@ def test_adr0064_mutual_exclusion(tmp_path):
 def test_adr0064_structured_requires_state_block(tmp_path):
     # missing aux_fields: the effective layout is the benchmark default
     cfg = _fm_toml(
-        **{
-            "flow_map_structured_heads = false": (
-                "flow_map_structured_heads = true"
-            )
-        }
+        **{"flow_map_structured_heads = false": ("flow_map_structured_heads = true")}
     )
     with pytest.raises(ConfigError, match="canonical state block"):
         load_run_config(_write(tmp_path, cfg))
@@ -1045,12 +1037,8 @@ def test_adr0064_knobs_require_benchmark_hardening_curve(tmp_path):
         load_run_config(_write(tmp_path, _sh_toml()))
     cfg = _sh_toml(
         **{
-            "flow_map_structured_heads = true": (
-                "flow_map_structured_heads = false"
-            ),
-            "flow_map_consistency_hinge = 0.0": (
-                "flow_map_consistency_hinge = 1.0"
-            ),
+            "flow_map_structured_heads = true": ("flow_map_structured_heads = false"),
+            "flow_map_consistency_hinge = 0.0": ("flow_map_consistency_hinge = 1.0"),
         }
     )
     with pytest.raises(ConfigError, match="hardening_curve"):
