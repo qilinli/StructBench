@@ -113,6 +113,7 @@ What becomes easier, harder, or constrained as a result.
 | 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Durable | Accepted (amended 2026-09-10; verdict note 2026-09-12) |
 | 0064 | Constitutively-structured admissible heads: return-map decoder structure (D2/D3 by construction) + consistency-hinge comparator | Durable | Accepted |
 | 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session) |
+| 0066 | Reference-data verification: the `verification/` module | Durable | Accepted |
 
 ---
 
