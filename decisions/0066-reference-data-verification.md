@@ -22,160 +22,277 @@ trustworthy:
 - Provenance is `("LS-DYNA", "unknown", <d3plot mtime>)` on every ingested
   case. No reader exists for any solver output other than d3plot.
 
-Two facts about the evidence shape the design. **Public evidence is richer
-than it looks**: every canonical `<case_id>.h5` already stores the input deck
-verbatim (`metadata/source_deck`), the three global energies, and the SPH
-fields a constitutive or particle-health check needs, so a large part of an
-audit is reproducible from the public archives alone. **Private evidence is
-uneven**: the maintainer-held run folders all keep the solver message files,
-but only the Taylor runs wrote a global-statistics file — the wave-1D and
-notch decks never requested one, so their energy decomposition is not
-assessable without a re-run. A first measurement on one Taylor run shows why
-this matters: normal termination, no mass scaling, zero external work, and a
-total-to-initial energy ratio that peaks at 1.089 and ends at 1.070 — net
-energy creation in a closed system, recorded nowhere.
+**The design starts from what verification requires, not from what the
+existing archives happen to contain.** The three LS-DYNA archives are small
+sweeps produced years before this repository existed. Which solver outputs
+they requested, and which files were kept, is an accident of how they were
+run; it says nothing about what the platform should ask for or what a run
+can supply. So this ADR works from the mechanics outward: each quantity
+states the evidence a run must supply for it to be assessable, and the union
+of those statements is what future data generation is asked to supply and
+what a contribution is measured against. Applied to a legacy archive, the
+requirement produces honest `not_assessable` rows that name what is missing,
+and nothing else. The legacy archives serve one purpose in the design: a
+test bed for the instrument.
 
-The design was reviewed in-session (2026-09-21) as three independent module
-designs attacked by three adversarial reviews (repository governance,
-computational mechanics, buildability). The reviews changed the design
-materially; the rejected alternatives below record what they overturned.
+That a run has to be measured at all is not hypothetical. On one test-bed
+run whose global energy record was read by hand, the solver reports normal
+termination while its recorded total energy rises by several percent with no
+external work. Whether that is a genuine imbalance or an accounting artefact
+is not established — nothing in the repository can say, which is the gap
+this ADR closes. The figures are in the design doc's test plan.
+
+A first draft was reviewed in-session (2026-09-21) for repository
+governance, computational mechanics, and buildability. The maintainer then
+reversed its evidence model (see the first rejected alternative), and the
+revision was reviewed again on the same three lenses. This ADR records the
+result.
 
 Binding constraints: ADR-0004 (no solver vocabulary outside adapters),
 ADR-0010 (a solver abstraction layer was rejected as premature — "needs at
 least two concrete solvers to be designed correctly"), ADR-0016 §4/§6 (no
 feature engineering at ingestion; glue never manipulates response data),
 ADR-0027 (per-benchmark declarations are typed dataclasses; derivable numbers
-are computed, not declared), ADR-0031 (the archive content list is closed),
-ADR-0033 (results never bump a benchmark version), ADR-0064 (one
-authoritative hardening table), the dependency graph in
-`docs/ARCHITECTURE.md`, and the active correction of 2026-07-03 (prefer the
-smallest artifact that encodes the behaviour).
+are computed, not declared), ADR-0031 and ADR-0040 (the archive content list
+and the public mirror built from it), ADR-0033 (results never bump a
+benchmark version), ADR-0064 (one authoritative hardening table), the
+dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
+2026-07-03 (prefer the smallest artifact that encodes the behaviour) and
+2026-09-21 (design for the future, not for the legacy runs).
 
 ## Decision
 
 1. **A new top-level module `src/structbench/verification/`** holds the
    deterministic checks: array-level kernels, material-class semantics, the
    quantity catalogue, `measure`, the criteria with `judge`, and the report.
-   It sits between `datasets/` and the peer modules:
+   It sits between `datasets/` and the modules that may use it:
 
    ```
-   core ← datasets ← verification ← {eval, benchmarks, models, viz} ← cli
+   core ← datasets ← verification ← {eval, benchmarks} ← cli
    ```
 
-   It imports `core` and `datasets` only. No code moves; `datasets` gains one
-   export (`n_valid_frames`). The name follows ADR-0065 clause 4
-   ("verification is reported before accuracy is compared") and leaves
-   *validation* free for the reality layer; it is unrelated to
-   `core/validation.py`, which stays the schema-validity check. The kernels
-   are written on plain arrays (e.g. `(von_mises, yield_stress)`), so `eval/`
-   can later call the same functions on predicted fields with no new edge.
+   It imports `core` and `datasets` only; `models/` and `viz/` gain no edge
+   to it. No code moves; `datasets` gains one export (`n_valid_frames`). The
+   name follows ADR-0065 clause 4 ("verification is reported before accuracy
+   is compared") and leaves *validation* free for the reality layer; it is
+   unrelated to `core/validation.py`, which stays the schema-validity check.
+   The kernels are written on plain arrays (e.g. `(von_mises,
+   yield_stress)`), so `eval/` can later call the same functions on predicted
+   fields with no new edge.
 
-2. **Evidence is a record type plus one concrete extractor — not a solver
-   abstraction.** `core/evidence.py` defines small solver-neutral, SI-valued
-   records (`Absence`, `PartTraits`, `DeckFacts`, `RunEvidence`), re-exported
-   through `structbench.core`. `core/io/lsdyna_run.py` is the single
-   extractor. There is no protocol, registry, or plugin seam (ADR-0010
-   stands), records carry only fields a shipped check consumes, and LS-DYNA
-   vocabulary stays inside `core/io/lsdyna*.py`. Three evidence tiers exist,
-   and every measurement states which one produced it:
+2. **The run-evidence requirement.** Every catalogue quantity declares the
+   evidence it needs. The union is what a run has to supply for every
+   applicable quantity to be assessable:
 
-   | Tier | Source | Availability |
-   |---|---|---|
-   | `case` | canonical `.h5` response and globals | public |
-   | `deck` | `metadata/source_deck` in the same file | public |
-   | `run` | solver message and global-statistics files | maintainer-held |
+   | | A run supplies |
+   |---|---|
+   | E1 | the complete solver input as the solver read it — every included file, parameter values resolved or recorded, user subroutines and driving scripts by source or content hash — and, where the solver writes one, its echo of the resolved input with defaults applied |
+   | E2 | solver identity: name, version, revision, floating-point precision of the solver and of each output stream, parallel layout |
+   | E3 | for every analysis phase and restart segment: status, final time, number of steps or increments, and the criterion that ended it; plus the solver's diagnostics reduced to counts by class (errors, warnings, element inversion, non-finite or out-of-range kinematics, entities deleted for numerical reasons, initial contact overclosures) |
+   | E4 | the time-integration record — explicit: time-step history, the part controlling it, and non-physical mass added over time, in total and per part; implicit: per increment, iterations, residual and energy norms against their tolerances, cut-backs, and any increment accepted without convergence |
+   | E5 | a global energy ledger over time in which every term of the solver's energy balance is separate and the balance identity is declared (which terms sum to the total, with what sign, which are contained in others): at minimum kinetic, internal, and external work, plus each non-physical or dissipative term the formulation has — zero-energy-mode control, contact and penalty work including rigid surfaces, damping, artificial viscosity, work done by mass scaling, energy removed by deletion |
+   | E6 | per-part energy and mass, and per-contact-interface energy, over time |
+   | E7 | applied-load resultants, including loads the solver computes internally, and boundary and contact reactions, over time |
+   | E8 | field output at the points where the constitutive update is performed, or with the reduction declared: displacement, velocity, mass; stress and strain with their measure, frame, and shear convention declared; every argument of the material's admissibility functions as the update used it, declared per material from a closed vocabulary; pressure, density, and specific internal energy where an equation of state makes them independent state; section-point stresses, or section resultants with their conjugate deformations, for structural elements; neighbour count, smoothing length, and activity flag for particle methods; the deletion flag under erosion |
+   | E9 | ledger, loads, and reactions sampled at an interval that divides the field-output interval and is no longer than a declared fraction of the shortest physical time scale of interest; both declared |
+   | E10 | the input's units of mass, length, and time (and temperature where thermal), plus three SI anchors of independent dimension — a density, a modulus or velocity, a characteristic length — each naming the input quantity it corresponds to and its kind of source |
+
+   The items are stated from the mechanics — every mechanism that does work
+   on, or removes energy or mass from, the discretised system has its own
+   ledger term — not from any solver's output list. With one solver
+   implemented, the item list and term names are **provisional**; the second
+   solver's adapter is the trigger for a dated note revising them.
+
+   *Applicability.* An E5–E7 term is required of a run only when the run's
+   input-derived traits make it applicable (zero-energy-mode work for an
+   under-integrated part, contact work for a contact definition, and so on).
+   A quantity is assessable if and only if every required item is present;
+   a term that is not required is not an absence. Where a solver keeps no
+   energy ledger, E5/E6 may be met by one derived from its outputs with the
+   method declared; the quantity and its criterion are unchanged, and the
+   measurement records the ledger's origin. E9 is judged by its own
+   integrity quantity and is not a precondition of the others. The
+   declarations inside E8 and E10 are made once per dataset.
+
+   *One definition per quantity.* When required evidence is absent the
+   verdict is `not_assessable` with the missing items named; there are no
+   degraded-mode substitutes computed from whatever a file happens to hold.
+   The same row is therefore the feedback a contributor needs.
+
+   *What this ADR does not decide.* Data generated in this repository is
+   built to meet the requirement, and a contributed dataset is measured
+   against it. Whether an unmet item blocks admission, and how datasets that
+   can never meet it (third-party public data with no solver input) are
+   treated, is ADR-0065 follow-up 2's decision. Re-judging needs only the
+   committed measurements (clause 8); re-*measuring* needs the evidence, and
+   what may ever be published is the whitelisted record of clause 3, never
+   raw solver files. Whether and how that record ships with a dataset is
+   follow-up 2's decision together with ADR-0031 and ADR-0040; until then
+   archive contents are untouched. Dataset-level standards (a record of
+   discarded runs; mesh, time-step, and numerical-parameter sensitivity
+   studies; a repeat-run noise floor including parallel decomposition;
+   cross-solver and constitutive-sensitivity studies; a physical-test
+   anchor) remain ADR-0065's. E2 records the parallel layout; it does not
+   establish reproducibility across layouts. How each solver meets E1–E10 is
+   documented with its adapter under `data_generation/`; for LS-DYNA that
+   mapping is checked against the keyword manual before it is written down.
+
+3. **Evidence is read into record types by one concrete extractor — not a
+   solver abstraction.** `core/evidence.py` defines small solver-neutral,
+   SI-valued records (`Absence`, `PartTraits`, `InputFacts`, `RunEvidence`,
+   `DeclaredFacts`), re-exported through `structbench.core`.
+   `core/io/lsdyna_run.py` is the single extractor. There is no protocol,
+   registry, or plugin seam (ADR-0010 stands), and LS-DYNA vocabulary stays
+   inside `core/io/lsdyna*.py`. A record field is implemented when a run
+   first supplies the evidence for it, never before. Each measurement lists
+   where its evidence was read from — `case` (the canonical file), `input`
+   (the solver input stored in it), `run` (the run-evidence record),
+   `declared` (benchmark declarations). That list is a locator, not part of
+   a quantity's definition: moving evidence between locations never changes
+   a `definition_version`.
 
    Parsers take *text*, never directories. Per-dataset glue under
-   `data_generation/` builds explicit paths from case ids (no globbing),
-   calls the extractor, and writes one whitelisted `run_evidence.json`; the
-   library and CLI never receive a run directory. Evidence records have no
-   free-text field, so licence numbers, host names, and local paths cannot
-   reach an artefact. Deck facts are read by a new faithful, **fail-closed**
-   card reader (blank data lines and fixed field positions preserved;
-   `*INCLUDE`, `*PARAMETER`, `&` references, and free-format rows yield
-   `unparsable`); the existing `_card_blocks` drops blank and non-numeric
-   rows and stays private to material ingestion. Run-tier measurement works
-   with no `Case`, so a run that never became a case can still be measured.
+   `data_generation/` builds explicit paths from case ids, calls the
+   extractor, and writes one whitelisted run-evidence record; the library
+   and CLI never receive a run directory. Evidence records carry no unparsed
+   text: every string field is an enum or matches a fixed pattern (a version
+   token, for example), so licence numbers, host names, and local paths
+   cannot reach a report. The verbatim input of E1 is outside that guarantee
+   and is scanned by the dataset's glue before ingestion. Input facts are
+   read by a new faithful, **fail-closed** reader: blank data lines and
+   fixed field positions are preserved, and any construct the reader does
+   not resolve yields `unparsable` rather than a guess. Where the solver's
+   echo is supplied, effective settings are read from it; an absent setting
+   is otherwise `not_assessable`, never assumed to be the default. The
+   existing `_card_blocks` drops blank and non-numeric rows and stays
+   private to material ingestion. Run-evidence quantities can be measured
+   with no `Case`, so a run discarded before it became a case can still be
+   measured.
 
-3. **Measuring and judging are separate functions.** `measure` turns
-   evidence into threshold-free measurements (quantity, value, unit, tier,
-   sample count, detail) or a typed absence. `judge` turns measurements plus
-   criteria into verdicts and never touches data. Verdicts are therefore a
-   pure function of committed measurements and tracked criteria, and no
-   command-line flag alters a criterion.
+4. **Measuring and judging are separate functions.** `measure` turns
+   evidence into threshold-free measurements (quantity, value, unit,
+   sources, sample count, detail) or a typed absence. `judge` turns
+   measurements plus criteria into verdicts and never touches data. Verdicts
+   are therefore a pure function of committed measurements and tracked
+   criteria, and no command-line flag alters a criterion.
 
-4. **Four verdicts, one owner each, evaluated in a fixed order.** Every
-   catalogue quantity answers for every case.
+5. **Four verdicts, one owner each, evaluated in a fixed order.**
 
    1. Formulation traits own `not_applicable` — the quantity does not exist
-      for this formulation (hourglass energy on an SPH part).
-   2. Evidence absence owns `not_assessable`, always with a typed reason:
-      `not_requested`, `not_computed`, `not_ingested`, `source_missing`,
-      `unparsable`, `source_unreadable`, `unsupported`; and, from `judge`,
-      `no_ratified_criterion`.
+      for this formulation.
+   2. Evidence absence owns `not_assessable`, always with a typed reason and
+      the missing evidence items named.
    3. Measurement against a criterion owns `pass` and `fail`.
 
-   The test between the middle two is whether better evidence could change
-   the answer. Traits are evaluated first, and unknown traits yield
-   `not_assessable`, never `not_applicable`. A check that has not been built
-   is a library gap listed in documentation; it is never rendered as a
-   verdict about a dataset.
+   The test between the first two is whether better evidence could change
+   the answer. Unknown traits yield `not_assessable`, never
+   `not_applicable`. Reasons say who can close the gap. *The contributor*:
+   `not_requested`, `not_computed`, `source_missing`, `unparsable`,
+   `source_unreadable`. *Nobody, for this solver*:
+   `not_available_from_solver`. *The platform*: `not_ingested`,
+   `unsupported`, `no_ratified_criterion`, `stale_definition` — these are
+   reported in a separate block ("not yet checked by this instrument") and
+   never count as a dataset's gap.
 
-5. **Traits are per part and deck-derived; declarations are claims.** A case
-   may carry several materials, so the extractor reads the part-to-material
-   map from the deck. A canonical file may also carry element blocks that
-   have no part in the deck — the Taylor files hold a four-node shell that
-   is visualisation geometry written into the d3plot, while the deck defines
-   a single SPH part. Such blocks are non-structural: they are excluded from
-   every check and counted by an integrity row, so they cannot make an SPH
-   case read as "coupled". Traits are therefore never inferred from a case
-   file's element keys. Card declarations
-   (`discretisation`, `erosion`, `fields`) are cross-checked against derived
-   traits and are the fallback only for deck-less data. Material knowledge
-   is two tables: *solver keyword → material class* in `core/io`, and *class
-   → meaning of the internal-variable slot, its bounds, and which yield law
-   is assessable* in `verification/`. `BenchmarkSpec.hardening_curve` stays
-   the only operative yield table (ADR-0064); the deck's table is read only
-   to verify that the two agree.
+   The catalogue is *specified* from the requirement. Every quantity has a
+   catalogue row from the first slice — name, category, required evidence,
+   trait gate, meaning of a violation, and status `specified` or
+   `implemented` — and rows are data, not code paths. The trait gate and
+   the evidence gate need no solver-output parser, so they run for every
+   row: a contributor is told which evidence is missing even for a quantity
+   whose measure does not exist yet. Only the *measure* — parser, record
+   field, kernel — is built when a run first supplies the evidence, so its
+   tests rest on real output. An applicable quantity whose evidence is
+   present but whose measure is unbuilt is listed as an instrument gap,
+   never rendered as a verdict about the dataset. A data-free test checks
+   that the union of the rows' requirements is exactly E1–E10.
 
-6. **Criteria are the platform's standard, of two kinds that are never
-   mixed.** *Acceptance criteria* (energy balance, added mass, hourglass
-   ratio, time-step collapse) are set a priori from an external source the
-   maintainer has verified, and are committed before the cases they judge
-   are measured; until ratified the verdict is
-   `not_assessable / no_ratified_criterion`. *Instrument tolerances*
-   (float32 closure sums, discretised-return yield excess, end-time match)
-   derive from storage precision or a named algorithmic mechanism, may be
-   calibrated from measurement, and are flagged `provisional` until pinned.
-   Every criterion is a record with a required, rendered rationale.
-   Benchmarks cannot loosen a criterion; they may declare non-derivable
-   facts and, when first needed, dated waivers that acknowledge a known
-   deviation. A grandfathered benchmark may visibly fail. Gates, severities,
-   and scores are not introduced without a further ADR.
+6. **Traits are per part and input-derived; declarations are claims.** A
+   case may carry several materials, so the extractor reads the
+   part-to-material map from the solver input. Traits are never inferred
+   from a case file's element keys; an element block with no part in the
+   input is reported by an integrity row and left out of the per-part
+   checks — a finding, not a presumption that the block is benign. A dataset
+   with no solver input does not meet E1: its traits are unknown, every
+   trait-gated quantity is `not_assessable / source_missing` naming E1, and
+   its card declarations are rendered as unverified claims that never issue
+   `not_applicable`. Material knowledge has two homes, one of which exists
+   already: *solver keyword → material class* is ADR-0012's `canonical_model`
+   (today `_CANONICAL_MAT` in `core/io/lsdyna.py`, stored with each case);
+   *class → the admissibility functions, the meaning and bounds of each
+   state variable, and which checks are assessable* is new, in
+   `verification/materials.py`, keyed on `canonical_model`. No second
+   keyword table is added; a null class yields `not_assessable /
+   unsupported`, and growing the enum stays the follow-on ADR-0012
+   anticipates. Once E8's declaration has a home, the declared meaning is
+   cross-checked against the class table. `BenchmarkSpec.hardening_curve`
+   stays the only operative yield table (ADR-0064); the input's table is
+   read only to verify that the two agree. Constitutive bounds are
+   two-sided only on constitutive-point data; on reduced data the upper
+   bound is reported as one-sided and its lower-bound companion is
+   `not_assessable`.
 
-7. **Measurements are the committed record; verdicts are generated.** The
+7. **Criteria are the platform's standard, of two kinds that are never
+   mixed.** *Acceptance criteria* (energy balance, added mass,
+   zero-energy-mode ratio, time-step collapse, implicit convergence) are
+   taken from an external source the maintainer has verified, as the source
+   states them — limit, normalisation, and whether it applies at the end of
+   the run or over its whole duration — and are never adjusted in light of
+   any StructBench measurement; the criterion record cites the source and
+   the date it was verified. Measurements may exist first; they render
+   `not_assessable / no_ratified_criterion` until ratification, and a
+   criterion ratified after a test-bed value was already known says so in
+   its rationale. *Instrument tolerances* (closure sums, end-time match)
+   derive from storage precision or from a named and confirmed algorithmic
+   mechanism, and the bound is computed from that mechanism; they are never
+   fitted to values measured on the test bed. A quantity whose mechanism is
+   unconfirmed is measured and published with no criterion. Every criterion
+   is a record with a required, rendered rationale. Benchmarks cannot loosen
+   a criterion; when first needed, a dated waiver may annotate a `fail` with
+   the maintainer's acknowledgement, and it never changes the verdict. A
+   grandfathered benchmark may visibly fail. Gates, severities, and scores
+   are not introduced without a further ADR.
+
+8. **Measurements are the committed record; verdicts are generated.** The
    JSON report carries a schema id, the package version, a per-quantity
-   `definition_version`, the SHA-256 of each measured file, and values
-   rounded to fixed significant digits; it carries no timestamp, host, or
-   path, and a re-run is byte-identical. Working output goes to gitignored
-   `runs/`. The published record is `docs/datachecks/<benchmark>.json` with a
-   generated `.md`, pinned by a data-free test that the markdown equals
-   `render(judge(json, criteria))`. A stale `definition_version` renders as
-   "stale — re-measure" for that row only. The CLI exits `0` on completion
-   and `2` on usage or I/O errors; failing verdicts are reported in the
-   output, not through the exit code, and an unreadable input becomes a
-   recorded row rather than an abort. Changing a criterion never bumps a
-   benchmark version (the ADR-0033 rule); removing a case because of a
-   verdict is a split change and does (ADR-0019).
+   `definition_version`, the SHA-256 of each measured case file and of the
+   run-evidence record a `run` row was measured from, and values rounded to
+   fixed significant digits; it carries no timestamp, host, or path, and a
+   re-run is byte-identical. Working output goes to gitignored `runs/`. The
+   published record is `docs/datachecks/<benchmark>.json` with a generated
+   `.md`, pinned by a data-free test that the markdown equals
+   `render(judge(json, criteria))`. A stale `definition_version` is judged
+   `not_assessable / stale_definition` for that row only. The CLI exits `0`
+   on completion and `2` on usage or I/O errors; failing verdicts are
+   reported in the output, not through the exit code, and an unreadable
+   input becomes a recorded row rather than an abort. Changing a criterion
+   never bumps a benchmark version (the ADR-0033 rule); removing a case
+   because of a verdict is a split change and does (ADR-0019).
 
-8. **Scope.** This ADR discharges none of ADR-0065's four follow-ups. It
-   supplies the measurements follow-up 2's compliance table will render and
-   the kernels follow-up 1's properties block will call. Benchmark cards,
-   results registries, `render.py`, the generated benchmark pages, the case
-   schema, and the archive contents are untouched.
+9. **Scope.** This ADR discharges none of ADR-0065's four follow-ups. It
+   supplies the measurements follow-up 2's compliance table can render, the
+   run-evidence requirement its admission rules can cite, and the kernels
+   follow-up 1's properties block can call. Benchmark cards, results
+   registries, `render.py`, the generated benchmark pages, the case schema,
+   and the archive contents are untouched. Nothing in the catalogue, the
+   records, or the criteria is shaped to make the legacy archives
+   assessable; their published records are the visibility ADR-0065 asks for.
 
 ## Alternatives considered
 
+- **Shape the evidence model around what the existing archives kept** — the
+  first draft of this ADR did: evidence tiers defined by who holds the
+  files, a coarse energy check computed from stored globals wherever no
+  ledger was written, a precedence rule for when the two disagreed, a
+  declared-traits fallback for data with no solver input, tolerances
+  calibrated on the legacy cases, and a two-grid stand-in for a refinement
+  study. Rejected (maintainer, 2026-09-21). The archives are small, pre-date
+  the repository, and are unrepresentative of what future runs can supply; a
+  fallback gives one quantity two definitions; and the right response to
+  missing evidence is a stated requirement plus an honest `not_assessable`,
+  not a workaround that becomes permanent. A first revision then copied the
+  requirement from one solver's output list; the second review caught that,
+  and clause 2 is stated from the mechanics instead.
 - **No new module — measures in `datasets/`, verdicts and catalogue in
   `benchmarks/`** (the `timeline.py` precedent). Rejected.
   `benchmarks/registry.py` imports `eval`, so `eval` could never import the
@@ -190,42 +307,63 @@ smallest artifact that encodes the behaviour).
   Rejected for now. It moves public functions for an import-time benefit
   only (torch is a hard dependency, ADR-0018). Revisit if per-call import
   cost becomes a measured problem.
-- **A solver-neutral evidence vocabulary with a plugin registry.** Rejected
-  under ADR-0010: shaped from one solver it would encode that solver's
-  output list.
+- **A protocol or plugin registry for evidence extractors.** Rejected under
+  ADR-0010: a seam designed against one solver over-fits it. The requirement
+  itself is stated physically and marked provisional until a second solver
+  tests it.
+- **Catalogue rows for unbuilt quantities kept in documentation only.**
+  Rejected: a contributor whose run omits evidence for an unbuilt quantity
+  would see no row at all, so whether a gap is visible would depend on what
+  the test bed happened to exercise. Rows are declarative data; only
+  measures are deferred.
+- **Add the solver's own global energies to E8 so that energy closures are
+  assessable without a ledger.** Rejected: it keeps a second, ledger-free
+  route to the same quantity. Closures compare a ledger term with the field
+  sum and need both.
 - **Per-benchmark bounds ratified after measuring the benchmark.** Rejected:
   the acceptance criterion becomes a function of the data it judges, and no
   common standard remains.
 - **Commit verdicts rather than measurements.** Rejected: every criterion
-  change would need the private run files, and a verdict stale against the
-  code would be invisible.
+  change would need the data again, and a verdict stale against the code
+  would be invisible.
 - **Store verdicts in the case file, or as per-case sidecar files.**
-  Rejected: the first is a schema change (ADR-0012/0013), the second breaks
-  ADR-0031's closed archive list. Any archive artefact belongs to ADR-0065
+  Rejected: the first is a schema change (ADR-0012/0013), the second changes
+  ADR-0031's archive list. Any archive artefact belongs to ADR-0065
   follow-up 2.
 - **Profiles or criteria in TOML/YAML.** Rejected for ADR-0027's reasons.
 - **A hand-committed markdown report** (the `docs/timelines/` precedent).
   Rejected: no drift gate, so a criterion could change while the published
   table stays old.
-- **Reuse `_card_blocks` for named deck parameters.** Rejected: it silently
+- **Reuse `_card_blocks` for named input parameters.** Rejected: it silently
   drops blank and non-numeric rows, so positional extraction can return a
   plausible but wrong table.
 - **Adopt ADR-0064's 1.001 as the reference-data yield tolerance.**
   Rejected: that number bounds a model head's float32 saturation error
   (~2e-7). The excess measured on reference data (3.5e-4, one case) is three
-  orders larger and has a different, as yet unconfirmed, cause.
+  orders larger and its cause is unconfirmed, so under clause 7 the quantity
+  ships measured, with no criterion.
 
 ## Consequences
 
 - **Flag-first items approved with this ADR**: the new module; the two new
   `core` files and their re-exports; the `n_valid_frames` export; a new
   `cli/datacheck.py` (module entry point, no console script); glue scripts
-  under `data_generation/lsdyna/<dataset>/`; the `docs/datachecks/` tree.
+  under `data_generation/<solver>/<dataset>/`; the `docs/datachecks/` tree.
   `docs/ARCHITECTURE.md` (package layout, module responsibilities,
   dependency graph) is updated in the change that lands the module, and the
   README Roadmap gains the corresponding entries.
-- **Delivery is staged on Taylor**: public tiers first, then the run tier,
-  then ratification and publication; wave-1D and notch-impact follow. The
+- **A run-evidence requirement now exists.** Data generation in this
+  repository requests it from the solver by construction, and a
+  contribution is checked by running the instrument on it: every
+  `not_assessable` row names the evidence that is missing and who can supply
+  it. This ADR makes unmet items visible; it does not make them blocking.
+- **Delivery is staged, with Taylor as the test bed**: the requirement and
+  its LS-DYNA realisation first; then quantities whose evidence is in the
+  case file and its stored input; then run-evidence quantities; then
+  ratification and publication. Because the legacy runs do not meet the
+  requirement, the staging includes — as the maintainer's decision — one
+  unpublished *conformance run* made with the standard input block, so that
+  the realisation and the measures for E4–E7 rest on real output. The
   implementation plan lives in `docs/plans/`.
 - **`tools/state_probe` is the acceptance oracle**, untouched in the first
   slice: the port must reproduce its recorded numbers before anything
@@ -235,16 +373,16 @@ smallest artifact that encodes the behaviour).
   real file layout and name the solver version they mimic; unknown labels
   fail closed. A new import-boundary test resolves relative imports (the
   existing torch-free test does not).
-- **Shipped benchmarks will show honest gaps.** Most wave-1D and notch
-  energy rows will read `not_assessable / not_requested`; DeformingPlate
-  will be almost entirely `not_assessable`; Taylor may fail a ratified
-  criterion. None of this withdraws or re-scores anything (ADR-0065).
-- **Deferred, each with its trigger**: a selective or streamed reader in
-  `core/io` (notch-sized cases); material classes beyond tabulated J2 (the
-  wave and notch widenings, with the material-class ADR that ADR-0012
-  anticipates); a per-benchmark facts field on `BenchmarkSpec` (the first
-  non-derivable fact, e.g. a units or wave-speed anchor); waiver records
-  (the first ratified criterion a shipped benchmark fails); a deck-derived
-  operative yield table (the first dataset with no `BenchmarkSpec`); binary
-  solver-output reading (it would make `pandas` a dependency); a dated note
-  on ADR-0016 for the d3plot arrays the adapter currently discards.
+- **The grandfathered benchmarks will show honest gaps**, which is the
+  visibility ADR-0065 asks for: rows that read `not_assessable` with the
+  missing evidence named, a dataset with no solver input that is almost
+  entirely `not_assessable`, possibly a failed criterion. None of this
+  withdraws or re-scores anything.
+- **Deferred.** The list with triggers lives in the design doc. The durable
+  ones: measures for specified quantities (the first run that supplies the
+  evidence); revision of E1–E10 (the second solver); a home for E8's
+  declaration and E10's anchors (the ADR that amends 0027, ADR-0065
+  follow-up 2); the material-class enum (ADR-0012's follow-on); waiver
+  records (the first ratified criterion a shipped benchmark fails); carrying
+  the ledger inside the canonical file, and ingesting the arrays the adapter
+  currently discards (a dated note on ADR-0016).
