@@ -167,8 +167,9 @@ def test_committed_index_is_up_to_date():
 def test_committed_benchmark_pages_are_up_to_date():
     for name in available_benchmarks():
         page = REPO_ROOT / "docs" / "benchmarks" / f"{name}.md"
+        report = REPO_ROOT / "docs" / "datachecks" / f"{name}.md"
         assert page.read_text(encoding="utf-8") == render_benchmark_page(
-            get_benchmark(name), name
+            get_benchmark(name), name, verification_report=report.exists()
         ), name
 
 

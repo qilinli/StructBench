@@ -746,7 +746,9 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
+def render_benchmark_page(
+    spec: BenchmarkSpec, name: str, *, verification_report: bool = False
+) -> str:
     """The committed, browsable landing page for one benchmark (ADR-0036).
 
     Reuses the archive README's Task / Evaluation / Numbers-to-beat bodies —
@@ -762,6 +764,9 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
         The benchmark to render.
     name : str
         Its registry name (page filename and grouped-config path).
+    verification_report : bool
+        Whether ``docs/datachecks/<name>.md`` exists (ADR-0066); the page then
+        links to it. The caller checks, so this render stays a pure function.
 
     Returns
     -------
@@ -795,6 +800,14 @@ def render_benchmark_page(spec: BenchmarkSpec, name: str) -> str:
         f"{c.n_frames} frames at {c.output_dt_ms} ms{size}",
         f"- Fields: {', '.join(c.fields)}",
         f"- Provenance: {c.provenance}",
+        *(
+            [
+                "- Verification: what was checked about these simulation runs, and"
+                f" what was found — [verification report](../datachecks/{name}.md)"
+            ]
+            if verification_report
+            else []
+        ),
         f"- License: {c.data_license}",
         # Short access pointer (card-declared, else the ADR-0040 default);
         # the full story is the Dataset access paragraph below the Quickstart.
