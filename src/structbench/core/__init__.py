@@ -1,11 +1,24 @@
 """Core data structures and I/O primitives for StructBench.
 
 This module's public surface is the case schema, its HDF5 reader/writer, the
-validator, and the custom exceptions. Other packages import only from here.
+validator, the custom exceptions, and the solver-neutral evidence records
+(ADR-0066). Other packages import only from here.
 """
 
 from __future__ import annotations
 
+from .evidence import (
+    PLATFORM_REASONS,
+    Absence,
+    AbsenceReason,
+    DeclaredFacts,
+    EvidenceItem,
+    InputFacts,
+    MaterialInput,
+    PartTraits,
+    RigidPlane,
+    UnitsAnchor,
+)
 from .exceptions import SchemaError, StructBenchError
 from .io import (
     build_deforming_plate_case,
@@ -28,6 +41,16 @@ from .schema import (
 from .validation import validate
 
 __all__ = [
+    "PLATFORM_REASONS",
+    "Absence",
+    "AbsenceReason",
+    "DeclaredFacts",
+    "EvidenceItem",
+    "InputFacts",
+    "MaterialInput",
+    "PartTraits",
+    "RigidPlane",
+    "UnitsAnchor",
     "SCHEMA_VERSION",
     "UNITS_CONVENTION",
     "Case",
