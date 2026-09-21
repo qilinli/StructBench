@@ -19,7 +19,7 @@ Quantities measured on at least one case.
 | `energy_gain_max` | 1 | 0.0816209 … 0.186831 |  |  |  |  | 33 | none — out of scope: <= 0.01 {explicit, lagrangian_mesh} [B-BLM-1, B-BLM-2]; <= 0.01 {explicit, particle_conservative} [B-BLM-1, B-BLM-2] |
 | `energy_loss_max` | 1 | 0 |  |  |  |  | 33 | none — out of scope: <= 0.01 {explicit, lagrangian_mesh} [B-BLM-1, B-BLM-2]; <= 0.01 {explicit, particle_conservative} [B-BLM-1, B-BLM-2] |
 | `energy_residual_final` | 1 | 0.0536692 … 0.127847 |  |  |  |  | 33 | none |
-| `fields_match_declaration` | 1 | 5 |  | 33 |  |  |  | <= 0 any run |
+| `fields_match_declaration` | 1 | 0 | 33 |  |  |  |  | <= 0 any run |
 | `input_density_plausible` | kg/m^3 | 8900 |  |  |  |  | 33 | none — published level, not ratified: 16 <= x <= 22590 any run [M-D6, M-D5, M-D10] |
 | `input_dimensionless_groups_plausible` | 1 | 0.00176731 |  |  |  |  | 33 | none |
 | `input_strength_plausible` | Pa | 4.222e+08 |  |  |  |  | 33 | none — published level, not ratified: 10000 <= x <= 6.8e+09 any run [M-S1, M-S2, M-S3] |
@@ -54,7 +54,6 @@ Quantities measured on at least one case.
 ## Findings
 
 - **fail** `elements_without_input_part` = 1 — `T-20-100-100`, `T-20-100-110`, `T-20-100-120`, `T-20-100-130`, `T-20-100-140`, `T-20-100-150`, … (33 cases)
-- **fail** `fields_match_declaration` = 5 — `T-20-100-100`, `T-20-100-110`, `T-20-100-120`, `T-20-100-130`, `T-20-100-140`, `T-20-100-150`, … (33 cases)
 - **fail** `yield_table_monotone` = 1 — `T-20-100-100`, `T-20-100-110`, `T-20-100-120`, `T-20-100-130`, `T-20-100-140`, `T-20-100-150`, … (33 cases)
 
 ## Not applicable to these runs

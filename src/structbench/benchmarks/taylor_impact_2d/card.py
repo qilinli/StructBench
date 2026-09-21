@@ -140,6 +140,13 @@ CARD = BenchmarkCard(
         "sph/radius",
         "sph/n_neighbors",
         "sph/deletion",
+        # the rigid wall, which the solver writes into its state files as one
+        # shell of part 2 (no input part owns it, ADR-0047); not a learning target
+        "shell/stress",
+        "shell/effective_plastic_strain",
+        "shell/internal_energy",
+        "shell/thickness",
+        "shell/is_alive",
         "global/kinetic_energy",
         "global/internal_energy",
         "global/total_energy",
