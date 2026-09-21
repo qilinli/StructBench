@@ -193,9 +193,7 @@ def test_flowmap_chain_index_and_contract():
     assert s["next_position"].shape == (4, 3, 2)
     assert s["next_aux"].shape == (4, 3, 2)
     for j, f in enumerate((t1 - 1, t1, t2)):
-        np.testing.assert_array_equal(
-            s["next_position"][:, j].numpy(), tr.positions[f]
-        )
+        np.testing.assert_array_equal(s["next_position"][:, j].numpy(), tr.positions[f])
         np.testing.assert_array_equal(s["next_aux"][:, j].numpy(), tr.aux[f])
     np.testing.assert_array_equal(s["input_aux"].numpy(), tr.aux[t0])
     with pytest.raises(ValueError, match="max_dt"):

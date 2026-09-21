@@ -21,6 +21,8 @@ finite-difference velocities, adding ``history_velocities * dim`` channels.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -118,6 +120,10 @@ class TransolverSimulator(CaseBoundSimulator):
         Device the network and normalizer buffers are moved to at
         construction time.
     """
+
+    # register_buffer attributes (set only with structured heads, ADR-0064)
+    _hardening_peeq: Tensor
+    _hardening_sy: Tensor
 
     def __init__(
         self,
@@ -423,7 +429,7 @@ class TransolverSimulator(CaseBoundSimulator):
         """
         return self._target_normalizer.inverse(pred_norm)[..., self._dim :]
 
-    def load(self, path) -> None:
+    def load(self, path: str | Path) -> None:
         """Load a checkpoint; verify its hardening table matches the spec's.
 
         ADR-0064 review finding: ``load_state_dict`` overwrites the
@@ -1234,6 +1240,7 @@ class TransolverSimulator(CaseBoundSimulator):
             # ADR-0064: the emitted state is the structured decode itself
             # (exact softplus/tanh guarantees — no normalize/inverse round
             # trip), against the CACHED anchor's fed peeq.
+            assert self._anchor_aux is not None  # structured heads need a bound anchor
             out = self._decode_structured(out, self._anchor_aux[..., 3])
         else:
             out = self._target_normalizer.inverse(out)

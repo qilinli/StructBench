@@ -53,7 +53,7 @@ next. MGN's pooled position RMSE (15.45 mm) reproduces the published
 reference (15.1 +/- 4.0); a 2026-08-20 training-noise fix (noise_std corrected to
 the working frame, ~1000x stronger) repaired MGN's previously-collapsed von Mises
 field (relative L2 4.21 -> 0.36), so the cross-method stress gap is now narrow.
-The leaderboard is below."""
+The leaderboard is below."""  # noqa: E501 - a markdown image line cannot wrap
 
 _FIGURES = (
     BenchmarkFigure(
@@ -174,7 +174,5 @@ CARD = BenchmarkCard(
         "without a VPN). The maintainer's already-converted archive is also "
         "shared on request (ADR-0040)."
     ),
-    data_access_label=(
-        "public source — download + convert (see Dataset access below)"
-    ),
+    data_access_label=("public source — download + convert (see Dataset access below)"),
 )

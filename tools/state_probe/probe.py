@@ -66,7 +66,11 @@ MAX_NEIGHBORS = 32
 #: channels: the operator maps the state to its own one-step change. Position
 #: is integrated from velocity, never predicted directly.
 LAYOUT: tuple[tuple[str, int], ...] = (
-    ("v", 2), ("s", 3), ("peeq", 1), ("E", 1), ("rho", 1),
+    ("v", 2),
+    ("s", 3),
+    ("peeq", 1),
+    ("E", 1),
+    ("rho", 1),
 )
 FEAT_DIM = sum(n for _, n in LAYOUT)  # 8
 _S_OFF = LAYOUT[0][1]  # deviator slice within the packed layout
@@ -205,8 +209,11 @@ class Batcher:
             npp = torch.tensor([p.shape[0] for p in pos], device=dev)
             return feat_t, pos_t / X_SCALE, npp, tgt_t
         edge_index = radius_graph(
-            pos_t, RADIUS, torch.cat(batch).to(dev),
-            max_num_neighbors=MAX_NEIGHBORS, loop=True,
+            pos_t,
+            RADIUS,
+            torch.cat(batch).to(dev),
+            max_num_neighbors=MAX_NEIGHBORS,
+            loop=True,
         )
         return feat_t, edge_features(pos_t, edge_index, RADIUS), edge_index, tgt_t
 
@@ -422,8 +429,11 @@ def main() -> None:
             mem = memory_gb(device)
             history.append(
                 {
-                    "step": step, "loss": loss.item(), "elapsed_s": elapsed,
-                    "mem_gb": mem, **rel,
+                    "step": step,
+                    "loss": loss.item(),
+                    "elapsed_s": elapsed,
+                    "mem_gb": mem,
+                    **rel,
                 }
             )
             fields = "  ".join(f"{k}={v:.4f}" for k, v in rel.items())

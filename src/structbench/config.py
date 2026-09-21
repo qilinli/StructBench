@@ -1174,11 +1174,7 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             # as the structured heads (a wrong layout would train a
             # silently-wrong physics penalty; a short one IndexErrors
             # mid-run on the cluster).
-            knob = (
-                "flow_map_structured_heads"
-                if sh
-                else "flow_map_consistency_hinge"
-            )
+            knob = "flow_map_structured_heads" if sh else "flow_map_consistency_hinge"
             # Effective layout: an omitted train.aux_fields falls back to
             # the benchmark's single default field (never the state block).
             layout = tuple(train_cfg.aux_fields or ())
@@ -1225,13 +1221,11 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             )
         if tuple(getattr(model, "flow_map_eval_intervals", ()) or ()) != ():
             raise ConfigError(
-                "[model] flow_map_eval_intervals requires flow_map=true "
-                "(ADR-0062)"
+                "[model] flow_map_eval_intervals requires flow_map=true (ADR-0062)"
             )
         if getattr(model, "flow_map_canonical_interval", 0) != 0:
             raise ConfigError(
-                "[model] flow_map_canonical_interval requires flow_map=true "
-                "(ADR-0062)"
+                "[model] flow_map_canonical_interval requires flow_map=true (ADR-0062)"
             )
         # ADR-0063 contraction knobs are flow-map-only.
         if getattr(model, "flow_map_pushforward", False):
@@ -1253,13 +1247,11 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             )
         if getattr(model, "flow_map_structured_heads", False):
             raise ConfigError(
-                "[model] flow_map_structured_heads requires flow_map=true "
-                "(ADR-0064)"
+                "[model] flow_map_structured_heads requires flow_map=true (ADR-0064)"
             )
         if getattr(model, "flow_map_consistency_hinge", 0.0) != 0.0:
             raise ConfigError(
-                "[model] flow_map_consistency_hinge requires flow_map=true "
-                "(ADR-0064)"
+                "[model] flow_map_consistency_hinge requires flow_map=true (ADR-0064)"
             )
 
     return ResolvedRunConfig(

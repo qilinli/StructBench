@@ -2128,8 +2128,7 @@ def _fm_admissibility_hinge(
     vm = plane_strain_vm(dev)
     sy = hardening_sigma_y(peeq, knots[0], knots[1])
     return (
-        torch.relu(vm - sy) / knots[1][0]
-        + torch.relu(anchor_peeq - peeq) / peeq_scale
+        torch.relu(vm - sy) / knots[1][0] + torch.relu(anchor_peeq - peeq) / peeq_scale
     )
 
 
@@ -2222,12 +2221,8 @@ def _train_transolver_fm(
                 f"{hinge_w} (ADR-0064)"
             )
         hinge_knots = (
-            torch.tensor(
-                spec.hardening_curve[0], dtype=torch.float32, device=device
-            ),
-            torch.tensor(
-                spec.hardening_curve[1], dtype=torch.float32, device=device
-            ),
+            torch.tensor(spec.hardening_curve[0], dtype=torch.float32, device=device),
+            torch.tensor(spec.hardening_curve[1], dtype=torch.float32, device=device),
         )
 
     (out_dir / "config.json").write_text(
@@ -2247,6 +2242,7 @@ def _train_transolver_fm(
     )
 
     chain = cfg.flow_map_pushforward
+    dataset: FlowMapChainDataset | FlowMapPairDataset
     if chain:
         # ADR-0063 knob 1: two-hop chains. Config load guarantees
         # flow_map_max_dt >= 2 with pushforward (uncapped chains would
@@ -2373,9 +2369,7 @@ def _train_transolver_fm(
                 # clamped) self-anchor. Only generation-1 queries are clean
                 # — they alone warm the normalizers.
                 gens = cfg.flow_map_pushforward_generations
-                g_level = min(
-                    gens, 1 + (step * gens) // train_cfg.training_steps
-                )
+                g_level = min(gens, 1 + (step * gens) // train_cfg.training_steps)
                 cf = batch["chain_frames"].to(device)  # (B, G)
                 preds: list[Tensor] = []
                 targets: list[Tensor] = []
@@ -2444,9 +2438,7 @@ def _train_transolver_fm(
                 else:
                     fin_idx = 2 * gens
                     fin_frames = target_frame
-                dt_f = (fin_frames - prev_frames).to(torch.float32) / (
-                    time_ref - 1
-                )
+                dt_f = (fin_frames - prev_frames).to(torch.float32) / (time_ref - 1)
                 p_k, t_k = sim.forward_train_tc(
                     next_position[:, fin_idx],
                     next_aux[:, fin_idx],
@@ -2480,9 +2472,9 @@ def _train_transolver_fm(
                 chain_frame = batch["chain_frame"].to(device)  # (B,) = t1
                 preds, targets = [], []
                 for j in (0, 1):
-                    dt_a = (chain_frame - 1 + j - anchor_frame).to(
-                        torch.float32
-                    ) / (time_ref - 1)
+                    dt_a = (chain_frame - 1 + j - anchor_frame).to(torch.float32) / (
+                        time_ref - 1
+                    )
                     p_j, t_j = sim.forward_train_tc(
                         next_position[:, j],
                         next_aux[:, j],
@@ -2523,12 +2515,8 @@ def _train_transolver_fm(
                     anchor_vel_b = anchor_vel_b.clone()
                     anchor_aux_b = anchor_aux_b.clone()
                     kin = is_kinematic
-                    anchor_disp_b[kin] = (
-                        next_position[:, 1] - reference_coords
-                    )[kin]
-                    anchor_vel_b[kin] = (
-                        next_position[:, 1] - next_position[:, 0]
-                    )[kin]
+                    anchor_disp_b[kin] = (next_position[:, 1] - reference_coords)[kin]
+                    anchor_vel_b[kin] = (next_position[:, 1] - next_position[:, 0])[kin]
                     anchor_aux_b[kin] = next_aux[:, 1][kin]
                 anchor_time_b = None
                 if cfg.flow_map_anchor_time:
@@ -2536,9 +2524,7 @@ def _train_transolver_fm(
                         chain_frame.to(torch.float32) / (time_ref - 1),
                         n_particles_per_example,
                     ).unsqueeze(1)
-                dt_b = (target_frame - chain_frame).to(torch.float32) / (
-                    time_ref - 1
-                )
+                dt_b = (target_frame - chain_frame).to(torch.float32) / (time_ref - 1)
                 # Step B: the contraction term (normalizers never warm on
                 # the dirty query; ADR-0063).
                 p_b, t_b = sim.forward_train_tc(
@@ -3579,8 +3565,12 @@ def _model_config_from_record(
     # The JSON round-trip stores tuple-typed fields as lists; restore the
     # canonical tuple form (the ADR-0059 per-channel knobs and the ADR-0062
     # interval sweep) so a reconstructed config compares and reads uniformly.
-    for key in ("aux_transform", "aux_transform_scale", "aux_input_noise_std",
-                "flow_map_eval_intervals"):
+    for key in (
+        "aux_transform",
+        "aux_transform_scale",
+        "aux_input_noise_std",
+        "flow_map_eval_intervals",
+    ):
         if isinstance(model_table.get(key), list):
             model_table[key] = tuple(model_table[key])
     model_cls = MODEL_FAMILIES[record["model"]["family"]]
@@ -4143,11 +4133,11 @@ def evaluate(
                 "rollout_rel_l2_displacement"
             ),
             "rollout_rel_l2_aux": _mean_over_cases("rollout_rel_l2_aux"),
+            # A TC/flow-map aux_input run computes no ADR-0060 oracle
+            # rollout (its accumulation isolation is the per-interval
+            # oracle-ANCHORED mode below), so the per-case dicts carry
+            # no rollout_oracle_* keys to aggregate.
             **(
-                # A TC/flow-map aux_input run computes no ADR-0060 oracle
-                # rollout (its accumulation isolation is the per-interval
-                # oracle-ANCHORED mode below), so the per-case dicts carry
-                # no rollout_oracle_* keys to aggregate.
                 {}
                 if not aux_in_run or tc
                 else {
@@ -4160,9 +4150,9 @@ def evaluate(
                     )
                 }
             ),
+            # ADR-0062: split means of the per-interval scalar metrics
+            # (the per-channel dicts stay per-case, house convention).
             **(
-                # ADR-0062: split means of the per-interval scalar metrics
-                # (the per-channel dicts stay per-case, house convention).
                 {}
                 if not fm
                 else {

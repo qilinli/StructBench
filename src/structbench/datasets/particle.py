@@ -307,17 +307,13 @@ class FlowMapChainDataset(Dataset):
             next_position = np.transpose(
                 np.stack([tr.positions[f] for f in frames]), (1, 0, 2)
             )
-            next_aux = np.transpose(
-                np.stack([tr.aux[f] for f in frames]), (1, 0, 2)
-            )
+            next_aux = np.transpose(np.stack([tr.aux[f] for f in frames]), (1, 0, 2))
             return {
                 "position_seq": torch.from_numpy(
                     np.ascontiguousarray(np.transpose(pair, (1, 0, 2)))
                 ),
                 "particle_type": torch.from_numpy(tr.particle_type),
-                "next_position": torch.from_numpy(
-                    np.ascontiguousarray(next_position)
-                ),
+                "next_position": torch.from_numpy(np.ascontiguousarray(next_position)),
                 "next_aux": torch.from_numpy(np.ascontiguousarray(next_aux)),
                 "input_aux": torch.from_numpy(np.ascontiguousarray(tr.aux[t0])),
                 "n_particles": int(tr.positions.shape[1]),
@@ -330,7 +326,7 @@ class FlowMapChainDataset(Dataset):
             }
         tr, t0, t1, t2, traj_idx = self._index[i]
         pair = tr.positions[t0 - 1 : t0 + 1]  # (2, P, dim)
-        frames = (t1 - 1, t1, t2)
+        frames = [t1 - 1, t1, t2]
         next_position = np.transpose(
             np.stack([tr.positions[f] for f in frames]), (1, 0, 2)
         )  # (P, 3, dim)

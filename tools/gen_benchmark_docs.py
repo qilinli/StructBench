@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 INDEX = REPO_ROOT / "docs" / "benchmarks.md"
 PAGES_DIR = REPO_ROOT / "docs" / "benchmarks"
 
+
 def _targets() -> dict[Path, str]:
     """Every generated markdown file mapped to its expected content.
 

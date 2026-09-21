@@ -57,7 +57,7 @@ discretisation noise, not signal. This is a property of the DATA, not any one
 model: it is why displacement (relative L2 ~0.009) is ~20x more predictable
 than stress here, and it is why a spatially-smoothed von Mises companion metric
 (which removes the sub-particle noise) is the fairer reading of stress accuracy
-on this benchmark."""
+on this benchmark."""  # noqa: E501 - a markdown image line cannot wrap
 
 _FIGURES = (
     BenchmarkFigure(

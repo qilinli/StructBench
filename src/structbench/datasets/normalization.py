@@ -5,8 +5,10 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,7 +21,7 @@ logger = logging.getLogger(__name__)
 AUX_TRANSFORMS = frozenset({"none", "asinh"})
 
 
-def aux_forward_transform(values, transform: str, scale: float):
+def aux_forward_transform(values: Any, transform: str, scale: float) -> Any:
     """Map raw auxiliary values into training target space.
 
     ``"none"`` returns the input unchanged; ``"asinh"`` returns
@@ -40,7 +42,7 @@ def aux_forward_transform(values, transform: str, scale: float):
     )
 
 
-def aux_inverse_transform(values, transform: str, scale: float):
+def aux_inverse_transform(values: Any, transform: str, scale: float) -> Any:
     """Invert :func:`aux_forward_transform`, back to raw auxiliary units."""
     if transform == "none":
         return values
@@ -55,7 +57,7 @@ def aux_inverse_transform(values, transform: str, scale: float):
     )
 
 
-def expand_aux_knob(value, n_channels: int) -> tuple:
+def expand_aux_knob(value: Any, n_channels: int) -> tuple[Any, ...]:
     """Expand a scalar-or-per-channel aux knob to a per-channel tuple (ADR-0059).
 
     A scalar (``str``/``float``/``int``) applies to every channel — the
@@ -73,7 +75,12 @@ def expand_aux_knob(value, n_channels: int) -> tuple:
     return values
 
 
-def _apply_per_channel(fn, values, transforms, scales):
+def _apply_per_channel(
+    fn: Callable[[Any, str, float], Any],
+    values: Any,
+    transforms: Sequence[str],
+    scales: Sequence[float],
+) -> Any:
     """Apply a (values, transform, scale) fn per trailing-axis channel.
 
     Fast path: when every channel shares one (transform, scale) pair the fn
@@ -92,7 +99,9 @@ def _apply_per_channel(fn, values, transforms, scales):
     )
 
 
-def aux_forward_transform_channels(values, transforms, scales):
+def aux_forward_transform_channels(
+    values: Any, transforms: Sequence[str], scales: Sequence[float]
+) -> Any:
     """Per-channel :func:`aux_forward_transform` over the trailing axis.
 
     ``values`` is ``(..., C)``; ``transforms`` / ``scales`` are length-``C``
@@ -101,7 +110,9 @@ def aux_forward_transform_channels(values, transforms, scales):
     return _apply_per_channel(aux_forward_transform, values, transforms, scales)
 
 
-def aux_inverse_transform_channels(values, transforms, scales):
+def aux_inverse_transform_channels(
+    values: Any, transforms: Sequence[str], scales: Sequence[float]
+) -> Any:
     """Per-channel :func:`aux_inverse_transform` over the trailing axis."""
     return _apply_per_channel(aux_inverse_transform, values, transforms, scales)
 
@@ -154,8 +165,8 @@ class NormalizationStats:
 def compute_stats(
     trajectories: list[CaseTrajectory],
     *,
-    aux_transform="none",
-    aux_transform_scale=0.01,
+    aux_transform: str | Sequence[str] = "none",
+    aux_transform_scale: float | Sequence[float] = 0.01,
 ) -> NormalizationStats:
     """Pool velocity/acceleration/aux stats over all particles, frames, and cases.
 
@@ -239,9 +250,9 @@ def cached_compute_stats(
     trajectories: list[CaseTrajectory],
     *,
     dataset_root: str | Path,
-    aux_field,
-    aux_transform="none",
-    aux_transform_scale=0.01,
+    aux_field: str | Sequence[str],
+    aux_transform: str | Sequence[str] = "none",
+    aux_transform_scale: float | Sequence[float] = 0.01,
 ) -> NormalizationStats:
     """:func:`compute_stats` with a dataset-level cache.
 
@@ -294,7 +305,11 @@ def cached_compute_stats(
     if not all_none:
         if t_seq or s_seq:
             t_key = tuple(aux_transform) if t_seq else aux_transform
-            s_key = tuple(aux_transform_scale) if s_seq else aux_transform_scale
+            s_key = (
+                aux_transform_scale
+                if isinstance(aux_transform_scale, float | int)
+                else tuple(aux_transform_scale)
+            )
             key_parts.append(f"aux_transform={t_key}:{s_key!r}")
         else:
             # scalar non-"none": the exact pre-0059 key, so caches stay valid

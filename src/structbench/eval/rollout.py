@@ -525,9 +525,7 @@ def flow_map_rollout(
     if interval < 1:
         raise ValueError(f"interval must be >= 1, got {interval}")
     if anchor_mode not in ("self", "oracle"):
-        raise ValueError(
-            f"anchor_mode must be 'self' or 'oracle', got {anchor_mode!r}"
-        )
+        raise ValueError(f"anchor_mode must be 'self' or 'oracle', got {anchor_mode!r}")
     pos = torch.from_numpy(trajectory.positions).to(device)  # (T, P, dim)
     n_frames = pos.shape[0]
     aux_true = torch.from_numpy(trajectory.aux).to(device)

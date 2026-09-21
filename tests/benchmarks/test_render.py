@@ -544,7 +544,8 @@ def test_leaderboard_all_provisional_carries_no_tag_or_footnote():
     assert "| Transolver | — | 1.50000 |" in lines
     assert "| GeoFLARE | — | 1.50000 |" in lines
     # declaration order preserved
-    assert text.index("| Transolver | — | 1.50000 |") < text.index("| GeoFLARE | — | 1.50000 |")
+    transolver_row = text.index("| Transolver | — | 1.50000 |")
+    assert transolver_row < text.index("| GeoFLARE | — | 1.50000 |")
     assert "*(provisional)*" not in text
     assert "Provisional entries" not in text
 
