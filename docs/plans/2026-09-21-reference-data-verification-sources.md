@@ -73,7 +73,7 @@ Things the maintainer should know before choosing:
    *positive* error as the alarming direction (> +2 % must be explained);
    W179 and Belytschko are sign-agnostic.
 
-**How ADR-0066 (Proposed) uses this.** On the maintainer's direction the
+**How ADR-0066 uses this.** On the maintainer's direction the
 energy criterion is a fixed general indicator rather than a single hard
 limit: a signed residual in Belytschko's normalised form with the energy
 present at the start counted as input, reported as its largest gain, largest

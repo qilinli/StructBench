@@ -1,6 +1,6 @@
 # 0066 — Reference-data verification: the `verification/` module
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-09-21)
 **Type**: Durable
 **Date**: 2026-09-21
 

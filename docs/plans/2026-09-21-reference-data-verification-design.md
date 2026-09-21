@@ -1,11 +1,11 @@
 # Design: reference-data verification (`verification/`) and the first slice
 
 **Date**: 2026-09-21
-**Status**: Draft for maintainer review
+**Status**: Approved with ADR-0066 (maintainer, in-session 2026-09-21)
 **Scope**: new module `src/structbench/verification/`; two new `core` files
 (`core/evidence.py`, `core/io/lsdyna_run.py`); `cli/datacheck.py`; per-dataset
 glue under `data_generation/`; `docs/datachecks/`; `docs/ARCHITECTURE.md`;
-README Roadmap. Governing decision: ADR-0066 (Proposed), which is normative
+README Roadmap. Governing decision: ADR-0066 (Accepted), which is normative
 wherever the two overlap.
 
 ---
@@ -60,7 +60,11 @@ the smallest that works.
    plausibility screens. Where the source survey found no published limit,
    the quantity stays measured with no level until a source is found.
 
-### Calls made in drafting — for the maintainer to confirm
+### Calls made in drafting
+
+*Confirmed by the acceptance of ADR-0066 (2026-09-21), which encodes them —
+except the conformance run, which stays the maintainer's to decide and
+execute.*
 
 - **Catalogue rows exist for every specified quantity, as data.** The trait
   gate and the evidence gate run for all of them, so a contributor is told
@@ -656,7 +660,8 @@ to add, or not.
 
 ## Open items for the maintainer
 
-1. **Confirm the drafting calls** at the top of this document.
+1. **Decide on the conformance run** (stage 0b); the other drafting calls
+   were confirmed with ADR-0066.
 2. **Spot-check two sources before the levels are relied on**: the
    roadside-safety report was read as page images, and the energy-balance
    text as snippets (derivation record: dossier section V; material claims:
