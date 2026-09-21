@@ -21,8 +21,11 @@ from structbench.core import (
     Metadata,
     Nodes,
     Response,
+    RunEvidence,
+    TerminationRecord,
     write_case,
 )
+from structbench.core.io import dump_run_evidence
 from structbench.verification.report import from_json, to_json
 
 T, P = 3, 2
@@ -231,3 +234,36 @@ def test_usage_and_io_errors_exit_with_two(tmp_path: Path) -> None:
     assert main(["judge", "--measurements", str(tmp_path / "absent.json")]) == 2
     (tmp_path / "bad.json").write_text('{"schema": "other/1"}')
     assert main(["judge", "--measurements", str(tmp_path / "bad.json")]) == 2
+
+
+def test_run_evidence_joins_its_case_by_id(tmp_path: Path) -> None:
+    _write(tmp_path, "A-1")
+    _write(tmp_path, "B-1")
+    runs = {
+        "A-1": RunEvidence(
+            termination=(TerminationRecord("error", 1.0e-4, 40, None),),
+            n_errors=1,
+            n_warnings=0,
+        )
+    }
+    record = measure_dataset(_spec(), tmp_path, run_evidence=runs)
+    with_run, without = (
+        {m.quantity: m for m in case.measurements} for case in record.cases
+    )
+    assert with_run["terminated_normally"].value == 0.0
+    assert with_run["solver_error_count"].value == 1.0
+    assert without["terminated_normally"].absence is not None  # B-1 supplied none
+
+
+def test_the_cli_reads_the_run_evidence_record_never_a_run_folder(
+    tmp_path: Path,
+) -> None:
+    evidence = tmp_path / "evidence.json"
+    evidence.write_text(dump_run_evidence({"T-0-0-0": RunEvidence(n_errors=0)}))
+    out = tmp_path / "record.json"
+    base = ["measure", "--benchmark", "taylor_impact_2d", "--data-root", str(tmp_path)]
+    base += ["--case", "T-0-0-0", "--out", str(out)]
+    assert main([*base, "--run-evidence", str(evidence)]) == 0
+    evidence.write_text('{"schema": "other/1"}')
+    assert main([*base, "--run-evidence", str(evidence)]) == 2
+    assert main([*base, "--run-evidence", str(tmp_path)]) == 2  # a folder is refused
