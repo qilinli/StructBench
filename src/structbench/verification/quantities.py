@@ -357,6 +357,7 @@ _ROWS = (
         "1",
         {E.E5, E.E8, E.E9},
         "stored velocities and masses do not reproduce the ledger's kinetic energy",
+        implemented=True,
     ),
     _row(
         "internal_energy_closure",
@@ -511,6 +512,14 @@ _ROWS = (
         implemented=True,
     ),
     _row(
+        "input_strength_plausible",
+        _U,
+        "Pa",
+        {E.E1, E.E10A},
+        "a yield or compressive strength is outside its plausible range",
+        implemented=True,
+    ),
+    _row(
         "input_dimensionless_groups_plausible",
         _U,
         "1",
@@ -563,7 +572,9 @@ _ROWS = (
         _D,
         "1",
         {E.E8},
-        "the stored frames end with more than one irregular interval",
+        "a fact, not a defect: frames written off the sampling interval, such as"
+        " the state a solver writes at the termination time (loaders drop them,"
+        " ADR-0028)",
         implemented=True,
     ),
     _row(

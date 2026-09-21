@@ -187,8 +187,8 @@ assets/            # figures embedded in the docs + landing pages
   - [x] ~~Stage 2 (2026-09-21) — the run-evidence record (solver identity,
         termination, diagnostics, time step, energy ledger with its balance
         identity), read from text by per-dataset glue; the energy indicator.~~
-        Still open: the ledger-against-field closures and the sampling-clock
-        row, which wait for a run that declares its sampling (E9).
+        The kinetic-energy closure runs on sample instants found in the
+        files; the other sampling-clock rows are still open.
   - [ ] Stage 3 — tolerances confirmed, first published datacheck record,
         two-grid difference on the convergence case.
 

@@ -207,11 +207,6 @@ _REQUIREMENTS = (
     _zero("nonfinite_count", "A stored response contains no NaN or infinity."),
     _zero("time_axis_monotone", "Stored times strictly increase."),
     _zero(
-        "terminal_artifact_frames",
-        "Every stored interval is a sampling interval: a frame written off the"
-        " interval makes index-based rates wrong (ADR-0028).",
-    ),
-    _zero(
         "elements_without_input_part",
         "Every stored element belongs to a part the solver input defines.",
     ),
@@ -447,6 +442,16 @@ _LEVELS = (
         "M-E4, M-D7",
         "Young's modulus from flexible foam to diamond: sees length or time errors"
         " of several decades, not a factor of a thousand within a family.",
+    ),
+    _level(
+        "input_strength_plausible",
+        1.0e4,
+        6.8e9,
+        False,
+        set(),
+        "M-S1, M-S2, M-S3",
+        "Polymer foam to tungsten carbide in compression: sees gross stress-unit"
+        " errors only, and needs no declared material family.",
     ),
     _level(
         "response_magnitudes_plausible",

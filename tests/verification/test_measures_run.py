@@ -10,11 +10,16 @@ import pytest
 
 from structbench.core import (
     AbsenceReason,
+    Case,
+    ElementBlock,
     EnergyLedger,
     EvidenceItem,
     InputFacts,
     MaterialInput,
+    Metadata,
+    Nodes,
     PartTraits,
+    Response,
     RigidPlane,
     RunEvidence,
     SolverIdentity,
@@ -24,6 +29,7 @@ from structbench.verification import Verdict
 from structbench.verification.criteria import judge
 from structbench.verification.kernels import energy_residual
 from structbench.verification.measures import measure_case
+from structbench.verification.measures.closure import shared_samples
 from structbench.verification.results import (
     CaseMeasurements,
     DatasetMeasurements,
@@ -259,3 +265,106 @@ def test_a_meshed_explicit_run_is_judged_against_the_sourced_level() -> None:
     assert (gain.verdict, gain.reason) == (Verdict.REVIEW, "exceeds_reference_level")
     loss = next(r for r in report.results if r.quantity == "energy_loss_max")
     assert loss.verdict is Verdict.PASS
+
+
+# --- closures -----------------------------------------------------------------
+
+
+def _moving_case(speeds: tuple[float, ...], times: tuple[float, ...]) -> Case:
+    """Two 1 kg particles moving along x; an extra, massless-to-us shell node."""
+    n = len(times)
+    velocity = np.zeros((n, 3, 2), dtype=np.float32)
+    velocity[:, :2, 0] = np.asarray(speeds, dtype=np.float32)[:, None]
+    return Case(
+        metadata=Metadata(case_id="c", dimension=2, source_units="kg-m-s"),
+        nodes=Nodes(coords=np.zeros((3, 2)), node_id=np.arange(1, 4, dtype=np.int64)),
+        elements={
+            "sph": ElementBlock(
+                connectivity=np.array([[0], [1]], dtype=np.int64),
+                element_id=np.array([1, 2], dtype=np.int64),
+                part_id=np.ones(2, dtype=np.int64),
+            )
+        },
+        materials=[],
+        response=Response(
+            time=np.asarray(times),
+            node={"velocity": velocity},
+            element={"sph": {"mass": np.ones((n, 2), dtype=np.float32)}},
+        ),
+    )
+
+
+def _kinetic_ledger(
+    kinetic: tuple[float, ...], times: tuple[float, ...]
+) -> EnergyLedger:
+    zeros = tuple(0.0 for _ in times)
+    terms = {
+        "kinetic": kinetic,
+        "internal": zeros,
+        "rigid_surface": zeros,
+        "external_work": zeros,
+    }
+    return EnergyLedger(times, terms, {"kinetic": 1, "internal": 1, "rigid_surface": 1})
+
+
+_TIMES = (0.0, 1.0e-6, 2.0e-6, 2.04e-6)  # the last frame is off the interval
+
+
+def test_shared_instants_are_found_and_the_terminal_frame_has_no_partner() -> None:
+    case = _moving_case((2.0, 1.0, 0.5, 0.5), _TIMES)
+    run = _run(ledger=_kinetic_ledger((4.0, 1.0, 0.25), _TIMES[:3]))
+    frames, samples = shared_samples(case, run)
+    assert frames.tolist() == [0, 1, 2] and samples.tolist() == [0, 1, 2]
+    assert shared_samples(case, None)[0].size == 0
+
+
+def test_fields_that_reproduce_the_ledger_close_exactly() -> None:
+    case = _moving_case((2.0, 1.0, 0.5, 0.5), _TIMES)  # KE = 2 * v^2 / 2 = v^2
+    run = _run(ledger=_kinetic_ledger((4.0, 1.0, 0.25), _TIMES[:3]))
+    row = _get(
+        measure_case(case, _facts(), None, case_id="c", run=run),
+        "kinetic_energy_closure",
+    )
+    assert row.value == pytest.approx(0.0, abs=1e-7)
+    assert row.n_samples == 3
+    assert row.detail["frames_without_partner"] == 1
+
+
+def test_a_particle_to_node_misalignment_shows_as_a_large_gap() -> None:
+    case = _moving_case((2.0, 1.0, 0.5, 0.5), _TIMES)
+    assert case.response is not None
+    # the second particle now points at the node that never moves
+    shifted = ElementBlock(
+        connectivity=np.array([[0], [2]], dtype=np.int64),
+        element_id=np.array([1, 2], dtype=np.int64),
+        part_id=np.ones(2, dtype=np.int64),
+    )
+    case = Case(case.metadata, case.nodes, {"sph": shifted}, [], case.response)
+    run = _run(ledger=_kinetic_ledger((4.0, 1.0, 0.25), _TIMES[:3]))
+    row = _get(
+        measure_case(case, _facts(), None, case_id="c", run=run),
+        "kinetic_energy_closure",
+    )
+    assert row.value == pytest.approx(0.5)  # half the peak energy is missing
+    assert row.detail["frame"] == 0
+
+
+def test_a_ledger_on_another_clock_leaves_the_closure_without_its_evidence() -> None:
+    case = _moving_case((2.0, 1.0, 0.5, 0.5), _TIMES)
+    offbeat = tuple(t + 0.4e-6 for t in _TIMES[:3])
+    run = _run(ledger=_kinetic_ledger((4.0, 1.0, 0.25), offbeat))
+    absence = _get(
+        measure_case(case, _facts(), None, case_id="c", run=run),
+        "kinetic_energy_closure",
+    ).absence
+    assert absence is not None and absence.missing == {E.E9}
+
+
+def test_a_meshed_part_is_beyond_the_kinetic_closure_for_now() -> None:
+    case = _moving_case((2.0, 1.0, 0.5, 0.5), _TIMES)
+    run = _run(ledger=_kinetic_ledger((4.0, 1.0, 0.25), _TIMES[:3]))
+    meshed = _facts(parts=(PartTraits(1, 2, "solid", False),))
+    absence = _get(
+        measure_case(case, meshed, None, case_id="c", run=run), "kinetic_energy_closure"
+    ).absence
+    assert absence is not None and absence.reason is AbsenceReason.UNSUPPORTED

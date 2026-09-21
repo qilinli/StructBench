@@ -39,6 +39,7 @@ CASE, INPUT, DECLARED = Location.CASE, Location.INPUT, Location.DECLARED
 # farthest (in decades) from these centres. The bounds live in criteria.py.
 _DENSITY_CENTRE = 600.0  # kg/m^3, log-centre of the condensed-matter range
 _MODULUS_CENTRE = 5.5e8  # Pa, log-centre of the engineering-solid range
+_STRENGTH_CENTRE = 8.2e6  # Pa, log-centre of the foam-to-carbide range
 
 _MATERIAL_ATTRIBUTES = ("density", "shear_modulus", "youngs_modulus")
 _AXES = {"extent_x": 0, "extent_y": 1, "extent_z": 2}
@@ -128,6 +129,22 @@ def _input_constants_plausible(
     return value(name, _most_extreme(moduli, _MODULUS_CENTRE), INPUT, n=len(moduli))
 
 
+def _input_strength_plausible(
+    case: Case | None, facts: InputFacts | None, declared: DeclaredFacts | None
+) -> Measurement:
+    """The most extreme tabulated yield stress of any material in the input."""
+    name = "input_strength_plausible"
+    assert facts is not None
+    strengths = [
+        s for m in facts.materials if m.yield_table for s in m.yield_table[1] if s > 0
+    ]
+    if not strengths:
+        return not_applicable(name)  # no material here states a strength
+    return value(
+        name, _most_extreme(strengths, _STRENGTH_CENTRE), INPUT, n=len(strengths)
+    )
+
+
 def _input_dimensionless_groups_plausible(
     case: Case | None, facts: InputFacts | None, declared: DeclaredFacts | None
 ) -> Measurement:
@@ -191,6 +208,7 @@ MEASURES: dict[str, MeasureFn] = {
     "units_anchors_consistent": _units_anchors_consistent,
     "input_density_plausible": _input_density_plausible,
     "input_constants_plausible": _input_constants_plausible,
+    "input_strength_plausible": _input_strength_plausible,
     "input_dimensionless_groups_plausible": _input_dimensionless_groups_plausible,
     "response_magnitudes_plausible": needs_case(_response_magnitudes_plausible),
     "density_slot_matches_input": needs_case(_density_slot_matches_input),

@@ -34,9 +34,11 @@ _IMPLEMENTED = {
     "declared_traits_match_input",
     "density_slot_matches_input",
     "elements_without_input_part",
+    "kinetic_energy_closure",
     "fields_match_declaration",
     "input_constants_plausible",
     "input_density_plausible",
+    "input_strength_plausible",
     "input_dimensionless_groups_plausible",
     "nonfinite_count",
     "out_of_plane_shear_max",
@@ -118,8 +120,9 @@ def test_stage_one_rows_are_implemented_and_versioned() -> None:
 
 
 def test_implemented_rows_need_only_evidence_a_run_has_supplied() -> None:
-    # E6, E7 and E9 have no record field yet: no run has supplied them
-    built = {E.E1, E.E2, E.E3, E.E4, E.E5, E.E8, E.E10A, E.E10B}
+    # E6 and E7 have no record field yet: no run has supplied them. E9 is
+    # found in the files (shared sample instants), not declared.
+    built = {E.E1, E.E2, E.E3, E.E4, E.E5, E.E8, E.E9, E.E10A, E.E10B}
     for q in CATALOGUE:
         if q.status is Status.IMPLEMENTED:
             assert q.requires <= built, q.name
