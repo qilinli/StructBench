@@ -25,6 +25,7 @@ from .io import (
     lsdyna_to_case,
     parse_meta,
     read_case,
+    read_input_facts,
     write_case,
 )
 from .schema import (
@@ -63,6 +64,7 @@ __all__ = [
     "SchemaError",
     "StructBenchError",
     "read_case",
+    "read_input_facts",
     "write_case",
     "lsdyna_to_case",
     "validate",
