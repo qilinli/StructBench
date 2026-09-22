@@ -528,3 +528,48 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
   intent, alongside the other declarations; reference levels for scopes no source yet covers; carrying
   the ledger inside the canonical file, and ingesting the arrays the adapter
   currently discards (a dated note on ADR-0016).
+
+## Catalogue note (2026-09-22, agent; maintainer to finalise)
+
+Every catalogue row gains one field, `bears_on`: which artefact a violation
+condemns, and so who would have to act — `input` (the solver input deck),
+`response` (the stored fields a user loads and trains on), `run` (the run's
+numerical conduct and the solver's own record), `declared` (what this
+repository claims about the runs). It is carried as a side table keyed by
+quantity name, like the reader-facing titles, so a row that is not
+classified is a `KeyError` at import.
+
+It is a **definition, not a measurement**. It says where a finding of this
+kind lands for any dataset, never what was found in one, so it is not in
+the JSON record and adds nothing to it: no re-measurement, and every
+published report regenerates from the record it already has. It is
+distinct from `Location`, which locates the evidence a measurement was
+read from; the two differ exactly where it matters — the evidence for
+"stored elements that no input part owns" is read from both the case and
+the input, while the violation lands in the stored response alone.
+
+The motivating gap: a reader could not tell which of Taylor's two
+archive-level failures touched the arrays they would train on. Both read
+`fail`, identically, in all 33 cases. They land in different artefacts —
+the hardening-table dip is an input defect, the unowned elements are in
+the stored response — and the report now says so in the summary and on
+each finding, grouped by artefact so a count is never read off the wrong
+name.
+
+This introduces no gate, severity or score, and clause 7's reservation
+stands: how `fail`, `review` and dispositions count towards compliance or
+admission remains ADR-0065 follow-up 2's decision. `bears_on` states where
+a finding lands; it does not weigh it, rank it, or aggregate it, and no
+verdict, bound, criterion or measurement changed with it — the regenerated
+Taylor report carries the counts it carried before (`fail` 66, `pass` 627,
+`not_applicable` 495, `not_assessable` 858). Dispositions remain deferred
+on their stated trigger (the first published row that reads `review`), and
+this note does not build them: the report still records no maintainer
+judgement of any finding.
+
+Additive to clause 2's catalogue, and presentation-only in effect. The
+report changes it serves — a per-quantity spread replacing the per-case
+table, which did not survive contact with a 110- or 1200-case benchmark;
+the removal of a section that restated reasons already on their rows;
+deviation-from-unity rendering for ratios whose printed digits hide their
+content — carry no decision and are recorded in the commit, not here.
