@@ -529,7 +529,7 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
   the ledger inside the canonical file, and ingesting the arrays the adapter
   currently discards (a dated note on ADR-0016).
 
-## Catalogue note (2026-09-22, agent; maintainer to finalise)
+## Catalogue note (2026-09-22, agent + maintainer)
 
 Every catalogue row gains one field, `bears_on`: which artefact a violation
 condemns, and so who would have to act — `input` (the solver input deck),
