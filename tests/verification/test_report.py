@@ -115,7 +115,10 @@ def test_the_report_opens_with_a_bottom_line() -> None:
     assert text.startswith("# taylor_impact_2d — reference-data verification\n")
     summary = _sections(text)["Summary"]
     assert "**1 check passes** wherever it applies." in summary
-    assert "**1 finding**: dips in the input's hardening table." in summary
+    assert (
+        "**1 finding** — in the solver input: dips in the input's hardening table."
+        in summary
+    )
     assert "**2 quantities are measured but not judged**" in summary
     assert "**2 checks could not be made**" in summary
     assert "1 check does not apply to these runs." in summary
@@ -137,7 +140,7 @@ def test_results_are_grouped_by_category_in_plain_words() -> None:
     results = _sections(render_markdown(judge(_dataset())))["Results by category"]
     integrity = results.split("### Data integrity")[1].split("###")[0]
     assert (
-        "| Non-finite values (NaN, infinity) | 0 | all cases | pass | must be zero |"
+        "| Non-finite values (NaN, infinity) | 0 |  | pass | must be zero |"
         in integrity
     )
     assert (
@@ -152,37 +155,16 @@ def test_results_are_grouped_by_category_in_plain_words() -> None:
 def test_unjudged_numbers_carry_their_context_but_no_verdict() -> None:
     text = render_markdown(judge(_dataset()))
     measured = _sections(text)["Measured, not judged"]
-    assert "**Most extreme input density**: 8.9e-09 kg/m^3." in measured
+    assert "**Most extreme input density** — a problem here would mean" in measured
     shown = (
-        "not confirmed by this platform: between 16 kg/m^3 and 22590 kg/m^3"
+        "not confirmed by this platform: between 16 kg/m³ and 22590 kg/m³"
         " [M-D6, M-D5, M-D10]"
     )
     assert shown in measured
-    assert (
-        "**Largest stress relative to the yield surface**: 1.00035 to 1.00135"
-        in measured
-    )
-    assert "(worst: `T-2`)" in measured
     assert "not this platform's standard" in measured
-
-
-def test_what_could_not_be_checked_says_why_in_plain_words() -> None:
-    gaps = _sections(render_markdown(judge(_dataset())))["What could not be checked"]
-    assert (
-        "- Because the runs did not supply the global energy ledger: largest energy"
-        " gain during the run." in gaps
-    )
-    assert (
-        "- Because this instrument cannot measure it yet: pressure against the"
-        " equation of state." in gaps
-    )
-
-
-def test_per_case_values_list_only_the_unjudged_quantities_that_vary() -> None:
-    table = _sections(render_markdown(judge(_dataset())))["Per-case values"]
-    assert "| Case | Largest stress relative to the yield surface |" in table
-    assert "| `T-1` | 1.00035 |" in table and "| `T-2` | 1.00135 |" in table
-    assert "input density" not in table  # identical in every case
+    # the values themselves stay in the results table and the spread
+    results = _sections(text)["Results by category"]
+    assert "1.00035 to 1.00135 (+0.0353 % to +0.135 %)" in results
 
 
 def test_the_reading_guide_gives_each_applied_bound_its_rationale() -> None:
@@ -191,7 +173,7 @@ def test_the_reading_guide_gives_each_applied_bound_its_rationale() -> None:
         "*Non-finite values (NaN, infinity)* — must be zero. A stored response" in guide
     )
     assert "Published levels shown for context (not applied)" in guide
-    assert "*Most extreme input density* — between 16 kg/m^3 and 22590 kg/m^3" in guide
+    assert "*Most extreme input density* — between 16 kg/m³ and 22590 kg/m³" in guide
     assert "Largest energy gain" not in guide  # never measured here: nothing to show
 
 
@@ -200,3 +182,143 @@ def test_no_artefact_carries_a_path_a_host_or_a_licence() -> None:
     for text in (to_json(data), render_markdown(judge(data))):
         assert not re.search(r"[A-Za-z]:\\|/home/|/Users/|\\\\|OneDrive", text)
         assert not re.search(r"(?i)licen[cs]e|hostname|@[a-z0-9-]+\.", text)
+
+
+def test_the_summary_says_where_the_findings_land() -> None:
+    summary = _sections(render_markdown(judge(_dataset())))["Summary"]
+    assert (
+        "- **1 finding** — in the solver input: dips in the input's hardening table."
+        in summary
+    )
+
+
+def test_a_finding_says_which_artefact_it_condemns() -> None:
+    findings = _sections(render_markdown(judge(_dataset())))["Findings"]
+    assert "- Lands in: the solver input." in findings
+
+
+def _spread(**values: tuple[float, ...]) -> DatasetMeasurements:
+    """A dataset of as many cases as each quantity has values."""
+    n = len(next(iter(values.values())))
+    cases = tuple(
+        CaseMeasurements(
+            f"C-{i + 1}",
+            "cd" * 32,
+            frozenset({"explicit", "dim2"}),
+            frozenset(),
+            tuple(
+                sorted(
+                    (_value(n, pair[i]) for n, pair in values.items()),
+                    key=lambda m: m.quantity,
+                )
+            ),
+        )
+        for i in range(n)
+    )
+    return DatasetMeasurements("taylor_impact_2d", "v0.1.0", "0.3.0", {}, cases)
+
+
+def test_a_ratio_within_one_percent_of_unity_shows_its_deviation() -> None:
+    text = render_markdown(judge(_spread(yield_ratio_max=(1.00035, 1.00135))))
+    assert "1.00035 to 1.00135 (+0.035 % to +0.135 %)" in text
+
+
+def test_a_ratio_far_from_unity_is_left_as_a_ratio() -> None:
+    text = render_markdown(judge(_spread(particle_neighbors_growth=(1.33333, 2.125))))
+    assert "1.33333 to 2.125" in text
+    assert "%)" not in text
+
+
+def test_a_negligible_percentage_does_not_print_an_exponent() -> None:
+    text = render_markdown(judge(_spread(pressure_trace_residual=(4.39e-8, 7.57e-8))))
+    assert "< 0.001 %" in text
+    assert "e-06" not in text
+    assert "< 0.001 % to < 0.001 %" not in text  # both ends render alike: show once
+
+
+def test_a_unit_with_a_power_is_typeset() -> None:
+    text = render_markdown(judge(_spread(input_density_plausible=(8900.0, 8900.0))))
+    assert "8900 kg/m³" in text
+    assert "kg/m^3" not in text
+
+
+def test_a_quantity_identical_in_every_case_names_no_worst_case() -> None:
+    text = render_markdown(judge(_spread(input_density_plausible=(8900.0, 8900.0))))
+    results = _sections(text)["Results by category"]
+    assert "| Most extreme input density | 8900 kg/m³ |  | not judged |" in results
+
+
+def test_a_check_that_could_not_be_made_is_not_listed_twice() -> None:
+    text = render_markdown(judge(_dataset()))
+    assert "## What could not be checked" not in text
+    results = _sections(text)["Results by category"]  # the reason rides its own row
+    assert "| Pressure against the equation of state | — |" in results
+    assert "| not checked | this instrument cannot measure it yet |" in results
+    assert (
+        "| not checked | the runs did not supply the global energy ledger |" in results
+    )
+
+
+def test_the_spread_across_cases_replaces_the_per_case_table() -> None:
+    text = render_markdown(judge(_spread(yield_ratio_max=(1.001, 1.002, 1.005))))
+    assert "## Per-case values" not in text
+    spread = _sections(text)["Spread across cases"]
+    assert "| Quantity | Lowest | Median | Highest | Worst case |" in spread
+    assert (
+        "| Largest stress relative to the yield surface, deviation from 1"
+        " | +0.1 % | +0.2 % | +0.5 % | `C-3` |" in spread
+    )
+
+
+def test_the_spread_leaves_out_what_is_the_same_in_every_case() -> None:
+    text = render_markdown(judge(_spread(input_density_plausible=(8900.0, 8900.0))))
+    assert "## Spread across cases" not in text
+
+
+def test_the_spread_reports_a_measured_median_never_an_interpolated_one() -> None:
+    text = render_markdown(judge(_spread(particle_neighbors_min=(5.0, 5.0, 6.0))))
+    spread = _sections(text)["Spread across cases"]
+    assert "| Fewest neighbours of any particle | 5 | 5 | 6 | `C-1` |" in spread
+
+
+def test_the_reading_guide_explains_where_a_finding_lands() -> None:
+    guide = _sections(render_markdown(judge(_dataset())))["How to read this report"]
+    assert "**the stored response**" in guide
+    assert "**the solver input**" in guide
+    assert "**the run record**" in guide
+    assert "**the benchmark's declaration**" in guide
+
+
+def test_an_unjudged_entry_does_not_repeat_the_number_the_tables_carry() -> None:
+    measured = _sections(render_markdown(judge(_dataset())))["Measured, not judged"]
+    assert (
+        "**Largest stress relative to the yield surface** — a problem here would"
+        " mean that stress lies outside the yield surface" in measured
+    )
+    assert "1.00035" not in measured  # the value lives in the results table
+    assert "(worst:" not in measured  # and the worst case in the spread table
+
+
+def test_a_bound_is_stated_exactly_never_approximated() -> None:
+    """A negligible *measurement* may round; a bound may not — it would loosen."""
+    text = render_markdown(judge(_spread(active_mass_drift=(0.0, 0.0))))
+    assert "at most 0.0001 %" in text
+    assert "< 0.001 %" not in text
+
+
+def test_findings_are_grouped_by_the_artefact_they_condemn() -> None:
+    """Counts and names must not read as two lists that pair up backwards."""
+    text = render_markdown(
+        judge(
+            _spread(
+                yield_table_monotone=(1.0, 1.0),
+                elements_without_input_part=(1.0, 1.0),
+            )
+        )
+    )
+    summary = _sections(text)["Summary"]
+    assert (
+        "- **2 findings** — 1 in the stored response: stored elements that no"
+        " input part owns; 1 in the solver input: dips in the input's hardening"
+        " table." in summary
+    )

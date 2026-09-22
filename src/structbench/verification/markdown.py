@@ -12,6 +12,7 @@ data is read — so it can be regenerated whenever either changes.
 from __future__ import annotations
 
 from collections import defaultdict
+from statistics import median_low
 
 from ..core import PLATFORM_REASONS
 from .criteria import CheckResult, Criterion, DatasetReport
@@ -42,6 +43,14 @@ _EVIDENCE = {
     "E10a": "a declared unit system",
     "E10b": "declared unit anchors",
 }
+#: What a violation condemns, in the words the report uses. Order is the
+#: order a reader cares about: the arrays first, the paperwork last.
+_LANDS = {
+    "response": "the stored response",
+    "input": "the solver input",
+    "run": "the run record",
+    "declared": "the benchmark's declaration",
+}
 _REASONS = {
     "unsupported": "this instrument cannot measure it yet",
     "no_declaration_home": "the benchmark has nowhere to declare it yet",
@@ -69,6 +78,11 @@ def _num(value: float, digits: int = 4) -> str:
     return f"{value:.0f}" if "e+" in text and abs(value) < 1e9 else text
 
 
+def _unit(unit: str) -> str:
+    """Powers as a reader writes them."""
+    return unit.replace("^3", "³").replace("^2", "²")
+
+
 def _scaled(value: float, unit: str) -> str:
     steps = {
         "Pa": ((1e9, "GPa"), (1e6, "MPa"), (1e3, "kPa")),
@@ -77,10 +91,12 @@ def _scaled(value: float, unit: str) -> str:
     for factor, name in steps:
         if abs(value) >= factor:
             return f"{_num(value / factor)} {name}"
-    return _num(value, 6) if unit == "1" else f"{_num(value)} {unit}"
+    # six digits, not four: a ratio's whole content can sit past the fourth
+    return _num(value, 6) if unit == "1" else f"{_num(value)} {_unit(unit)}"
 
 
 def _fmt(q: Quantity, value: float) -> str:
+    """Exactly, as a bound must be stated."""
     if q.display == "percent":
         return f"{100.0 * value:.3g} %"
     if q.display == "count":
@@ -90,9 +106,37 @@ def _fmt(q: Quantity, value: float) -> str:
     return _scaled(value, q.unit)
 
 
+def _shown(q: Quantity, value: float) -> str:
+    """A measured value. Never used for a bound: rounding one would loosen it."""
+    if q.display == "percent":
+        percent = 100.0 * value
+        if 0.0 < abs(percent) < 0.001:  # an exponent here tells a reader nothing
+            return "< 0.001 %" if percent > 0 else "> -0.001 %"
+    return _fmt(q, value)
+
+
+def _near_unity(q: Quantity, values: list[float]) -> bool:
+    """Ratios whose whole content is the deviation the printed digits hide."""
+    return (
+        q.display == "plain"
+        and q.unit == "1"
+        and all(0.99 < v < 1.01 for v in values)
+        and any(v != 1.0 for v in values)
+    )
+
+
+def _deviation(value: float) -> str:
+    return "0 %" if value == 1.0 else f"{(value - 1.0) * 100.0:+.3g} %"
+
+
 def _span(q: Quantity, values: list[float]) -> str:
     lo, hi = min(values), max(values)
-    return _fmt(q, lo) if lo == hi else f"{_fmt(q, lo)} to {_fmt(q, hi)}"
+    low, high = _shown(q, lo), _shown(q, hi)
+    text = low if low == high else f"{low} to {high}"
+    if not _near_unity(q, values):
+        return text
+    dlo, dhi = _deviation(lo), _deviation(hi)
+    return f"{text} ({dlo})" if dlo == dhi else f"{text} ({dlo} to {dhi})"
 
 
 def _outcome(rows: Rows) -> str:
@@ -109,7 +153,7 @@ def _outcome(rows: Rows) -> str:
 def _worst(q: Quantity, rows: Rows) -> str:
     valued = [(cid, r.value) for cid, r in rows if r.value is not None]
     if len(valued) < 2 or len({v for _, v in valued}) == 1:
-        return "all cases" if len(valued) > 1 else ""
+        return ""  # one value for every case: there is no worst one
     pick = min if q.lower_is_worse else max
     return f"`{pick(valued, key=lambda cv: cv[1])[0]}`"
 
@@ -154,6 +198,25 @@ def _why_unchecked(rows: Rows) -> str:
         else:
             reasons.append(_REASONS.get(r.reason, r.reason.replace("_", " ")))
     return "; ".join(dict.fromkeys(reasons))
+
+
+def _lands(named: list[tuple[str, str]]) -> str:
+    """Findings grouped by what they condemn, so no count is read off the wrong name.
+
+    ``in the solver input: a`` / ``all in X: a; b`` / ``1 in X: a; 2 in Y: b; c``.
+    """
+    grouped: dict[str, list[str]] = defaultdict(list)
+    for place, title in named:
+        grouped[place].append(title)
+    if len(grouped) == 1:
+        place, titles = next(iter(grouped.items()))
+        lead = "all " if len(titles) > 1 else ""
+        return f"{lead}in {_LANDS[place]}: {'; '.join(titles)}"
+    return "; ".join(
+        f"{len(grouped[p])} in {_LANDS[p]}: {'; '.join(grouped[p])}"
+        for p in _LANDS
+        if p in grouped
+    )
 
 
 def render_markdown(report: DatasetReport) -> str:
@@ -228,8 +291,10 @@ def render_markdown(report: DatasetReport) -> str:
         f" {'it applies' if len(passed) == 1 else 'they apply'}."
     )
     if findings:
-        named = "; ".join(quantities[n].title.lower() for n in findings)
-        out.append(f"- **{_pl(len(findings), 'finding', 'findings')}**: {named}.")
+        where = _lands(
+            [(quantities[n].bears_on, quantities[n].title.lower()) for n in findings]
+        )
+        out.append(f"- **{_pl(len(findings), 'finding', 'findings')}** — {where}.")
     else:
         out.append("- **No findings.**")
     out += [
@@ -265,6 +330,7 @@ def render_markdown(report: DatasetReport) -> str:
             f"- Found: {_span(q, values)} in {_cases([c for c, _ in bad], n_cases)}.",
             f"- Required: {_bound(q, criterion) if criterion else 'see criteria'}.",
             f"- What it means: {q.meaning}.",
+            f"- Lands in: {_LANDS[q.bears_on]}.",
             "",
         ]
     if not findings:
@@ -325,32 +391,22 @@ def render_markdown(report: DatasetReport) -> str:
     out += [
         "## Measured, not judged",
         "",
-        "Numbers the platform reports without a verdict. Where a published limit"
-        " exists it is shown for context only: it has not been confirmed against"
-        " its source by the maintainer, so it is not this platform's standard.",
+        "What the numbers above would mean, for the quantities no bound is"
+        " applied to. Where a published limit exists it is shown for context"
+        " only: it has not been confirmed against its source by the maintainer,"
+        " so it is not this platform's standard.",
         "",
     ]
     for name in measured:
-        q, rows = quantities[name], by_quantity[name]
-        values = [r.value for _, r in rows if r.value is not None]
-        worst = _worst(q, rows)
-        where = f" (worst: {worst})" if worst.startswith("`") else ""
+        q = quantities[name]
+        # the value is in the results table and the spread: here, only what it
+        # would mean and what the literature says
         out.append(
-            f"- **{q.title}**: {_span(q, values)}{where}. A problem here would mean"
-            f" that {q.meaning}. *{context(name)[:1].upper()}{context(name)[1:]}.*"
+            f"- **{q.title}** — a problem here would mean that {q.meaning}."
+            f" *{context(name)[:1].upper()}{context(name)[1:]}.*"
         )
     if not measured:
         out.append("None.")
-
-    out += ["", "## What could not be checked", ""]
-    gaps: dict[str, list[str]] = defaultdict(list)
-    for name in unchecked:
-        gaps[_why_unchecked(by_quantity[name])].append(quantities[name].title.lower())
-    for why, titles in sorted(gaps.items()):
-        out.append(f"- Because {why}: {'; '.join(titles)}.")
-    if not unchecked:
-        out.append("Nothing: every applicable check was made.")
-
     varying = [
         n
         for n in measured
@@ -359,20 +415,26 @@ def render_markdown(report: DatasetReport) -> str:
     if varying:
         out += [
             "",
-            "## Per-case values",
+            "## Spread across cases",
             "",
-            "The unjudged quantities that differ between cases, one row per case.",
+            "The unjudged quantities that differ between cases. The median is a"
+            " measured value, never an interpolated one, and the worst case is the"
+            " end of the range that matters for the quantity.",
             "",
-            "| Case | " + " | ".join(quantities[n].title for n in varying) + " |",
-            "|---|" + "---|" * len(varying),
+            "| Quantity | Lowest | Median | Highest | Worst case |",
+            "|---|---|---|---|---|",
         ]
-        for case in report.cases:
-            mine = {r.quantity: r.value for r in case.results}
+        for name in varying:
+            q, rows = quantities[name], by_quantity[name]
+            values = sorted(r.value for _, r in rows if r.value is not None)
+            deviation = _near_unity(q, values)
+            label = q.title + (", deviation from 1" if deviation else "")
             cells = [
-                _fmt(quantities[n], v) if (v := mine.get(n)) is not None else "—"
-                for n in varying
+                _deviation(v) if deviation else _shown(q, v)
+                for v in (values[0], median_low(values), values[-1])
             ]
-            out.append(f"| `{case.case_id}` | " + " | ".join(cells) + " |")
+            row = " | ".join(cells)
+            out.append(f"| {label} | {row} | {_worst(q, rows)} |")
 
     out += [
         "",
@@ -388,6 +450,17 @@ def render_markdown(report: DatasetReport) -> str:
         " instrument cannot make it yet. The reason is given.",
         "- **not applicable** — the quantity does not exist for this kind of run"
         " (hourglass energy in a particle model, for instance).",
+        "",
+        "Every check names the artefact a finding would condemn, and so who"
+        " would have to act:",
+        "",
+        "- **the stored response** — the fields a user loads and trains on.",
+        "- **the solver input** — the input deck; the fix is a corrected deck"
+        " and a new run.",
+        "- **the run record** — how the run behaved and what the solver"
+        " reported; the stored arrays may be intact.",
+        "- **the benchmark's declaration** — what this repository claims about"
+        " the runs; the fix is a corrected benchmark card.",
         "",
         "Bounds applied:",
         "",
