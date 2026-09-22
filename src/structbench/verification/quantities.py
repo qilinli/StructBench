@@ -29,6 +29,9 @@ __all__ = ["CATALOGUE", "Quantity", "TraitGate", "gate", "get_quantity"]
 E = EvidenceItem
 _UNSUPPORTED = "unsupported"
 
+#: Which artefact a violation condemns; see :attr:`Quantity.bears_on`.
+BearsOn = Literal["input", "response", "run", "declared"]
+
 
 @dataclass(frozen=True)
 class TraitGate:
@@ -71,6 +74,13 @@ class Quantity:
     gate : TraitGate
     meaning : str
         What a violation means, in one line; rendered in reports.
+    bears_on : {"input", "response", "run", "declared"}
+        Which artefact a violation condemns, and so who must fix it: the
+        solver input deck, the stored fields a user loads, the run's
+        numerical conduct and the solver's own record, or the benchmark's
+        own declaration. A definition, never a measurement: it says where a
+        finding of this kind lands, not where its evidence was read
+        (:class:`~structbench.verification.results.Location` does that).
     title : str
         The short phrase a report shows instead of ``name``.
     display : {"plain", "percent", "count", "flag"}
@@ -91,6 +101,7 @@ class Quantity:
     meaning: str
     status: Status
     definition_version: int | None
+    bears_on: BearsOn
     title: str = ""
     display: Literal["plain", "percent", "count", "flag"] = "plain"
     lower_is_worse: bool = False
@@ -232,6 +243,76 @@ _LOWER_IS_WORSE = frozenset(
         "state_variable_min",
     }
 )
+#: Which artefact a violation condemns — the definition, not the evidence read.
+_BEARS_ON: dict[str, BearsOn] = {
+    # The solver input deck: the fix is a corrected deck and a new run.
+    "input_constants_plausible": "input",
+    "input_density_plausible": "input",
+    "input_dimensionless_groups_plausible": "input",
+    "input_strength_plausible": "input",
+    "input_unit_declaration_consistent": "input",
+    "yield_table_covers_range": "input",
+    "yield_table_monotone": "input",
+    # The benchmark's own declaration: the fix is a corrected card.
+    "declared_traits_match_input": "declared",
+    "fields_match_declaration": "declared",
+    "units_anchors_consistent": "declared",
+    "yield_table_matches_input": "declared",
+    # The stored fields a user loads: what is trained on is wrong or short.
+    "active_mass_drift": "response",
+    "density_slot_matches_input": "response",
+    "elements_without_input_part": "response",
+    "eos_closure": "response",
+    "internal_energy_closure": "response",
+    "kinetic_energy_closure": "response",
+    "nonfinite_count": "response",
+    "out_of_plane_shear_max": "response",
+    "particle_deactivated_count": "response",
+    "plane_strain_ezz_max": "response",
+    "pressure_trace_residual": "response",
+    "reached_end_time": "response",
+    "response_magnitudes_plausible": "response",
+    "state_variable_decrease_max": "response",
+    "state_variable_min": "response",
+    "stored_globals_match_ledger": "response",
+    "terminal_artifact_frames": "response",
+    "time_axis_monotone": "response",
+    "yield_ratio_max": "response",
+    "yield_saturation_min": "response",
+    # The run's numerical conduct and the solver's record: the arrays may be
+    # intact, but the physics behind them is in question.
+    "added_mass_fraction": "run",
+    "added_mass_moving_fraction": "run",
+    "added_mass_top_part_fraction": "run",
+    "contact_energy_negative_ratio": "run",
+    "contact_energy_ratio": "run",
+    "energy_gain_max": "run",
+    "energy_loss_max": "run",
+    "energy_residual_final": "run",
+    "external_work_closure": "run",
+    "implicit_convergence": "run",
+    "mass_closure": "run",
+    "momentum_impulse_balance": "run",
+    "particle_neighbors_growth": "run",
+    "particle_neighbors_min": "run",
+    "prescribed_motion_realised": "run",
+    "quasi_static_kinetic_ratio": "run",
+    "rigid_surface_penetration_max": "run",
+    "sampling_clock_consistent": "run",
+    "smoothing_length_at_bound_fraction": "run",
+    "smoothing_length_within_input_bounds": "run",
+    "solver_error_count": "run",
+    "solver_identity_complete": "run",
+    "solver_warning_count": "run",
+    "terminated_normally": "run",
+    "timestep_min_ratio": "run",
+    "timestep_vs_stability_estimate": "run",
+    "total_energy_change_final": "run",
+    "zero_energy_mode_final_over_initial_total": "run",
+    "zero_energy_mode_final_over_internal_final": "run",
+    "zero_energy_mode_peak_over_internal_peak": "run",
+    "zero_energy_mode_top_part_final_over_internal_final": "run",
+}
 
 
 def _display(name: str) -> Literal["plain", "percent", "count", "flag"]:
@@ -263,6 +344,7 @@ def _row(
         meaning,
         Status.IMPLEMENTED if implemented else Status.SPECIFIED,
         1 if implemented else None,
+        _BEARS_ON[name],  # an unclassified row is a KeyError at import
         _TITLES[name],  # a row without a title is a KeyError at import
         _display(name),
         name in _LOWER_IS_WORSE,

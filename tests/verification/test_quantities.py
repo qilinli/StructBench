@@ -218,3 +218,14 @@ def test_a_specified_row_with_all_its_evidence_is_an_instrument_gap() -> None:
     row = gate(get_quantity("external_work_closure"), _facts(), _DECLARED, everything)
     assert row is not None and row.absence is not None
     assert row.absence.reason is AbsenceReason.UNSUPPORTED
+
+
+def test_every_quantity_declares_where_a_violation_lands() -> None:
+    """``bears_on`` lets a report say where a finding sits, from the definition."""
+    assert {q.bears_on for q in CATALOGUE} == {"input", "response", "run", "declared"}
+    where = {q.name: q.bears_on for q in CATALOGUE}
+    assert where["yield_table_monotone"] == "input"  # a defect in the solver input
+    assert where["elements_without_input_part"] == "response"  # in the stored fields
+    assert where["terminated_normally"] == "run"  # in the solver's own record
+    assert where["fields_match_declaration"] == "declared"  # in the benchmark's card
+    assert where["nonfinite_count"] == "response"
