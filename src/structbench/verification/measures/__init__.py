@@ -130,6 +130,7 @@ def measure_case(
     case_id: str,
     file_sha256: str | None = None,
     run: RunEvidence | None = None,
+    input_reason: AbsenceReason | None = None,
 ) -> CaseMeasurements:
     """Measure every catalogue quantity on one run.
 
@@ -145,6 +146,11 @@ def measure_case(
     case_id : str
     file_sha256 : str or None
         Digest of the case file the measurements were taken from.
+    input_reason : AbsenceReason or None
+        Why ``facts`` is ``None`` when a solver input WAS stored -- the
+        platform has no reader for the solver that wrote it (ADR-0068).
+        ``None`` means the case simply stored no input, which is the
+        dataset's gap and reported as such.
     run : RunEvidence or None
         What the solver's run record establishes (E2-E5).
 
@@ -156,7 +162,7 @@ def measure_case(
     supplied = _supplied(case, facts, declared, run)
     rows: list[Measurement] = []
     for q in CATALOGUE:
-        row = gate(q, facts, declared, supplied)
+        row = gate(q, facts, declared, supplied, input_reason)
         if row is None:
             try:
                 if q.name in CLOSURE_MEASURES:

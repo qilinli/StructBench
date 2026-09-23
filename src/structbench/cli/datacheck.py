@@ -31,7 +31,9 @@ from ..benchmarks import BenchmarkSpec, get_benchmark
 from ..core import (
     Absence,
     AbsenceReason,
+    Case,
     DeclaredFacts,
+    InputFacts,
     RunEvidence,
     read_case,
     read_input_facts,
@@ -69,6 +71,44 @@ def declared_from_spec(spec: BenchmarkSpec) -> DeclaredFacts:
         erosion=card.erosion,
         yield_table=table,
     )
+
+
+#: Solver input readers by normalised solver name (``Provenance.solver_name``).
+#: A deck whose solver is absent or unlisted is NOT parsed: guessing is how a
+#: foreign deck gets reported as a defective one (ADR-0068).
+_INPUT_READERS = {"lsdyna": read_input_facts}
+
+
+def _normalise_solver(name: str | None) -> str:
+    """``"LS-DYNA"``, ``"ls dyna"``, ``"LSDYNA"`` -> ``"lsdyna"``."""
+    return "".join(ch for ch in (name or "").lower() if ch.isalnum())
+
+
+def input_facts_for(case: Case) -> tuple[InputFacts | None, AbsenceReason | None]:
+    """Read the stored solver input with the reader for ITS solver.
+
+    Returns ``(facts, reason)``. ``reason`` is ``None`` when the input was
+    read, or when the case stores no input at all -- a case that carries no
+    deck is missing evidence the dataset should have supplied, which is the
+    dataset's gap and already reported as such. ``reason`` is
+    ``UNSUPPORTED`` -- a platform reason -- when a deck IS stored and this
+    instrument has no reader for the solver that wrote it. That is the
+    platform's gap and must never be counted against the contributor.
+
+    Fails closed: an unattributable deck is not parsed. ``Provenance`` is
+    optional and ``solver_name`` is free text, so the alternative is handing
+    an unknown input to whichever parser happens to be first.
+    """
+    deck, units = case.metadata.source_deck, case.metadata.source_units
+    if not deck or not units:
+        return None, None
+    provenance = case.metadata.provenance
+    reader = _INPUT_READERS.get(
+        _normalise_solver(provenance.solver_name if provenance else None)
+    )
+    if reader is None:
+        return None, AbsenceReason.UNSUPPORTED
+    return reader(deck, source_units=units), None
 
 
 def _sha256(path: Path) -> str:
@@ -130,10 +170,7 @@ def measure_dataset(
         try:
             digest = _sha256(path)
             case = read_case(path)
-            deck, units = case.metadata.source_deck, case.metadata.source_units
-            facts = (
-                read_input_facts(deck, source_units=units) if deck and units else None
-            )
+            facts, input_reason = input_facts_for(case)
             cases.append(
                 measure_case(
                     case,
@@ -142,6 +179,7 @@ def measure_dataset(
                     case_id=case_id,
                     file_sha256=digest,
                     run=runs.get(case_id),
+                    input_reason=input_reason,
                 )
             )
         except Exception:  # noqa: BLE001 - recorded, never an abort
