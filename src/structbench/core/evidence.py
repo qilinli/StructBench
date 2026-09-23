@@ -233,6 +233,11 @@ class InputFacts:
     unparsable : frozenset of str
         Tokens for constructs the reader refused to resolve, e.g.
         ``"include"``, ``"unknown_card_layout:<KEYWORD>"``.
+    solver : str
+        Which reader established these facts, normalised
+        (``"lsdyna"``, ``"abaqus"``). A record that cannot say which solver
+        it describes cannot be interpreted, and since ADR-0068 there is more
+        than one reader.
     """
 
     parts: tuple[PartTraits, ...]
@@ -253,6 +258,7 @@ class InputFacts:
     energy_terms_computed: frozenset[str] | None
     databases_requested: frozenset[str] | None
     unparsable: frozenset[str]
+    solver: str
 
     def __post_init__(self) -> None:
         for token in self.unparsable | self.other_termination_criteria:

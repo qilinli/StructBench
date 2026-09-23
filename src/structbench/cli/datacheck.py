@@ -39,6 +39,7 @@ from ..core import (
     read_input_facts,
 )
 from ..core.io import load_run_evidence
+from ..core.io.abaqus_run import read_abaqus_input_facts
 from ..verification.criteria import judge
 from ..verification.measures import measure_case
 from ..verification.quantities import CATALOGUE
@@ -76,7 +77,7 @@ def declared_from_spec(spec: BenchmarkSpec) -> DeclaredFacts:
 #: Solver input readers by normalised solver name (``Provenance.solver_name``).
 #: A deck whose solver is absent or unlisted is NOT parsed: guessing is how a
 #: foreign deck gets reported as a defective one (ADR-0068).
-_INPUT_READERS = {"lsdyna": read_input_facts}
+_INPUT_READERS = {"lsdyna": read_input_facts, "abaqus": read_abaqus_input_facts}
 
 
 def _normalise_solver(name: str | None) -> str:

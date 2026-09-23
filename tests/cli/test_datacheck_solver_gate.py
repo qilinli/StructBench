@@ -76,9 +76,18 @@ def test_the_solver_name_is_matched_without_punctuation_or_case() -> None:
         assert facts is not None, spelling
 
 
-def test_a_foreign_deck_is_not_parsed_and_is_the_platforms_gap() -> None:
+def test_an_abaqus_deck_now_goes_to_the_abaqus_reader() -> None:
+    """Registered since ADR-0068 step 7; it is never handed to LS-DYNA's."""
     facts, reason = input_facts_for(_case(_ABAQUS_DECK, "Abaqus"))
-    assert facts is None  # never handed to the LS-DYNA parser
+    assert reason is None
+    assert facts is not None and facts.solver == "abaqus"
+    assert facts.time_integration == "implicit"  # *Static, not LS-DYNA's default
+
+
+def test_a_solver_with_no_reader_is_the_platforms_gap() -> None:
+    """DeformingPlate already declares COMSOL, for which there is no reader."""
+    facts, reason = input_facts_for(_case(_ABAQUS_DECK, "COMSOL"))
+    assert facts is None  # not handed to whichever parser happens to be first
     assert reason is AbsenceReason.UNSUPPORTED
     assert reason in PLATFORM_REASONS  # so it never counts against the dataset
 

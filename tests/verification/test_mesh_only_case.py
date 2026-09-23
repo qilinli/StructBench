@@ -75,6 +75,7 @@ def _mesh_facts() -> InputFacts:
         energy_terms_computed=None,
         databases_requested=None,
         unparsable=frozenset(),
+        solver="lsdyna",
     )
 
 

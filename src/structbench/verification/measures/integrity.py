@@ -10,12 +10,12 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from ...core import Case, DeclaredFacts, InputFacts
+from ...core import AbsenceReason, Case, DeclaredFacts, InputFacts
 from ...datasets import n_valid_frames
 from ..kernels import nonfinite_count
 from ..materials import material_class
 from ..results import Location, Measurement
-from ._common import MeasureFn, input_gap, needs_case, value
+from ._common import MeasureFn, absent, input_gap, needs_case, value
 
 CASE, INPUT, DECLARED = Location.CASE, Location.INPUT, Location.DECLARED
 
@@ -162,6 +162,12 @@ def _input_requests_required_evidence(
     """
     name = "input_requests_required_evidence"
     assert facts is not None
+    if facts.solver != "lsdyna":
+        # `_REQUIRED_DATABASES` holds LS-DYNA keyword names, so conformance
+        # cannot be checked for another solver until its output-request
+        # vocabulary is defined (ADR-0068 clause 8). That is the platform's
+        # gap; `input_gap` here would blame a complete deck for it.
+        return absent(name, AbsenceReason.UNSUPPORTED)
     if facts.databases_requested is None:
         return input_gap(name, facts)  # the deck hides what it asks for
     features = {
