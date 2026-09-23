@@ -602,8 +602,12 @@ platform carries no class for `*MAT_CONCRETE_DAMAGE_REL3` (K&C) or
 `*MAT_PLASTIC_KINEMATIC`, and the four input-constant rows are
 `not_assessable / unparsable` because `read_input_facts` has no card layout
 for them. Adding either is the material-class ADR that ADR-0012 anticipates
-and `verification/materials.py` requires; it is not discharged here, and it
-is the single largest recovery available on this benchmark.
+and `verification/materials.py` requires; it is not discharged here.
+*(Corrected 2026-09-23: this note first called it the single largest
+recovery available on notch. It is not. Of the 28 rows notch cannot check,
+13 are `source_missing` -- the ledger, time-step history and load
+resultants the runs never wrote -- and no material class reaches them. A
+class plus the two card layouts recovers about six.)*
 
 **The widening's real yield was two defects in the message-file reader that
 Taylor could not have exposed.** Diagnostics were counted by any line
@@ -731,7 +735,9 @@ existing verdict changed, and the hardening-table and unowned-element
 findings stand as before.
 
 Open and untouched: the four ADR-0065 follow-ups; the material-class ADR that
-ADR-0012 anticipates, which remains the largest recovery available on notch;
+ADR-0012 anticipates, worth about six of notch's 28 unchecked rows (the 13
+`source_missing` rows are beyond any class, the runs having written no
+ledger);
 the kinetic-energy closure's tolerance; E6, E7 and the two remaining E9 rows,
 which wait on a run that supplies their files; and what to do about
 `global/total_energy`.
