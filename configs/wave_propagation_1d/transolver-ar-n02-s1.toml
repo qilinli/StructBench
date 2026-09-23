@@ -1,6 +1,6 @@
 # wave_propagation_1d — Transolver AUTOREGRESSIVE, LOW-NOISE insurance arm,
 # seed 1 (2026-08-27 wave multi-method fleet). Identical to transolver-ar-s1
-# except noise_std 0.06 -> 0.02. Rationale: the 2026-08-21 EMI26 wave
+# except noise_std 0.06 -> 0.02. Rationale: the 2026-08-21 wave
 # Transolver-AR control DIVERGED (disp rel-L2 1.26) under the untuned 0.06
 # transfer from the blessed CGN recipe (F-006 flag); 0.02 is the
 # taylor-validated transolver-AR noise (ADR-0049 n02 arms), so this pair

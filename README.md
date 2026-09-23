@@ -146,8 +146,10 @@ decisions/         # architecture decision records (ADRs)
 tools/             # doc generation, the pooled-RMSE blessing aggregator, dev scripts
 data_generation/   # solver decks + offline conversion scripts (data provenance)
 hpc/               # cluster launch scripts (DUG SLURM)
-docs/              # benchmark cards, architecture, harness, corrections,
-                   #   datachecks/ (published verification records)
+docs/              # benchmark cards, architecture, harness, corrections;
+                   #   datachecks/ (published verification records),
+                   #   timelines/ (ground-truth evidence behind protocol values),
+                   #   plans/ (design + source dossier for work still in flight)
 tests/             # deterministic CPU-only test suite
 assets/            # figures embedded in the docs + landing pages
 ```
