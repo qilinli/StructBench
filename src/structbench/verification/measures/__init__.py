@@ -21,17 +21,63 @@ from ..quantities import CATALOGUE, gate
 from ..results import CaseMeasurements, Measurement, Status
 from ..traits import run_traits
 from . import constitutive, health, integrity, units
-from ._common import MeasureFn
+from ._common import PARTICLES, MeasureFn, absent
 from .closure import CLOSURE_MEASURES, shared_samples
 from .run import RUN_MEASURES
 
 __all__ = ["CLOSURE_MEASURES", "MEASURES", "RUN_MEASURES", "measure_case"]
 
-MEASURES: dict[str, MeasureFn] = {
+#: Measures that read the SPH block directly. On a case without one the
+#: access is a ``KeyError``, which ``measure_case`` would stamp
+#: ``source_unreadable`` -- a contributor-owned reason -- for a case that is
+#: perfectly readable. Nine of these carry no particle trait gate, so the
+#: guard belongs here rather than on each row. The quantity exists for a
+#: meshed element too; what is missing is a measure that reads one, which is
+#: the platform's gap (``unsupported``), never the dataset's.
+_PARTICLE_ONLY: frozenset[str] = frozenset(
+    {
+        "active_mass_drift",
+        "density_slot_matches_input",
+        "out_of_plane_shear_max",
+        "particle_deactivated_count",
+        "particle_neighbors_growth",
+        "particle_neighbors_min",
+        "plane_strain_ezz_max",
+        "pressure_trace_residual",
+        "smoothing_length_at_bound_fraction",
+        "smoothing_length_within_input_bounds",
+        "state_variable_decrease_max",
+        "state_variable_min",
+        "yield_ratio_max",
+        "yield_saturation_min",
+        "yield_table_covers_range",
+    }
+)
+
+
+def _needs_particles(name: str, fn: MeasureFn) -> MeasureFn:
+    """Report the platform's gap rather than crashing on a mesh-only case."""
+
+    def wrapped(
+        case: Case | None, facts: InputFacts | None, declared: DeclaredFacts | None
+    ) -> Measurement:
+        if case is not None and PARTICLES not in case.elements:
+            return absent(name, AbsenceReason.UNSUPPORTED)
+        return fn(case, facts, declared)
+
+    return wrapped
+
+
+_RAW_MEASURES: dict[str, MeasureFn] = {
     **health.MEASURES,
     **integrity.MEASURES,
     **constitutive.MEASURES,
     **units.MEASURES,
+}
+
+MEASURES: dict[str, MeasureFn] = {
+    name: _needs_particles(name, fn) if name in _PARTICLE_ONLY else fn
+    for name, fn in _RAW_MEASURES.items()
 }
 
 _IMPLEMENTED = {q.name for q in CATALOGUE if q.status is Status.IMPLEMENTED}

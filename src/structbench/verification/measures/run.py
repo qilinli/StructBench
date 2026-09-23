@@ -42,8 +42,13 @@ def _solver_error_count(run: RunEvidence, facts: InputFacts | None) -> Measureme
 
 
 def _solver_warning_count(run: RunEvidence, facts: InputFacts | None) -> Measurement:
-    assert run.n_warnings is not None
-    return value("solver_warning_count", run.n_warnings, RUN)
+    name = "solver_warning_count"
+    if run.n_warnings is None:
+        # E3 is admitted on termination + an error count, so this row is
+        # measured even where the record carried no warning count. One datum
+        # is missing from the record; the record itself is readable.
+        return absent(name, AbsenceReason.SOURCE_MISSING, EvidenceItem.E3)
+    return value(name, run.n_warnings, RUN)
 
 
 def _solver_identity_complete(
