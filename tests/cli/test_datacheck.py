@@ -22,6 +22,7 @@ from structbench.core import (
     Material,
     Metadata,
     Nodes,
+    Provenance,
     Response,
     RunEvidence,
     TerminationRecord,
@@ -100,7 +101,13 @@ def _spec() -> BenchmarkSpec:
 def _write(root: Path, case_id: str) -> None:
     case = Case(
         metadata=Metadata(
-            case_id=case_id, dimension=2, source_units="g-mm-ms", source_deck=_DECK
+            case_id=case_id,
+            dimension=2,
+            source_units="g-mm-ms",
+            source_deck=_DECK,
+            # ADR-0068: a stored input is read only by the reader for ITS
+            # solver, so the case has to say which solver wrote it.
+            provenance=Provenance("LS-DYNA", "unknown", "2026-09-24"),
         ),
         nodes=Nodes(
             coords=np.array([[0.0, 0.0], [1e-3, 0.0]]),

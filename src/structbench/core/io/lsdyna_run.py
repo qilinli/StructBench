@@ -431,6 +431,7 @@ def read_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
         energy_terms_computed=None if hidden else energy_terms,
         databases_requested=None if hidden else databases,
         unparsable=frozenset(tokens),
+        solver="lsdyna",
     )
 
 

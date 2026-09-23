@@ -1020,6 +1020,7 @@ def gate(
     facts: InputFacts | None,
     declared: DeclaredFacts | None,
     supplied: frozenset[EvidenceItem],
+    input_reason: AbsenceReason | None = None,
 ) -> Measurement | None:
     """Decide whether ``q`` can be measured on this run.
 
@@ -1034,6 +1035,11 @@ def gate(
     declared : DeclaredFacts or None
     supplied : frozenset of EvidenceItem
         The evidence items the run supplied.
+    input_reason : AbsenceReason or None
+        Replaces the E1 absence reason when a solver input was stored and the
+        platform has no reader for it. Without this the row would read
+        ``source_missing``, which is contributor-owned, for an input the
+        contributor supplied in full (ADR-0068).
 
     Returns
     -------
@@ -1043,7 +1049,7 @@ def gate(
     """
     flags = [name for name, on in vars(q.gate).items() if on]
     if flags and facts is None:
-        return _absent(q, AbsenceReason.SOURCE_MISSING, E.E1)
+        return _absent(q, input_reason or AbsenceReason.SOURCE_MISSING, E.E1)
     if facts is not None:
         results = [_trait(flag, facts, declared) for flag in flags]
         if any(r is False for r in results):
@@ -1062,7 +1068,10 @@ def gate(
 
     missing = q.requires - supplied
     if missing - {E.E10B}:
-        return _absent(q, AbsenceReason.SOURCE_MISSING, *sorted(missing))
+        reason = AbsenceReason.SOURCE_MISSING
+        if input_reason is not None and missing == {E.E1}:
+            reason = input_reason  # the input is there; the reader is not
+        return _absent(q, reason, *sorted(missing))
     if missing:
         return _absent(q, AbsenceReason.NO_DECLARATION_HOME, E.E10B)
     for name in q.declared_fields:

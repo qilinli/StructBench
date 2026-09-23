@@ -147,6 +147,7 @@ def _facts(**overrides: object) -> InputFacts:
             {"DATABASE_GLSTAT", "DATABASE_MATSUM", "DATABASE_RWFORC"}
         ),
         "unparsable": frozenset(),
+        "solver": "lsdyna",
     }
     return InputFacts(**{**base, **overrides})  # type: ignore[arg-type]
 
@@ -723,3 +724,21 @@ def test_an_unread_card_keeps_the_yield_ratio_row_an_absence() -> None:
     row = _get(_run(facts=facts), "input_dimensionless_groups_plausible")
     assert row.absence is not None
     assert row.absence.reason is AbsenceReason.UNPARSABLE
+
+
+def test_conformance_is_the_platforms_gap_for_a_solver_it_has_no_vocabulary_for() -> (
+    None
+):
+    """ADR-0068 clause 8 defers the Abaqus output-request vocabulary.
+
+    `_REQUIRED_DATABASES` holds LS-DYNA keyword names, so the row cannot be
+    checked for another solver at all. Falling through to `input_gap` would
+    report SOURCE_MISSING -- contributor-owned -- for a deck that is complete
+    and simply not LS-DYNA.
+    """
+    row = _get(
+        _run(facts=_facts(solver="abaqus", databases_requested=None)),
+        "input_requests_required_evidence",
+    )
+    assert row.absence is not None
+    assert row.absence.reason is AbsenceReason.UNSUPPORTED

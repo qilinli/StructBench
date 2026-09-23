@@ -45,6 +45,7 @@ def _facts(**overrides: object) -> InputFacts:
         "energy_terms_computed": None,
         "databases_requested": None,
         "unparsable": frozenset(),
+        "solver": "lsdyna",
     }
     base.update(overrides)
     return InputFacts(**base)  # type: ignore[arg-type]
