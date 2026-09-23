@@ -824,3 +824,36 @@ input, the single extractor reported `time_integration='explicit'` for a
 `*Static` job and `databases_requested=frozenset()`, failing
 `input_requests_required_evidence` against a correct deck. A single extractor
 is only safe while there is a single solver, and that stopped being true.
+
+## Abaqus note (2026-09-24): what a second solver changed, and what it did not
+
+ADR-0068 admits Abaqus. Recorded here because clauses 2 and 3 of this ADR are
+what it touches.
+
+**Clause 2's evidence requirement did not change.** E1–E10 are stated
+solver-neutrally and transferred without amendment; Abaqus answers them across
+three files where LS-DYNA uses two, and which files exist is itself evidence —
+a job the pre-processor rejects writes only `.dat`, with no `.sta` and no
+`.msg`. The record types in `core/evidence.py` needed one addition, `solver`,
+because a record produced by one of several readers has to say which one.
+
+**Clause 3's "single extractor" became one per solver** (amended above). No
+protocol or plugin seam was introduced; the neutral record types remain the
+whole interface.
+
+**Two rows moved because of it.** `input_requests_required_evidence` reports
+`unsupported` for a non-LS-DYNA input, since `_REQUIRED_DATABASES` holds
+LS-DYNA keyword names and the Abaqus vocabulary is deferred; falling through
+would have reported `source_missing` against a complete deck. And the
+particle-only rows report `unsupported` on a mesh-only case rather than
+crashing into `source_unreadable` — Abaqus is the first mesh-only case the
+instrument will meet, and nine of the fifteen particle-reading rows carried no
+particle trait gate.
+
+**What Abaqus cannot yet supply, and why that is not a gap in this ADR.** No
+observed Abaqus run wrote an energy ledger, because none asked for one; the E5
+rows will read `source_missing` until a conformance run does. That is the
+requirement working as designed — the same reading notch gets, for the same
+reason — and it is the argument for
+`data_generation/abaqus/STANDARD_INPUT_BLOCK.md` existing before any Abaqus
+data is generated rather than after.

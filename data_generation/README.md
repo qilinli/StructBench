@@ -42,6 +42,29 @@ per-paper post-processing the substrate layer exists to end (ADR-0014, ADR-0016)
   Concrete-Beam family (wave + notch) by ×1000 to correct the g-vs-kg mass-unit
   error (ADR-0030). Not part of normal ingestion.
 
+## Abaqus
+
+- `abaqus/STANDARD_INPUT_BLOCK.md` — what an Abaqus job must switch on and keep
+  so a run supplies the run evidence E1–E10 of ADR-0066. **Partial by design**:
+  its LS-DYNA sibling cites a sourced claim id for every setting, while this one
+  states only what was established by reading a real job's own output and lists
+  the rest as open points, because the Keywords Reference has not been read
+  (ADR-0068 clause 8). Nothing in it is recommended on recall.
+
+Abaqus is the platform's second solver (ADR-0068). Two properties of the path
+differ from LS-DYNA's and shape everything under this folder:
+
+- **An `.odb` is readable only through Abaqus's own interpreter** (Python
+  3.10.5), whereas `lasso-python` reads a d3plot with no LS-DYNA installed. The
+  package requires Python >= 3.12, so extraction is necessarily a second
+  process: an Abaqus-side exporter writes a neutral intermediate and the package
+  reads only that. `odbAccess` must stay unreachable from `import structbench`,
+  or ADR-0004's promise that a consumer needs no solver is broken.
+- **Abaqus names its parts and materials where LS-DYNA numbers them.** Integer
+  ids are therefore minted by `structbench.core.io.abaqus_run.mint_ids`, which
+  is the single authority: conversion glue maps stored entities onto those ids
+  **by name** with the same function, and the exporter emits names, never ids.
+
 ## MeshGraphNets
 
 - `meshgraphnets/deforming_plate/convert.py` — download-and-convert driver
