@@ -66,6 +66,8 @@ from structbench.benchmarks.registry import get_benchmark
 from structbench.benchmarks.render import card_json, render_archive_readme
 
 _LOG = logging.getLogger("build_hf_bundle")
+#: <repo>/tools/build_hf_bundle.py -> the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 #: HF dataset repo name per registry benchmark (the ``StructBench/<repo>`` id).
 HF_REPOS: dict[str, str] = {
@@ -200,7 +202,7 @@ def _citation_bibtex() -> str:
     Only the fields the entry needs are parsed (line-wise, no YAML
     dependency); the release the archive was built from is what gets cited.
     """
-    cff = Path(__file__).resolve().parents[1] / "CITATION.cff"
+    cff = _REPO_ROOT / "CITATION.cff"
     fields = {"version": "0.3.0", "year": "2026", "authors": "Li, Qilin"}
     if cff.exists():
         text = cff.read_text(encoding="utf-8")
@@ -325,7 +327,8 @@ def _hf_readme(spec, name: str, repo: str) -> str:
             "",
         ]
     )
-    readme = render_archive_readme(spec, name)
+    record = _REPO_ROOT / "docs" / "datachecks" / f"{name}.md"
+    readme = render_archive_readme(spec, name, verification_report=record.is_file())
     title, _, rest = readme.partition("\n")
     body = rest.lstrip()
     layout_heading = "## HDF5 layout"

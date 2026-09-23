@@ -744,3 +744,32 @@ def test_pending_baseline_renders_training_placeholder_row():
     row = next(ln for ln in lines if ln.startswith("| MGN *(training)*"))
     assert set(c.strip() for c in row.split("|")[3:-1]) == {"—"}
     assert any("still in progress" in ln for ln in lines)
+
+
+def test_the_archive_readme_says_what_total_energy_is_not():
+    """`total_energy` is the state output's total: kinetic + internal.
+
+    It is not the run's total energy -- the solver's own ledger also carries
+    dissipation terms such as rigid-wall work, which on the Taylor sweep is
+    0.6 to 1.2 % of the peak and grows through the run. A downloader checking
+    conservation against this channel would read that gap as an energy gain.
+    """
+    spec = get_benchmark("taylor_impact_2d")
+
+    def _row(**kw: bool) -> str:
+        text = render_archive_readme(spec, "taylor_impact_2d", **kw)  # type: ignore[arg-type]
+        lines = text.splitlines()
+        return next(x for x in lines if "`response/global/" in x)
+
+    row = _row(verification_report=True)
+    assert "kinetic + internal" in row
+    assert "excludes" in row
+    assert "rigid-wall" in row
+    # a dataset-host reader cannot follow a repo-relative path
+    assert "https://github.com/" in row
+    assert "docs/datachecks/taylor_impact_2d.md" in row
+    # and a dead link is worse than none
+    bare = _row()
+    assert "docs/datachecks" not in bare
+    assert "no verification record is published" in bare
+    assert "kinetic + internal" in bare  # the warning itself is unconditional
