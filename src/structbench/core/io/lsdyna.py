@@ -112,7 +112,27 @@ _CANONICAL_MAT = {
     "MAT_ELASTIC": "linear_elastic",
     "MAT_RIGID": "rigid",
     "MAT_NULL": "null",
+    # ADR-0067
+    "MAT_CONCRETE_DAMAGE_REL3": "concrete_damage",
+    "MAT_PLASTIC_KINEMATIC": "elastic_plastic_kinematic",
 }
+
+#: Card options that do not change the material model.
+_MAT_OPTIONS = ("_TITLE", "_SPALL")
+
+
+def canonical_model_for(source_model: str) -> str | None:
+    """ADR-0012 class of a source model name, ignoring the card's options.
+
+    A deck writes ``*MAT_CONCRETE_DAMAGE_REL3_TITLE``; the option names the
+    card, not the model, so it must not decide whether the platform knows
+    the material.
+    """
+    base = source_model
+    for option in _MAT_OPTIONS:
+        base = base.removesuffix(option)
+    return _CANONICAL_MAT.get(base)
+
 
 _FIELD_WIDTH = 10
 
@@ -232,7 +252,7 @@ def parse_deck_materials(deck_text: str) -> list[Material]:
                 material_id=mid,
                 source_model=mat["source_model"],
                 source_params=source_params,
-                canonical_model=_CANONICAL_MAT.get(mat["source_model"]),
+                canonical_model=canonical_model_for(mat["source_model"]),
             )
         )
     return materials

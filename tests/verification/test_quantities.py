@@ -234,3 +234,28 @@ def test_every_quantity_declares_where_a_violation_lands() -> None:
     assert where["terminated_normally"] == "run"  # in the solver's own record
     assert where["fields_match_declaration"] == "declared"  # in the benchmark's card
     assert where["nonfinite_count"] == "response"
+
+
+def test_a_surface_that_exists_but_cannot_be_evaluated_is_not_not_applicable() -> None:
+    """ADR-0067: `not_applicable` claims the quantity does not exist here.
+
+    K&C concrete has a yield surface; its arguments are simply not exported,
+    which is a fact about the solver's output, not about the material. The
+    row must say so rather than read as though yield were irrelevant to a
+    concrete impact benchmark.
+    """
+    concrete = MaterialInput(1, "concrete_damage", 2400.0, None, None, 0.2, None)
+    facts = _facts(materials=(concrete,), parts=(PartTraits(1, 1, "particle", None),))
+    row = gate(get_quantity("yield_ratio_max"), facts, _DECLARED, _STAGE1)
+    assert row is not None
+    assert not row.not_applicable
+    assert row.absence is not None
+    assert row.absence.reason is AbsenceReason.NOT_AVAILABLE_FROM_SOLVER
+
+
+def test_a_material_with_no_surface_at_all_still_does_not_apply() -> None:
+    """`rigid` carries no yield surface, so the row genuinely does not apply."""
+    rigid = MaterialInput(1, "rigid", 7850.0, None, 2.1e11, 0.3, None)
+    facts = _facts(materials=(rigid,), parts=(PartTraits(1, 1, "particle", None),))
+    row = gate(get_quantity("yield_ratio_max"), facts, _DECLARED, _STAGE1)
+    assert row is not None and row.not_applicable

@@ -64,6 +64,28 @@ _CLASSES = (
         yield_law="tabulated_j2",
         has_equation_of_state=True,
     ),
+    # ADR-0067. The K&C slot holds a scaled damage measure, not plastic
+    # strain: unitless on 0..2, measured exactly so across 22 notch cases,
+    # with zero decreasing samples in ~66 million. Its yield surface is
+    # pressure-dependent and generated internally from the unconfined
+    # compressive strength, so its coefficients never reach the input.
+    MaterialClass(
+        "concrete_damage",
+        state_variable="damage",
+        state_bounds=(0.0, 2.0),
+        monotone=True,
+        yield_law="not_assessable",
+    ),
+    # ADR-0067. Bilinear kinematic/isotropic hardening: the yield law is
+    # stated by `sigy` and `etan`, not by knots, so there is no tabulated
+    # curve to compare a stress against.
+    MaterialClass(
+        "elastic_plastic_kinematic",
+        state_variable="plastic_strain",
+        state_bounds=(0.0, None),
+        monotone=True,
+        yield_law="not_assessable",
+    ),
     MaterialClass("null", "none", None, False, "none", structural=False),
     MaterialClass("rigid", "none", None, False, "none", structural=False),
 )

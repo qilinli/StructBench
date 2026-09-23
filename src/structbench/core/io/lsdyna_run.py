@@ -38,7 +38,7 @@ from ..evidence import (
     SolverIdentity,
     TerminationRecord,
 )
-from .lsdyna import _CANONICAL_MAT, unit_factors
+from .lsdyna import canonical_model_for, unit_factors
 
 __all__ = ["read_input_facts", "read_run_evidence"]
 
@@ -157,7 +157,7 @@ def _material(
     if head is None or head[0] is None:
         return None
     mid = int(head[0])
-    canonical = _CANONICAL_MAT.get(model)
+    canonical = canonical_model_for(model)
 
     def scaled(value: float | None, key: str) -> float | None:
         return None if value is None else value * f[key]

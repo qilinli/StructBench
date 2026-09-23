@@ -28,6 +28,10 @@ __all__ = ["CATALOGUE", "Quantity", "TraitGate", "gate", "get_quantity"]
 
 E = EvidenceItem
 _UNSUPPORTED = "unsupported"
+#: A class exists and says the law cannot be assessed from what the
+#: solver exports -- distinct from a material that has no such law at
+#: all, which makes the row genuinely not applicable (ADR-0067).
+_NOT_FROM_SOLVER = "not_available_from_solver"
 
 #: Which artefact a violation condemns; see :attr:`Quantity.bears_on`.
 BearsOn = Literal["input", "response", "run", "declared"]
@@ -994,7 +998,10 @@ def _trait(
         case "needs_quasi_static_intent":
             return bool(declared and declared.quasi_static)
         case "needs_yield_law":
-            return _any_class(facts, "yield_law", "tabulated_j2")
+            found = _any_class(facts, "yield_law", "tabulated_j2")
+            if found is False and _any_class(facts, "yield_law", "not_assessable"):
+                return _NOT_FROM_SOLVER  # a surface exists; its arguments do not
+            return found
         case "needs_monotone_state_variable":
             return _any_class(facts, "monotone", True)
         case "needs_eos_material":
@@ -1041,6 +1048,8 @@ def gate(
         results = [_trait(flag, facts, declared) for flag in flags]
         if any(r is False for r in results):
             return Measurement(q.name, None, q.unit, not_applicable=True)
+        if _NOT_FROM_SOLVER in results:
+            return _absent(q, AbsenceReason.NOT_AVAILABLE_FROM_SOLVER)
         if _UNSUPPORTED in results:
             return _absent(q, AbsenceReason.UNSUPPORTED)
         if any(r is None for r in results):
