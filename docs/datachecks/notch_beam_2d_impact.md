@@ -9,8 +9,8 @@ This report says what was checked about the simulation runs behind this dataset,
 - **18 checks pass** wherever they apply.
 - **1 finding** — in the solver input: output the input asks the solver to write.
 - **8 quantities are measured but not judged**: the platform has no confirmed criterion. The values are below for you to weigh.
-- **20 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
-- 16 checks do not apply to these runs.
+- **19 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
+- 17 checks do not apply to these runs.
 
 | | Pass | Finding | Measured, not judged | Not checked | Not applicable |
 |---|---|---|---|---|---|
@@ -18,7 +18,7 @@ This report says what was checked about the simulation runs behind this dataset,
 | Numerical health of the runs | 6 |  | 3 | 3 | 10 |
 | Energy and mass conservation | 1 |  |  | 8 | 5 |
 | Material behaviour | 4 |  | 1 | 2 |  |
-| Units and magnitudes | 2 |  | 3 | 2 | 1 |
+| Units and magnitudes | 2 |  | 3 | 1 | 2 |
 
 ## Findings
 
@@ -104,10 +104,9 @@ Does not apply to these runs: contact energy against internal energy; kinetic en
 | Largest speed in the response | 41.32 m/s to 184.5 m/s | `NB-I-320-Sphere-a-160` | not judged | published level shown below, for context |
 | Most extreme Young's modulus in the input | 200 GPa |  | not judged | published level shown below, for context |
 | Most extreme input density | 7850 kg/m³ |  | not judged | published level shown below, for context |
-| Largest first-yield strain in the input | — |  | not checked | this instrument cannot measure it yet |
 | The input's own unit declaration | — |  | not checked | this instrument cannot measure it yet |
 
-Does not apply to these runs: most extreme yield stress in the input.
+Does not apply to these runs: largest first-yield strain in the input; most extreme yield stress in the input.
 
 ## Measured, not judged
 

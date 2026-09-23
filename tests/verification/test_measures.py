@@ -701,3 +701,25 @@ def test_an_input_with_no_energy_card_has_not_stated_what_it_computes() -> None:
     row = _conformance(energy_terms_computed=None)
     assert row.value == 1.0
     assert row.detail["first_missing"] == "control_energy:stated"
+
+
+def test_an_input_stating_no_yield_ratio_is_not_the_platforms_gap() -> None:
+    """`unsupported` says the platform cannot do it, and is exempted from the
+    dataset's gaps (`PLATFORM_REASONS`). Here the instrument can do it and the
+    *input* offers no tabulated yield stress to divide by a modulus, which is
+    a fact about the deck. Claiming otherwise exonerates the data falsely.
+    """
+    elastic = (MaterialInput(2, "rigid", 7850.0, None, 2.1e11, 0.3, None),)
+    row = _get(
+        _run(facts=_facts(materials=elastic, unparsable=frozenset())),
+        "input_dimensionless_groups_plausible",
+    )
+    assert row.absence is None
+    assert row.not_applicable
+
+
+def test_an_unread_card_keeps_the_yield_ratio_row_an_absence() -> None:
+    facts = _facts(materials=_UNREAD_MATERIALS, unparsable=_UNREAD_CARD)
+    row = _get(_run(facts=facts), "input_dimensionless_groups_plausible")
+    assert row.absence is not None
+    assert row.absence.reason is AbsenceReason.UNPARSABLE
