@@ -808,3 +808,19 @@ one week says this is a pattern in how the measures were written, not a run
 of coincidences: the easy return when a measurement cannot be made is the
 one that blames the platform, and it is wrong whenever the input is what is
 lacking.
+
+## Amendment (2026-09-24): clause 3's single extractor becomes one per solver
+
+Clause 3 reads "`core/io/lsdyna_run.py` is the single extractor. There is no
+protocol, registry, or plugin seam (ADR-0010 stands)." ADR-0068 keeps the
+second sentence and amends the first: there is one extractor **per solver**,
+selected by a normalised lookup on `Provenance.solver_name`, and the
+solver-neutral record types remain the whole interface. No protocol, seam or
+class hierarchy is introduced, so ADR-0010 still stands — what changed is only
+that its deferral condition ("at least two concrete solvers") was met.
+
+The amendment is forced rather than aspirational. Measured on a real Abaqus
+input, the single extractor reported `time_integration='explicit'` for a
+`*Static` job and `databases_requested=frozenset()`, failing
+`input_requests_required_evidence` against a correct deck. A single extractor
+is only safe while there is a single solver, and that stopped being true.
