@@ -499,7 +499,24 @@ def _aux_unit_text(c: BenchmarkCard) -> str:
     return c.aux_unit if c.aux_unit.strip() not in ("", "-") else "dimensionless"
 
 
-def _layout_lines(c: BenchmarkCard) -> list[str]:
+def _balance_pointer(name: str, verification_report: bool) -> str:
+    """Where a reader finds the real energy balance, when one was published.
+
+    The archive README ships to a dataset host, so the link has to be
+    absolute; and it is offered only where the verification record exists,
+    since a dead link is worse than none. The caller checks, so this render
+    stays a pure function.
+    """
+    if not verification_report:
+        return "; no verification record is published for this archive yet"
+    return (
+        f": for that, see the verification report at <{_REPO_URL}/blob/main/"
+        f"docs/datachecks/{name}.md>, which reports the balance where the run "
+        "recorded one"
+    )
+
+
+def _layout_lines(c: BenchmarkCard, name: str, verification_report: bool) -> list[str]:
     """The ``## HDF5 layout`` section: what a consumer finds inside one file.
 
     Shapes use N nodes, P SPH particles, E elements, T frames and
@@ -574,7 +591,16 @@ def _layout_lines(c: BenchmarkCard) -> list[str]:
             "| `response/element/<other>/…` | (T, E, …) | f32 | per-element "
             "response of any further element group |",
             "| `response/global/{kinetic_energy, internal_energy, "
-            "total_energy}` | (T,) | f32 | [J] |",
+            "total_energy}` | (T,) | f32 | [J], as the solver's state output "
+            "writes them. **`total_energy` is `kinetic + internal`**, to "
+            "float32; it is NOT the run's total energy, because it excludes "
+            "dissipation terms the solver's own energy ledger carries "
+            "(rigid-wall work, contact, hourglass, damping). Which of those a "
+            "given run had is a property of that run: on the Taylor sweep, the "
+            "only one of these archives whose runs kept an energy ledger, the "
+            "omission is the rigid-wall work and reaches 0.6-1.2 % of the peak, "
+            "growing through the run. Do not read this channel as an energy "
+            "balance" + _balance_pointer(name, verification_report) + " |",
         ]
     else:
         lines += [
@@ -680,7 +706,9 @@ def _protocol_lines(spec: BenchmarkSpec, name: str) -> list[str]:
     ]
 
 
-def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
+def render_archive_readme(
+    spec: BenchmarkSpec, name: str, *, verification_report: bool = False
+) -> str:
     """A standalone README for the hosted dataset archive — a *dataset* page.
 
     Describes what ships and how to read it (files, HDF5 layout, loading
@@ -734,7 +762,7 @@ def render_archive_readme(spec: BenchmarkSpec, name: str) -> str:
         f"- `README.md` — this file; `LICENSE-*.txt` — the data licence "
         f"({c.data_license}).",
         "",
-        *_layout_lines(c),
+        *_layout_lines(c, name, verification_report),
         "",
         *_loading_lines(c),
         "",
