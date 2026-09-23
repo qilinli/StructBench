@@ -30,8 +30,10 @@ __all__ = ["CLOSURE_MEASURES", "MEASURES", "RUN_MEASURES", "measure_case"]
 #: Measures that read the SPH block directly. On a case without one the
 #: access is a ``KeyError``, which ``measure_case`` would stamp
 #: ``source_unreadable`` -- a contributor-owned reason -- for a case that is
-#: perfectly readable. Nine of these carry no particle trait gate, so the
-#: guard belongs here rather than on each row. The quantity exists for a
+#: perfectly readable. Eleven of these sixteen carry no particle trait gate, so
+#: the guard belongs here rather than on each row; a census that said nine of
+#: fifteen is what let `rigid_surface_penetration_max` slip out of the set,
+#: since its gate is `needs_rigid_plane`. The quantity exists for a
 #: meshed element too; what is missing is a measure that reads one, which is
 #: the platform's gap (``unsupported``), never the dataset's.
 _PARTICLE_ONLY: frozenset[str] = frozenset(
@@ -44,6 +46,7 @@ _PARTICLE_ONLY: frozenset[str] = frozenset(
         "particle_neighbors_min",
         "plane_strain_ezz_max",
         "pressure_trace_residual",
+        "rigid_surface_penetration_max",
         "smoothing_length_at_bound_fraction",
         "smoothing_length_within_input_bounds",
         "state_variable_decrease_max",

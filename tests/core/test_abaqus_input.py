@@ -153,3 +153,96 @@ def test_the_output_vocabulary_is_not_yet_defined_for_abaqus() -> None:
     facts = _read()
     assert facts.databases_requested is None
     assert facts.energy_terms_computed is None
+
+
+# --- one deck, several blocks: each fact belongs to its own block -------------
+
+_TWO_MATERIALS = "\n".join(
+    [
+        "*Heading",
+        "*Part, name=Beam",
+        "*Node",
+        "      1,   0.,   0.,   0.",
+        "*Element, type=C3D8I",
+        " 1, 1,2,3,4,5,6,7,8",
+        "*Solid Section, elset=S1, material=Steel",
+        ",",
+        "*End Part",
+        "*Material, name=Steel",
+        "*Elastic",
+        "210000., 0.3",
+        "*Material, name=Rubber",
+        "*Elastic",
+        "5., 0.49",
+        "*Step, name=s",
+        "*Static",
+        "1., 1.",
+        "*End Step",
+    ]
+)
+
+
+def test_each_material_keeps_its_own_constants() -> None:
+    """A deck-wide scalar reported Steel at Rubber's stiffness, silently."""
+    by_id = {m.material_id: m for m in _read(_TWO_MATERIALS).materials}
+    assert len(by_id) == 2
+    assert by_id[1].youngs_modulus == pytest.approx(210.0e9)  # Steel
+    assert by_id[2].youngs_modulus == pytest.approx(5.0e6)  # Rubber
+    assert by_id[1].poisson_ratio == pytest.approx(0.3)
+    assert by_id[2].poisson_ratio == pytest.approx(0.49)
+
+
+def test_plasticity_in_one_material_does_not_touch_another() -> None:
+    deck = _TWO_MATERIALS.replace(
+        "*Material, name=Rubber\n*Elastic\n5., 0.49",
+        "*Material, name=Rubber\n*Elastic\n5., 0.49\n*Plastic\n1., 0.",
+    )
+    by_id = {m.material_id: m for m in _read(deck).materials}
+    assert by_id[1].canonical_model == "linear_elastic"  # Steel, untouched
+    assert by_id[2].canonical_model is None  # Rubber, now inelastic
+
+
+def test_a_material_card_the_reader_skips_is_recorded_not_ignored() -> None:
+    """`unstated_or_unread` and `input_gap` key ownership off `unparsable`.
+
+    With the token absent, a deck that tabulates three yield knots was
+    reported as stating no yield stress at all.
+    """
+    deck = _TWO_MATERIALS.replace(
+        "*Material, name=Steel\n*Elastic\n210000., 0.3",
+        "*Material, name=Steel\n*Density\n7.85e-09\n*Elastic\n210000., 0.3"
+        "\n*Plastic\n250., 0.",
+    )
+    facts = _read(deck)
+    assert "unread_card:PLASTIC" in facts.unparsable
+    assert "unread_card:DENSITY" in facts.unparsable
+
+
+def test_a_typed_elastic_card_is_not_read_positionally() -> None:
+    """`type=ENGINEERING CONSTANTS` put a 9000 MPa stiffness in poisson_ratio."""
+    deck = _TWO_MATERIALS.replace(
+        "*Material, name=Rubber\n*Elastic\n5., 0.49",
+        "*Material, name=Rubber\n*Elastic, type=ENGINEERING CONSTANTS\n"
+        "150000., 9000., 9000., 0.3, 0.3, 0.4, 5000., 5000.",
+    )
+    by_id = {m.material_id: m for m in _read(deck).materials}
+    assert by_id[2].poisson_ratio is None
+    assert by_id[2].youngs_modulus is None
+    assert by_id[2].canonical_model is None
+    assert "unknown_card_layout:ELASTIC" in _read(deck).unparsable
+
+
+def test_an_element_code_with_odd_characters_does_not_raise() -> None:
+    """A token is validated, and an element code is a raw option value."""
+    for bad in ("", '"S4R"', "A/B"):
+        facts = _read(_TWO_MATERIALS.replace("type=C3D8I", f"type={bad}"))
+        assert any(t.startswith("unknown_element_type") for t in facts.unparsable), bad
+
+
+def test_a_node_lookahead_that_lands_on_a_keyword_is_not_read_as_coordinates() -> None:
+    deck = _TWO_MATERIALS.replace(
+        "*Node\n      1,   0.,   0.,   0.", "*Node, input=nodes.inp\n*Nset, nset=All"
+    )
+    facts = _read(deck)
+    assert facts.dimension is None  # not 2, which the *Nset line would have given
+    assert "include" in facts.unparsable  # `input=` hides content, like *Include

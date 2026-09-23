@@ -65,7 +65,10 @@ _DAT_FAIL = "\n".join(
         " ***WARNING: something was odd about a surface definition",
         " ***ERROR: 640 elements are missing elastic property reference. The elements",
         "          are listed below. This message continues onto a third marker line.",
-        " ***ERROR: continuation of the same diagnostic, which markers over-count",
+        # INVENTED: no observed Abaqus file repeats the marker on a continuation
+        # line (fail_test/Bad.dat indents them unmarked). Kept only to prove the
+        # stated count is preferred over marker counting.
+        " ***ERROR: an invented third marker, to make the two counts differ",
         "          THE PROGRAM HAS DISCOVERED     2 FATAL ERRORS",
         "",
         "     JOB TIME SUMMARY",
@@ -151,3 +154,41 @@ def test_a_clean_run_reports_zero_rather_than_an_absence() -> None:
     evidence = _read(_STA, _MSG, _DAT_OK)
     assert evidence.n_errors == 0
     assert evidence.n_warnings == 0
+
+
+# --- the authoritative counts live in the .msg, not the .dat ------------------
+
+_MSG_WITH_COUNTS = "\n".join(
+    [
+        "   Abaqus 2025                    Date 01-Jan-2026   Time 09:00:00",
+        "     ANALYSIS SUMMARY:",
+        "     TOTAL OF          2  INCREMENTS",
+        "                       4  WARNING MESSAGES DURING USER INPUT PROCESSING",
+        "                       8  WARNING MESSAGES DURING ANALYSIS",
+        "                       3  ERROR MESSAGES",
+        "          THE ANALYSIS HAS BEEN COMPLETED",
+    ]
+)
+
+
+def test_the_message_files_stated_counts_are_authoritative() -> None:
+    """The `.dat` carries no diagnostics summary at all; the `.msg` does.
+
+    Reading only the `.dat` let a run with analysis errors report zero and
+    PASS the ratified must-be-zero requirement -- an invented positive claim
+    that exonerates an untrustworthy run.
+    """
+    evidence = _read(_STA, _MSG_WITH_COUNTS, _DAT_OK)
+    assert evidence.n_errors == 3
+    assert evidence.n_warnings == 12  # 4 during input processing + 8 during analysis
+
+
+def test_a_rejected_job_still_reads_its_count_from_the_printed_output() -> None:
+    """It has no `.msg` at all, so the `.dat` path must remain."""
+    evidence = _read(None, None, _DAT_FAIL)
+    assert evidence.n_errors == 2
+
+
+def test_a_clean_message_file_reports_zero_from_its_own_summary() -> None:
+    evidence = _read(_STA, _MSG, _DAT_OK)
+    assert evidence.n_errors == 0 and evidence.n_warnings == 0

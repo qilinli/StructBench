@@ -96,8 +96,9 @@ positive claim, used to fail a contributor.
 
 7. **The Abaqus deck requirement is written before any Abaqus data is
    generated.** `data_generation/abaqus/STANDARD_INPUT_BLOCK.md` states what
-   a job must request for a run to supply E1–E10, sourced against the
-   Keywords Reference. Every current benchmark is retrofitted, and notch
+   a job must request for a run to supply E1–E10. It states only what a real
+   job's own output established and lists the rest as open points, because
+   the Keywords Reference has not been read — see clause 8. Every current benchmark is retrofitted, and notch
    carries thirteen permanently unanswerable rows because nobody asked for
    `glstat` at deck-writing time. Building to the requirement is the only way
    the first Abaqus dataset is the first one that meets the platform's own

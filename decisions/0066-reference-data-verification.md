@@ -846,9 +846,10 @@ whole interface.
 LS-DYNA keyword names and the Abaqus vocabulary is deferred; falling through
 would have reported `source_missing` against a complete deck. And the
 particle-only rows report `unsupported` on a mesh-only case rather than
-crashing into `source_unreadable` — Abaqus is the first mesh-only case the
-instrument will meet, and nine of the fifteen particle-reading rows carried no
-particle trait gate.
+crashing into `source_unreadable`. Abaqus is not the first mesh-only case the
+instrument meets — `DeformingPlate` has been one since ADR-0041, tetrahedra
+only and with no deck, and it was already producing that misreport. Eleven of
+the sixteen particle-reading rows carried no particle trait gate.
 
 **What Abaqus cannot yet supply, and why that is not a gap in this ADR.** No
 observed Abaqus run wrote an energy ledger, because none asked for one; the E5

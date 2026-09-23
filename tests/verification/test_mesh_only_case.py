@@ -10,6 +10,8 @@ Abaqus reader supplying input facts would reach all of them.
 
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
 
 from structbench.core import (
@@ -129,3 +131,24 @@ def test_a_run_that_printed_no_warning_count_is_not_an_unreadable_source() -> No
     assert warn.absence is not None
     assert warn.absence.reason is AbsenceReason.SOURCE_MISSING
     assert _unreadable(result) == []
+
+
+def test_a_mesh_case_with_a_rigid_plane_is_still_never_called_unreadable() -> None:
+    """`rigid_surface_penetration_max` reads the SPH block too.
+
+    Its gate is `needs_rigid_plane`, not `needs_particle_part`, so a rigid
+    plane is what reaches it -- and any solid-element LS-DYNA deck with a
+    `*RIGIDWALL_PLANAR` is that case. It was missing from `_PARTICLE_ONLY`.
+    """
+    from structbench.core import RigidPlane
+
+    facts = dataclasses.replace(
+        _mesh_facts(), rigid_planes=(RigidPlane((0.0, 0.0, 0.0), (1.0, 0.0, 0.0)),)
+    )
+    result = measure_case(_mesh_case(), facts, None, case_id="m")
+    assert _unreadable(result) == []
+    row = next(
+        m for m in result.measurements if m.quantity == "rigid_surface_penetration_max"
+    )
+    assert row.absence is not None
+    assert row.absence.reason is AbsenceReason.UNSUPPORTED
