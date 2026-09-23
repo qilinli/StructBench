@@ -574,7 +574,7 @@ the removal of a section that restated reasons already on their rows;
 deviation-from-unity rendering for ratios whose printed digits hide their
 content — carry no decision and are recorded in the commit, not here.
 
-## Widening note (2026-09-23, agent + maintainer) — DRAFT, maintainer to finalise
+## Widening note (2026-09-23, agent + maintainer)
 
 The instrument has met a second benchmark. All 110 cases of the notch-beam
 impact sweep were measured against the canonical archive and each run's
@@ -651,7 +651,7 @@ visible: the material-class ADR above, and whether a third benchmark is worth
 the instrument's time — wave-1D was declined 2026-09-21 and its runs kept no
 `glstat` either, so it would report a similar shape.
 
-## Coverage note (2026-09-23, agent + maintainer) — DRAFT, maintainer to finalise
+## Coverage note (2026-09-23, agent + maintainer)
 
 Four gaps found by reviewing the instrument against its own solver-side
 requirement are closed here. The catalogue goes to 63 rows, 43 implemented.

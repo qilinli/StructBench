@@ -1,6 +1,6 @@
 # 0067 — Material classes for the notch sweep: K&C concrete and bilinear steel
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-09-23); not yet built
 **Type**: Durable
 **Date**: 2026-09-23
 
