@@ -1,24 +1,24 @@
 # Taylor2D-Impact — reference-data verification
 
-Dataset revision v0.1.0 · 33 cases · 62 checks per case · structbench 0.3.0
+Dataset revision v0.1.0 · 33 cases · 63 checks per case · structbench 0.3.0
 
 This report says what was checked about the simulation runs behind this dataset, what was found, and what could not be checked. It is generated from a committed record of measurements; no verdict here rests on a number fitted to this dataset. A pass is a necessary sign of a healthy run, not evidence that the simulation matches reality.
 
 ## Summary
 
-- **19 checks pass** wherever they apply.
-- **2 findings** — 1 in the stored response: stored elements that no input part owns; 1 in the solver input: dips in the input's hardening table.
+- **20 checks pass** wherever they apply.
+- **4 findings** — 2 in the stored response: stored elements that no input part owns; stored global energies against the solver's ledger; 2 in the solver input: dips in the input's hardening table; output the input asks the solver to write.
 - **17 quantities are measured but not judged**: the platform has no confirmed criterion. The values are below for you to weigh.
-- **9 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
+- **7 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
 - 15 checks do not apply to these runs.
 
 | | Pass | Finding | Measured, not judged | Not checked | Not applicable |
 |---|---|---|---|---|---|
-| Data integrity | 6 | 2 | 1 | 2 |  |
+| Data integrity | 6 | 4 | 1 | 1 |  |
 | Numerical health of the runs | 6 |  | 5 | 1 | 10 |
 | Energy and mass conservation | 1 |  | 5 | 4 | 4 |
 | Material behaviour | 5 |  | 2 |  |  |
-| Units and magnitudes | 1 |  | 4 | 2 | 1 |
+| Units and magnitudes | 2 |  | 4 | 1 | 1 |
 
 ## Findings
 
@@ -29,11 +29,25 @@ This report says what was checked about the simulation runs behind this dataset,
 - What it means: the input's hardening table is not monotone (input defect).
 - Lands in: the solver input.
 
+### Output the input asks the solver to write — fail
+
+- Found: 1 count in all 33 cases.
+- Required: must be zero.
+- What it means: the input does not ask the solver for evidence the platform requires.
+- Lands in: the solver input.
+
 ### Stored elements that no input part owns — fail
 
 - Found: 1 in all 33 cases.
 - Required: must be zero.
 - What it means: the case holds elements the input does not define.
+- Lands in: the stored response.
+
+### Stored global energies against the solver's ledger — fail
+
+- Found: 0.00641502 to 0.0123032 in all 33 cases.
+- Required: at most 1e-05.
+- What it means: globals stored with the case disagree with the ledger (ingestion error).
 - Lands in: the stored response.
 
 ## Results by category
@@ -43,7 +57,9 @@ This report says what was checked about the simulation runs behind this dataset,
 | Check | Result | Worst case | Verdict | Basis |
 |---|---|---|---|---|
 | Dips in the input's hardening table | 1 |  | **fail** (33 of 33) | must be zero |
+| Output the input asks the solver to write | 1 count |  | **fail** (33 of 33) | must be zero |
 | Stored elements that no input part owns | 1 |  | **fail** (33 of 33) | must be zero |
+| Stored global energies against the solver's ledger | 0.00641502 to 0.0123032 | `T-20-60-180` | **fail** (33 of 33) | at most 1e-05 (provisional tolerance) |
 | Declared traits against the solver input | 0 |  | pass | must be zero |
 | Declared yield table against the input's | 0 |  | pass | at most 1e-09 |
 | Non-finite values (NaN, infinity) | 0 |  | pass | must be zero |
@@ -52,7 +68,6 @@ This report says what was checked about the simulation runs behind this dataset,
 | Time steps that go backward | 0 |  | pass | must be zero |
 | Frames written off the sampling interval | 1 |  | not judged | no criterion |
 | Energy ledger sampled on the field-output clock | — |  | not checked | this instrument cannot measure it yet |
-| Stored global energies against the solver's ledger | — |  | not checked | this instrument cannot measure it yet |
 
 ### Numerical health of the runs
 
@@ -106,12 +121,12 @@ Does not apply to these runs: contact energy against internal energy; kinetic en
 
 | Check | Result | Worst case | Verdict | Basis |
 |---|---|---|---|---|
+| Declared unit anchors agree with the input | 0 |  | pass | must be zero |
 | Stored density against the input's density | 0 % |  | pass | at most 0.001 % (provisional tolerance) |
 | Largest first-yield strain in the input | 0.00176731 |  | not judged | no criterion |
 | Largest speed in the response | 184.4 m/s to 415.6 m/s | `T-20-100-200` | not judged | published level shown below, for context |
 | Most extreme input density | 8900 kg/m³ |  | not judged | published level shown below, for context |
 | Most extreme yield stress in the input | 422.2 MPa |  | not judged | published level shown below, for context |
-| Declared unit anchors agree with the input | — |  | not checked | the benchmark has nowhere to declare it yet |
 | The input's own unit declaration | — |  | not checked | this instrument cannot measure it yet |
 
 Does not apply to these runs: most extreme young's modulus in the input.
@@ -173,12 +188,14 @@ Every check names the artefact a finding would condemn, and so who would have to
 Bounds applied:
 
 - *Declared traits against the solver input* — must be zero. What the benchmark declares about the run agrees with the solver input.
+- *Declared unit anchors agree with the input* — must be zero. Each anchor states the SI value of a named input quantity to declared digits, so agreement is an equality.
 - *Declared yield table against the input's* — at most 1e-09. The declared table equals the input's. Both reach SI through their own float64 conversion, so equality is taken to the nine significant digits the report stores.
 - *Dips in the input's hardening table* — must be zero. A tabulated yield stress does not fall with its state variable; a dip is an input defect.
 - *Drift of the total mass* — at most 0.0001 % (provisional). With mass scaling and deletion off, every stored mass is one constant rounded the same way each frame; 1e-6 is a decade above float32 resolution.
 - *Non-finite values (NaN, infinity)* — must be zero. A stored response contains no NaN or infinity.
 - *Out-of-plane shear in a two-dimensional run* — must be zero (provisional). A two-dimensional formulation carries no out-of-plane shear; the slots hold exact zeros, so any other value is a slot mix-up.
 - *Out-of-plane strain in a plane-strain run* — at most 1e-06 (provisional). Plane strain sets the out-of-plane normal strain to zero; 1e-6 is a decade above float32 resolution of a strain of order one, and three decades below the smallest hoop strain of an axisymmetric run.
+- *Output the input asks the solver to write* — must be zero. The input asks the solver to write every output the platform's evidence requirement rests on, for the features the model has.
 - *Particles deactivated without erosion* — must be zero. With erosion off, no particle is ever deactivated.
 - *Plastic state never decreases* — must be zero. The material class says its state variable never decreases; rounding to float32 is monotone, so storage adds no tolerance.
 - *Plastic state never negative* — at least 0. The material class bounds its state variable below by zero.
@@ -191,6 +208,7 @@ Bounds applied:
 - *Stored density against the input's density* — at most 0.001 % (provisional). At the first stored state an unloaded part has its input density, to float32 resolution (1.2e-7); a wrong slot is off by orders of magnitude. A preloaded first state needs its own bound.
 - *Stored elements that no input part owns* — must be zero. Every stored element belongs to a part the solver input defines.
 - *Stored fields against the declared field list* — must be zero. The stored fields are exactly the fields the benchmark declares.
+- *Stored global energies against the solver's ledger* — at most 1e-05 (provisional). The solver prints its ledger to six significant digits and the stored globals are float32, so a faithful ingestion agrees to about 1e-6 of the channel's peak; 1e-5 leaves a decade, and the errors this row exists for — a channel dropped, misnamed, or left in the solver's units — are off by a factor, not by a digit.
 - *Time steps that go backward* — must be zero. Stored times strictly increase.
 - *Yielding material sits on the yield surface* — at least 0.5 (provisional). A scale screen, not a return-mapping tolerance: among points loading through a stored frame, one must sit near the yield surface. One half is far below one and above 0.145, the reciprocal of the smallest stress factor between common consistent unit systems (psi against kPa, 6.9). Chosen after the test-bed value (about one) was known, not from it.
 

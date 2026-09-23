@@ -574,15 +574,16 @@ the removal of a section that restated reasons already on their rows;
 deviation-from-unity rendering for ratios whose printed digits hide their
 content — carry no decision and are recorded in the commit, not here.
 
-## Widening note (2026-09-23, agent + maintainer) — DRAFT, maintainer to finalise
+## Widening note (2026-09-23, agent + maintainer)
 
 The instrument has met a second benchmark. All 110 cases of the notch-beam
 impact sweep were measured against the canonical archive and each run's
 message file, judged, and published as
 `docs/datachecks/notch_beam_2d_impact.{json,md}`, linked from the benchmark's
 landing page. Every case was readable and carries its SHA-256. The verdicts
-are uniform across the sweep — 14 pass, 6 measured but not judged, 28 not
-checked, 14 not applicable — with no findings and no row reading `review`.
+are uniform across the sweep. *(Counts as first published: 14 pass, 6
+measured but not judged, 28 not checked, 14 not applicable, no findings. The
+coverage note below moves them.)*
 
 Nothing was added to the catalogue, no criterion changed, and no reference
 level was ratified: the maintainer's 2026-09-21 decision stands, and the
@@ -602,8 +603,13 @@ platform carries no class for `*MAT_CONCRETE_DAMAGE_REL3` (K&C) or
 `*MAT_PLASTIC_KINEMATIC`, and the four input-constant rows are
 `not_assessable / unparsable` because `read_input_facts` has no card layout
 for them. Adding either is the material-class ADR that ADR-0012 anticipates
-and `verification/materials.py` requires; it is not discharged here, and it
-is the single largest recovery available on this benchmark.
+and `verification/materials.py` requires; it is not discharged here.
+*(Corrected 2026-09-23: this note first called it the single largest
+recovery available on notch. It is not. Of the 28 rows notch cannot check,
+13 are `source_missing` -- the ledger, time-step history and load
+resultants the runs never wrote -- and no material class reaches them. A
+class plus the two card layouts recovers about six; the layouts landed
+2026-09-23 and were worth five.)*
 
 **The widening's real yield was two defects in the message-file reader that
 Taylor could not have exposed.** Diagnostics were counted by any line
@@ -644,3 +650,124 @@ reference level; the conformance run with the standard input block. Newly
 visible: the material-class ADR above, and whether a third benchmark is worth
 the instrument's time — wave-1D was declined 2026-09-21 and its runs kept no
 `glstat` either, so it would report a similar shape.
+
+## Coverage note (2026-09-23, agent + maintainer)
+
+Four gaps found by reviewing the instrument against its own solver-side
+requirement are closed here. The catalogue goes to 63 rows, 43 implemented.
+No reference level is ratified and no indicator gains a verdict; both new
+criteria are a definitional requirement and an instrument tolerance argued
+from printed precision, which is the class clause 7 already allows.
+
+**`stored_globals_match_ledger` is built** (E5 + E8 + E9, `bears_on`
+response). It compares each stored global channel with the solver's own
+series at the instants both were sampled, normalised by that channel's peak,
+and reports the worst. It is the only row that sees an *ingestion* error —
+a channel dropped, misnamed, or left in the solver's units — because it is
+the only place the stored arrays meet the solver's independent account of the
+same run. Nothing new was needed to build it: Taylor has supplied all three
+evidence items since the instrument existed.
+
+On its first run it found one. Taylor's stored `kinetic_energy` and
+`internal_energy` reproduce the ledger to about 1e-6, but `total_energy`
+disagrees by 0.6 to 1.2 % of the peak, growing through the run. The stored
+channel equals the ledger's kinetic plus internal energy to 2e-6, while the
+solver's printed total also carries the rigid-wall term — so the two are
+different quantities, both written by the same solver, and the canonical
+`global/total_energy` is not the run's total energy. The adapter copies
+`d3plot`'s `global_total_energy` verbatim, so this is a mismatch between two
+of the solver's own outputs, not an arithmetic slip. Whether `d3plot`'s
+definition varies with the terms `*CONTROL_ENERGY` switches on is
+unestablished and is now an open point of the standard input block. **What to
+do about it is not decided here**: renaming or re-deriving the stored channel
+touches the schema and every archive, and is the maintainer's call. Until
+then the row reads `fail` on all 33 Taylor cases, truthfully.
+
+**`input_requests_required_evidence` is new** (E1 only, `bears_on` input).
+`STANDARD_INPUT_BLOCK.md` stated what a run must ask the solver to write, and
+nothing read it back: the instrument could say the runs did not supply the
+ledger, never that the input never asked for one. Those are different
+failures with different owners, and only the second is fixable — before the
+run, for free. The row counts the omitted requests, gated on the features the
+model actually has, so an SPH run is not asked to compute hourglass energy and
+a run without contact is not asked for contact forces. `read_input_facts`
+gained `energy_terms_computed` and `databases_requested` for it, and
+`damping_defined` so the damping term can be gated too.
+
+It closes a **silent-acceptance path**. `*CONTROL_ENERGY` leaves three
+dissipation terms uncomputed by default; an uncomputed term never appears in
+`glstat`, and the ledger reader builds its balance identity over the terms
+that are present, so the identity reproduces the solver's printed total and
+the ledger is accepted as complete. Nothing could tell a term that was zero
+from a term that was never computed. Today both benchmarks are SPH and the
+hourglass rows are `not_applicable`, so the path is masked; the first meshed
+benchmark is where it would have mattered.
+
+Both legacy sweeps fail the row, as expected and as CORRECTIONS 2026-09-21
+prescribes — a requirement on future data generation, with the legacy gap
+reported honestly. Taylor omits `*DATABASE_RWFORC` though it has a rigid
+wall, so its wall forces can never be read. Notch states `*CONTROL_ENERGY`
+in full, computing every term, and then requests no `glstat` at all: the
+ledger existed inside the solver and was never written.
+
+**`not_applicable` on the two remaining input screens was a false claim.**
+`input_strength_plausible` and `input_constants_plausible` said the input
+states no strength and no modulus, on an input whose material cards the
+reader could not parse. Both now route through `unstated_or_unread`, so
+`not_applicable` on an input screen means every card was read.
+
+**Units anchors have a home**: `BenchmarkCard.units_anchors`, carried into
+`DeclaredFacts` by `declared_from_spec`. Taylor declares one — copper at
+8.9e3 kg/m³ to two significant digits, `material:2:density`, handbook — and
+`units_anchors_consistent` passes on all 33 cases, which is the first time
+the check designed to catch a wrong unit label has run at all. **One anchor
+is not three.** A density pins mass against length; a time-unit error still
+passes. A second anchor of independent dimension needs a value the maintainer
+stands behind: the deck's shear modulus is a calibration number, not a
+handbook constant, so labelling it `handbook` would be false provenance, and
+the resolver has no locator for a velocity. Notch declares none, because its
+material cards do not parse and an anchor on them would resolve to nothing.
+
+Counts after this note. Taylor: 20 pass, 4 findings, 17 measured but not
+judged, 7 not checked, 15 not applicable. Notch: 16 pass, 1 finding, 8
+measured but not judged, 23 not checked, 15 not applicable. Taylor's two new
+findings are the stored-globals mismatch and its missing `*DATABASE_RWFORC`;
+notch's single finding is its three omitted requests. Nothing else moved: no
+existing verdict changed, and the hardening-table and unowned-element
+findings stand as before.
+
+**The two card layouts landed the same day, without an ADR.** Reading a card
+layout says what numbers a card holds; only a material class says what they
+*mean*, so `*MAT_CONCRETE_DAMAGE_REL3` and `*MAT_PLASTIC_KINEMATIC` now give
+up their density, Poisson ratio and (for the steel) Young's modulus, while
+`canonical_model` stays `None` and every constitutive row stays
+`not_assessable / unsupported`. Neither yield law is tabulated — K&C's
+surface is generated from the unconfined compressive strength, the steel's is
+bilinear — so neither gets a `yield_table`, whose contract is knots a deck
+states verbatim.
+
+Five rows moved off `unparsable` on notch: the stored density now matches the
+input's to 2e-16, and the density anchor its card already stated now resolves
+and agrees, so `units_anchors_consistent` **passes**. That is two independent
+confirmations that notch's `kg-mm-ms` declaration is right and that ingestion
+converted it correctly — on a benchmark where, an hour earlier, nothing about
+units could be checked at all. `input_strength_plausible` is correctly
+`not_applicable`: every card was read and none states a tabulated strength.
+
+One observation for the material-class ADR, found reading the deck and not
+yet caught by any row: the steel card carries `e = 200.0` and `sigy = 337.0`
+in a unit system whose stress unit is 1 GPa, a first-yield strain of 1.7.
+`input_dimensionless_groups_plausible` is the row built to see exactly this,
+and it cannot, because it reads `yield_table` and a bilinear law has none. A
+scalar `yield_stress` on `MaterialInput` would close it, and would change
+what two units rows measure, so it waits for a decision rather than being
+slipped in. The steel parts are protocol-kinematic — driven by ground truth,
+excluded from loss and metrics — so nothing a user trains on depends on it.
+
+Open and untouched: the four ADR-0065 follow-ups; the material-class ADR that
+ADR-0012 anticipates, worth two more of notch's 23 unchecked rows (the 13
+`source_missing` rows are beyond any class, the runs having written no
+ledger);
+the kinetic-energy closure's tolerance; E6, E7 and the two remaining E9 rows,
+which wait on a run that supplies their files; and what to do about
+`global/total_energy`.

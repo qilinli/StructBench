@@ -54,9 +54,12 @@ def _facts(**overrides: object) -> InputFacts:
         "erosion_enabled": False,
         "contact_defined": False,
         "prescribed_motion_defined": False,
+        "damping_defined": False,
         "rigid_planes": (RigidPlane((0.0, 0.0, 0.0), (1.0, 0.0, 0.0)),),
         "particle_pairwise_conservative": None,
         "smoothing_length_scale_bounds": None,
+        "energy_terms_computed": None,
+        "databases_requested": None,
         "unparsable": frozenset(),
     }
     return InputFacts(**{**base, **overrides})  # type: ignore[arg-type]
@@ -371,3 +374,90 @@ def test_a_meshed_part_is_beyond_the_kinetic_closure_for_now() -> None:
         measure_case(case, meshed, None, case_id="c", run=run), "kinetic_energy_closure"
     ).absence
     assert absence is not None and absence.reason is AbsenceReason.UNSUPPORTED
+
+
+# --- stored globals against the ledger ----------------------------------------
+
+
+def _with_globals(case: Case, **channels: tuple[float, ...]) -> Case:
+    """The same case, carrying stored global channels."""
+    assert case.response is not None
+    stored = {k: np.asarray(v, dtype=np.float32) for k, v in channels.items()}
+    response = Response(
+        time=case.response.time,
+        node=case.response.node,
+        element=case.response.element,
+        globals_=stored,
+    )
+    return Case(case.metadata, case.nodes, case.elements, case.materials, response)
+
+
+def _globals_row(case: Case, run: RunEvidence) -> Measurement:
+    return _get(
+        measure_case(case, _facts(), None, case_id="c", run=run),
+        "stored_globals_match_ledger",
+    )
+
+
+def test_stored_globals_that_reproduce_the_ledger_agree_exactly() -> None:
+    case = _with_globals(
+        _moving_case((2.0, 1.0, 0.5, 0.5), _TIMES),
+        kinetic_energy=(4.0, 1.0, 0.25, 0.25),
+    )
+    run = _run(ledger=_kinetic_ledger((4.0, 1.0, 0.25), _TIMES[:3]))
+    row = _globals_row(case, run)
+    assert row.value == pytest.approx(0.0)
+    assert row.n_samples == 3
+
+
+def test_a_stored_global_left_in_the_wrong_unit_is_caught() -> None:
+    """The ingestion error this check exists for: a channel off by a scale."""
+    case = _with_globals(
+        _moving_case((2.0, 1.0, 0.5, 0.5), _TIMES),
+        kinetic_energy=(4000.0, 1000.0, 250.0, 250.0),  # J stored where kJ was meant
+    )
+    run = _run(ledger=_kinetic_ledger((4.0, 1.0, 0.25), _TIMES[:3]))
+    row = _globals_row(case, run)
+    assert row.value == pytest.approx((4000.0 - 4.0) / 4.0)
+    assert row.detail["channel"] == "kinetic_energy"
+    assert row.detail["frame"] == 0
+
+
+def test_the_worst_channel_is_the_one_reported() -> None:
+    case = _with_globals(
+        _moving_case((2.0, 1.0, 0.5, 0.5), _TIMES),
+        kinetic_energy=(4.0, 1.0, 0.25, 0.25),  # exact
+        total_energy=(4.0, 4.0, 5.0, 5.0),  # the solver printed 4.0 throughout
+    )
+    times = _TIMES[:3]
+    zeros = tuple(0.0 for _ in times)
+    ledger = EnergyLedger(
+        times,
+        {"kinetic": (4.0, 1.0, 0.25), "internal": zeros, "rigid_surface": zeros},
+        {"kinetic": 1, "internal": 1, "rigid_surface": 1},
+        solver_total=(4.0, 4.0, 4.0),
+    )
+    row = _globals_row(case, _run(ledger=ledger))
+    assert row.detail["channel"] == "total_energy"
+    assert row.value == pytest.approx(0.25)  # 1.0 adrift on a peak of 4.0
+    assert row.detail["frame"] == 2
+
+
+def test_a_case_storing_no_globals_has_nothing_to_compare() -> None:
+    case = _moving_case((2.0, 1.0, 0.5, 0.5), _TIMES)
+    run = _run(ledger=_kinetic_ledger((4.0, 1.0, 0.25), _TIMES[:3]))
+    absence = _globals_row(case, run).absence
+    assert absence is not None and absence.missing == {E.E8}
+
+
+def test_a_stored_channel_the_ledger_does_not_carry_is_skipped() -> None:
+    """Only channels the ledger also holds can be compared; others are not errors."""
+    case = _with_globals(
+        _moving_case((2.0, 1.0, 0.5, 0.5), _TIMES),
+        kinetic_energy=(4.0, 1.0, 0.25, 0.25),
+        sliding_interface_energy=(9.0, 9.0, 9.0, 9.0),  # no ledger partner
+    )
+    run = _run(ledger=_kinetic_ledger((4.0, 1.0, 0.25), _TIMES[:3]))
+    row = _globals_row(case, run)
+    assert row.value == pytest.approx(0.0)
+    assert row.detail["channel"] == "kinetic_energy"

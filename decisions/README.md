@@ -114,6 +114,7 @@ What becomes easier, harder, or constrained as a result.
 | 0064 | Constitutively-structured admissible heads: return-map decoder structure (D2/D3 by construction) + consistency-hinge comparator | Durable | Accepted |
 | 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session) |
 | 0066 | Reference-data verification: the `verification/` module | Durable | Accepted |
+| 0067 | Material classes for the notch sweep: K&C concrete and bilinear steel | Durable | Accepted (not yet built) |
 
 ---
 

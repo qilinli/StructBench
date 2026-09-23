@@ -1,5 +1,6 @@
 """Benchmark card for the notch-beam impact benchmark (ADR-0027)."""
 
+from ...core import UnitsAnchor
 from ..card import BenchmarkCard, BenchmarkFigure
 from .benchmark import AUX_FIELD, PROBE, QOIS, TEST_INTERP, TRAIN, VAL
 
@@ -88,6 +89,10 @@ CARD = BenchmarkCard(
         "drop-weight impact, initial velocity 40-160 m/s, impactor "
         "cross-sections plate/disk/rod (case names Rectangular/Sphere/Bullet)"
     ),
+    # The card already states this density; as an anchor it becomes the one
+    # number outside the unit label that says the label is right. Normal-weight
+    # concrete at 2.4e3 kg/m3, to the two digits the card itself gives.
+    units_anchors=(UnitsAnchor("density", 2.4e3, 2, "material:1:density", "handbook"),),
     source_units="kg-mm-ms",
     geometry="2D SPH notched beam, H 80 x W {320,480,640} mm",
     n_cases=len(TRAIN) + len(VAL) + len(TEST_INTERP) + len(PROBE),

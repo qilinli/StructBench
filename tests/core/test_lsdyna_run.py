@@ -175,3 +175,131 @@ def test_a_missing_card_with_a_default_stays_unknown() -> None:
     facts = _read(text)
     assert facts.dimension is None
     assert facts.plane_strain is None
+
+
+# --- what the input asks the solver to write (E5, E6, E7) ---------------------
+
+_ENERGY = "\n".join(
+    [
+        "*CONTROL_ENERGY",
+        "$#    hgen      rwen    slnten     rylen",
+        _row(2, 2, 2, 2),
+    ]
+)
+
+
+def test_the_energy_terms_the_input_switches_on_are_read() -> None:
+    facts = _read(_deck(_ENERGY))
+    assert facts.energy_terms_computed == frozenset(
+        {"zero_energy_mode", "rigid_surface", "contact", "damping"}
+    )
+
+
+def test_a_term_left_at_one_is_not_computed_and_says_so() -> None:
+    """The default HGEN = 1 computes no hourglass energy at all."""
+    off = "\n".join(
+        [
+            "*CONTROL_ENERGY",
+            "$#    hgen      rwen    slnten     rylen",
+            _row(1, 2, 2, 1),
+        ]
+    )
+    facts = _read(_deck(off))
+    assert facts.energy_terms_computed == frozenset({"rigid_surface", "contact"})
+
+
+def test_no_energy_card_establishes_nothing_rather_than_a_default() -> None:
+    """A solver default is never assumed for an absent setting (ADR-0066)."""
+    assert _read(_deck()).energy_terms_computed is None
+
+
+def test_the_databases_the_input_requests_are_read() -> None:
+    cards = "\n".join(
+        [
+            "*DATABASE_GLSTAT",
+            "$#      dt",
+            _row(0.002),
+            "*DATABASE_MATSUM",
+            _row(0.002),
+            "*DATABASE_RWFORC",
+            _row(0.0),  # a zero interval writes nothing
+            "*DATABASE_BINARY_D3PLOT",
+            _row(0.002),
+        ]
+    )
+    requested = _read(_deck(cards)).databases_requested
+    assert requested is not None
+    assert "DATABASE_GLSTAT" in requested and "DATABASE_MATSUM" in requested
+    assert "DATABASE_RWFORC" not in requested  # dt = 0 is no output
+    assert "DATABASE_BINARY_D3PLOT" in requested
+
+
+def test_a_settings_database_card_is_not_an_output_request() -> None:
+    """``*DATABASE_EXTENT_BINARY`` configures output; it requests none."""
+    cards = "\n".join(["*DATABASE_EXTENT_BINARY", _row(0, 0, 1, 0, 0, 0, 8)])
+    requested = _read(_deck(cards)).databases_requested
+    assert requested == frozenset()
+
+
+def test_a_deck_that_hides_its_content_establishes_no_requests() -> None:
+    hidden = _read(_deck("*INCLUDE", "other.k"))
+    assert hidden.databases_requested is None
+    assert hidden.energy_terms_computed is None
+
+
+# --- card layouts for the notch sweep's materials ------------------------------
+
+_CONCRETE = "\n".join(
+    [
+        "*MAT_CONCRETE_DAMAGE_REL3_TITLE",
+        "concrete",
+        "$#     mid        ro        pr  ",
+        _row(11, "2.40000E-6", 0.2),
+        "$#      ft        a0        a1        a2        b1     omega       a1f   ",
+        _row(0.0, -0.05, 0.0, 0.0, 0.82375, 0.75, 0.0),
+    ]
+)
+_STEEL = "\n".join(
+    [
+        "*MAT_PLASTIC_KINEMATIC",
+        "$#     mid        ro         e        pr      sigy      etan      beta    ",
+        _row(12, "7.85000E-6", 200.0, 0.3, 337.0, 1.2, 0.0),
+        "$#     src       srp        fs        vp  ",
+        _row(40.0, 5.0, "", 0.0),
+    ]
+)
+
+
+def _by_id(text: str, mid: int):
+    facts = read_input_facts(text, source_units="kg-mm-ms")
+    return facts, next(m for m in facts.materials if m.material_id == mid)
+
+
+def test_the_concrete_card_gives_up_its_density_and_poisson_ratio() -> None:
+    facts, concrete = _by_id(_deck(_CONCRETE), 11)
+    assert facts.unparsable == frozenset()
+    assert concrete.density == pytest.approx(2400.0)  # kg/mm3 -> kg/m3
+    assert concrete.poisson_ratio == pytest.approx(0.2)
+    assert concrete.yield_table is None  # its yield surface is not tabulated
+
+
+def test_the_steel_card_gives_up_its_density_and_modulus() -> None:
+    facts, steel = _by_id(_deck(_STEEL), 12)
+    assert facts.unparsable == frozenset()
+    assert steel.density == pytest.approx(7850.0)
+    assert steel.youngs_modulus == pytest.approx(200.0e9)  # GPa in kg-mm-ms
+    assert steel.poisson_ratio == pytest.approx(0.3)
+    assert steel.yield_table is None  # bilinear, not a table of deck knots
+
+
+def test_a_class_is_not_claimed_by_reading_a_card_layout() -> None:
+    """The layout says what numbers the card holds; only a class says what
+    they mean. Neither material has one yet (the ADR-0012 material class)."""
+    _, concrete = _by_id(_deck(_CONCRETE), 11)
+    _, steel = _by_id(_deck(_STEEL), 12)
+    assert concrete.canonical_model is None and steel.canonical_model is None
+
+
+def test_neither_card_is_reported_as_an_unknown_layout() -> None:
+    facts = read_input_facts(_deck(_CONCRETE, _STEEL), source_units="kg-mm-ms")
+    assert not any(t.startswith("unknown_card_layout") for t in facts.unparsable)

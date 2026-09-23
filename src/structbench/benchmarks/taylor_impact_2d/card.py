@@ -1,5 +1,6 @@
 """Benchmark card for the Taylor 2D impact benchmark (ADR-0027)."""
 
+from ...core import UnitsAnchor
 from ..card import BenchmarkCard, BenchmarkFigure
 from .benchmark import AUX_FIELD, QOIS, TEST_EXTRAP, TEST_INTERP, TRAIN, VAL
 
@@ -112,6 +113,12 @@ CARD = BenchmarkCard(
     materials=("*MAT_ELASTIC_PLASTIC_HYDRO", "*EOS_GRUNEISEN"),
     erosion=False,
     loading="rigid-wall impact; initial velocity 100-200 m/s",
+    # The one number outside the unit label that says the label is right:
+    # copper at 8.9e3 kg/m3 is a handbook density, and the deck's value read
+    # under `g-mm-ms` reproduces it. Two significant digits, because the
+    # deck's 8900 and the handbook's value agree only that far. A second
+    # anchor of independent dimension would also pin the time unit.
+    units_anchors=(UnitsAnchor("density", 8.9e3, 2, "material:2:density", "handbook"),),
     source_units="g-mm-ms",
     geometry="2D bar, 20 mm x {60, 80, 100} mm",
     n_cases=len(TRAIN) + len(VAL) + len(TEST_INTERP) + len(TEST_EXTRAP),

@@ -178,6 +178,7 @@ _TITLES: dict[str, str] = {
     "yield_table_matches_input": "Declared yield table against the input's",
     "yield_table_monotone": "Dips in the input's hardening table",
     "yield_table_covers_range": "Plastic strain reached, relative to the table's range",
+    "input_requests_required_evidence": "Output the input asks the solver to write",
     "sampling_clock_consistent": "Energy ledger sampled on the field-output clock",
     "stored_globals_match_ledger": "Stored global energies against the solver's ledger",
 }
@@ -274,6 +275,7 @@ _BEARS_ON: dict[str, BearsOn] = {
     "response_magnitudes_plausible": "response",
     "state_variable_decrease_max": "response",
     "state_variable_min": "response",
+    "input_requests_required_evidence": "input",
     "stored_globals_match_ledger": "response",
     "terminal_artifact_frames": "response",
     "time_axis_monotone": "response",
@@ -874,6 +876,14 @@ _ROWS = (
         implemented=True,
     ),
     _row(
+        "input_requests_required_evidence",
+        _D,
+        "count",
+        {E.E1},
+        "the input does not ask the solver for evidence the platform requires",
+        implemented=True,
+    ),
+    _row(
         "sampling_clock_consistent",
         _D,
         "1",
@@ -886,6 +896,7 @@ _ROWS = (
         "1",
         {E.E5, E.E8, E.E9},
         "globals stored with the case disagree with the ledger (ingestion error)",
+        implemented=True,
     ),
 )
 
