@@ -581,8 +581,8 @@ impact sweep were measured against the canonical archive and each run's
 message file, judged, and published as
 `docs/datachecks/notch_beam_2d_impact.{json,md}`, linked from the benchmark's
 landing page. Every case was readable and carries its SHA-256. The verdicts
-are uniform across the sweep — 14 pass, 6 measured but not judged, 26 not
-checked, 16 not applicable — with no findings and no row reading `review`.
+are uniform across the sweep — 14 pass, 6 measured but not judged, 28 not
+checked, 14 not applicable — with no findings and no row reading `review`.
 
 Nothing was added to the catalogue, no criterion changed, and no reference
 level was ratified: the maintainer's 2026-09-21 decision stands, and the
@@ -599,7 +599,7 @@ and no substitute was built for them (CORRECTIONS 2026-09-21).
 so.** Twenty-six of the sixty-two checks could not be made. Beyond the absent
 ledger, the material rows are `not_assessable / unsupported` because the
 platform carries no class for `*MAT_CONCRETE_DAMAGE_REL3` (K&C) or
-`*MAT_PLASTIC_KINEMATIC`, and the two input-constant rows are
+`*MAT_PLASTIC_KINEMATIC`, and the four input-constant rows are
 `not_assessable / unparsable` because `read_input_facts` has no card layout
 for them. Adding either is the material-class ADR that ADR-0012 anticipates
 and `verification/materials.py` requires; it is not discharged here, and it
@@ -620,6 +620,18 @@ revision that is not a version token is now dropped with a token rather than
 guessed. Both of notch's apparent failures were the instrument's, not the
 data's. This is the argument for widening: an instrument that has met one
 dataset has been calibrated against one dataset's accidents.
+
+A third defect was found while reading the two records side by side, and is
+fixed here too. `not_applicable` is a claim *about the input* — it states no
+quantity of this kind — and two of the units screens were making that claim
+on an input the reader had not got through: with no card layout for K&C
+concrete there is no yield table and no modulus to find, and notch's report
+said the screens did not apply where the honest answer is that they could not
+be made. Both now route through one helper that separates the two, so a
+`not_applicable` on an input screen means every card was read. This moves two
+rows per notch case out of `not_applicable` and into `not_assessable /
+unparsable` (hence the counts above), and changes nothing measured: Taylor's
+materials parse, so its re-measured record is content-identical.
 
 Two measured-but-unjudged numbers are left for a reader to weigh, and both
 are candidates for a criterion whenever one can be sourced: the fewest

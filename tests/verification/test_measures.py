@@ -581,3 +581,39 @@ def test_an_input_with_no_strength_has_no_strength_screen() -> None:
     elastic = (MaterialInput(2, "rigid", 7850.0, None, 2.1e11, 0.3, None),)
     result = _run(facts=_facts(materials=elastic))
     assert _get(result, "input_strength_plausible").not_applicable
+
+
+#: A material card the input reader has no layout for: it yields a material
+#: with every slot empty, and a token naming the card it could not read.
+_UNREAD_CARD = frozenset({"unknown_card_layout:MAT_CONCRETE_DAMAGE_REL3"})
+_UNREAD_MATERIALS = (MaterialInput(2, None, None, None, None, None, None),)
+
+
+def test_an_unread_material_card_does_not_read_as_having_no_strength() -> None:
+    """``not_applicable`` claims the input states no strength; unread is not that.
+
+    The notch-impact sweep reports it: with no card layout for K&C concrete
+    there is no yield table to find, and a reader was told the screen did not
+    apply when the honest answer is that it could not be made.
+    """
+    facts = _facts(materials=_UNREAD_MATERIALS, unparsable=_UNREAD_CARD)
+    row = _get(_run(facts=facts), "input_strength_plausible")
+    assert not row.not_applicable
+    assert row.absence is not None
+    assert row.absence.reason is AbsenceReason.UNPARSABLE
+
+
+def test_an_unread_material_card_does_not_read_as_having_no_modulus() -> None:
+    """The same confusion on the elastic-constant screen."""
+    facts = _facts(materials=_UNREAD_MATERIALS, unparsable=_UNREAD_CARD)
+    row = _get(_run(facts=facts), "input_constants_plausible")
+    assert not row.not_applicable
+    assert row.absence is not None
+    assert row.absence.reason is AbsenceReason.UNPARSABLE
+
+
+def test_a_fully_read_input_that_states_no_strength_still_does_not_apply() -> None:
+    """The genuine case must stay ``not_applicable``: every card was read."""
+    elastic = (MaterialInput(2, "rigid", 7850.0, None, 2.1e11, 0.3, None),)
+    result = _run(facts=_facts(materials=elastic, unparsable=frozenset()))
+    assert _get(result, "input_strength_plausible").not_applicable

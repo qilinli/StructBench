@@ -9,8 +9,8 @@ This report says what was checked about the simulation runs behind this dataset,
 - **14 checks pass** wherever they apply.
 - **No findings.**
 - **6 quantities are measured but not judged**: the platform has no confirmed criterion. The values are below for you to weigh.
-- **26 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
-- 16 checks do not apply to these runs.
+- **28 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
+- 14 checks do not apply to these runs.
 
 | | Pass | Finding | Measured, not judged | Not checked | Not applicable |
 |---|---|---|---|---|---|
@@ -18,7 +18,7 @@ This report says what was checked about the simulation runs behind this dataset,
 | Numerical health of the runs | 6 |  | 3 | 3 | 10 |
 | Energy and mass conservation | 1 |  |  | 9 | 4 |
 | Material behaviour | 2 |  | 1 | 4 |  |
-| Units and magnitudes |  |  | 1 | 5 | 2 |
+| Units and magnitudes |  |  | 1 | 7 |  |
 
 ## Findings
 
@@ -97,11 +97,11 @@ Does not apply to these runs: contact energy against internal energy; kinetic en
 | Largest speed in the response | 41.32 m/s to 184.5 m/s | `NB-I-320-Sphere-a-160` | not judged | published level shown below, for context |
 | Declared unit anchors agree with the input | — |  | not checked | the benchmark has nowhere to declare it yet |
 | Largest first-yield strain in the input | — |  | not checked | this instrument cannot measure it yet |
+| Most extreme Young's modulus in the input | — |  | not checked | the instrument could not read what the run supplied |
 | Most extreme input density | — |  | not checked | the instrument could not read what the run supplied |
+| Most extreme yield stress in the input | — |  | not checked | the instrument could not read what the run supplied |
 | Stored density against the input's density | — |  | not checked | the instrument could not read what the run supplied |
 | The input's own unit declaration | — |  | not checked | this instrument cannot measure it yet |
-
-Does not apply to these runs: most extreme young's modulus in the input; most extreme yield stress in the input.
 
 ## Measured, not judged
 

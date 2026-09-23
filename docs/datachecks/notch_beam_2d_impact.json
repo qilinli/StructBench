@@ -139,7 +139,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -162,7 +167,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -675,7 +685,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -698,7 +713,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -1211,7 +1231,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -1234,7 +1259,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -1747,7 +1777,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -1770,7 +1805,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -2283,7 +2323,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -2306,7 +2351,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -2819,7 +2869,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -2842,7 +2897,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -3355,7 +3415,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -3378,7 +3443,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -3891,7 +3961,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -3914,7 +3989,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -4427,7 +4507,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -4450,7 +4535,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -4963,7 +5053,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -4986,7 +5081,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -5499,7 +5599,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -5522,7 +5627,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -6035,7 +6145,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -6058,7 +6173,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -6571,7 +6691,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -6594,7 +6719,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -7107,7 +7237,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -7130,7 +7265,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -7643,7 +7783,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -7666,7 +7811,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -8179,7 +8329,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -8202,7 +8357,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -8715,7 +8875,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -8738,7 +8903,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -9251,7 +9421,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -9274,7 +9449,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -9787,7 +9967,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -9810,7 +9995,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -10323,7 +10513,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -10346,7 +10541,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -10859,7 +11059,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -10882,7 +11087,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -11395,7 +11605,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -11418,7 +11633,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -11931,7 +12151,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -11954,7 +12179,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -12467,7 +12697,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -12490,7 +12725,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -13003,7 +13243,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -13026,7 +13271,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -13539,7 +13789,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -13562,7 +13817,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -14075,7 +14335,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -14098,7 +14363,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -14611,7 +14881,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -14634,7 +14909,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -15147,7 +15427,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -15170,7 +15455,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -15683,7 +15973,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -15706,7 +16001,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -16219,7 +16519,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -16242,7 +16547,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -16755,7 +17065,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -16778,7 +17093,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -17291,7 +17611,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -17314,7 +17639,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -17827,7 +18157,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -17850,7 +18185,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -18363,7 +18703,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -18386,7 +18731,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -18899,7 +19249,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -18922,7 +19277,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -19435,7 +19795,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -19458,7 +19823,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -19971,7 +20341,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -19994,7 +20369,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -20507,7 +20887,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -20530,7 +20915,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -21043,7 +21433,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -21066,7 +21461,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -21579,7 +21979,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -21602,7 +22007,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -22115,7 +22525,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -22138,7 +22553,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -22651,7 +23071,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -22674,7 +23099,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -23187,7 +23617,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -23210,7 +23645,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -23723,7 +24163,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -23746,7 +24191,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -24259,7 +24709,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -24282,7 +24737,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -24795,7 +25255,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -24818,7 +25283,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -25331,7 +25801,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -25354,7 +25829,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -25867,7 +26347,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -25890,7 +26375,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -26403,7 +26893,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -26426,7 +26921,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -26939,7 +27439,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -26962,7 +27467,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -27475,7 +27985,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -27498,7 +28013,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -28011,7 +28531,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -28034,7 +28559,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -28547,7 +29077,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -28570,7 +29105,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -29083,7 +29623,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -29106,7 +29651,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -29619,7 +30169,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -29642,7 +30197,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -30155,7 +30715,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -30178,7 +30743,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -30691,7 +31261,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -30714,7 +31289,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -31227,7 +31807,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -31250,7 +31835,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -31763,7 +32353,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -31786,7 +32381,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -32299,7 +32899,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -32322,7 +32927,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -32835,7 +33445,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -32858,7 +33473,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -33371,7 +33991,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -33394,7 +34019,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -33907,7 +34537,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -33930,7 +34565,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -34443,7 +35083,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -34466,7 +35111,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -34979,7 +35629,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -35002,7 +35657,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -35515,7 +36175,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -35538,7 +36203,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -36051,7 +36721,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -36074,7 +36749,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -36587,7 +37267,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -36610,7 +37295,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -37123,7 +37813,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -37146,7 +37841,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -37659,7 +38359,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -37682,7 +38387,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -38195,7 +38905,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -38218,7 +38933,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -38731,7 +39451,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -38754,7 +39479,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -39267,7 +39997,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -39290,7 +40025,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -39803,7 +40543,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -39826,7 +40571,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -40339,7 +41089,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -40362,7 +41117,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -40875,7 +41635,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -40898,7 +41663,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -41411,7 +42181,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -41434,7 +42209,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -41947,7 +42727,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -41970,7 +42755,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -42483,7 +43273,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -42506,7 +43301,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -43019,7 +43819,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -43042,7 +43847,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -43555,7 +44365,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -43578,7 +44393,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -44091,7 +44911,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -44114,7 +44939,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -44627,7 +45457,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -44650,7 +45485,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -45163,7 +46003,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -45186,7 +46031,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -45699,7 +46549,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -45722,7 +46577,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -46235,7 +47095,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -46258,7 +47123,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -46771,7 +47641,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -46794,7 +47669,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -47307,7 +48187,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -47330,7 +48215,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -47843,7 +48733,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -47866,7 +48761,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -48379,7 +49279,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -48402,7 +49307,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -48915,7 +49825,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -48938,7 +49853,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -49451,7 +50371,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -49474,7 +50399,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -49987,7 +50917,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -50010,7 +50945,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -50523,7 +51463,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -50546,7 +51491,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -51059,7 +52009,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -51082,7 +52037,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -51595,7 +52555,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -51618,7 +52583,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -52131,7 +53101,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -52154,7 +53129,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -52667,7 +53647,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -52690,7 +53675,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -53203,7 +54193,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -53226,7 +54221,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -53739,7 +54739,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -53762,7 +54767,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -54275,7 +55285,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -54298,7 +55313,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -54811,7 +55831,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -54834,7 +55859,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -55347,7 +56377,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -55370,7 +56405,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -55883,7 +56923,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -55906,7 +56951,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -56419,7 +57469,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -56442,7 +57497,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -56955,7 +58015,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -56978,7 +58043,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -57491,7 +58561,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -57514,7 +58589,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -58027,7 +59107,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -58050,7 +59135,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },
@@ -58563,7 +59653,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_constants_plausible",
           "unit": "Pa"
         },
@@ -58586,7 +59681,12 @@
           "unit": "1"
         },
         {
-          "not_applicable": true,
+          "absence": {
+            "missing": [
+              "E1"
+            ],
+            "reason": "unparsable"
+          },
           "quantity": "input_strength_plausible",
           "unit": "Pa"
         },

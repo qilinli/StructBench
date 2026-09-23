@@ -83,6 +83,17 @@ def input_gap(name: str, facts: InputFacts | None) -> Measurement:
     return absent(name, reason, EvidenceItem.E1)
 
 
+def unstated_or_unread(name: str, facts: InputFacts) -> Measurement:
+    """No such quantity in the input -- because none is stated, or none was read.
+
+    ``not_applicable`` is a claim about the input: it states no quantity of
+    this kind. That claim can only be made about an input the reader got
+    through. Where a card was left unparsed, one of the slots it holds might
+    have stated one, so the honest answer is the typed absence.
+    """
+    return input_gap(name, facts) if facts.unparsable else not_applicable(name)
+
+
 def field_gap(name: str) -> Measurement:
     """A response field this measure needs is not stored with the case."""
     return absent(name, AbsenceReason.SOURCE_MISSING, EvidenceItem.E8)

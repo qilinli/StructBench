@@ -28,8 +28,8 @@ from ._common import (
     input_gap,
     known_particles,
     needs_case,
-    not_applicable,
     particle_field,
+    unstated_or_unread,
     value,
 )
 
@@ -125,7 +125,7 @@ def _input_constants_plausible(
     assert facts is not None
     moduli = [e for e in map(_youngs_modulus, facts.materials) if e]
     if not moduli:
-        return not_applicable(name)  # no material here defines a Young's modulus
+        return unstated_or_unread(name, facts)
     return value(name, _most_extreme(moduli, _MODULUS_CENTRE), INPUT, n=len(moduli))
 
 
@@ -139,7 +139,7 @@ def _input_strength_plausible(
         s for m in facts.materials if m.yield_table for s in m.yield_table[1] if s > 0
     ]
     if not strengths:
-        return not_applicable(name)  # no material here states a strength
+        return unstated_or_unread(name, facts)
     return value(
         name, _most_extreme(strengths, _STRENGTH_CENTRE), INPUT, n=len(strengths)
     )
