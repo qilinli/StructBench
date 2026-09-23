@@ -26,10 +26,10 @@ def _all_specs():
 
 def _bare_spec():
     """A result-less spec with no overview or figures — the empty-state fixture
-    for the render placeholder paths. Formerly the parked ``notch_beam_2d_bend``
-    benchmark; it was descoped from the registry (ADR-0056), so the empty-state
-    tests synthesize a bare spec instead of depending on a specific benchmark
-    having no results.
+    for the render placeholder paths. Formerly the ``notch_beam_2d_bend``
+    benchmark, descoped from the registry (ADR-0056) and removed from the tree
+    in its 2026-09-23 amendment, so the empty-state tests synthesize a bare
+    spec instead of depending on a specific benchmark having no results.
     """
     spec = get_benchmark("taylor_impact_2d")
     return replace(spec, results=(), card=replace(spec.card, overview="", figures=()))
