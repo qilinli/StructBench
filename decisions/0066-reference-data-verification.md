@@ -573,3 +573,62 @@ table, which did not survive contact with a 110- or 1200-case benchmark;
 the removal of a section that restated reasons already on their rows;
 deviation-from-unity rendering for ratios whose printed digits hide their
 content — carry no decision and are recorded in the commit, not here.
+
+## Widening note (2026-09-23, agent + maintainer) — DRAFT, maintainer to finalise
+
+The instrument has met a second benchmark. All 110 cases of the notch-beam
+impact sweep were measured against the canonical archive and each run's
+message file, judged, and published as
+`docs/datachecks/notch_beam_2d_impact.{json,md}`, linked from the benchmark's
+landing page. Every case was readable and carries its SHA-256. The verdicts
+are uniform across the sweep — 14 pass, 6 measured but not judged, 26 not
+checked, 16 not applicable — with no findings and no row reading `review`.
+
+Nothing was added to the catalogue, no criterion changed, and no reference
+level was ratified: the maintainer's 2026-09-21 decision stands, and the
+indicators that could be measured are reported as measurements. What the
+widening required of the repository was one piece of per-dataset glue
+(`data_generation/lsdyna/2DNotchBeam/collect_run_evidence.py`), which maps the
+impact grid and the two probe folders to run directories and reads `mes0000`
+alone. These decks never requested `*DATABASE_GLSTAT`, so there is no energy
+ledger and no time-integration record to read; the nine conservation rows and
+the two time-step rows report `not_assessable` naming the missing evidence,
+and no substitute was built for them (CORRECTIONS 2026-09-21).
+
+**"No findings" is weaker here than the phrase suggests, and the report says
+so.** Twenty-six of the sixty-two checks could not be made. Beyond the absent
+ledger, the material rows are `not_assessable / unsupported` because the
+platform carries no class for `*MAT_CONCRETE_DAMAGE_REL3` (K&C) or
+`*MAT_PLASTIC_KINEMATIC`, and the two input-constant rows are
+`not_assessable / unparsable` because `read_input_facts` has no card layout
+for them. Adding either is the material-class ADR that ADR-0012 anticipates
+and `verification/materials.py` requires; it is not discharged here, and it
+is the single largest recovery available on this benchmark.
+
+**The widening's real yield was two defects in the message-file reader that
+Taylor could not have exposed.** Diagnostics were counted by any line
+mentioning an error, so the explanatory prose under `*** Warning 21329` —
+"Curve ID 723 has discretization error of" — made every run of the sweep
+report a solver error it never had; the count now follows the line that
+*raises* a diagnostic, the severity word at its head. And solver identity read
+the revision from an `SVN Version:` line alone, while these runs are a later
+R12 build printing `Revision: R12.1-190-gadfcdf9018` and no SVN line, so a
+revision present in the file was recorded as absent and E2 failed. The SVN
+number still wins where both are printed, so Taylor's published record is
+byte-identical — the data-free record test is what confirms it — and a
+revision that is not a version token is now dropped with a token rather than
+guessed. Both of notch's apparent failures were the instrument's, not the
+data's. This is the argument for widening: an instrument that has met one
+dataset has been calibrated against one dataset's accidents.
+
+Two measured-but-unjudged numbers are left for a reader to weigh, and both
+are candidates for a criterion whenever one can be sourced: the fewest
+neighbours of any particle runs 3 to 8 across the sweep, and every run raised
+exactly one solver warning.
+
+Open after this note, and unchanged by it: the four ADR-0065 follow-ups; the
+kinetic-energy closure's tolerance; the three unbuilt E9 rows; ratifying any
+reference level; the conformance run with the standard input block. Newly
+visible: the material-class ADR above, and whether a third benchmark is worth
+the instrument's time — wave-1D was declined 2026-09-21 and its runs kept no
+`glstat` either, so it would report a similar shape.
