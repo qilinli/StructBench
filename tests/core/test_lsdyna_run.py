@@ -175,3 +175,73 @@ def test_a_missing_card_with_a_default_stays_unknown() -> None:
     facts = _read(text)
     assert facts.dimension is None
     assert facts.plane_strain is None
+
+
+# --- what the input asks the solver to write (E5, E6, E7) ---------------------
+
+_ENERGY = "\n".join(
+    [
+        "*CONTROL_ENERGY",
+        "$#    hgen      rwen    slnten     rylen",
+        _row(2, 2, 2, 2),
+    ]
+)
+
+
+def test_the_energy_terms_the_input_switches_on_are_read() -> None:
+    facts = _read(_deck(_ENERGY))
+    assert facts.energy_terms_computed == frozenset(
+        {"zero_energy_mode", "rigid_surface", "contact", "damping"}
+    )
+
+
+def test_a_term_left_at_one_is_not_computed_and_says_so() -> None:
+    """The default HGEN = 1 computes no hourglass energy at all."""
+    off = "\n".join(
+        [
+            "*CONTROL_ENERGY",
+            "$#    hgen      rwen    slnten     rylen",
+            _row(1, 2, 2, 1),
+        ]
+    )
+    facts = _read(_deck(off))
+    assert facts.energy_terms_computed == frozenset({"rigid_surface", "contact"})
+
+
+def test_no_energy_card_establishes_nothing_rather_than_a_default() -> None:
+    """A solver default is never assumed for an absent setting (ADR-0066)."""
+    assert _read(_deck()).energy_terms_computed is None
+
+
+def test_the_databases_the_input_requests_are_read() -> None:
+    cards = "\n".join(
+        [
+            "*DATABASE_GLSTAT",
+            "$#      dt",
+            _row(0.002),
+            "*DATABASE_MATSUM",
+            _row(0.002),
+            "*DATABASE_RWFORC",
+            _row(0.0),  # a zero interval writes nothing
+            "*DATABASE_BINARY_D3PLOT",
+            _row(0.002),
+        ]
+    )
+    requested = _read(_deck(cards)).databases_requested
+    assert requested is not None
+    assert "DATABASE_GLSTAT" in requested and "DATABASE_MATSUM" in requested
+    assert "DATABASE_RWFORC" not in requested  # dt = 0 is no output
+    assert "DATABASE_BINARY_D3PLOT" in requested
+
+
+def test_a_settings_database_card_is_not_an_output_request() -> None:
+    """``*DATABASE_EXTENT_BINARY`` configures output; it requests none."""
+    cards = "\n".join(["*DATABASE_EXTENT_BINARY", _row(0, 0, 1, 0, 0, 0, 8)])
+    requested = _read(_deck(cards)).databases_requested
+    assert requested == frozenset()
+
+
+def test_a_deck_that_hides_its_content_establishes_no_requests() -> None:
+    hidden = _read(_deck("*INCLUDE", "other.k"))
+    assert hidden.databases_requested is None
+    assert hidden.energy_terms_computed is None

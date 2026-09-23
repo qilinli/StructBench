@@ -52,8 +52,8 @@ _MPA = 1.0e6  # BenchmarkSpec.hardening_curve is in MPa (ADR-0064); criteria are
 def declared_from_spec(spec: BenchmarkSpec) -> DeclaredFacts:
     """What a registered benchmark declares about its runs (ADR-0066).
 
-    The card has no home for units anchors yet, so none are declared and
-    ``units_anchors_consistent`` reads ``no_declaration_home``.
+    Units anchors come from ``card.units_anchors``; a benchmark that
+    declares none leaves ``units_anchors_consistent`` without its E10b.
     """
     card = spec.card
     label = card.source_units.split()[0] if card.source_units.strip() else ""
@@ -62,6 +62,7 @@ def declared_from_spec(spec: BenchmarkSpec) -> DeclaredFacts:
         knots, sigma_y = spec.hardening_curve
         table = (tuple(knots), tuple(s * _MPA for s in sigma_y))
     return DeclaredFacts(
+        anchors=card.units_anchors,
         unit_system=label if _UNIT_SYSTEM.fullmatch(label) else None,
         fields=frozenset(card.fields),
         discretisation=card.discretisation,

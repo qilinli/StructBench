@@ -169,6 +169,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -406,12 +418,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00641502026
         },
         {
           "locations": [
@@ -476,14 +494,17 @@
           "value": 0.070214973
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -738,6 +759,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -975,12 +1008,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 142
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00769417983
         },
         {
           "locations": [
@@ -1045,14 +1084,17 @@
           "value": 0.058571028
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -1307,6 +1349,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -1544,12 +1598,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00782644391
         },
         {
           "locations": [
@@ -1614,14 +1674,17 @@
           "value": 0.0553584114
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -1876,6 +1939,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -2113,12 +2188,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00756448727
         },
         {
           "locations": [
@@ -2183,14 +2264,17 @@
           "value": 0.0627839106
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -2445,6 +2529,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -2682,12 +2778,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.008089873
         },
         {
           "locations": [
@@ -2752,14 +2854,17 @@
           "value": 0.0627838454
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -3014,6 +3119,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -3251,12 +3368,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 145
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00850001051
         },
         {
           "locations": [
@@ -3321,14 +3444,17 @@
           "value": 0.0536951111
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -3583,6 +3709,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -3820,12 +3958,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 146
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0088305971
         },
         {
           "locations": [
@@ -3890,14 +4034,17 @@
           "value": 0.0565049157
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -4152,6 +4299,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -4389,12 +4548,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00844939371
         },
         {
           "locations": [
@@ -4459,14 +4624,17 @@
           "value": 0.0676133121
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -4721,6 +4889,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -4958,12 +5138,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00930212296
         },
         {
           "locations": [
@@ -5028,14 +5214,17 @@
           "value": 0.0642049521
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -5290,6 +5479,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -5527,12 +5728,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00810049733
         },
         {
           "locations": [
@@ -5597,14 +5804,17 @@
           "value": 0.0691773787
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -5859,6 +6069,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -6096,12 +6318,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00911240997
         },
         {
           "locations": [
@@ -6166,14 +6394,17 @@
           "value": 0.0679538764
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -6428,6 +6659,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -6665,12 +6908,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 117
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00976298738
         },
         {
           "locations": [
@@ -6735,14 +6984,17 @@
           "value": 0.13623315
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -6997,6 +7249,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -7234,12 +7498,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 113
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0114920526
         },
         {
           "locations": [
@@ -7304,14 +7574,17 @@
           "value": 0.120217306
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -7566,6 +7839,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -7803,12 +8088,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 120
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0116175978
         },
         {
           "locations": [
@@ -7873,14 +8164,17 @@
           "value": 0.120407111
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -8135,6 +8429,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -8372,12 +8678,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 148
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0102866231
         },
         {
           "locations": [
@@ -8442,14 +8754,17 @@
           "value": 0.13616324
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -8704,6 +9019,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -8941,12 +9268,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 143
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0108750784
         },
         {
           "locations": [
@@ -9011,14 +9344,17 @@
           "value": 0.136883553
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -9273,6 +9609,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -9510,12 +9858,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 144
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0117262811
         },
         {
           "locations": [
@@ -9580,14 +9934,17 @@
           "value": 0.120040539
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -9842,6 +10199,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -10079,12 +10448,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 141
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0117871132
         },
         {
           "locations": [
@@ -10149,14 +10524,17 @@
           "value": 0.120814989
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -10411,6 +10789,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -10648,12 +11038,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 139
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0105758371
         },
         {
           "locations": [
@@ -10718,14 +11114,17 @@
           "value": 0.139682656
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -10980,6 +11379,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -11217,12 +11628,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 149
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.012303207
         },
         {
           "locations": [
@@ -11287,14 +11704,17 @@
           "value": 0.134816073
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -11549,6 +11969,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -11786,12 +12218,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 149
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0108466405
         },
         {
           "locations": [
@@ -11856,14 +12294,17 @@
           "value": 0.145541131
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -12118,6 +12559,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -12355,12 +12808,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 147
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0119957097
         },
         {
           "locations": [
@@ -12425,14 +12884,17 @@
           "value": 0.146222818
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -12687,6 +13149,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -12924,12 +13398,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 139
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00774694725
         },
         {
           "locations": [
@@ -12994,14 +13474,17 @@
           "value": 0.09551925
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -13256,6 +13739,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -13493,12 +13988,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 149
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00910252355
         },
         {
           "locations": [
@@ -13563,14 +14064,17 @@
           "value": 0.0824498677
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -13825,6 +14329,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -14062,12 +14578,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 149
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00958432272
         },
         {
           "locations": [
@@ -14132,14 +14654,17 @@
           "value": 0.0791303679
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -14394,6 +14919,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -14631,12 +15168,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00884336503
         },
         {
           "locations": [
@@ -14701,14 +15244,17 @@
           "value": 0.0888330064
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -14963,6 +15509,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -15200,12 +15758,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00901992175
         },
         {
           "locations": [
@@ -15270,14 +15834,17 @@
           "value": 0.0884983519
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -15532,6 +16099,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -15769,12 +16348,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 148
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00963873471
         },
         {
           "locations": [
@@ -15839,14 +16424,17 @@
           "value": 0.0745379775
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -16101,6 +16689,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -16338,12 +16938,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.010354605
         },
         {
           "locations": [
@@ -16408,14 +17014,17 @@
           "value": 0.0781303766
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -16670,6 +17279,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -16907,12 +17528,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 147
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0094689827
         },
         {
           "locations": [
@@ -16977,14 +17604,17 @@
           "value": 0.093121671
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -17239,6 +17869,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -17476,12 +18118,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 146
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0108083308
         },
         {
           "locations": [
@@ -17546,14 +18194,17 @@
           "value": 0.0883023824
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -17808,6 +18459,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -18045,12 +18708,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 150
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.00983857089
         },
         {
           "locations": [
@@ -18115,14 +18784,17 @@
           "value": 0.0974620281
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -18377,6 +19049,18 @@
           "value": 0.001767314
         },
         {
+          "detail": {
+            "first_missing": "database_rwforc"
+          },
+          "locations": [
+            "input"
+          ],
+          "n_samples": 4,
+          "quantity": "input_requests_required_evidence",
+          "unit": "count",
+          "value": 1.0
+        },
+        {
           "locations": [
             "input"
           ],
@@ -18614,12 +19298,18 @@
           "value": 0.0
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
+          "detail": {
+            "channel": "total_energy",
+            "frame": 146
           },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "stored_globals_match_ledger",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0102367626
         },
         {
           "locations": [
@@ -18684,14 +19374,17 @@
           "value": 0.0952311096
         },
         {
-          "absence": {
-            "missing": [
-              "E10b"
-            ],
-            "reason": "no_declaration_home"
+          "detail": {
+            "synthetic_anchors": 0
           },
+          "locations": [
+            "declared",
+            "input"
+          ],
+          "n_samples": 1,
           "quantity": "units_anchors_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "detail": {
@@ -18792,6 +19485,7 @@
     "input_constants_plausible": 1,
     "input_density_plausible": 1,
     "input_dimensionless_groups_plausible": 1,
+    "input_requests_required_evidence": 1,
     "input_strength_plausible": 1,
     "kinetic_energy_closure": 1,
     "nonfinite_count": 1,
@@ -18811,6 +19505,7 @@
     "solver_warning_count": 1,
     "state_variable_decrease_max": 1,
     "state_variable_min": 1,
+    "stored_globals_match_ledger": 1,
     "terminal_artifact_frames": 1,
     "terminated_normally": 1,
     "time_axis_monotone": 1,

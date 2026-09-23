@@ -7,7 +7,11 @@ against the same requirement; this file tells a contributor what to switch on.*
 
 **Status: draft, never yet exercised by a run.** It is assembled from the
 keyword manual (R13 and R15 were read; the legacy sweeps ran R12) and from
-what was observed in one legacy run folder. Each setting cites its claim in
+what was observed in one legacy run folder. Since 2026-09-23 the instrument
+**reads this block back off the deck**: `input_requests_required_evidence`
+counts the requests below that an input omits, for the features the model
+actually has, so a deck that could never have supplied the evidence is
+distinguished from a run whose files were lost. Both legacy sweeps fail it. Each setting cites its claim in
 [`docs/plans/2026-09-21-reference-data-verification-sources.md`](../../docs/plans/2026-09-21-reference-data-verification-sources.md)
 (`L-…` energy ledger and time integration, `F-…` fields, echo and
 diagnostics). One unpublished *conformance run* with this block is what turns
@@ -174,14 +178,14 @@ raw solver files are never published.
 
 | Item | Read from | Status |
 |---|---|---|
-| E1 | the deck stored in the canonical case | built |
+| E1 | the deck stored in the canonical case | built, including `*CONTROL_ENERGY` and which `*DATABASE_` cards the input requests |
 | E2, E3 | `mes0000` | built |
 | E4, E5 | `glstat` | built (time step; ledger with its identity) |
 | E6 | `matsum`, `sleout` | **not built** — no run has supplied them in a form that was read |
 | E7 | `rwforc`, `rcforc`, `spcforc`, `bndout`, `nodfor` | **not built** |
 | E8 | the canonical case | built |
-| E9 | shared instants of `glstat` and the stored states | built for the kinetic-energy closure |
-| E10 | benchmark declarations | unit label built; anchors have no home on the card yet |
+| E9 | shared instants of `glstat` and the stored states | built for the kinetic-energy closure and for stored globals against the ledger |
+| E10 | benchmark declarations | unit label built; anchors live on the card (`BenchmarkCard.units_anchors`), declared for Taylor only |
 
 A reader is added when a run first supplies its file (ADR-0066 clause 3); the
 conformance run is what triggers E6 and E7.
@@ -203,9 +207,28 @@ is how each is settled.
 5. **Whether "spring and damper energy" is contained in internal energy.** Not
    established; the reader leaves it out of the identity and relies on the
    check against the printed total.
-6. **Message-file wording.** The termination banner and the header lines the
-   reader matches were *observed* in one R12 MPP run; the manual does not
-   document them. A different release may word them differently, in which
-   case the reader reports `unparsable` rather than guessing.
+6. **Message-file wording — settled, and it varies within one release.**
+   Taylor's R12.0.0 build prints `SVN Version: 148978`; the notch sweep's
+   R12.1-190 build prints `Revision: R12.1-190-gadfcdf9018` and no SVN line
+   at all. The reader now takes the SVN number where both appear and the
+   describe string otherwise. Treat any *other* banner wording as unread
+   until a run shows it: the reader reports `unparsable` rather than guessing.
+   A related assumption is **not** sourced and should be: diagnostics are
+   counted by the lines that *raise* one — the severity word at the head of
+   the line — because a warning's own explanatory text may name an "error"
+   it is reporting. Observed, not documented.
 7. **The printed label of the hourglass term** is taken from the manual's
    table (L-C08); no run with `HGEN = 2` has been read.
+8. **`d3plot`'s global total energy is not `glstat`'s total.** On the Taylor
+   sweep the stored `global_total_energy` reproduces the ledger's kinetic
+   plus internal energy to 2e-6, while the solver's printed total also
+   carries the rigid-wall term — so the two disagree by 0.6 to 1.2 % of the
+   peak, growing as wall work accumulates. Both come from the same run.
+   Which definition `d3plot` writes, and whether it varies with the terms
+   `*CONTROL_ENERGY` switches on, is unestablished; a run with `HGEN = 2`
+   and contact would settle it. Until then the stored channel named
+   `total_energy` should not be read as the run's total energy.
+9. **`d3hsp` is kept but never read.** It is on the keep list above as the
+   solver's echo of the input and as the fallback if the deck is lost;
+   nothing in `structbench` opens it. Keep it for provenance, not because
+   the instrument needs it.

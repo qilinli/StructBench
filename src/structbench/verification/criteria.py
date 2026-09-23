@@ -212,6 +212,11 @@ _REQUIREMENTS = (
         "The record names the solver's version, revision, precision and parallel"
         " layout; none is missing.",
     ),
+    _zero(
+        "input_requests_required_evidence",
+        "The input asks the solver to write every output the platform's"
+        " evidence requirement rests on, for the features the model has.",
+    ),
     _zero("nonfinite_count", "A stored response contains no NaN or infinity."),
     _zero("time_axis_monotone", "Stored times strictly increase."),
     _zero(
@@ -310,6 +315,16 @@ _TOLERANCES = (
         1.0e-5,
         "The scale is a ratio of two float32 values, resolved to about 2.4e-7;"
         " 1e-5 leaves over a decade.",
+    ),
+    _tolerance(
+        "stored_globals_match_ledger",
+        None,
+        1.0e-5,
+        "The solver prints its ledger to six significant digits and the stored"
+        " globals are float32, so a faithful ingestion agrees to about 1e-6 of"
+        " the channel's peak; 1e-5 leaves a decade, and the errors this row"
+        " exists for — a channel dropped, misnamed, or left in the solver's"
+        " units — are off by a factor, not by a digit.",
     ),
     _tolerance(
         "active_mass_drift",

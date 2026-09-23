@@ -1,20 +1,20 @@
 # NotchBeam2D-Impact — reference-data verification
 
-Dataset revision v0.1.0 · 110 cases · 62 checks per case · structbench 0.3.0
+Dataset revision v0.1.0 · 110 cases · 63 checks per case · structbench 0.3.0
 
 This report says what was checked about the simulation runs behind this dataset, what was found, and what could not be checked. It is generated from a committed record of measurements; no verdict here rests on a number fitted to this dataset. A pass is a necessary sign of a healthy run, not evidence that the simulation matches reality.
 
 ## Summary
 
 - **14 checks pass** wherever they apply.
-- **No findings.**
+- **1 finding** — in the solver input: output the input asks the solver to write.
 - **6 quantities are measured but not judged**: the platform has no confirmed criterion. The values are below for you to weigh.
 - **28 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
 - 14 checks do not apply to these runs.
 
 | | Pass | Finding | Measured, not judged | Not checked | Not applicable |
 |---|---|---|---|---|---|
-| Data integrity | 5 |  | 1 | 5 |  |
+| Data integrity | 5 | 1 | 1 | 5 |  |
 | Numerical health of the runs | 6 |  | 3 | 3 | 10 |
 | Energy and mass conservation | 1 |  |  | 9 | 4 |
 | Material behaviour | 2 |  | 1 | 4 |  |
@@ -22,7 +22,12 @@ This report says what was checked about the simulation runs behind this dataset,
 
 ## Findings
 
-None.
+### Output the input asks the solver to write — fail
+
+- Found: 3 count in all 110 cases.
+- Required: must be zero.
+- What it means: the input does not ask the solver for evidence the platform requires.
+- Lands in: the solver input.
 
 ## Results by category
 
@@ -30,6 +35,7 @@ None.
 
 | Check | Result | Worst case | Verdict | Basis |
 |---|---|---|---|---|
+| Output the input asks the solver to write | 3 count |  | **fail** (110 of 110) | must be zero |
 | Declared traits against the solver input | 0 |  | pass | must be zero |
 | Non-finite values (NaN, infinity) | 0 |  | pass | must be zero |
 | Stored elements that no input part owns | 0 |  | pass | must be zero |
@@ -146,6 +152,7 @@ Bounds applied:
 - *Non-finite values (NaN, infinity)* — must be zero. A stored response contains no NaN or infinity.
 - *Out-of-plane shear in a two-dimensional run* — must be zero (provisional). A two-dimensional formulation carries no out-of-plane shear; the slots hold exact zeros, so any other value is a slot mix-up.
 - *Out-of-plane strain in a plane-strain run* — at most 1e-06 (provisional). Plane strain sets the out-of-plane normal strain to zero; 1e-6 is a decade above float32 resolution of a strain of order one, and three decades below the smallest hoop strain of an axisymmetric run.
+- *Output the input asks the solver to write* — must be zero. The input asks the solver to write every output the platform's evidence requirement rests on, for the features the model has.
 - *Particles deactivated without erosion* — must be zero. With erosion off, no particle is ever deactivated.
 - *Run reached its requested end time* — at least 0.999999 (provisional). The last stored time reaches the requested end time. float32 time stamps resolve 1.2e-7 of their value; 1e-6 leaves a decade. No upper bound: an explicit run may overshoot by one step.
 - *Smoothing length within input bounds* — at most 1e-05 (provisional). The scale is a ratio of two float32 values, resolved to about 2.4e-7; 1e-5 leaves over a decade.

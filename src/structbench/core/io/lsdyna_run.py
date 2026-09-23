@@ -266,6 +266,40 @@ def _smoothing_bounds(
     return min(b[0] for b in bounds), max(b[1] for b in bounds)
 
 
+#: ``*CONTROL_ENERGY`` field order -> the ledger term each one governs. A
+#: field set to 2 computes the term; 1 leaves it out of the balance entirely,
+#: so it is absent from the solver's own total and the ledger cannot be told
+#: apart from one whose term is genuinely zero.
+_ENERGY_FIELDS = ("zero_energy_mode", "rigid_surface", "contact", "damping")
+#: ``*DATABASE_`` cards whose first field is not an output interval: they
+#: configure what output contains, and request none of it.
+_DATABASE_SETTINGS = ("DATABASE_EXTENT", "DATABASE_FORMAT")
+
+
+def _energy_terms(cards: list[_Card], tokens: set[str]) -> frozenset[str] | None:
+    """Ledger terms ``*CONTROL_ENERGY`` switches on, or ``None`` if unstated."""
+    row = _first_row(cards, "CONTROL_ENERGY", tokens)
+    if row is None:
+        return None  # no card, or a card that could not be read
+    return frozenset(
+        term
+        for term, field_value in zip(_ENERGY_FIELDS, row, strict=False)
+        if field_value == 2.0
+    )
+
+
+def _databases(cards: list[_Card], tokens: set[str]) -> frozenset[str]:
+    """``*DATABASE_`` keywords requested with a non-zero output interval."""
+    requested = set()
+    for card in _find(cards, "DATABASE_"):
+        if card.keyword.startswith(_DATABASE_SETTINGS) or not card.lines:
+            continue
+        row = _numbers(card.lines[0], card.keyword, tokens)
+        if row is not None and row[0]:
+            requested.add(card.keyword)
+    return frozenset(requested)
+
+
 def read_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     """Read what a keyword input establishes about a run (evidence item E1).
 
@@ -307,6 +341,8 @@ def read_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     parts = _parts(cards, tokens)
     planes = _rigid_planes(cards, f["length"], tokens)
     bounds = _smoothing_bounds(cards, tokens)
+    energy_terms = _energy_terms(cards, tokens)
+    databases = _databases(cards, tokens)
 
     hidden = bool(_HIDING & tokens)
 
@@ -365,11 +401,14 @@ def read_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
         prescribed_motion_defined=requested(
             any(k.startswith("BOUNDARY_PRESCRIBED_MOTION") for k in keywords)
         ),
+        damping_defined=requested(any(k.startswith("DAMPING_") for k in keywords)),
         rigid_planes=planes,
         # No verified source yet classifies the solver's particle formulations
         # as pairwise conservative or not; unknown until one is recorded.
         particle_pairwise_conservative=None,
         smoothing_length_scale_bounds=bounds,
+        energy_terms_computed=None if hidden else energy_terms,
+        databases_requested=None if hidden else databases,
         unparsable=frozenset(tokens),
     )
 

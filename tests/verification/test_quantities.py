@@ -32,6 +32,8 @@ _IMPLEMENTED = {
     "timestep_min_ratio",
     "total_energy_change_final",
     "declared_traits_match_input",
+    "stored_globals_match_ledger",
+    "input_requests_required_evidence",
     "density_slot_matches_input",
     "elements_without_input_part",
     "kinetic_energy_closure",
@@ -82,9 +84,12 @@ def _facts(**overrides: object) -> InputFacts:
         "erosion_enabled": False,
         "contact_defined": False,
         "prescribed_motion_defined": False,
+        "damping_defined": False,
         "rigid_planes": (RigidPlane((0.0, 0.0, 0.0), (1.0, 0.0, 0.0)),),
         "particle_pairwise_conservative": False,
         "smoothing_length_scale_bounds": (1.0, 1.0),
+        "energy_terms_computed": None,
+        "databases_requested": None,
         "unparsable": frozenset(),
     }
     base.update(overrides)

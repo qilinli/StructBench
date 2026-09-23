@@ -5,11 +5,13 @@ A tiny synthetic particle case carrying its own invented solver input.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
 import numpy as np
 
+from structbench.benchmarks import get_benchmark
 from structbench.benchmarks.card import BenchmarkCard
 from structbench.benchmarks.registry import BenchmarkSpec
 from structbench.cli.datacheck import declared_from_spec, main, measure_dataset
@@ -267,3 +269,26 @@ def test_the_cli_reads_the_run_evidence_record_never_a_run_folder(
     evidence.write_text('{"schema": "other/1"}')
     assert main([*base, "--run-evidence", str(evidence)]) == 2
     assert main([*base, "--run-evidence", str(tmp_path)]) == 2  # a folder is refused
+
+
+def test_a_card_that_declares_anchors_passes_them_through() -> None:
+    """The card is where an SI anchor lives (ADR-0065 follow-up 3)."""
+    from structbench.core import UnitsAnchor
+
+    anchor = UnitsAnchor("density", 8900.0, 2, "material:2:density", "handbook")
+    spec = _spec()
+    card = dataclasses.replace(spec.card, units_anchors=(anchor,))
+    declared = declared_from_spec(dataclasses.replace(spec, card=card))
+    assert declared.anchors == (anchor,)
+
+
+def test_taylor_declares_an_anchor_outside_its_unit_label() -> None:
+    """A declared unit label is checkable only against something outside it.
+
+    One density anchor pins mass against length. A time-unit error still
+    slips through; a second anchor of independent dimension would close
+    that, and needs a sourced value the maintainer stands behind.
+    """
+    anchors = get_benchmark("taylor_impact_2d").card.units_anchors
+    assert [a.kind for a in anchors] == ["density"]
+    assert all(a.source_kind != "synthetic" for a in anchors)

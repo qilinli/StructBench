@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Literal
 
+from ..core import UnitsAnchor
+
 Discretisation = Literal["SPH", "FEM", "coupled"]
 
 
@@ -58,6 +60,11 @@ class BenchmarkCard:
         Identity block: leaderboard name, benchmark version, one-line
         description, data provenance (paper / who ran the simulations),
         and the data license.
+    units_anchors : tuple of UnitsAnchor
+        SI anchors that pin the declared unit system against something
+        outside its label (ADR-0066 E10b): each states the SI value of a
+        named input quantity, so a wrong ``source_units`` shows up as a
+        factor. Empty until a benchmark declares them.
     solver, loading, source_units, geometry : str
         Physics block, for the structural engineer. ``source_units`` is
         the solver's unit convention (e.g. ``"g-mm-ms"``); canonical
@@ -169,6 +176,7 @@ class BenchmarkCard:
     figures: tuple[BenchmarkFigure, ...] = ()
     data_access: str = ""
     data_access_label: str = ""
+    units_anchors: tuple[UnitsAnchor, ...] = ()
 
     def __post_init__(self) -> None:
         total = sum(self.splits.values())

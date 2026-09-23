@@ -136,9 +136,16 @@ def _facts(**overrides: object) -> InputFacts:
         "erosion_enabled": False,
         "contact_defined": False,
         "prescribed_motion_defined": False,
+        "damping_defined": False,
         "rigid_planes": (RigidPlane((0.0, 0.0, 0.0), (1.0, 0.0, 0.0)),),
         "particle_pairwise_conservative": None,
         "smoothing_length_scale_bounds": (0.2, 2.0),
+        "energy_terms_computed": frozenset(
+            {"zero_energy_mode", "rigid_surface", "contact", "damping"}
+        ),
+        "databases_requested": frozenset(
+            {"DATABASE_GLSTAT", "DATABASE_MATSUM", "DATABASE_RWFORC"}
+        ),
         "unparsable": frozenset(),
     }
     return InputFacts(**{**base, **overrides})  # type: ignore[arg-type]
@@ -288,6 +295,7 @@ _HEALTHY = {
     "yield_table_covers_range": 0.3,
     "fields_match_declaration": 0.0,
     "declared_traits_match_input": 0.0,
+    "input_requests_required_evidence": 0.0,
 }
 
 
@@ -617,3 +625,79 @@ def test_a_fully_read_input_that_states_no_strength_still_does_not_apply() -> No
     elastic = (MaterialInput(2, "rigid", 7850.0, None, 2.1e11, 0.3, None),)
     result = _run(facts=_facts(materials=elastic, unparsable=frozenset()))
     assert _get(result, "input_strength_plausible").not_applicable
+
+
+# --- does the input ask the solver for the evidence we require? ----------------
+
+
+def _conformance(**overrides: object) -> Measurement:
+    return _get(_run(facts=_facts(**overrides)), "input_requests_required_evidence")
+
+
+def test_a_deck_that_asks_for_everything_required_is_conformant() -> None:
+    assert _conformance().value == 0.0
+
+
+def test_a_deck_that_never_asked_for_the_ledger_says_which_request_is_missing() -> None:
+    """The failure both legacy sweeps share: no `*DATABASE_GLSTAT`, no ledger."""
+    row = _conformance(
+        databases_requested=frozenset({"DATABASE_MATSUM", "DATABASE_RWFORC"})
+    )
+    assert row.value == 1.0
+    assert row.detail["first_missing"] == "database_glstat"
+
+
+def test_an_uncomputed_energy_term_is_an_unmet_requirement() -> None:
+    """`HGEN = 1` leaves hourglass energy out of the solver's own total."""
+    row = _conformance(
+        parts=(PartTraits(1, 2, "solid", True),),  # under-integrated: can hourglass
+        energy_terms_computed=frozenset({"rigid_surface", "contact", "damping"}),
+    )
+    assert row.value == 1.0
+    assert row.detail["first_missing"] == "control_energy:zero_energy_mode"
+
+
+def test_a_term_the_run_cannot_produce_is_not_required() -> None:
+    """An SPH run has no hourglass energy; not computing it is no defect."""
+    row = _conformance(energy_terms_computed=frozenset({"rigid_surface"}))
+    assert row.value == 0.0
+
+
+def test_a_wall_without_its_force_database_is_counted() -> None:
+    row = _conformance(
+        databases_requested=frozenset({"DATABASE_GLSTAT", "DATABASE_MATSUM"})
+    )
+    assert row.value == 1.0  # the fixture has a rigid plane, so RWFORC is required
+    assert row.detail["first_missing"] == "database_rwforc"
+
+
+def test_requirements_that_do_not_apply_to_the_model_are_not_counted() -> None:
+    """No contact and no prescribed motion means those databases are not asked for."""
+    row = _conformance(
+        rigid_planes=(),
+        databases_requested=frozenset({"DATABASE_GLSTAT", "DATABASE_MATSUM"}),
+    )
+    assert row.value == 0.0
+
+
+def test_contact_and_prescribed_motion_each_add_their_own_requirement() -> None:
+    row = _conformance(
+        rigid_planes=(),
+        contact_defined=True,
+        prescribed_motion_defined=True,
+        databases_requested=frozenset({"DATABASE_GLSTAT", "DATABASE_MATSUM"}),
+    )
+    assert row.value == 3.0  # rcforc, sleout, bndout
+
+
+def test_a_deck_that_states_nothing_cannot_be_assessed_for_conformance() -> None:
+    row = _conformance(databases_requested=None)
+    assert row.absence is not None
+    assert row.absence.missing == {EvidenceItem.E1}
+
+
+def test_an_input_with_no_energy_card_has_not_stated_what_it_computes() -> None:
+    """Absent is not zero: the requirement is that the input say."""
+    row = _conformance(energy_terms_computed=None)
+    assert row.value == 1.0
+    assert row.detail["first_missing"] == "control_energy:stated"

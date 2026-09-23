@@ -38,9 +38,12 @@ def _facts(**overrides: object) -> InputFacts:
         "erosion_enabled": False,
         "contact_defined": False,
         "prescribed_motion_defined": False,
+        "damping_defined": False,
         "rigid_planes": (RigidPlane((0.0, 0.0, 0.0), (1.0, 0.0, 0.0)),),
         "particle_pairwise_conservative": False,
         "smoothing_length_scale_bounds": (1.0, 1.0),
+        "energy_terms_computed": None,
+        "databases_requested": None,
         "unparsable": frozenset(),
     }
     base.update(overrides)

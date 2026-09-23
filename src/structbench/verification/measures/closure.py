@@ -102,6 +102,61 @@ def _kinetic_energy_closure(
     )
 
 
+#: Stored global channel -> the ledger term it must reproduce. Whatever the
+#: adapter took off the solver's state output answers to what the solver
+#: itself printed; a channel with no partner here cannot be compared and is
+#: not a defect.
+_GLOBAL_TERMS = {"kinetic_energy": "kinetic", "internal_energy": "internal"}
+
+
+def _ledger_series(run: RunEvidence, channel: str) -> tuple[float, ...] | None:
+    """The ledger series a stored channel answers to, if the ledger has one."""
+    assert run.ledger is not None
+    if channel == "total_energy":
+        return run.ledger.solver_total
+    term = _GLOBAL_TERMS.get(channel)
+    return None if term is None else run.ledger.terms.get(term)
+
+
+def _stored_globals_match_ledger(
+    case: Case, facts: InputFacts | None, run: RunEvidence
+) -> Measurement:
+    """Largest gap between a stored global channel and the ledger's own series.
+
+    Each channel is normalised by the peak of the series it answers to, so
+    the number reads as a fraction of the energy that channel ever carried,
+    and the worst channel over the run is the one reported. This is the one
+    check that sees an *ingestion* error -- a channel dropped, misnamed or
+    left in the solver's units -- because it is the only place the stored
+    arrays meet the solver's own account of the same run.
+    """
+    name = "stored_globals_match_ledger"
+    assert run.ledger is not None and case.response is not None
+    stored = case.response.globals_
+    if not stored:
+        return field_gap(name)
+    frames, samples = shared_samples(case, run)
+    worst = -1.0
+    detail: dict[str, float | int | str] = {}
+    for channel, series in sorted(stored.items()):
+        reference = _ledger_series(run, channel)
+        if reference is None:
+            continue
+        ref = np.asarray(reference, dtype=np.float64)
+        scale = float(np.abs(ref).max())
+        if scale <= 0.0:
+            continue  # a series that is zero throughout sets no scale
+        gap = np.abs(np.asarray(series, np.float64)[frames] - ref[samples]) / scale
+        at = int(np.argmax(gap))
+        if float(gap[at]) > worst:
+            worst = float(gap[at])
+            detail = {"channel": channel, "frame": int(frames[at])}
+    if worst < 0.0:
+        return absent(name, AbsenceReason.UNSUPPORTED)  # no channel has a partner
+    return value(name, worst, CASE, RUN, n=frames.size, detail=detail)
+
+
 CLOSURE_MEASURES: dict[str, ClosureFn] = {
     "kinetic_energy_closure": _kinetic_energy_closure,
+    "stored_globals_match_ledger": _stored_globals_match_ledger,
 }

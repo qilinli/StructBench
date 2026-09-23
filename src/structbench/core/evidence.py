@@ -213,13 +213,23 @@ class InputFacts:
         ``"step_limit"``, ``"min_timestep"``, ``"energy_change"``,
         ``"mass_change"``.
     mass_scaling_enabled, erosion_enabled, contact_defined,
-    prescribed_motion_defined : bool or None
+    prescribed_motion_defined, damping_defined : bool or None
     rigid_planes : tuple of RigidPlane
     particle_pairwise_conservative : bool or None
         Whether the particle formulation conserves momentum pairwise;
         ``None`` with no particle part, or when unknown.
     smoothing_length_scale_bounds : (float, float) or None
         Minimum and maximum factors on the initial smoothing length.
+    energy_terms_computed : frozenset of str or None
+        Ledger terms the input switches on for computation; a term the
+        solver would not compute is missing from its own printed total, so
+        the ledger cannot be read as complete without this. ``None`` when
+        the input does not establish it -- a solver default is never
+        assumed for an absent setting.
+    databases_requested : frozenset of str or None
+        Output databases the input asks for with a non-zero interval, by
+        keyword (``"DATABASE_GLSTAT"``). Cards that configure output rather
+        than request it are not listed. ``None`` when not established.
     unparsable : frozenset of str
         Tokens for constructs the reader refused to resolve, e.g.
         ``"include"``, ``"unknown_card_layout:<KEYWORD>"``.
@@ -236,9 +246,12 @@ class InputFacts:
     erosion_enabled: bool | None
     contact_defined: bool | None
     prescribed_motion_defined: bool | None
+    damping_defined: bool | None
     rigid_planes: tuple[RigidPlane, ...]
     particle_pairwise_conservative: bool | None
     smoothing_length_scale_bounds: tuple[float, float] | None
+    energy_terms_computed: frozenset[str] | None
+    databases_requested: frozenset[str] | None
     unparsable: frozenset[str]
 
     def __post_init__(self) -> None:
