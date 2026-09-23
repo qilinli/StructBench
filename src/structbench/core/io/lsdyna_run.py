@@ -188,6 +188,27 @@ def _material(
         return MaterialInput(
             mid, canonical, scaled(head[1], "density"), None, None, None, None
         )
+    if model == "MAT_CONCRETE_DAMAGE_REL3":
+        # mid, ro, pr. Its yield surface is pressure-dependent and generated
+        # from the unconfined compressive strength, not tabulated, so no
+        # yield table is claimed for it.
+        return MaterialInput(
+            mid, canonical, scaled(head[1], "density"), None, None, head[2], None
+        )
+    if model == "MAT_PLASTIC_KINEMATIC":
+        # mid, ro, e, pr, sigy, etan, beta. The yield law is bilinear, stated
+        # by sigy and etan rather than by knots, so it is not a yield table:
+        # `yield_table` holds knots a deck states verbatim, and two would have
+        # to be invented here.
+        return MaterialInput(
+            mid,
+            canonical,
+            scaled(head[1], "density"),
+            None,
+            scaled(head[2], "stress"),
+            head[3],
+            None,
+        )
     tokens.add(f"unknown_card_layout:{model}")
     return MaterialInput(mid, None, None, None, None, None, None)
 

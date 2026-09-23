@@ -282,6 +282,11 @@ def test_a_card_that_declares_anchors_passes_them_through() -> None:
     assert declared.anchors == (anchor,)
 
 
+def test_notch_declares_the_density_anchor_its_card_already_states() -> None:
+    anchors = get_benchmark("notch_beam_2d_impact").card.units_anchors
+    assert [(a.kind, a.si_value) for a in anchors] == [("density", 2.4e3)]
+
+
 def test_taylor_declares_an_anchor_outside_its_unit_label() -> None:
     """A declared unit label is checkable only against something outside it.
 

@@ -6,11 +6,11 @@ This report says what was checked about the simulation runs behind this dataset,
 
 ## Summary
 
-- **14 checks pass** wherever they apply.
+- **16 checks pass** wherever they apply.
 - **1 finding** — in the solver input: output the input asks the solver to write.
-- **6 quantities are measured but not judged**: the platform has no confirmed criterion. The values are below for you to weigh.
-- **28 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
-- 14 checks do not apply to these runs.
+- **8 quantities are measured but not judged**: the platform has no confirmed criterion. The values are below for you to weigh.
+- **23 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
+- 15 checks do not apply to these runs.
 
 | | Pass | Finding | Measured, not judged | Not checked | Not applicable |
 |---|---|---|---|---|---|
@@ -18,7 +18,7 @@ This report says what was checked about the simulation runs behind this dataset,
 | Numerical health of the runs | 6 |  | 3 | 3 | 10 |
 | Energy and mass conservation | 1 |  |  | 9 | 4 |
 | Material behaviour | 2 |  | 1 | 4 |  |
-| Units and magnitudes |  |  | 1 | 7 |  |
+| Units and magnitudes | 2 |  | 3 | 2 | 1 |
 
 ## Findings
 
@@ -100,14 +100,15 @@ Does not apply to these runs: contact energy against internal energy; kinetic en
 
 | Check | Result | Worst case | Verdict | Basis |
 |---|---|---|---|---|
+| Declared unit anchors agree with the input | 0 |  | pass | must be zero |
+| Stored density against the input's density | < 0.001 % |  | pass | at most 0.001 % (provisional tolerance) |
 | Largest speed in the response | 41.32 m/s to 184.5 m/s | `NB-I-320-Sphere-a-160` | not judged | published level shown below, for context |
-| Declared unit anchors agree with the input | — |  | not checked | the benchmark has nowhere to declare it yet |
+| Most extreme Young's modulus in the input | 200 GPa |  | not judged | published level shown below, for context |
+| Most extreme input density | 7850 kg/m³ |  | not judged | published level shown below, for context |
 | Largest first-yield strain in the input | — |  | not checked | this instrument cannot measure it yet |
-| Most extreme Young's modulus in the input | — |  | not checked | the instrument could not read what the run supplied |
-| Most extreme input density | — |  | not checked | the instrument could not read what the run supplied |
-| Most extreme yield stress in the input | — |  | not checked | the instrument could not read what the run supplied |
-| Stored density against the input's density | — |  | not checked | the instrument could not read what the run supplied |
 | The input's own unit declaration | — |  | not checked | this instrument cannot measure it yet |
+
+Does not apply to these runs: most extreme yield stress in the input.
 
 ## Measured, not judged
 
@@ -117,6 +118,8 @@ What the numbers above would mean, for the quantities no bound is applied to. Wh
 - **Frames written off the sampling interval** — a problem here would mean that frames were written off the sampling interval - a fact, not a defect: a solver writes its state at the termination time and loaders drop it (ADR-0028). *No criterion.*
 - **Growth of the largest neighbour count** — a problem here would mean that particles clumped (neighbour counts grew). *No criterion.*
 - **Largest speed in the response** — a problem here would mean that a response speed is outside the structural-impact regime. *A published level exists, not confirmed by this platform: at most 3000 m/s [M-S9].*
+- **Most extreme Young's modulus in the input** — a problem here would mean that a Young's modulus is outside its plausible range. *A published level exists, not confirmed by this platform: between 300 kPa and 1000 GPa [M-E4, M-D7].*
+- **Most extreme input density** — a problem here would mean that density is outside the range of condensed matter (mass-unit error). *A published level exists, not confirmed by this platform: between 16 kg/m³ and 22590 kg/m³ [M-D6, M-D5, M-D10].*
 - **Solver warnings** — a problem here would mean that the solver reported warnings that may affect the result. *No criterion.*
 - **Stored pressure against the stress trace** — a problem here would mean that stored pressure disagrees with the stress trace. *No criterion.*
 
@@ -148,6 +151,7 @@ Every check names the artefact a finding would condemn, and so who would have to
 Bounds applied:
 
 - *Declared traits against the solver input* — must be zero. What the benchmark declares about the run agrees with the solver input.
+- *Declared unit anchors agree with the input* — must be zero. Each anchor states the SI value of a named input quantity to declared digits, so agreement is an equality.
 - *Drift of the total mass* — at most 0.0001 % (provisional). With mass scaling and deletion off, every stored mass is one constant rounded the same way each frame; 1e-6 is a decade above float32 resolution.
 - *Non-finite values (NaN, infinity)* — must be zero. A stored response contains no NaN or infinity.
 - *Out-of-plane shear in a two-dimensional run* — must be zero (provisional). A two-dimensional formulation carries no out-of-plane shear; the slots hold exact zeros, so any other value is a slot mix-up.
@@ -159,6 +163,7 @@ Bounds applied:
 - *Solver errors* — must be zero. The solver's record mentions no error.
 - *Solver terminated normally* — must be yes. Every phase and restart segment ends with the solver's normal-termination statement.
 - *Solver version and precision recorded* — must be zero. The record names the solver's version, revision, precision and parallel layout; none is missing.
+- *Stored density against the input's density* — at most 0.001 % (provisional). At the first stored state an unloaded part has its input density, to float32 resolution (1.2e-7); a wrong slot is off by orders of magnitude. A preloaded first state needs its own bound.
 - *Stored elements that no input part owns* — must be zero. Every stored element belongs to a part the solver input defines.
 - *Stored fields against the declared field list* — must be zero. The stored fields are exactly the fields the benchmark declares.
 - *Time steps that go backward* — must be zero. Stored times strictly increase.
@@ -166,3 +171,5 @@ Bounds applied:
 Published levels shown for context (not applied). The bracketed ids are claims in the source dossier, `docs/plans/2026-09-21-reference-data-verification-sources.md`:
 
 - *Largest speed in the response* — at most 3000 m/s [M-S9]. Above 3 km/s is the hypervelocity regime, outside structural impact. Blind to the mass unit.
+- *Most extreme Young's modulus in the input* — between 300 kPa and 1000 GPa [M-E4, M-D7]. Young's modulus from flexible foam to diamond: sees length or time errors of several decades, not a factor of a thousand within a family.
+- *Most extreme input density* — between 16 kg/m³ and 22590 kg/m³ [M-D6, M-D5, M-D10]. Flexible polymer foam to osmium. The only family-free screen that sees a mass-unit error.

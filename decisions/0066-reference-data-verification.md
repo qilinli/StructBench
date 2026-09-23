@@ -581,8 +581,9 @@ impact sweep were measured against the canonical archive and each run's
 message file, judged, and published as
 `docs/datachecks/notch_beam_2d_impact.{json,md}`, linked from the benchmark's
 landing page. Every case was readable and carries its SHA-256. The verdicts
-are uniform across the sweep — 14 pass, 6 measured but not judged, 28 not
-checked, 14 not applicable — with no findings and no row reading `review`.
+are uniform across the sweep. *(Counts as first published: 14 pass, 6
+measured but not judged, 28 not checked, 14 not applicable, no findings. The
+coverage note below moves them.)*
 
 Nothing was added to the catalogue, no criterion changed, and no reference
 level was ratified: the maintainer's 2026-09-21 decision stands, and the
@@ -607,7 +608,8 @@ and `verification/materials.py` requires; it is not discharged here.
 recovery available on notch. It is not. Of the 28 rows notch cannot check,
 13 are `source_missing` -- the ledger, time-step history and load
 resultants the runs never wrote -- and no material class reaches them. A
-class plus the two card layouts recovers about six.)*
+class plus the two card layouts recovers about six; the layouts landed
+2026-09-23 and were worth five.)*
 
 **The widening's real yield was two defects in the message-file reader that
 Taylor could not have exposed.** Diagnostics were counted by any line
@@ -727,15 +729,43 @@ the resolver has no locator for a velocity. Notch declares none, because its
 material cards do not parse and an anchor on them would resolve to nothing.
 
 Counts after this note. Taylor: 20 pass, 4 findings, 17 measured but not
-judged, 7 not checked, 15 not applicable. Notch: 14 pass, 1 finding, 6
-measured but not judged, 28 not checked, 14 not applicable. Taylor's two new
+judged, 7 not checked, 15 not applicable. Notch: 16 pass, 1 finding, 8
+measured but not judged, 23 not checked, 15 not applicable. Taylor's two new
 findings are the stored-globals mismatch and its missing `*DATABASE_RWFORC`;
 notch's single finding is its three omitted requests. Nothing else moved: no
 existing verdict changed, and the hardening-table and unowned-element
 findings stand as before.
 
+**The two card layouts landed the same day, without an ADR.** Reading a card
+layout says what numbers a card holds; only a material class says what they
+*mean*, so `*MAT_CONCRETE_DAMAGE_REL3` and `*MAT_PLASTIC_KINEMATIC` now give
+up their density, Poisson ratio and (for the steel) Young's modulus, while
+`canonical_model` stays `None` and every constitutive row stays
+`not_assessable / unsupported`. Neither yield law is tabulated — K&C's
+surface is generated from the unconfined compressive strength, the steel's is
+bilinear — so neither gets a `yield_table`, whose contract is knots a deck
+states verbatim.
+
+Five rows moved off `unparsable` on notch: the stored density now matches the
+input's to 2e-16, and the density anchor its card already stated now resolves
+and agrees, so `units_anchors_consistent` **passes**. That is two independent
+confirmations that notch's `kg-mm-ms` declaration is right and that ingestion
+converted it correctly — on a benchmark where, an hour earlier, nothing about
+units could be checked at all. `input_strength_plausible` is correctly
+`not_applicable`: every card was read and none states a tabulated strength.
+
+One observation for the material-class ADR, found reading the deck and not
+yet caught by any row: the steel card carries `e = 200.0` and `sigy = 337.0`
+in a unit system whose stress unit is 1 GPa, a first-yield strain of 1.7.
+`input_dimensionless_groups_plausible` is the row built to see exactly this,
+and it cannot, because it reads `yield_table` and a bilinear law has none. A
+scalar `yield_stress` on `MaterialInput` would close it, and would change
+what two units rows measure, so it waits for a decision rather than being
+slipped in. The steel parts are protocol-kinematic — driven by ground truth,
+excluded from loss and metrics — so nothing a user trains on depends on it.
+
 Open and untouched: the four ADR-0065 follow-ups; the material-class ADR that
-ADR-0012 anticipates, worth about six of notch's 28 unchecked rows (the 13
+ADR-0012 anticipates, worth two more of notch's 23 unchecked rows (the 13
 `source_missing` rows are beyond any class, the runs having written no
 ledger);
 the kinetic-energy closure's tolerance; E6, E7 and the two remaining E9 rows,

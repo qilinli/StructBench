@@ -245,3 +245,61 @@ def test_a_deck_that_hides_its_content_establishes_no_requests() -> None:
     hidden = _read(_deck("*INCLUDE", "other.k"))
     assert hidden.databases_requested is None
     assert hidden.energy_terms_computed is None
+
+
+# --- card layouts for the notch sweep's materials ------------------------------
+
+_CONCRETE = "\n".join(
+    [
+        "*MAT_CONCRETE_DAMAGE_REL3_TITLE",
+        "concrete",
+        "$#     mid        ro        pr  ",
+        _row(11, "2.40000E-6", 0.2),
+        "$#      ft        a0        a1        a2        b1     omega       a1f   ",
+        _row(0.0, -0.05, 0.0, 0.0, 0.82375, 0.75, 0.0),
+    ]
+)
+_STEEL = "\n".join(
+    [
+        "*MAT_PLASTIC_KINEMATIC",
+        "$#     mid        ro         e        pr      sigy      etan      beta    ",
+        _row(12, "7.85000E-6", 200.0, 0.3, 337.0, 1.2, 0.0),
+        "$#     src       srp        fs        vp  ",
+        _row(40.0, 5.0, "", 0.0),
+    ]
+)
+
+
+def _by_id(text: str, mid: int):
+    facts = read_input_facts(text, source_units="kg-mm-ms")
+    return facts, next(m for m in facts.materials if m.material_id == mid)
+
+
+def test_the_concrete_card_gives_up_its_density_and_poisson_ratio() -> None:
+    facts, concrete = _by_id(_deck(_CONCRETE), 11)
+    assert facts.unparsable == frozenset()
+    assert concrete.density == pytest.approx(2400.0)  # kg/mm3 -> kg/m3
+    assert concrete.poisson_ratio == pytest.approx(0.2)
+    assert concrete.yield_table is None  # its yield surface is not tabulated
+
+
+def test_the_steel_card_gives_up_its_density_and_modulus() -> None:
+    facts, steel = _by_id(_deck(_STEEL), 12)
+    assert facts.unparsable == frozenset()
+    assert steel.density == pytest.approx(7850.0)
+    assert steel.youngs_modulus == pytest.approx(200.0e9)  # GPa in kg-mm-ms
+    assert steel.poisson_ratio == pytest.approx(0.3)
+    assert steel.yield_table is None  # bilinear, not a table of deck knots
+
+
+def test_a_class_is_not_claimed_by_reading_a_card_layout() -> None:
+    """The layout says what numbers the card holds; only a class says what
+    they mean. Neither material has one yet (the ADR-0012 material class)."""
+    _, concrete = _by_id(_deck(_CONCRETE), 11)
+    _, steel = _by_id(_deck(_STEEL), 12)
+    assert concrete.canonical_model is None and steel.canonical_model is None
+
+
+def test_neither_card_is_reported_as_an_unknown_layout() -> None:
+    facts = read_input_facts(_deck(_CONCRETE, _STEEL), source_units="kg-mm-ms")
+    assert not any(t.startswith("unknown_card_layout") for t in facts.unparsable)
