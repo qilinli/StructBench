@@ -292,14 +292,29 @@ def test_the_steel_card_gives_up_its_density_and_modulus() -> None:
     assert steel.yield_table is None  # bilinear, not a table of deck knots
 
 
-def test_a_class_is_not_claimed_by_reading_a_card_layout() -> None:
-    """The layout says what numbers the card holds; only a class says what
-    they mean. Neither material has one yet (the ADR-0012 material class)."""
-    _, concrete = _by_id(_deck(_CONCRETE), 11)
-    _, steel = _by_id(_deck(_STEEL), 12)
-    assert concrete.canonical_model is None and steel.canonical_model is None
+def test_naming_a_class_is_not_the_same_as_knowing_what_it_means() -> None:
+    """The layout says what numbers a card holds, and `canonical_model` names
+    the class; only `MATERIAL_CLASSES` says what its stored state *means*.
+
+    The two notch materials got both in ADR-0067. `*MAT_ELASTIC` still shows
+    the split: the adapter maps it to `linear_elastic`, and the platform has
+    no semantics for that class, so its constitutive rows stay unsupported.
+    """
+    from structbench.verification.materials import material_class
+
+    facts = read_input_facts(_deck(), source_units="g-mm-ms")
+    assert any(m.canonical_model == "elastic_plastic_hydro" for m in facts.materials)
+    assert material_class("linear_elastic") is None
 
 
 def test_neither_card_is_reported_as_an_unknown_layout() -> None:
     facts = read_input_facts(_deck(_CONCRETE, _STEEL), source_units="kg-mm-ms")
     assert not any(t.startswith("unknown_card_layout") for t in facts.unparsable)
+
+
+def test_the_two_notch_cards_now_resolve_a_canonical_class() -> None:
+    """ADR-0067: the layout says what the numbers are, the class what they mean."""
+    _, concrete = _by_id(_deck(_CONCRETE), 11)
+    _, steel = _by_id(_deck(_STEEL), 12)
+    assert concrete.canonical_model == "concrete_damage"
+    assert steel.canonical_model == "elastic_plastic_kinematic"

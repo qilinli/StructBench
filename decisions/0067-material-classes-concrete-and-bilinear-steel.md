@@ -1,6 +1,6 @@
 # 0067 — Material classes for the notch sweep: K&C concrete and bilinear steel
 
-**Status**: Accepted (maintainer, in-session 2026-09-23); not yet built
+**Status**: Accepted (maintainer, in-session 2026-09-23); built 2026-09-23
 **Type**: Durable
 **Date**: 2026-09-23
 
@@ -176,3 +176,44 @@ contract is knots a deck states verbatim; two would have to be invented).
 - This ADR discharges none of ADR-0065's four follow-ups, and does not touch
   the 13 notch rows that read `source_missing`: no material class reaches the
   ledger, the time-step history or the load resultants those runs never wrote.
+
+## Build note (2026-09-23)
+
+Built as decided. `MATERIAL_CLASSES` gains the two classes;
+`_CANONICAL_MAT` gains the two keyword mappings; and the option-stripping
+the Decision called for became `canonical_model_for()`, shared by the
+converter and the verification reader, because the converter was looking up
+the verbatim source-model name and a `_TITLE` option was enough to hide a
+material the platform knows.
+
+**The Consequences section was slightly wrong, and the build showed it.** It
+predicted the five yield rows would "keep no verdict, but their reason
+changes". They did not: the trait gate asks whether any class offers
+`tabulated_j2`, and a class that offers `not_assessable` answered the same
+as a class with no yield surface at all, so the rows came back
+`not_applicable` — reading, to anyone scanning the report, as though yield
+admissibility were irrelevant to a concrete impact benchmark. It is not
+irrelevant; it is unevaluable, which is a different claim and the honest one.
+
+`MaterialClass` already draws that distinction (`"none"` = no surface;
+`"not_assessable"` = a surface whose arguments are not exported) and the
+gate was collapsing it. The gate now separates them, and the rows read
+`not_assessable / not_available_from_solver` — the reason whose own
+definition is "closed by nobody, for this solver", which is exactly the
+situation. A material with no surface at all, such as `rigid`, still reads
+`not_applicable`. Both are under test.
+
+This is the same misreport this session found twice before — a
+`not_applicable` asserting something about the data that was not true — and
+it is worth stating as a rule rather than a third coincidence: **`not_applicable`
+is a claim, and a claim has to be checked like any other.**
+
+Effect on the published records. Notch: eight rows move off
+`not_assessable / unsupported` — `state_variable_min` and
+`state_variable_decrease_max` to **pass**, `eos_closure` to
+`not_applicable`, and the five yield rows to
+`not_assessable / not_available_from_solver`. The two passes are the
+monotonicity claim of this ADR holding on all 110 cases rather than on the
+22 it was measured from. Taylor is re-measured and byte-identical: its class
+was untouched, and its yield law is tabulated, so the gate change does not
+reach it.

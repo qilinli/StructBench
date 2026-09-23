@@ -378,3 +378,22 @@ def test_build_case_rejects_unknown_units():
             dimension=2,
             case_id="x",
         )
+
+
+def test_a_card_option_does_not_hide_the_material_class() -> None:
+    """The deck writes `*MAT_CONCRETE_DAMAGE_REL3_TITLE`; the class is the same.
+
+    ADR-0067: the converter looked up the verbatim source-model name, so a
+    `_TITLE` (or `_SPALL`) option left `canonical_model` unset for a
+    material the platform knows.
+    """
+    from structbench.core.io.lsdyna import canonical_model_for
+
+    assert canonical_model_for("MAT_CONCRETE_DAMAGE_REL3") == "concrete_damage"
+    assert canonical_model_for("MAT_CONCRETE_DAMAGE_REL3_TITLE") == "concrete_damage"
+    assert canonical_model_for("MAT_PLASTIC_KINEMATIC") == "elastic_plastic_kinematic"
+    assert (
+        canonical_model_for("MAT_ELASTIC_PLASTIC_HYDRO_SPALL")
+        == "elastic_plastic_hydro"
+    )
+    assert canonical_model_for("MAT_SOMETHING_UNKNOWN") is None

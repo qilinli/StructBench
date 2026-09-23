@@ -6,18 +6,18 @@ This report says what was checked about the simulation runs behind this dataset,
 
 ## Summary
 
-- **16 checks pass** wherever they apply.
+- **18 checks pass** wherever they apply.
 - **1 finding** — in the solver input: output the input asks the solver to write.
 - **8 quantities are measured but not judged**: the platform has no confirmed criterion. The values are below for you to weigh.
-- **23 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
-- 15 checks do not apply to these runs.
+- **20 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
+- 16 checks do not apply to these runs.
 
 | | Pass | Finding | Measured, not judged | Not checked | Not applicable |
 |---|---|---|---|---|---|
 | Data integrity | 5 | 1 | 1 | 5 |  |
 | Numerical health of the runs | 6 |  | 3 | 3 | 10 |
-| Energy and mass conservation | 1 |  |  | 9 | 4 |
-| Material behaviour | 2 |  | 1 | 4 |  |
+| Energy and mass conservation | 1 |  |  | 8 | 5 |
+| Material behaviour | 4 |  | 1 | 2 |  |
 | Units and magnitudes | 2 |  | 3 | 2 | 1 |
 
 ## Findings
@@ -42,10 +42,10 @@ This report says what was checked about the simulation runs behind this dataset,
 | Stored fields against the declared field list | 0 |  | pass | must be zero |
 | Time steps that go backward | 0 |  | pass | must be zero |
 | Frames written off the sampling interval | 1 |  | not judged | no criterion |
-| Declared yield table against the input's | — |  | not checked | this instrument cannot measure it yet |
-| Dips in the input's hardening table | — |  | not checked | this instrument cannot measure it yet |
+| Declared yield table against the input's | — |  | not checked | this solver cannot provide it |
+| Dips in the input's hardening table | — |  | not checked | this solver cannot provide it |
 | Energy ledger sampled on the field-output clock | — |  | not checked | the runs did not supply the global energy ledger and a sampling clock shared by the energy ledger and the fields |
-| Plastic strain reached, relative to the table's range | — |  | not checked | this instrument cannot measure it yet |
+| Plastic strain reached, relative to the table's range | — |  | not checked | this solver cannot provide it |
 | Stored global energies against the solver's ledger | — |  | not checked | the runs did not supply the global energy ledger and a sampling clock shared by the energy ledger and the fields |
 
 ### Numerical health of the runs
@@ -80,9 +80,8 @@ Does not apply to these runs: deepest penetration of a rigid surface; hourglass 
 | Largest energy gain during the run | — |  | not checked | the runs did not supply the global energy ledger |
 | Largest energy loss during the run | — |  | not checked | the runs did not supply the global energy ledger |
 | Momentum change against applied impulse | — |  | not checked | the runs did not supply applied loads and reaction forces over time |
-| Pressure against the equation of state | — |  | not checked | this instrument cannot measure it yet |
 
-Does not apply to these runs: contact energy against internal energy; kinetic energy in a quasi-static run; mass bookkeeping with scaling or deletion; negative contact energy.
+Does not apply to these runs: contact energy against internal energy; kinetic energy in a quasi-static run; mass bookkeeping with scaling or deletion; negative contact energy; pressure against the equation of state.
 
 ### Material behaviour
 
@@ -90,11 +89,11 @@ Does not apply to these runs: contact energy against internal energy; kinetic en
 |---|---|---|---|---|
 | Out-of-plane shear in a two-dimensional run | 0 Pa |  | pass | must be zero (provisional tolerance) |
 | Out-of-plane strain in a plane-strain run | 0 |  | pass | at most 1e-06 (provisional tolerance) |
+| Plastic state never decreases | 0 |  | pass | must be zero |
+| Plastic state never negative | 0 |  | pass | at least 0 |
 | Stored pressure against the stress trace | < 0.001 % | `NB-I-320-Bullet-a-80` | not judged | no criterion |
-| Largest stress relative to the yield surface | — |  | not checked | this instrument cannot measure it yet |
-| Plastic state never decreases | — |  | not checked | this instrument cannot measure it yet |
-| Plastic state never negative | — |  | not checked | this instrument cannot measure it yet |
-| Yielding material sits on the yield surface | — |  | not checked | this instrument cannot measure it yet |
+| Largest stress relative to the yield surface | — |  | not checked | this solver cannot provide it |
+| Yielding material sits on the yield surface | — |  | not checked | this solver cannot provide it |
 
 ### Units and magnitudes
 
@@ -158,6 +157,8 @@ Bounds applied:
 - *Out-of-plane strain in a plane-strain run* — at most 1e-06 (provisional). Plane strain sets the out-of-plane normal strain to zero; 1e-6 is a decade above float32 resolution of a strain of order one, and three decades below the smallest hoop strain of an axisymmetric run.
 - *Output the input asks the solver to write* — must be zero. The input asks the solver to write every output the platform's evidence requirement rests on, for the features the model has.
 - *Particles deactivated without erosion* — must be zero. With erosion off, no particle is ever deactivated.
+- *Plastic state never decreases* — must be zero. The material class says its state variable never decreases; rounding to float32 is monotone, so storage adds no tolerance.
+- *Plastic state never negative* — at least 0. The material class bounds its state variable below by zero.
 - *Run reached its requested end time* — at least 0.999999 (provisional). The last stored time reaches the requested end time. float32 time stamps resolve 1.2e-7 of their value; 1e-6 leaves a decade. No upper bound: an explicit run may overshoot by one step.
 - *Smoothing length within input bounds* — at most 1e-05 (provisional). The scale is a ratio of two float32 values, resolved to about 2.4e-7; 1e-5 leaves over a decade.
 - *Solver errors* — must be zero. The solver's record mentions no error.
