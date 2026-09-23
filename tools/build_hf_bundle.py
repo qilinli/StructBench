@@ -37,7 +37,7 @@ the maintainer's dated, machine-specific runbooks live in ``scratch/``)::
     hf upload StructBench/taylor-impact-2d scratch/hf-upload/taylor_impact_2d . \
         --type dataset
     hf repos settings StructBench/taylor-impact-2d --type dataset --public
-    hf repos tag create StructBench/taylor-impact-2d v0.1.0 --type dataset
+    hf repos tag create StructBench/taylor-impact-2d $DATA_TAG --type dataset
 
 ``hf upload`` streams, auto-splits commits and resumes: re-run the same
 command after any interruption. After a change, rebuild, repeat step 2
@@ -70,6 +70,11 @@ _LOG = logging.getLogger("build_hf_bundle")
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 #: HF dataset repo name per registry benchmark (the ``StructBench/<repo>`` id).
+#: The dataset tag the README tells a user to pin. Data tags are
+#: independent of code releases; bump this when republishing bundle text
+#: or case files, and create the matching tag on each repo.
+DATA_TAG = "v0.1.1"
+
 HF_REPOS: dict[str, str] = {
     "taylor_impact_2d": "taylor-impact-2d",
     "wave_propagation_1d": "wave-propagation-1d",
@@ -278,8 +283,8 @@ def _hf_readme(spec, name: str, repo: str) -> str:
             "```",
             "",
             "`cases.csv` lists every case with its split and loading/geometry",
-            "parameters plus a SHA-256 manifest; pin the dataset repo's `v0.1.0`",
-            'tag (`revision="v0.1.0"` — a data release, independent of the code',
+            f"parameters plus a SHA-256 manifest; pin the dataset repo's `{DATA_TAG}`",
+            f'tag (`revision="{DATA_TAG}"` — a data release, independent of the code',
             "version) for reproducible pipelines. Point",
             "`structbench-train --data-root` at the snapshot directory.",
             "Code, benchmark protocol, and leaderboards:",
