@@ -239,3 +239,42 @@ def test_records_refuse_free_text_and_ragged_series() -> None:
         EnergyLedger((0.0,), {"internal": (1.0,)}, {"internal": 1})
     with pytest.raises(ValueError, match="tokens"):
         RunEvidence(unparsable=frozenset({"Not A Token"}))
+
+
+def test_a_warning_that_explains_itself_is_not_counted_as_an_error() -> None:
+    """A diagnostic's own prose may name an "error" it is reporting.
+
+    LS-DYNA R12 prints the severity word at the head of the line; the body
+    below it is explanation. Counting a word in that body made every run of
+    the notch-impact sweep report a solver error it never had.
+    """
+    explained = _MESSAGES.replace(
+        " MPP execution",
+        " *** Warning 21329 (STR+1329)\n"
+        "     Curve ID 723 has discretization error of 0.5%\n MPP execution",
+    )
+    evidence = _read(messages=explained)
+    assert (evidence.n_errors, evidence.n_warnings) == (0, 1)
+
+
+def test_the_revision_is_read_from_a_banner_that_prints_no_svn_line() -> None:
+    """Newer R12 builds print a ``Revision:`` describe string and no SVN line."""
+    newer = _MESSAGES.replace(
+        "     |  SVN Version: 123999                            |",
+        "     |  Revision: R12.1-190-gadfcdf9018                |",
+    )
+    identity = _read(messages=newer).identity
+    assert identity is not None
+    assert identity.revision == "R12.1-190-gadfcdf9018"
+
+
+def test_the_svn_line_wins_when_a_banner_prints_both() -> None:
+    """R12.0 prints both; the SVN number stays the revision of record."""
+    both = _MESSAGES.replace(
+        "     |  SVN Version: 123999                            |",
+        "     |  Revision: 123456          Time: 17:26:40       |\n"
+        "     |  SVN Version: 123999                            |",
+    )
+    identity = _read(messages=both).identity
+    assert identity is not None
+    assert identity.revision == "123999"

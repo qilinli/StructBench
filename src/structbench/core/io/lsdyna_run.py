@@ -419,6 +419,17 @@ _IDENTITY_RTOL = 1.0e-4
 
 _STAT_LINE = re.compile(r"^ (.{31})\s+(-?\d+\.\d+E[+-]\d+|\d+)(?:\s+wall#\s*\d+)?\s*$")
 _BANNER_DISCLAIMER = re.compile(r"errors encountered in either the documentation")
+#: A diagnostic names its severity at the head of its first line, after any
+#: banner asterisks; the lines below it are the diagnostic's own explanation,
+#: which may name an "error" it is *reporting* rather than one the run hit.
+_ERROR_LINE = re.compile(r"^[\s*]*errors?\b", re.IGNORECASE)
+_WARNING_LINE = re.compile(r"^[\s*]*warnings?\b", re.IGNORECASE)
+#: R12.0 prints an SVN number beside a ``Revision:`` line; later builds print
+#: a ``Revision:`` describe string and no SVN line. Where both are printed the
+#: SVN number stays the revision of record.
+_SVN_REVISION = re.compile(r"SVN Version:\s*(\d+)")
+_BANNER_REVISION = re.compile(r"Revision:\s*(\S+)")
+_VERSION_TOKEN = r"[A-Za-z0-9_.+-]{1,32}"
 
 
 def _ledger(
@@ -476,22 +487,27 @@ def _messages(
     """Identity, termination and diagnostic counts from a solver message file.
 
     Only whitelisted patterns are read; nothing of the text is kept.
-    Diagnostics are counted fail-closed: every line that mentions a warning
-    or an error counts, except the banner's standing disclaimer.
+    Diagnostics are counted by the lines that *raise* one -- the severity
+    word at the head of the line -- so a diagnostic's own explanation does
+    not count a second time, and the banner's standing disclaimer not at all.
     """
     identity = None
     stamp = re.search(r"^\s*ls-dyna\s+(\S+)\s+([sd])\s+date\b", text, re.MULTILINE)
     if stamp is not None:
-        revision = re.search(r"SVN Version:\s*(\d+)", text)
+        found = _SVN_REVISION.search(text) or _BANNER_REVISION.search(text)
         procs = re.search(r"MPP execution with\s+(\d+)\s+procs", text)
         version = stamp.group(1)
-        if not re.fullmatch(r"[A-Za-z0-9_.+-]{1,32}", version):
+        revision = found.group(1) if found else None
+        if revision is not None and not re.fullmatch(_VERSION_TOKEN, revision):
+            tokens.add("solver_revision")  # a guess is worse than no revision
+            revision = None
+        if not re.fullmatch(_VERSION_TOKEN, version):
             tokens.add("solver_version")
         else:
             identity = SolverIdentity(
                 "ls-dyna",
                 version,
-                revision.group(1) if revision else None,
+                revision,
                 "double" if stamp.group(2) == "d" else "single",
                 f"mpp:{procs.group(1)}" if procs else None,
             )
@@ -516,10 +532,8 @@ def _messages(
     )
 
     lines = [ln for ln in text.splitlines() if not _BANNER_DISCLAIMER.search(ln)]
-    n_errors = sum(bool(re.search(r"\berrors?\b", ln, re.IGNORECASE)) for ln in lines)
-    n_warnings = sum(
-        bool(re.search(r"\bwarnings?\b", ln, re.IGNORECASE)) for ln in lines
-    )
+    n_errors = sum(bool(_ERROR_LINE.match(ln)) for ln in lines)
+    n_warnings = sum(bool(_WARNING_LINE.match(ln)) for ln in lines)
     return identity, record, n_errors, n_warnings
 
 

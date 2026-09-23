@@ -69,6 +69,7 @@ numbers, and the cross-method comparison, are below.
 - Particles per case: 4264-12966; 502 frames at 0.001 ms; 24.9 GB on disk
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
 - Provenance: LS-DYNA parametric sweep (3 widths x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators — extends the published 81-specimen drop-weight study (plate/disk/rod impactors at 80/120/160 m/s) with a 40 m/s velocity level; benchmark protocol per ADR-0026.
+- Verification: what was checked about these simulation runs, and what was found — [verification report](../datachecks/notch_beam_2d_impact.md)
 - License: CC BY 4.0
 - Data: public on Hugging Face — [StructBench/notch-beam-2d-impact](https://huggingface.co/datasets/StructBench/notch-beam-2d-impact)
 
