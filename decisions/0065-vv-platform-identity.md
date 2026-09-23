@@ -196,3 +196,63 @@ read as a to-do list.
   prediction-scheme axis (ADR-0050–0054). The platform still ships no
   solver, no general ML framework, and no model whose existence is a
   paper's claim.
+
+## Note on follow-up 1: what the properties block is for (2026-09-23, maintainer + agent)
+
+Clause 4 commits to a properties block and fixes the direction only. This
+note records the question it answers, so that follow-up 1 is drafted against
+a stated purpose rather than assembled from whatever metrics exist. It
+decides nothing: no property, threshold, rendering or gate is settled here.
+
+**The platform should be able to answer whether a surrogate is trustworthy
+enough to enter a structural-engineering workflow — design optimisation, a
+digital twin.** That question does not reduce to a ranking, because it is
+three independent questions:
+
+1. **Accuracy** — how close the prediction is to the reference. What the
+   leaderboard reports today (ADR-0055).
+2. **Physics-consistency** — whether the prediction violates laws it cannot
+   legitimately violate, *however close it is*. Independent of 1 by
+   demonstration: ADR-0064 measured the accuracy leader emitting 10.3 %
+   physically impossible stresses, with D2 at 6.4 % and D3 at 42.8 % before
+   enforcement. Accurate and inadmissible at once.
+3. **Fitness for a downstream use** — which neither of the first two
+   settles, because the failure modes differ by use. An optimiser walks
+   off-distribution by construction and needs sensitivities to be right; a
+   digital twin runs horizons far beyond anything scored and never has
+   ground truth to check against.
+
+That a single ranking misleads for use 3 is already visible in this
+repository. On notch-impact, `rollout_rel_l2_disp` on the interpolation
+split orders Transolver-TC 0.0352 < Transolver-AR 0.0641 < MGN 0.2245 <
+CGN 0.2827; on the four-axis OOD probe the order **inverts** — CGN 0.5905 <
+MGN 0.7672 < TC 1.047 < AR 1.185 — and a relative L2 above one means the
+error exceeds the signal. The model that wins in-distribution by roughly
+eight times is the one to trust least where an optimiser would take it.
+
+Two structural observations, recorded because they worsen with time rather
+than with scope:
+
+- **The same property is already implemented twice.** Yield admissibility
+  is a kernel over plain arrays in `verification/kernels.py`, serving
+  reference-data verification, and is enforced again inside
+  `models/transolver/simulator.py`, serving one model family. One
+  definition, two implementations, no shared contract. Each further family
+  adds another copy.
+- **Nothing in the repository can say "do not trust this particular
+  prediction."** Every metric in `eval/metrics.py` and every benchmark QoI
+  requires the ground truth, and there is no calibration or uncertainty
+  machinery anywhere in `src/`. The physics-consistency properties are the
+  only checks computable on a prediction alone, which is what would make
+  them runnable in a deployment at all.
+
+The open research question this frames, and which the platform is unusually
+well placed to answer with four benchmarks, held-out and OOD splits, several
+families and two prediction schemes: **do the properties computable without
+ground truth predict the error that needs it?** If they do, there is a
+runtime trust signal and the trustworthiness question is answerable. If they
+do not, physics-consistency is hygiene worth enforcing but is not evidence
+of trustworthiness — and that is a finding worth reporting either way.
+
+A note is the right weight for this: it is direction, not decision, and
+follow-up 1 remains flag-first and undrafted.

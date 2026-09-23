@@ -212,6 +212,12 @@ assets/            # figures embedded in the docs + landing pages
   notch-bend (ADR-0056; module in-tree, re-registerable) · segmented beam
 - Training: resume support · part-id→embedding remap · ADR-0028 Phase-2
   ablations
+- **Surrogate V&V as a reported axis** — a prediction is judged on three
+  independent questions, not one ranking: accuracy against the reference,
+  physics-consistency (does it violate laws it cannot legitimately violate,
+  however close it is), and fitness for a downstream use (design
+  optimisation, digital twin). ADR-0065 follow-up 1 is where it starts; see
+  the 2026-09-23 note there for why the three do not collapse
 - Eval: leaderboard submission validator · per-region probe metrics ·
   convergence check · cross-benchmark utilities
 - Data & scale: checkpoint-publishing workflow · second aux target (plastic
