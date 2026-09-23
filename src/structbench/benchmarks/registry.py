@@ -21,10 +21,11 @@ from .card import BenchmarkCard
 from .results import BaselineResult
 
 #: Registered benchmark modules; each must define a module-level ``SPEC``.
-#: notch_beam_2d_bend was descoped from the public benchmark set (ADR-0056,
-#: amends 0024/0026): parked with no plan and no blessed baseline, so it is
-#: delisted from docs/README. The ``benchmarks/notch_beam_2d_bend`` module and
-#: its configs remain in the tree, re-registerable by restoring this entry.
+#: notch_beam_2d_bend was descoped (ADR-0056, amends 0024/0026) and then
+#: excluded outright (ADR-0056 amendment 2026-09-23): notch-impact covers
+#: what the pair was for. Its module and configs were removed 2026-09-23;
+#: the 2DNotchBeam converter still reads the bend family, so the archive
+#: stays reproducible from the raw runs.
 _MODULES: dict[str, str] = {
     "deforming_plate": "structbench.benchmarks.deforming_plate",
     "notch_beam_2d_impact": "structbench.benchmarks.notch_beam_2d_impact",
