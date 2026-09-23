@@ -771,3 +771,40 @@ ledger);
 the kinetic-energy closure's tolerance; E6, E7 and the two remaining E9 rows,
 which wait on a run that supplies their files; and what to do about
 `global/total_energy`.
+
+## Claim audit (2026-09-23, agent)
+
+A deliberate pass over every place the module reports a quantity as absent
+or inapplicable, prompted by three such misreports being found by accident
+in one week. Twelve sites: eleven state something true, one did not.
+
+`input_dimensionless_groups_plausible` returned `unsupported` when no
+material offers both a tabulated yield stress and an elastic modulus. The
+instrument can compute that ratio; what is missing is in the input. Worse,
+`unsupported` is in `PLATFORM_REASONS`, whose contract is that such rows
+"never count as a dataset's gap" — so the row read as an instrument
+limitation *and* exempted the data from a gap that was its own. It now
+routes through `unstated_or_unread` like the other input screens: an input
+whose cards were all read and offers no such ratio is `not_applicable`; one
+with an unparsed card keeps the typed absence. On notch the row moves from
+"not checked" to "does not apply", and the sweep's counts move to 18 pass,
+1 finding, 8 measured but not judged, 19 not checked, 17 not applicable.
+Taylor is re-measured and byte-identical: its material states both.
+
+Two sites are defensible and left alone, recorded so the next audit does not
+re-derive them. `kinetic_energy_closure` treats a peak kinetic energy of
+zero as "nothing ever moved", which is true; a *negative* peak is physically
+impossible and would be a defect reported as inapplicable, so a guard there
+would be honest if the case ever arises. `total_energy_change_final` does
+not apply when the initial total energy is zero, which is right for a ratio
+but means the row can never apply to an externally driven run — a coverage
+hole, not a false claim.
+
+The rule this audit was testing, from the ADR-0067 build note: a verdict of
+`not_applicable`, and the reason on an absence, are both **claims about the
+data**, and an instrument whose purpose is to avoid asserting untrue things
+about data has to hold its own reporting to that standard. Four instances in
+one week says this is a pattern in how the measures were written, not a run
+of coincidences: the easy return when a measurement cannot be made is the
+one that blames the platform, and it is wrong whenever the input is what is
+lacking.

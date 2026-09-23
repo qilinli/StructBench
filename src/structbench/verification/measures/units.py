@@ -164,7 +164,11 @@ def _input_dimensionless_groups_plausible(
         if m.yield_table is not None and modulus:
             strains.append(m.yield_table[1][0] / modulus)
     if not strains:
-        return absent(name, AbsenceReason.UNSUPPORTED)  # no material offers both
+        # No material states both a tabulated yield stress and a modulus. That
+        # is the input's doing, not the platform's: `unsupported` would exempt
+        # it from the dataset's gaps (`PLATFORM_REASONS`) and read as though
+        # the instrument could not do it.
+        return unstated_or_unread(name, facts)
     return value(name, max(strains), INPUT, n=len(strains))
 
 
