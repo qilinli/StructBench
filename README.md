@@ -134,6 +134,8 @@ DeformingPlate benchmark (ADR-0041; operator adaptations ADR-0044/0045).
 src/structbench/
   core/            # case schema, validation, HDF5 I/O, LS-DYNA adapter
   datasets/        # canonical readers, windowing, normalization
+  verification/    # reference-data verification: quantity catalogue, measures,
+                   #   criteria, generated report (ADR-0066)
   benchmarks/      # one module per benchmark: split + protocol + QoIs
   models/          # model families: cgn, mgn, transolver, geoflare (+ shared common/)
   eval/            # rollout driver, metrics
@@ -144,7 +146,8 @@ decisions/         # architecture decision records (ADRs)
 tools/             # doc generation, the pooled-RMSE blessing aggregator, dev scripts
 data_generation/   # solver decks + offline conversion scripts (data provenance)
 hpc/               # cluster launch scripts (DUG SLURM)
-docs/              # benchmark cards, architecture, harness, corrections
+docs/              # benchmark cards, architecture, harness, corrections,
+                   #   datachecks/ (published verification records)
 tests/             # deterministic CPU-only test suite
 assets/            # figures embedded in the docs + landing pages
 ```
@@ -204,12 +207,25 @@ assets/            # figures embedded in the docs + landing pages
 
 ### Later (each becomes an ADR/spec when picked up)
 
-- **Crash benchmark (v0.4 candidate)** — gated on public crash data existing
-  (CarCrashNet's release, or maintainer-generated open-licence LS-DYNA data)
-  plus the scale infrastructure it needs (cell-list `radius_graph`, TB-scale
-  hosting); its methods already ship in v0.3 (ADR-0041)
-- **Parked benchmarks** — RC beam (erosion is the gate, ADR-0024/0041) ·
-  notch-bend (ADR-0056; module in-tree, re-registerable) · segmented beam
+- **Benchmarks to add** — three, each becoming its own ADR when picked up:
+  - *RC beam bending test* — flexural loading, not the impact regime the
+    parked RC beam item assumed (erosion was that one's gate, ADR-0024/0041);
+    a bending test may not need erosion at all, which is the first thing to
+    settle
+  - *Crash (v0.4 candidate)* — gated on public crash data existing
+    (CarCrashNet's release, or maintainer-generated open-licence LS-DYNA
+    data) plus the scale infrastructure it needs (cell-list `radius_graph`,
+    TB-scale hosting); its methods already ship in v0.3 (ADR-0041)
+  - *Segmented beam* — parked since ADR-0015
+- **Agentic data generation** — an agent-driven pipeline that produces
+  benchmark data end to end with a solver (Abaqus the first candidate):
+  parameter sweep, deck generation, submission, convergence and the
+  run-evidence the ADR-0066 requirement asks for, then conversion to the
+  canonical schema. The point is data generation the platform can audit and
+  a contributor can repeat, rather than archives whose provenance is a
+  folder someone still has; the standard input block
+  ([`data_generation/lsdyna/STANDARD_INPUT_BLOCK.md`](data_generation/lsdyna/STANDARD_INPUT_BLOCK.md))
+  is the LS-DYNA statement of what such a pipeline must switch on
 - Training: resume support · part-id→embedding remap · ADR-0028 Phase-2
   ablations
 - **Surrogate V&V as a reported axis** — a prediction is judged on three
@@ -221,7 +237,7 @@ assets/            # figures embedded in the docs + landing pages
 - Eval: leaderboard submission validator · per-region probe metrics ·
   convergence check · cross-benchmark utilities
 - Data & scale: checkpoint-publishing workflow · second aux target (plastic
-  strain) · data-generation autonomy · cell-list `radius_graph` when any
+  strain) · cell-list `radius_graph` when any
   ≥10⁶-node dataset lands · other solvers (Kratos, OpenSees, OpenRadioss) ·
   SHM expansion · deployment tools · packaging extras · PhysicsNeMo interop
 

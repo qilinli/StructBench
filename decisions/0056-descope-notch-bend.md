@@ -67,3 +67,22 @@ This amends **ADR-0024** (the v0.2 wave + notch-beam scope) and **ADR-0026**
   decisions (0024/0026) are retained as the record, not deleted.
 - The render empty-state tests no longer depend on any benchmark being
   result-less (a synthetic bare spec covers those paths).
+
+## Amendment (2026-09-23, maintainer): notch-bend is excluded, not parked
+
+ADR-0056 descoped notch-bend and left it parked — the module stayed in-tree
+and re-registerable, and the roadmap listed it among the parked benchmarks.
+The maintainer has now decided it is **excluded**: notch-impact covers what
+the pair was for, and notch-bend is not coming back.
+
+The roadmap entry is removed accordingly. This tightens the original
+decision rather than reversing it, so it is recorded here as a dated
+amendment rather than a superseding ADR, per `decisions/README.md`.
+
+What remains in the tree is recorded so a later reader is not surprised by
+it: the unregistered module `src/structbench/benchmarks/notch_beam_2d_bend/`
+(280 lines), two run configs under `configs/notch_beam_2d_bend/`, and the
+bend family in the 2DNotchBeam converter and split-freezer, which still
+produce the canonical `notch_beam_2d_bend` archive. None of it is
+registered, published or referenced by a shipped benchmark; the archive was
+never hosted. Removing it is a separate, scoped change and is not made here.

@@ -103,7 +103,7 @@ What becomes easier, harder, or constrained as a result.
 | 0053 | Decouple model history (`history_frames`) from the `input_frames` seed / scored-span protocol | Durable | Accepted |
 | 0054 | Transolver time-conditioning: the native non-autoregressive prediction scheme | Durable | Accepted |
 | 0055 | Relative-L2 as the headline metric (amended: headline, RMSE retained secondary) | Durable | Accepted |
-| 0056 | Descope notch-bend: the notch-beam benchmark narrows to notch-impact (redundant with impact; amends 0024/0026) | Durable | Accepted |
+| 0056 | Descope notch-bend: the notch-beam benchmark narrows to notch-impact (redundant with impact; amends 0024/0026) | Durable | Accepted (amended 2026-09-23: excluded, not parked) |
 | 0057 | Transolver++ eidetic-state adaptation (adaptive temperature + train-only Gumbel Rep-Slice) on the Transolver family | Durable | Proposed |
 | 0058 | `huggingface_hub` as an optional `data` extra | Durable | Proposed |
 | 0059 | Auxiliary state channels: `aux` generalises from `(T, P)` to `(T, P, C)` | Durable | Accepted |
