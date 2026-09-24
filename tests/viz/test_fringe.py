@@ -195,3 +195,64 @@ def test_3d_trajectories_are_projected_to_xy(tmp_path):
 
     out = animate_rollout(pos3, VALUES, tmp_path / "proj.gif", fps=5, dpi=40)
     assert out.exists()
+
+
+# --- filled-element fringe (FE meshes) -------------------------------------
+
+from structbench.viz import (  # noqa: E402
+    animate_elements,
+    element_snapshot,
+    fringe_elements,
+)
+
+#: Two unit quads side by side; nodes (T, N, 2), connectivity by node index.
+QUADS = np.array([[0, 1, 4, 3], [1, 2, 5, 4]])
+NODES = np.array([[0.0, 0.0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]])
+TRAJ = np.stack([NODES, NODES + [0.0, 0.1], NODES + [0.0, 0.2]])
+ELEM_VALUES = np.array([[0.0, 10.0], [2.0, 8.0], [4.0, 6.0]])
+
+
+def test_fringe_elements_fills_each_quad_with_its_value():
+    ax = matplotlib.pyplot.figure().add_subplot()
+    pc = fringe_elements(ax, NODES, QUADS, ELEM_VALUES[0], field="pressure")
+    assert len(pc.get_paths()) == 2
+    assert pc.get_cmap().name == "jet"
+    assert list(pc.get_array()) == [0.0, 10.0]
+    assert pc.get_clim() == (0.0, 10.0)
+    matplotlib.pyplot.close("all")
+
+
+def test_element_snapshot_mirrors_the_section_and_labels_the_bar():
+    fig = element_snapshot(
+        NODES, QUADS, ELEM_VALUES[0], field="von_mises_stress", mirror=True, wall_x=-0.5
+    )
+    pc = fig.axes[0].collections[0]
+    assert len(pc.get_paths()) == 4  # both halves of the section
+    assert list(pc.get_array()) == [0.0, 10.0, 0.0, 10.0]
+    assert fig.axes[0].get_aspect() == 1.0
+    assert "von Mises stress (MPa)" in fig.axes[-1].get_ylabel()
+    matplotlib.pyplot.close(fig)
+
+
+def test_animate_elements_writes_every_frame(tmp_path):
+    from PIL import Image
+
+    out = animate_elements(
+        TRAJ,
+        QUADS,
+        ELEM_VALUES,
+        tmp_path / "fe.gif",
+        times_us=np.arange(3.0),
+        mirror=True,
+        fps=5,
+        dpi=40,
+    )
+    with Image.open(out) as gif:
+        assert gif.n_frames == 3
+
+
+def test_element_values_must_match_the_quads():
+    ax = matplotlib.pyplot.figure().add_subplot()
+    with pytest.raises(ValueError, match="one value per element"):
+        fringe_elements(ax, NODES, QUADS, np.zeros(3))
+    matplotlib.pyplot.close("all")
