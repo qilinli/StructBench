@@ -31,7 +31,7 @@ from ..datasets.canonical import (
 
 if TYPE_CHECKING:  # matplotlib types only for annotations; import stays lazy
     from matplotlib.axes import Axes
-    from matplotlib.collections import PathCollection
+    from matplotlib.collections import Collection, PathCollection, PolyCollection
     from matplotlib.colorbar import Colorbar
     from matplotlib.colors import Colormap
     from matplotlib.figure import Figure
@@ -185,7 +185,7 @@ def fringe_scatter(
 
 def _fringe_bar(
     fig: Figure,
-    mappable: PathCollection,
+    mappable: Collection,
     spec: FieldSpec,
     *,
     axes: Any,
@@ -447,6 +447,234 @@ def animate_rollout(
         return (sc, text)
 
     anim = FuncAnimation(fig, _update, frames=positions.shape[0], blit=False)
+    out = Path(out_path)
+    anim.save(out, writer=PillowWriter(fps=fps), dpi=dpi)
+    plt.close(fig)
+    return out
+
+
+def _element_polygons(
+    nodes: NDArray[np.floating],
+    quads: NDArray[np.integer],
+    values: NDArray[np.floating],
+    mirror: bool,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Polygons ``(E, k, 2)`` and their values, both halves when ``mirror``."""
+    conn = np.asarray(quads)
+    vals = np.asarray(values, dtype=np.float64)
+    if vals.shape != (conn.shape[0],):
+        raise ValueError(
+            f"need one value per element: {conn.shape[0]} elements, "
+            f"values shape {vals.shape}"
+        )
+    polys = np.asarray(nodes, dtype=np.float64)[:, :2][conn]
+    if mirror:
+        polys = np.concatenate([polys, polys * np.array([1.0, -1.0])])
+        vals = np.concatenate([vals, vals])
+    return polys, vals
+
+
+def fringe_elements(
+    ax: Axes,
+    nodes: NDArray[np.floating],
+    quads: NDArray[np.integer],
+    values: NDArray[np.floating],
+    *,
+    field: str | FieldSpec = "von_mises_stress",
+    vmin: float | None = None,
+    vmax: float | None = None,
+    bands: int | None = None,
+    mirror: bool = False,
+) -> PolyCollection:
+    """Draw one frame of a finite-element mesh as filled, fringe-coloured elements.
+
+    The FE counterpart of :func:`fringe_scatter`: each element is filled with
+    the colour of its (element-constant) value, as Abaqus/CAE draws a contour
+    of an integration-point quantity on a reduced-integration mesh.
+
+    Parameters
+    ----------
+    ax:
+        Target axes.
+    nodes:
+        Current node coordinates ``(N, dim)`` in mm; drawn as x-y.
+    quads:
+        Element connectivity ``(E, k)`` as 0-based indices into ``nodes``.
+    values:
+        One value per element ``(E,)``.
+    field, vmin, vmax, bands:
+        As in :func:`fringe_scatter`.
+    mirror:
+        Also draw the reflection about ``y = 0``, e.g. the full section of an
+        axisymmetric model whose axis lies along x.
+
+    Returns
+    -------
+    matplotlib.collections.PolyCollection
+        The filled elements, ready for a shared fringe bar.
+
+    Raises
+    ------
+    ValueError
+        If ``values`` does not hold exactly one value per element.
+    """
+    from matplotlib.collections import PolyCollection
+
+    _resolve(field)
+    polys, vals = _element_polygons(nodes, quads, values, mirror)
+    vmin, vmax = _limits(vals, vmin, vmax)
+    pc = PolyCollection(
+        list(polys),
+        cmap=_cmap(bands),
+        edgecolors="face",  # no hairline seams between elements
+        linewidths=0.2,
+        rasterized=True,
+    )
+    pc.set_array(np.clip(vals, vmin, vmax))
+    pc.set_clim(vmin, vmax)
+    ax.add_collection(pc)
+    ax.autoscale_view()
+    return pc
+
+
+def element_snapshot(
+    nodes: NDArray[np.floating],
+    quads: NDArray[np.integer],
+    values: NDArray[np.floating],
+    *,
+    field: str | FieldSpec = "von_mises_stress",
+    title: str = "",
+    time_us: float | None = None,
+    vmin: float | None = None,
+    vmax: float | None = None,
+    bands: int | None = None,
+    wall_x: float | None = None,
+    mirror: bool = False,
+) -> Figure:
+    """One labelled fringe frame of an FE mesh (the element form of :func:`snapshot`).
+
+    Parameters
+    ----------
+    nodes, quads, values, field, vmin, vmax, bands, mirror:
+        As in :func:`fringe_elements`.
+    title, time_us, wall_x:
+        As in :func:`snapshot`.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    plt = _plt()
+    spec = _resolve(field)
+    fig, ax = plt.subplots(figsize=(6.4, 4.2), constrained_layout=True)
+    pc = fringe_elements(
+        ax,
+        nodes,
+        quads,
+        values,
+        field=spec,
+        vmin=vmin,
+        vmax=vmax,
+        bands=bands,
+        mirror=mirror,
+    )
+    if wall_x is not None:
+        _draw_wall(ax, wall_x)
+    ax.set_aspect("equal")
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("y (mm)")
+    stamp = f"   (t = {time_us:.1f} µs)" if time_us is not None else ""
+    fig.suptitle(f"{title}{stamp}" if title else stamp.strip(), fontsize=11)
+    _fringe_bar(fig, pc, spec, axes=ax)
+    return fig
+
+
+def animate_elements(
+    nodes: NDArray[np.floating],
+    quads: NDArray[np.integer],
+    values: NDArray[np.floating],
+    out_path: str | Path,
+    *,
+    field: str | FieldSpec = "von_mises_stress",
+    times_us: NDArray[np.floating] | None = None,
+    title: str = "",
+    vmin: float | None = None,
+    vmax: float | None = None,
+    bands: int | None = None,
+    wall_x: float | None = None,
+    mirror: bool = False,
+    fps: int = 15,
+    dpi: int = 100,
+) -> Path:
+    """Write a filled-element fringe animation of an FE trajectory.
+
+    Parameters
+    ----------
+    nodes:
+        Node trajectory ``(T, N, dim)`` in mm, drawn as x-y.
+    quads:
+        Element connectivity ``(E, k)`` as 0-based indices into the nodes.
+    values:
+        Element values ``(T, E)``.
+    out_path:
+        Output file; the extension picks the writer (``.gif`` uses pillow).
+    field, times_us, title, vmin, vmax, bands, wall_x, fps, dpi:
+        As in :func:`animate_rollout`; the fringe range defaults to the
+        global min/max over all frames so the bar stays fixed.
+    mirror:
+        As in :func:`fringe_elements`.
+
+    Returns
+    -------
+    pathlib.Path
+        The written file.
+    """
+    plt = _plt()
+    from matplotlib.animation import FuncAnimation, PillowWriter
+
+    spec = _resolve(field)
+    traj = np.asarray(nodes, dtype=np.float64)[..., :2]
+    vmin, vmax = _limits(np.asarray(values), vmin, vmax)
+    extent = np.concatenate([traj, traj * np.array([1.0, -1.0])]) if mirror else traj
+    (x0, y0) = extent.reshape(-1, 2).min(axis=0) - 2.0
+    (x1, y1) = extent.reshape(-1, 2).max(axis=0) + 2.0
+
+    fig, ax = plt.subplots(figsize=(6.4, 3.4), constrained_layout=True)
+    pc = fringe_elements(
+        ax,
+        traj[0],
+        quads,
+        values[0],
+        field=spec,
+        vmin=vmin,
+        vmax=vmax,
+        bands=bands,
+        mirror=mirror,
+    )
+    if wall_x is not None:
+        _draw_wall(ax, wall_x)
+    ax.set_xlim(x0, x1)
+    ax.set_ylim(y0, y1)
+    ax.set_aspect("equal")
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("y (mm)")
+    _fringe_bar(fig, pc, spec, axes=ax)
+
+    def _stamp(frame: int) -> str:
+        if times_us is None:
+            return title
+        return f"{title}   (t = {times_us[frame]:.1f} µs)" if title else ""
+
+    text = fig.suptitle(_stamp(0), fontsize=10)
+
+    def _update(frame: int) -> tuple[Any, ...]:
+        polys, vals = _element_polygons(traj[frame], quads, values[frame], mirror)
+        pc.set_verts(list(polys))
+        pc.set_array(np.clip(vals, vmin, vmax))
+        text.set_text(_stamp(frame))
+        return (pc, text)
+
+    anim = FuncAnimation(fig, _update, frames=traj.shape[0], blit=False)
     out = Path(out_path)
     anim.save(out, writer=PillowWriter(fps=fps), dpi=dpi)
     plt.close(fig)
