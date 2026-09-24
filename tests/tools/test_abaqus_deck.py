@@ -108,5 +108,8 @@ def test_contact_and_rigid_surface_writers():
     assert deck.contact_pair("F", "W", "SMOOTH") == (
         "*CONTACT PAIR, INTERACTION=SMOOTH\nF, W\n"
     )
+    assert deck.contact_pair("F", "W", "SMOOTH", mechanical_constraint="PENALTY") == (
+        "*CONTACT PAIR, INTERACTION=SMOOTH, MECHANICAL CONSTRAINT=PENALTY\nF, W\n"
+    )
     assert deck.boundary("AXIS", 1) == "*BOUNDARY\nAXIS, 1, 1\n"
     assert deck.encastre("RP") == "*BOUNDARY\nRP, ENCASTRE\n"
