@@ -185,9 +185,24 @@ def initial_hardening(labels: Iterable[int], values: ArrayLike) -> str:
     return "*INITIAL CONDITIONS, TYPE=HARDENING\n" + body
 
 
-def contact_pair(slave: str, master: str, interaction: str) -> str:
-    """Step data under Abaqus/Explicit; the rigid surface is the master."""
-    return f"*CONTACT PAIR, INTERACTION={interaction}\n{slave}, {master}\n"
+def contact_pair(
+    slave: str,
+    master: str,
+    interaction: str,
+    *,
+    mechanical_constraint: str | None = None,
+) -> str:
+    """Step data under Abaqus/Explicit; the rigid surface is the master.
+
+    ``mechanical_constraint`` (e.g. ``"PENALTY"``) overrides the solver's
+    default enforcement, which is kinematic.
+    """
+    option = (
+        f", MECHANICAL CONSTRAINT={mechanical_constraint}"
+        if mechanical_constraint
+        else ""
+    )
+    return f"*CONTACT PAIR, INTERACTION={interaction}{option}\n{slave}, {master}\n"
 
 
 def standard_output(
