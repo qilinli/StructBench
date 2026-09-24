@@ -237,9 +237,27 @@ def read_abaqus_run_evidence(
 #: not been sourced (ADR-0068 clause 8). Only codes a real deck was observed
 #: to use are mapped; anything else is refused by name rather than guessed
 #: from its letters.
-_ELEMENT_KINDS: dict[str, str] = {"C3D": "solid"}
-#: A keyword introducing inelasticity withdraws a ``linear_elastic`` claim.
-_INELASTIC = ("PLASTIC", "CREEP", "DAMAGE", "CONCRETE", "HYPERELASTIC", "VISCOELASTIC")
+_ELEMENT_KINDS: dict[str, str] = {"C3D": "solid", "CAX": "solid", "CPE": "solid"}
+#: Codes whose reduced integration is established: one integration point per
+#: element, non-zero ALLAE (2026-09-24 conformance run). Any other code reads
+#: ``under_integrated = None`` rather than a guess from its trailing letter.
+_UNDER_INTEGRATED = frozenset({"CAX4R"})
+#: The part a deck without ``*Part`` blocks is written as. Abaqus names the
+#: ``.odb`` part of a flat input ``PART-1``, so the stored response carries
+#: the same name and ``mint_ids`` agrees on both sides.
+_IMPLICIT_PART = "PART-1"
+#: A keyword introducing inelasticity withdraws a ``linear_elastic`` claim, and
+#: an ``elastic_plastic_isotropic`` one: the yield stress is then no longer a
+#: function of plastic strain alone.
+_INELASTIC = (
+    "PLASTIC",
+    "CREEP",
+    "DAMAGE",
+    "CONCRETE",
+    "HYPERELASTIC",
+    "VISCOELASTIC",
+    "RATE DEPENDENT",
+)
 #: ``*Boundary, type=`` values that prescribe motion rather than fix a degree
 #: of freedom. A plain ``*Boundary`` is a fixity.
 _MOTION_TYPES = ("VELOCITY", "ACCELERATION", "DISPLACEMENT")
@@ -275,6 +293,11 @@ _ENDS_MATERIAL = frozenset(
         "DYNAMIC",
         "AMPLITUDE",
         "SYSTEM",
+        # Model-level cards a flat deck writes straight after a material.
+        "SECTION CONTROLS",
+        "SURFACE INTERACTION",
+        "RIGID BODY",
+        "INITIAL CONDITIONS",
     }
 )
 #: Keywords that close a part definition.
@@ -337,6 +360,68 @@ def _options(line: str) -> dict[str, str]:
     return out
 
 
+def _flags(line: str) -> set[str]:
+    """``*Nset, nset=A, generate`` -> ``{"GENERATE"}``: the options with no value."""
+    return {
+        p.strip().upper() for p in line.split(",")[1:] if "=" not in p and p.strip()
+    }
+
+
+def _data_rows(lines: list[str], index: int) -> list[list[str]]:
+    """The data lines after ``lines[index]`` up to the next keyword, as columns."""
+    rows = []
+    for line in lines[index + 1 :]:
+        if line.startswith("*"):
+            break
+        if line.strip():
+            rows.append([c.strip() for c in line.split(",")])
+    return rows
+
+
+def _node_labels(
+    columns: list[str], node_sets: dict[str, frozenset[int] | None]
+) -> frozenset[int] | None:
+    """Node labels and set names -> labels; ``None`` if any entry is unresolved."""
+    labels: set[int] = set()
+    for entry in columns:
+        if not entry:
+            continue
+        try:
+            labels.add(int(entry))
+        except ValueError:
+            named = node_sets.get(entry.upper())
+            if named is None:
+                return None
+            labels |= named
+    return frozenset(labels)
+
+
+def _plastic_table(
+    rows: list[list[str]], stress: float
+) -> tuple[tuple[float, ...], tuple[float, ...]] | None:
+    """``*Plastic`` rows ``(stress, plastic strain)`` -> ``(strains, stresses)``.
+
+    ``None`` for any other layout: a third column is a rate or a temperature,
+    so the stress would no longer be a function of plastic strain alone.
+    """
+    knots = []
+    for columns in rows:
+        values = [c for c in columns if c]
+        if len(values) != 2:
+            return None
+        try:
+            knots.append((float(values[1]), float(values[0]) * stress))
+        except ValueError:
+            return None
+    if not knots:
+        return None
+    if len(knots) == 1:
+        # ADR-0070: the table is held at its last value, so one row is flat.
+        return (0.0, 1.0), (knots[0][1], knots[0][1])
+    strains, stresses = zip(*knots, strict=True)
+    return tuple(strains), tuple(stresses)
+
+
 def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     """Read what an Abaqus input establishes about a run (evidence item E1).
 
@@ -388,6 +473,17 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     dimension: int | None = None
     time_integration: str | None = None
     motion = False
+    has_parts = "PART" in keywords
+    element_codes: set[str] = set()
+    part_codes: dict[str, set[str]] = {}
+    # Upper-cased name -> labels; `None` marks a set this reader could not
+    # resolve, so a card targeting it is refused rather than read as empty.
+    node_sets: dict[str, frozenset[int] | None] = {}
+    velocity: list[tuple[frozenset[int], int, float]] = []
+    hardening: list[tuple[int, float]] = []
+    velocity_read = hardening_read = True
+    n_steps = 0
+    periods: list[float] = []
 
     for index, line in enumerate(lines):
         if not line.startswith("*"):
@@ -406,6 +502,15 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
             current_material = None
         if word in _ENDS_PART:
             current_part = None
+        if (
+            not has_parts
+            and current_part is None
+            and word in ("ELEMENT", "SOLID SECTION")
+        ):
+            current_part = _IMPLICIT_PART
+            if current_part not in per_part:
+                part_names.append(current_part)
+                per_part[current_part] = {}
 
         if word == "PART" and "NAME" in options:
             current_part = options["NAME"]
@@ -422,8 +527,11 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
             )
             if kind is None:
                 tokens.add(_element_token(code))
+            element_codes.add(code)
             if current_part is not None:
-                per_part.setdefault(current_part, {})["kind"] = kind or "unknown"
+                block = per_part.setdefault(current_part, {})
+                block["kind"] = kind or "unknown"
+                part_codes.setdefault(current_part, set()).add(code)
         elif word == "SOLID SECTION" and "MATERIAL" in options:
             if current_part is not None:
                 per_part.setdefault(current_part, {})["material"] = options["MATERIAL"]
@@ -431,10 +539,100 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
             columns = [c for c in row.split(",") if c.strip()]
             if len(columns) >= 3:
                 dimension = len(columns) - 1  # the first column is the label
+        elif word == "NSET" and "NSET" in options:
+            name = options["NSET"].upper()
+            labels: frozenset[int] | None = None
+            if "GENERATE" in _flags(line):
+                tokens.add("unread_card:NSET_GENERATE")
+            elif "ELSET" in options:
+                tokens.add("unread_card:NSET_ELSET")
+            else:
+                columns = [c for r in _data_rows(lines, index) for c in r]
+                labels = _node_labels(columns, node_sets)
+            # A repeated name adds to the set; an unresolved part poisons it.
+            if name in node_sets:
+                earlier = node_sets[name]
+                labels = None if earlier is None or labels is None else earlier | labels
+            node_sets[name] = labels
+        elif word == "INITIAL CONDITIONS":
+            kind = options.get("TYPE", "").upper()
+            rows = _data_rows(lines, index)
+            if set(options) - {"TYPE"} or _flags(line):
+                # REBAR, SECTION POINTS, USER...: the columns mean something else.
+                tokens.add("unknown_card_layout:INITIAL_CONDITIONS")
+                velocity_read = velocity_read and kind != "VELOCITY"
+                hardening_read = hardening_read and kind != "HARDENING"
+            elif kind == "VELOCITY":
+                for columns in rows:
+                    target = _node_labels(columns[:1], node_sets)
+                    try:
+                        dof, value = int(columns[1]), float(columns[2]) * f["velocity"]
+                    except (IndexError, ValueError):
+                        tokens.add("unknown_card_layout:INITIAL_CONDITIONS")
+                        velocity_read = False
+                        continue
+                    if not target:  # unresolved, or an empty label
+                        tokens.add("unresolved_initial_condition_target")
+                        velocity_read = False
+                        continue
+                    velocity.append((target, dof, value))
+            elif kind == "HARDENING":
+                for columns in rows:
+                    try:
+                        element = int(columns[0])
+                    except ValueError:
+                        tokens.add("unread_card:HARDENING_ELSET")
+                        hardening_read = False
+                        continue
+                    try:
+                        hardening.append((element, float(columns[1])))
+                    except (IndexError, ValueError):
+                        tokens.add("unknown_card_layout:INITIAL_CONDITIONS")
+                        hardening_read = False
+            else:
+                label = f"INITIAL_CONDITIONS_{kind.replace(' ', '_')}"
+                tokens.add(
+                    f"unread_card:{label}"
+                    if _TOKENLIKE.fullmatch(label)
+                    else "unread_card:INITIAL_CONDITIONS"
+                )
+        elif word == "STEP":
+            n_steps += 1
         elif word == "STATIC":
             time_integration = "implicit"
         elif word == "DYNAMIC":
             time_integration = "explicit" if "EXPLICIT" in line.upper() else "implicit"
+            if time_integration == "explicit":
+                # `, <time period>`: the first column is a fixed increment, unused.
+                columns = row.split(",")
+                try:
+                    periods.append(float(columns[1]) * f["time"])
+                except (IndexError, ValueError):
+                    tokens.add("unknown_card_layout:DYNAMIC")
+        elif word == "DENSITY" and current_material is not None:
+            rows = _data_rows(lines, index)
+            if len(rows) == 1 and len([c for c in rows[0] if c]) == 1:
+                try:
+                    density = float(rows[0][0]) * f["density"]
+                    per_material.setdefault(current_material, {})["density"] = density
+                except ValueError:
+                    tokens.add("unknown_card_layout:DENSITY")
+            else:  # a temperature column or table: no single reference density
+                tokens.add("unknown_card_layout:DENSITY")
+        elif (
+            word == "PLASTIC"
+            and current_material is not None
+            and options.get("HARDENING", "ISOTROPIC").upper() == "ISOTROPIC"
+            and not set(options) - {"HARDENING"}
+            and not _flags(line)
+        ):
+            block = per_material.setdefault(current_material, {})
+            table = _plastic_table(_data_rows(lines, index), f["stress"])
+            if table is None:
+                tokens.add("unknown_card_layout:PLASTIC")
+                block["inelastic"] = True
+            else:
+                block["yield_table"] = table
         elif word == "ELASTIC":
             kind = options.get("TYPE", "ISOTROPIC").upper()
             values = [c.strip() for c in row.split(",") if c.strip()]
@@ -462,18 +660,24 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     hidden = "include" in tokens
     materials_by_name = mint_ids(material_names)
     parts_by_name = mint_ids(part_names)
+
+    def canonical(block: dict[str, object]) -> str | None:
+        if block.get("youngs") is None or block.get("inelastic"):
+            return None
+        # ADR-0070: an isotropic `*Plastic` table and nothing else inelastic.
+        return (
+            "elastic_plastic_isotropic" if "yield_table" in block else "linear_elastic"
+        )
+
     materials = tuple(
         MaterialInput(
             mid,
-            "linear_elastic"
-            if per_material.get(name, {}).get("youngs") is not None
-            and not per_material.get(name, {}).get("inelastic")
-            else None,
-            None,
+            canonical(per_material.get(name, {})),
+            per_material.get(name, {}).get("density"),  # type: ignore[arg-type]
             None,
             per_material.get(name, {}).get("youngs"),  # type: ignore[arg-type]
             per_material.get(name, {}).get("poisson"),  # type: ignore[arg-type]
-            None,
+            per_material.get(name, {}).get("yield_table"),  # type: ignore[arg-type]
         )
         for name, mid in sorted(materials_by_name.items(), key=lambda kv: kv[1])
     )
@@ -487,20 +691,27 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
             # no material has -- would drop the part from every class-masked
             # check without saying so.
             tokens.add("unresolved_section_material")
+        codes = part_codes.get(name, set())
+        under = True if codes and codes <= _UNDER_INTEGRATED else None
         built.append(
-            PartTraits(pid, material_id, block.get("kind", "unknown"), None)  # type: ignore[arg-type]
+            PartTraits(pid, material_id, block.get("kind", "unknown"), under)  # type: ignore[arg-type]
         )
     parts = tuple(built)
+    plane_strain = None
+    if element_codes and all(c.startswith("CPE") for c in element_codes):
+        plane_strain = True
+    elif element_codes and all(c.startswith("CAX") for c in element_codes):
+        plane_strain = False
 
     return InputFacts(
         parts=parts,
         materials=materials,
         time_integration=time_integration,  # type: ignore[arg-type]
         dimension=dimension,  # type: ignore[arg-type]
-        plane_strain=None,
-        # A `*Static` step's time period is a dimensionless load parameter,
-        # not a duration; converting it to seconds would be a category error.
-        end_time=None,
+        plane_strain=plane_strain,
+        # Only an explicit step's period is a duration: a `*Static` step's is a
+        # dimensionless load parameter. Several steps have no single period.
+        end_time=periods[0] if n_steps == 1 and len(periods) == 1 else None,
         other_termination_criteria=frozenset(),
         mass_scaling_enabled=requested("MASS SCALING" in keywords),
         erosion_enabled=None,  # element deletion is a `*Section Controls` option
@@ -518,4 +729,6 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
         databases_requested=None,
         unparsable=frozenset(tokens),
         solver="abaqus",
+        initial_velocity=None if hidden or not velocity_read else tuple(velocity),
+        initial_hardening=None if hidden or not hardening_read else tuple(hardening),
     )
