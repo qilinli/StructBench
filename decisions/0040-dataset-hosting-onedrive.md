@@ -70,3 +70,36 @@ unaffected (not rehosted,
 ADR-0042). Why now: v0.3 made StructBench a public multi-method benchmark,
 and "request the data from the maintainer" was the last non-public step in
 reproducing any leaderboard row.
+
+**Amendment (2026-09-23, maintainer): dataset tag v0.1.1, and a sharing
+promise a bare `.odb` cannot keep.**
+
+The three archives were re-uploaded and tagged `v0.1.1`. No case file
+changed: it is a metadata release, correcting the description of
+`response/global/total_energy`, which is `kinetic + internal` to float32 and
+is NOT the run's total energy — the solver's own ledger also carries
+dissipation terms, and on the Taylor sweep the gap reaches 0.6–1.2 % of the
+peak and grows through the run. The README documented the channel as `[J]`
+with no qualification, so a downloader checking conservation against it read
+a missing term as an energy gain. The schema is unchanged: the channel still
+carries that name, and renaming it would be a breaking change requiring
+re-uploaded case files and a `v0.2.0`.
+
+Two lesser corrections rode along, both of them the published files having
+gone stale rather than anything new: the `traj.aux` shape line (ADR-0059) and
+Taylor's declared `shell/*` fields. `DATA_TAG` in `tools/build_hf_bundle.py`
+is now the single place the tag is written, because the README tells a user
+which tag to pin and that instruction had been hand-copied twice.
+
+**Clause 1's on-request sharing does not survive a second solver unchanged,
+and ADR-0068 clause 6 is what keeps it.** Sharing a raw LS-DYNA run hands a
+recipient a `d3plot` they can convert with `lasso-python`, free and with no
+solver installed — an independent reproduction path. Sharing a raw Abaqus
+`.odb` hands most recipients a file they cannot open at all, since an `.odb`
+is readable only through Abaqus's own interpreter. So an Abaqus dataset's raw
+archive must carry the neutral intermediate beside the `.odb`, and that
+intermediate is a versioned, documented, long-lived artefact rather than a
+scratch file. It is deliberately NOT published to Hugging Face: it is
+near-duplicate mass beside the canonical `.h5` — notch alone is 24.9 GB — and
+gives a downloader nothing the `.h5` does not already give them. The
+asymmetry bites on the on-request channel, and that is where the remedy sits.

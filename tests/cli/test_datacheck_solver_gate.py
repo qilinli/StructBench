@@ -110,3 +110,44 @@ def test_deforming_plate_shape_is_unchanged() -> None:
     """It declares COMSOL and stores no deck; nothing should newly fire."""
     facts, reason = input_facts_for(_case(None, "COMSOL"))
     assert facts is None and reason is None
+
+
+# --- the ownership plumbing itself, which mutation testing showed unpinned ----
+
+
+def test_an_unreadable_input_puts_a_platform_reason_on_an_e1_gated_row() -> None:
+    """Reverting gate()'s input_reason branches left the suite fully green.
+
+    That is the half of the repair that stops the false blame, so it needs its
+    own assertion rather than resting on the rows it happens to affect.
+    """
+    from structbench.core import DeclaredFacts
+    from structbench.verification.measures import measure_case
+    from structbench.verification.quantities import CATALOGUE
+
+    case = _case(_ABAQUS_DECK, "COMSOL")
+    facts, reason = input_facts_for(case)
+    assert facts is None and reason is AbsenceReason.UNSUPPORTED
+    # The benchmark declares its unit system, so E1 is the only evidence item
+    # missing *because of the reader*. Leaving E10a out too would test the
+    # fixture rather than the gate.
+    declared = DeclaredFacts(unit_system="g-mm-ms")
+    result = measure_case(case, facts, declared, case_id="c", input_reason=reason)
+    e1_rows = {q.name for q in CATALOGUE if "E1" in {str(e) for e in q.requires}}
+    blamed = [
+        m.quantity
+        for m in result.measurements
+        if m.quantity in e1_rows
+        and m.absence is not None
+        and m.absence.reason not in PLATFORM_REASONS
+    ]
+    assert blamed == []
+
+
+def test_each_reader_stamps_the_solver_name_it_is_dispatched_on() -> None:
+    """Misspelling it silently degraded the conformance row for every case."""
+    from structbench.cli.datacheck import _INPUT_READERS
+
+    for key, reader in _INPUT_READERS.items():
+        deck = _LSDYNA_DECK if key == "lsdyna" else _ABAQUS_DECK
+        assert reader(deck, source_units="g-mm-ms").solver == key, key

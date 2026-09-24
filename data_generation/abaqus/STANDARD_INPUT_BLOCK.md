@@ -34,17 +34,20 @@ status file as a missing run.
 | E2 solver identity | `.sta`, `.msg`, `.dat` | `Abaqus/Standard 2025` / `Abaqus 2025`; the release year is the version token |
 | E3 termination, normal | `.sta` | `THE ANALYSIS HAS COMPLETED SUCCESSFULLY` |
 | E3 termination, rejected | `.dat` | `THE PROGRAM HAS DISCOVERED     n FATAL ERRORS` |
-| E3 diagnostics | `.dat` | `***ERROR:` and `***WARNING:` markers |
+| E3 diagnostics | `.msg`, else `.dat` | `n ERROR MESSAGES` and `n WARNING MESSAGES` in the `.msg` ANALYSIS SUMMARY are the run's own totals and are authoritative; the `.dat` carries no such summary, and its `***ERROR:` markers are the fallback for a rejected job that has no `.msg` |
 | E4 increments | `.sta` | the `STEP INC ATT …` table, one row per increment |
 
 Two properties of that reading are worth stating because a collector must not
 undo them:
 
-- **The solver prints a fatal-error count only when it has some.** A clean run
-  is therefore counted from the `***ERROR:` markers, of which it has none.
-  Zero markers *is* zero diagnostics — a reading, not an assumption.
-- **A wrapped diagnostic repeats its marker on every line**, so marker counts
-  over-report. Where the solver states a count, that count wins.
+- **The `.msg` ANALYSIS SUMMARY is where the counts are**, and it separates
+  warnings raised during input processing from those raised during the
+  analysis, so both are summed. Reading only the `.dat` — which carries no
+  such summary at all — let a run with analysis errors report zero and pass a
+  ratified must-be-zero requirement.
+- **A rejected job has no `.msg`**, so its `.dat` fatal-error count, and
+  failing that its `***ERROR:` markers, are the fallback. Zero markers *is*
+  zero diagnostics — a reading, not an assumption.
 
 An unrecognised termination banner is refused, not classified: the reader
 records `termination_wording` and reports status `none`. A banner it has not

@@ -1069,7 +1069,11 @@ def gate(
     missing = q.requires - supplied
     if missing - {E.E10B}:
         reason = AbsenceReason.SOURCE_MISSING
-        if input_reason is not None and missing == {E.E1}:
+        # The guard above already holds E10b never contributor-owned, so a row
+        # missing E1 *and* E10b is still the platform's -- keying on equality
+        # with {E1} alone left `units_anchors_consistent` blamed, and worse
+        # than before this seam existed.
+        if input_reason is not None and missing - {E.E10B} == {E.E1}:
             reason = input_reason  # the input is there; the reader is not
         return _absent(q, reason, *sorted(missing))
     if missing:
