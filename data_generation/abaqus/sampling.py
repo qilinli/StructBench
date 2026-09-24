@@ -4,14 +4,16 @@ A split draws 1024 points from its own seeded, scrambled Sobol engine and keeps
 the first ``n`` that survive its ``exclude`` regions, so the first ``k`` cases
 of a split are nested subsets. A ``within`` split draws inside its region's box
 rather than filtering, because a small box filtered from a global draw leaves
-too few points. Explicit ``points`` bypass the engine (pilots, probes).
+too few points. Explicit ``points`` bypass the engine (pilots, probes), and
+also the dataset's optional feasibility limit, which filters Sobol points the
+way ``exclude`` does.
 ``categorical`` values are assigned by cycling through the list by index;
 ``variants`` are expanded by the generator, not here (ADR-0069).
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -96,8 +98,14 @@ def sample_split(
     variables: Mapping[str, Bounds],
     regions: Mapping[str, Mapping[str, Bounds]],
     split: Split,
+    feasible: Callable[[dict[str, float | str]], bool] | None = None,
 ) -> list[Point]:
-    """The split's points, in Sobol (or listed) order, indexed from 0."""
+    """The split's points, in Sobol (or listed) order, indexed from 0.
+
+    ``feasible`` is the dataset's declared solver-feasibility limit: a Sobol
+    point it rejects is skipped like an excluded one, so prefixes stay nested.
+    Explicit points bypass it -- a listed point is deliberate.
+    """
     box = {**variables, **split.extra}
     named = (*split.exclude, *((split.within,) if split.within else ()))
     for region in named:
@@ -137,6 +145,8 @@ def sample_split(
         params: dict[str, float | str] = dict(row)
         for key, values in split.categorical.items():
             params[key] = values[index % len(values)]
+        if feasible is not None and not split.points and not feasible(params):
+            continue
         points.append(Point(split.name, index, params))
         if len(points) == split.n:
             break

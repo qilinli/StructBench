@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tomllib
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -80,8 +81,15 @@ def load_model(dataset_dir: Path) -> ModuleType:
     return module
 
 
-def plan_cases(sweep: dict[str, Any]) -> list[CaseSpec]:
-    """Every case of every split, in file then Sobol order."""
+def plan_cases(
+    sweep: dict[str, Any], feasible: Callable[[dict[str, Any]], bool] | None = None
+) -> list[CaseSpec]:
+    """Every case of every split, in file then Sobol order.
+
+    ``feasible`` is the dataset model's optional ``feasible(params)``, its
+    declared solver-feasibility limit; it sees the fixed values too, and it
+    filters sampled points only (explicit points are deliberate).
+    """
     prefix = sweep["dataset"]["case_prefix"]
     # An unknown unit label fails here, before any deck exists, not after a solve.
     unit_factors(sweep["dataset"]["units"])
@@ -97,13 +105,20 @@ def plan_cases(sweep: dict[str, Any]) -> list[CaseSpec]:
     if shared:
         # Same seed, same engine: two splits would draw the same points.
         raise ValueError(f"sampled splits share seed {shared[0]}; give each its own")
+    check = None
+    if feasible is not None:
+        model_feasible = feasible
+
+        def check(params: dict[str, float | str]) -> bool:
+            return bool(model_feasible({**fixed, **params}))
+
     specs = []
     for split in splits:
         sampled = set(variables) | set(split.extra) | set(split.categorical)
         clash = set(fixed) & sampled
         if clash:
             raise ValueError(f"{sorted(clash)} are both fixed and sampled")
-        for point in sampling.sample_split(variables, regions, split):
+        for point in sampling.sample_split(variables, regions, split, check):
             for variant in split.variants or (None,):
                 case_id = f"{prefix}-{split.name}-{point.index:04d}"
                 case_id += f"-{variant}" if variant else ""
@@ -178,14 +193,14 @@ def main(argv: list[str] | None = None) -> int:
 
     dataset_dir = args.dataset.resolve()
     sweep = load_sweep(dataset_dir)
-    specs = plan_cases(sweep)
+    model = load_model(dataset_dir)
+    specs = plan_cases(sweep, getattr(model, "feasible", None))
     selected = [s for s in specs if not args.split or s.split in args.split]
     if args.dry_run:
         for split, count in Counter(s.split for s in selected).items():
             print(f"{split}: {count} cases")
         return 0
 
-    model = load_model(dataset_dir)
     sweep_dir = args.work_root / sweep["dataset"]["name"]
     sweep_dir.mkdir(parents=True, exist_ok=True)
     sweep_sha = hashlib.sha256((dataset_dir / "sweep.toml").read_bytes()).hexdigest()

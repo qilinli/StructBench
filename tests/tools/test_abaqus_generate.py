@@ -86,6 +86,18 @@ def test_loading_the_model_leaves_the_dataset_repository_clean(tmp_path):
     assert not (ds / "__pycache__").exists()
 
 
+def test_a_models_feasibility_check_filters_sampled_points(tmp_path):
+    model = TOY_MODEL + "\ndef feasible(params):\n    return params['a'] < 1.5\n"
+    ds, work = _dataset(tmp_path, n=4, model=model), tmp_path / "work"
+    assert _run(ds, work) == 0
+    for k in range(4):
+        prov = json.loads((work / f"toy/TOY-main-{k:04d}/provenance.json").read_text())
+        assert prov["params"]["a"] < 1.5
+    # a listed point is deliberate and bypasses the check (a = 1.5 is infeasible)
+    listed = json.loads((work / "toy/TOY-listed-0000-x/provenance.json").read_text())
+    assert listed["params"]["a"] == 1.5
+
+
 def test_rerun_is_byte_identical_and_skips(tmp_path, capsys):
     ds, work = _dataset(tmp_path), tmp_path / "work"
     _run(ds, work)
