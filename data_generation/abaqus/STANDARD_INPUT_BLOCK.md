@@ -13,8 +13,9 @@ every keyword-level question until a sourced dossier exists.
 
 So the file is split. **What is established** was derived by reading a real
 Abaqus/Standard 2025 job's own output — a successful run, the same job
-re-run batch from its `.inp`, and a deliberately rejected job — and each
-statement names the file it came from. **What is not established** is listed
+re-run batch from its `.inp`, and a deliberately rejected job — and, since
+2026-09-24, seven Abaqus/Explicit conformance jobs. Each statement names the
+file it came from. **What is not established** is listed
 as open, and no keyword is recommended on recall. Nothing here is a reference
 level, and ADR-0066's rule stands: a run's evidence is read, never assumed.
 
@@ -86,6 +87,79 @@ duration. The reader deliberately leaves `end_time` unset for such a step
 rather than record a number in a field documented as seconds. A dynamic step's
 period is a duration and can be read as one.
 
+### Abaqus/Explicit (conformance run, 2026-09-24)
+
+Seven `*Dynamic, Explicit` jobs of an axisymmetric CAX4R impact case against an
+analytical rigid wall, run with `double=both cpus=1`. Three completed. Four
+stopped early on excessive distortion, which is a physical limit of those
+cases, not a deck fault. The files cited are each job's own. "npz" means the
+job's ODB exported through `odb_export.py`.
+
+**The job's own record**
+
+| Item | File | What it says |
+|---|---|---|
+| E2 identity | `.sta` header | `Abaqus/Explicit 2025` |
+| E2 identity | `.dat` line 3 | `Abaqus 2025` |
+| E2 precision | `.sta`, `NUMERICAL PRECISION USED` block | `Double precision package and explicit executables will be used in this analysis.` |
+| E3, normal end | `.sta`, last line | `THE ANALYSIS HAS COMPLETED SUCCESSFULLY` (the Standard wording) |
+| E3, analysis-phase failure | `.sta`, last line | `THE ANALYSIS HAS NOT BEEN COMPLETED` |
+| E3, diagnostics | `.sta` | Explicit writes its `***ERROR` and `***WARNING` blocks here, for example `***ERROR: Excessive distortion of element number N` |
+| E3, diagnostics | `.msg` | holds only `STEP 1 ORIGIN` markers; it has **no** ANALYSIS SUMMARY with message counts |
+| E4, time step | `.sta` increment table | one row per printed increment, with columns `INCREMENT, TOTAL TIME, STEP TIME, CPU TIME, STABLE INCREMENT, CRITICAL ELEMENT, KINETIC ENERGY, TOTAL ENERGY`. A distortion failure shows the stable increment collapsing (to `1.00000E-14` in one run) |
+
+Two consequences for the readers:
+- Under Explicit, diagnostics must be counted from the `.sta`. Reading only the
+  `.msg` and `.dat` finds the `.dat` pre-processor warnings and misses every
+  analysis-phase error.
+- A failure during the analysis leaves **no** fatal-error count in the `.dat`.
+  Its only record is the `.sta`.
+
+**Output requests and what they produce**
+
+- **Field output.** `*Output, field, time interval=Δ, time marks=YES` wrote
+  frames at `kΔ` for `k = 0 … N`: frame times on the grid to float32 rounding,
+  which is float32 rounding (npz `step/<step>/frame_times`). It **also wrote an
+  extra end-of-step frame (N + 1)** at the same time as frame N, with identical
+  data (`.sta`: an `Output Field Frame Number N+1` line at the step's end
+  time, after frame N at the same time).
+  Consumers must expect that duplicate frame.
+- **Field data are float32 under `double=both`** (npz dtypes; manifest
+  precision `DOUBLE_PRECISION`). The analysis runs in double precision; the
+  stored fields do not.
+- **Stress and state at the integration point.** `*Element Output` with `S` and
+  `PEEQ` gave position `INTEGRATION_POINT`, one integration point per CAX4R
+  element (npz `integration_points` are all 1). The stress components are
+  `S11, S22, S33, S12`, where S33 is the hoop stress.
+- **Energy (E5).** `*Output, history, time interval=Δ` followed by
+  `*Energy Output` naming `ALLAE, ALLCD, ALLFD, ALLIE, ALLKE, ALLPD, ALLSE,
+  ALLVD, ALLWK, ETOTAL` wrote all ten terms under the history region
+  `Assembly Assembly-1`. They were sampled at the same instants as the field
+  frames, including the duplicate end frame (npz `history/…`).
+- **Reaction (E7, partly).** `*Node Output` of `RF2` on the rigid body's
+  reference node, in the history request, wrote region
+  `Node <instance>.<label>`. That is the wall's reaction resultant.
+- **Initial conditions reach frame 0 exactly** (npz frame 0 against the deck):
+  - `*Initial Conditions, type=VELOCITY` data lines `<nset>, 2, <value>` gave V2
+    equal to the value on every node, with V1 = 0 and zero stress.
+  - `*Initial Conditions, type=HARDENING` data lines `<element>, <PEEQ>` gave
+    frame-0 PEEQ equal to the stated values within float32 rounding (6e-9).
+
+**Element code.** CAX4R is reduced-integration. The `.dat` warns that
+`HOURGLASS` on `*Section Controls` "is relevant for … elements with reduced
+integration", the npz stores one integration point per element, and ALLAE,
+the artificial strain energy, is non-zero. So `under_integrated` is
+established for CAX4R from the run's own output. It is not established for
+any other code.
+
+**Rigid contact.** A 2D `*Surface, type=SEGMENTS` from `START (x0, 0)` to
+`LINE (x1, 0)` with `x1 > x0`, on `*Rigid Body, analytical surface=…`, kept
+every node at `y ≥ −4e-15` over the whole run. So its contact side faced `+y`
+(npz node coordinates plus U2). A node that carries both a `*Boundary` and
+kinematic `*Contact Pair` constraint gets a `.sta` warning
+(`WarnNodeBcIntersectKinCon`) saying that the boundary condition overrides
+contact on that degree of freedom.
+
 ## After the run
 
 Keep, per run folder: the resolved `.inp` and everything it references, the
@@ -107,31 +181,32 @@ whitelisted JSON record, exactly as the LS-DYNA glue does:
 These are **not established**. None is a recommendation; each is a question a
 sourced dossier and one conformance run must settle (ADR-0068 clause 8).
 
-1. **Everything about energy output (E5).** The observed job requested none
-   and wrote none, so the reader returns no ledger. Which keyword requests a
-   global energy history, what the printed terms are called, whether their sum
-   reproduces a printed total, and whether any term is uncomputed by default
-   as `*CONTROL_ENERGY`'s are in LS-DYNA — all unknown here.
+1. **Energy output (E5), partly settled.** Which keyword requests the global
+   energy history, and what the terms are called, is now established (see
+   *Abaqus/Explicit* above). Two things are not. First, whether the terms'
+   sum reproduces `ETOTAL`: the identity has not been measured. Second,
+   whether any term goes uncomputed unless asked for, the way LS-DYNA's
+   `*CONTROL_ENERGY` terms do.
 2. **What `variable=PRESELECT` actually selects**, for both `*Output, field`
-   and `*Output, history`. The observed job used it for both. Whether it
-   yields integration-point data, or averages, is exactly the distinction
-   LS-DYNA's `NINTSLD` open point turns on, and it is unread.
-3. **How to request field output at the constitutive points** (E8), and which
-   state variables a material writes.
-4. **Per-part and per-interface output (E6) and reaction resultants (E7).**
-   No observed job requested either.
-5. **The time-integration record (E4) as a series.** The `.sta` increment
-   table is read only as a count; whether a usable time/step series can be
-   recovered from it, and what a `*Dynamic, Explicit` job writes instead, is
-   unread.
+   and `*Output, history`. The Standard job used it for both. The Explicit jobs
+   named their variables explicitly and did not use it. Whether it yields
+   integration-point data or averages is exactly the distinction LS-DYNA's
+   `NINTSLD` open point turns on, and it is still unread.
+3. **Field output at the constitutive points (E8), partly settled.** `S` and
+   `PEEQ` at the integration point are established for CAX4R. Which state
+   variables other materials write is not.
+4. **Per-part and per-interface output (E6).** No job has requested it. The
+   E7 reaction resultant for a rigid body is established (see above); nodal
+   reactions on a `*Boundary` are not.
+5. ~~The time-integration record (E4) as a series~~ — settled for Explicit:
+   the `.sta` increment table carries the stable increment (see above).
 6. **Whether `abaqus python` consumes a licence token.** The interpreter runs
-   without one — `abaqus python -c "import sys"` succeeds — but whether
-   `odbAccess` checks one out is unverified, and it decides whether a
-   recipient needs a seat merely to read an archive.
-7. **Element-code semantics.** The reader classifies only the `C3D` prefix it
-   observed and refuses the rest by name. Which codes are reduced-integration,
-   and therefore whether `under_integrated` can ever be established, is
-   unread — so the hourglass rows cannot yet apply to an Abaqus run.
-8. **Whether a rejected job's `.dat` always carries the fatal-error count**,
-   or only for pre-processing failures. A job that fails during the analysis
-   may end differently, and no such run has been seen.
+   without one: `abaqus python -c "import sys"` succeeds. Whether `odbAccess`
+   checks one out is still unverified; the conformance export did not look.
+   It decides whether a recipient needs a seat merely to read an archive.
+7. **Element-code semantics, partly settled.** CAX4R is established as
+   reduced-integration (see above). Every other code, including CPE4R, is
+   still unread, and the reader refuses them by name.
+8. ~~Whether a rejected job's `.dat` always carries the fatal-error count~~ —
+   settled: it does not. An Explicit job that fails during the analysis leaves
+   no count in the `.dat`; its record is the `.sta` (see above).

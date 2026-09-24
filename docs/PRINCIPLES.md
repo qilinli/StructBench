@@ -93,6 +93,7 @@ A dependency is a long-term commitment, not a convenience. The bar to add one is
 | torch-geometric | `MessagePassing` base class for the CGN; its `radius_graph` was replaced by a native pure-torch implementation (ADR-0020) | ADR-0018, ADR-0020 |
 | matplotlib | FEM-style fringe visualization; optional `viz` extra, never a hard runtime dependency | ADR-0022 |
 | huggingface_hub | Fetching the public canonical archives; optional `data` extra, never imported by the package | ADR-0058 |
+| scipy | Scrambled-Sobol sampling in the Abaqus data-generation scripts; optional `datagen` extra, never imported by the package | ADR-0069 |
 
 **Development** *(established by this document)*:
 

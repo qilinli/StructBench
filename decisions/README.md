@@ -116,6 +116,7 @@ What becomes easier, harder, or constrained as a result.
 | 0066 | Reference-data verification: the `verification/` module | Durable | Accepted |
 | 0067 | Material classes for the notch sweep: K&C concrete and bilinear steel | Durable | Accepted |
 | 0068 | Abaqus is the second solver; the deferred abstraction question is answered (amends 0066 clause 3) | Durable | Proposed |
+| 0069 | The Abaqus data-generation pipeline (four stages, shared scripts, `abaqus-npz/1`, `datagen` extra) | Durable | Proposed |
 
 ---
 

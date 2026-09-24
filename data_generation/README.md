@@ -50,6 +50,14 @@ per-paper post-processing the substrate layer exists to end (ADR-0014, ADR-0016)
   states only what was established by reading a real job's own output and lists
   the rest as open points, because the Keywords Reference has not been read
   (ADR-0068 clause 8). Nothing in it is recommended on recall.
+- **Shared scripts, dataset-blind** (ADR-0069): `sampling.py` (Sobol splits),
+  `deck.py` (keyword writers), `generate.py` (sweep -> case folders +
+  provenance), `run_jobs.py` (runs decks, `run.json` + `run_log.csv`),
+  `odb_export.py` (runs under `abaqus python`; `.odb` -> `abaqus-npz/1`). A
+  dataset is a `sweep.toml` plus a `model.py`, passed with `--dataset <dir>`;
+  it may live in a private repository until admission, then moves to
+  `abaqus/<name>/`. State lives in each case folder, so every stage can be
+  re-run. Runs execute in a local work root outside OneDrive.
 
 Abaqus is the platform's second solver (ADR-0068). Two properties of the path
 differ from LS-DYNA's and shape everything under this folder:
