@@ -168,6 +168,36 @@ intermediate the extractor writes beside the `.odb` (ADR-0068 clause 6),
 because an `.odb` alone cannot be opened by a recipient without an Abaqus
 licence and so does not satisfy ADR-0040's sharing promise.
 
+### The abaqus-npz/1 intermediate
+
+`odb_export.py` writes `<case_id>.npz` (`np.savez_compressed`, no pickles)
+beside the `.odb`. It runs under `abaqus python` and needs no StructBench
+install. Its layout (module docstring of `odb_export.py`):
+
+    manifest                                        0-d str: JSON (format, odb_sha256,
+                                                    abaqus_release, precision,
+                                                    materials, sections, fields, skipped)
+    mesh/<instance>/node_labels                     (n,) int64
+    mesh/<instance>/node_coords                     (n, 3) float64
+    mesh/<instance>/elements/<type>/labels          (e,) int64
+    mesh/<instance>/elements/<type>/connectivity    (e, k) int64 node labels
+    step/<step>/frame_times                         (T,) float64, step time
+    field/<step>/<name>/<instance>/data             (T, m, c) as stored
+    field/<step>/<name>/<instance>/node_labels      (m,) int64, or element_labels
+    field/<step>/<name>/<instance>/integration_points  (m,) int64, element fields
+    history/<step>/<region>/<output>                (s, 2) float64 (time, value)
+
+Established from the conformance exports:
+- 2D instances store three coordinate columns, the third zero.
+- An analytical rigid surface appears as its own instance (e.g. `WALL`) with
+  no field blocks.
+- A rigid body's reference node carries no field output unless it is in the
+  requested node set.
+- The file keeps the duplicate end-of-step frame: the last two records share
+  a time and hold identical values.
+- Units are the deck's own; ids are Abaqus labels, never minted by the
+  exporter.
+
 Then the dataset's glue reads the three text files through
 `structbench.core.io.abaqus_run.read_abaqus_run_evidence` and writes one
 whitelisted JSON record, exactly as the LS-DYNA glue does:
