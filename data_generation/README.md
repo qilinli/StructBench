@@ -54,7 +54,10 @@ per-paper post-processing the substrate layer exists to end (ADR-0014, ADR-0016)
   `deck.py` (keyword writers), `generate.py` (sweep -> case folders +
   provenance), `run_jobs.py` (runs decks, `run.json` + `run_log.csv`),
   `odb_export.py` (runs under `abaqus python`; `.odb` -> `abaqus-npz/1`). A
-  dataset is a `sweep.toml` plus a `model.py`, passed with `--dataset <dir>`;
+  dataset is a `sweep.toml` plus a `model.py`, passed with `--dataset <dir>`
+  (`model.py` defines `build(params, variant)`, and may define
+  `feasible(params)`: a limit of the solver setup, declared before production,
+  that sampled points must meet; listed points bypass it);
   it may live in a private repository until admission, then moves to
   `abaqus/<name>/`. State lives in each case folder, so every stage can be
   re-run. Runs execute in a local work root outside OneDrive.

@@ -55,6 +55,24 @@ def test_extra_categorical_and_explicit_points():
     assert pts[1].params == {"a": 0.1, "b": 11.0, "c": 3.0, "kind": "y"}
 
 
+def test_feasibility_filters_sobol_points_and_keeps_prefixes_nested():
+    def low(p):
+        return p["a"] < 0.5
+
+    small = sampling.sample_split(VARIABLES, REGIONS, _split(n=10, seed=4), low)
+    large = sampling.sample_split(VARIABLES, REGIONS, _split(n=20, seed=4), low)
+    assert all(p.params["a"] < 0.5 for p in large)
+    assert [p.index for p in large] == list(range(20))
+    assert [p.params for p in small] == [p.params for p in large[:10]]
+
+
+def test_explicit_points_bypass_feasibility():
+    # A listed point is deliberate (pilots, probes), even outside the limit.
+    split = _split(points=[{"a": 0.9, "b": 15.0}])
+    pts = sampling.sample_split(VARIABLES, REGIONS, split, lambda p: False)
+    assert pts[0].params["a"] == 0.9
+
+
 @pytest.mark.parametrize(
     ("raw", "match"),
     [

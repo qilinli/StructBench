@@ -61,3 +61,16 @@ intermediate format, the adapter and every generation step. The design is
 - Not decided here: the material class for isotropic tabulated plasticity,
   which gets its own ADR in plan 2; and any schema field for axisymmetry,
   which is added only if a consumer needs one.
+
+## Note (2026-09-24): a declared feasibility limit
+
+The first dataset's pilots found a region of its parameter box that a pure
+Lagrangian mesh cannot follow: runs abort on excessive element distortion,
+which is physical, not an hourglass artifact. Rather than let those cases fail
+after the fact, which would drop points non-randomly from one corner, or
+reshape the box, a dataset's `model.py` may define `feasible(params)`. The
+generator applies it to Sobol-sampled points only, skipping infeasible ones
+the way a region `exclude` does, so prefixes stay nested. Explicit points
+bypass it. The limit is a property of the solver setup. It is measured on
+pilot and probe runs, declared before production, and recorded with the
+dataset. It is never adjusted afterwards to admit or drop production cases.
