@@ -13,6 +13,8 @@ job never produces.
 
 from __future__ import annotations
 
+import pytest
+
 from structbench.core.io.abaqus_run import read_abaqus_run_evidence
 
 _STA = "\n".join(
@@ -192,3 +194,60 @@ def test_a_rejected_job_still_reads_its_count_from_the_printed_output() -> None:
 def test_a_clean_message_file_reports_zero_from_its_own_summary() -> None:
     evidence = _read(_STA, _MSG, _DAT_OK)
     assert evidence.n_errors == 0 and evidence.n_warnings == 0
+
+
+# --- Abaqus/Explicit (format of the 2026-09-24 conformance run; values invented)
+
+_EXPLICIT_HEAD = (
+    "Abaqus/Explicit 2025                             DATE 01-Jan-2026  TIME 00:00:00\n"
+    " NUMERICAL PRECISION USED FOR THIS Abaqus/Explicit ANALYSIS\n"
+    "Double precision package and explicit executables will be used in this analysis.\n"
+    "***WARNING: There are 1 warning messages in the data (.dat) file.  Please\n"
+    "            check the data file for possible errors in the input file.\n"
+    "***WARNING: Each of the nodes listed below participates in a boundary condition\n"
+    "  STEP  TOTAL      STEP      CPU       STABLE       CRITICAL    KINETIC    TOTAL\n"
+    "INCREMENT     TIME      TIME      TIME     INCREMENT     ELEMENT     ENERGY     ENERGY\n"  # noqa: E501 - the real fixed-width format
+    "        0  0.000E+00 0.000E+00  00:00:00 5.00000E-08          12  1.000E+04  1.000E+04\n"  # noqa: E501 - the real fixed-width format
+    "       20  1.000E-06 1.000E-06  00:00:00 4.00000E-08          12  9.500E+03  9.990E+03\n"  # noqa: E501 - the real fixed-width format
+)
+_EXPLICIT_DONE = _EXPLICIT_HEAD + (
+    "       40  2.000E-06 2.000E-06  00:00:01 3.00000E-08           7  9.000E+03  9.990E+03\n"  # noqa: E501 - the real fixed-width format
+    "\n  THE ANALYSIS HAS COMPLETED SUCCESSFULLY\n"
+)
+_EXPLICIT_ABORTED = _EXPLICIT_HEAD + (
+    "       30  1.500E-06 1.500E-06  00:00:01 1.00000E-14           7  9.100E+03  9.990E+03\n"  # noqa: E501 - the real fixed-width format
+    "***ERROR: Excessive distortion of element number 7\n"
+    "\n  THE ANALYSIS HAS NOT BEEN COMPLETED\n"
+)
+_EXPLICIT_MSG = "\n STEP 1  ORIGIN 0.0000\n"
+_EXPLICIT_DAT = (
+    "   Abaqus 2025\n ***WARNING: THE PARAMETER HOURGLASS ON THE *SECTION CONTROLS\n"
+)
+
+
+def test_explicit_completed_run_reads_series_precision_and_counts() -> None:
+    ev = _read(_EXPLICIT_DONE, _EXPLICIT_MSG, _EXPLICIT_DAT)
+    assert ev.termination is not None and ev.identity is not None
+    (record,) = ev.termination
+    assert record.status == "normal"
+    assert record.final_time == pytest.approx(2.0e-6)
+    assert record.n_steps == 3
+    assert ev.identity.precision == "double"
+    assert ev.timestep is not None
+    times, steps = ev.timestep
+    assert times == pytest.approx((0.0, 1.0e-6, 2.0e-6))
+    assert steps == pytest.approx((5.0e-8, 4.0e-8, 3.0e-8))
+    # the .dat hourglass warning plus the .sta boundary/contact warning; the
+    # .sta pointer to the .dat's own warning is not a second warning
+    assert (ev.n_errors, ev.n_warnings) == (0, 2)
+
+
+def test_explicit_analysis_failure_is_an_error_with_its_markers_counted() -> None:
+    ev = _read(_EXPLICIT_ABORTED, _EXPLICIT_MSG, _EXPLICIT_DAT)
+    assert ev.termination is not None
+    (record,) = ev.termination
+    assert record.status == "error"
+    assert record.criterion == "analysis_not_completed"
+    assert record.final_time == pytest.approx(1.5e-6)
+    assert ev.n_errors == 1
+    assert "termination_wording" not in ev.unparsable

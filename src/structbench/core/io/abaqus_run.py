@@ -42,6 +42,22 @@ __all__ = ["mint_ids", "read_abaqus_input_facts", "read_abaqus_run_evidence"]
 _VERSION = re.compile(r"^\s*Abaqus(?:/\w+)?\s+(\d{4})\b", re.MULTILINE)
 #: The banner a completed job writes to its status file.
 _COMPLETED = re.compile(r"THE ANALYSIS HAS COMPLETED SUCCESSFULLY")
+#: The banner an Explicit job writes when its analysis phase stops early
+#: (2026-09-24 conformance run: excessive distortion).
+_NOT_COMPLETED = re.compile(r"THE ANALYSIS HAS NOT BEEN COMPLETED")
+#: An Explicit increment row: increment, total time, step time, CPU hh:mm:ss,
+#: stable increment, critical element, kinetic energy, total energy.
+_EXPLICIT_ROW = re.compile(
+    r"^\s+(\d+)\s+(\S+)\s+(\S+)\s+\d+:\d\d:\d\d\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)\s*$",
+    re.MULTILINE,
+)
+#: The precision line an Explicit status file prints.
+_PRECISION = re.compile(r"(Double|Single) precision package and explicit", re.I)
+#: The status file's pointer to the printed file's own warnings: not a new one.
+_DAT_POINTER = re.compile(
+    r"^\s*\*{3}WARNING: There (?:is|are) \d+ warning messages? in the data",
+    re.MULTILINE,
+)
 #: What the pre-processor writes when it refuses the input.
 _FATAL = re.compile(r"THE PROGRAM HAS DISCOVERED\s+(\d+)\s+FATAL ERRORS")
 #: A status-file increment row: step, increment, then further integer columns.
@@ -70,19 +86,29 @@ def _version(*texts: str | None) -> str | None:
 
 
 def _termination(
-    status_text: str | None, printed_text: str | None, tokens: set[str]
+    status_text: str | None,
+    printed_text: str | None,
+    tokens: set[str],
+    time_factor: float = 1.0,
 ) -> TerminationRecord | None:
     """How the job ended, from whichever files it left behind."""
     if status_text is None and printed_text is None:
         return None
     n_steps = None
+    final_time = None
     if status_text:
-        rows = _INCREMENT.findall(status_text)
-        n_steps = len(rows) or None
+        explicit = _EXPLICIT_ROW.findall(status_text)
+        if explicit:
+            n_steps = len(explicit)
+            final_time = float(explicit[-1][2]) * time_factor
+        else:
+            n_steps = len(_INCREMENT.findall(status_text)) or None
     if status_text and _COMPLETED.search(status_text):
-        return TerminationRecord("normal", None, n_steps, "analysis_completed")
+        return TerminationRecord("normal", final_time, n_steps, "analysis_completed")
+    if status_text and _NOT_COMPLETED.search(status_text):
+        return TerminationRecord("error", final_time, n_steps, "analysis_not_completed")
     if printed_text and _FATAL.search(printed_text):
-        return TerminationRecord("error", None, n_steps, "fatal_error")
+        return TerminationRecord("error", final_time, n_steps, "fatal_error")
     # A record exists and says neither. Refusing to classify is the point:
     # an unrecognised banner must not read as a clean run.
     tokens.add("termination_wording")
@@ -90,7 +116,9 @@ def _termination(
 
 
 def _diagnostics(
-    messages_text: str | None, printed_text: str | None
+    messages_text: str | None,
+    printed_text: str | None,
+    status_text: str | None = None,
 ) -> tuple[int | None, int | None]:
     """``(errors, warnings)`` from the run's own record, or ``(None, None)``.
 
@@ -116,14 +144,21 @@ def _diagnostics(
             errors = sum(int(n) for n in stated_errors)
         if stated_warnings:
             warnings = sum(int(n) for n in stated_warnings)
+    # Explicit writes its analysis-phase diagnostics to the status file, and its
+    # message file states no totals (2026-09-24 conformance run).
+    sta = status_text or ""
+    sta_errors = len(_ERROR_MARK.findall(sta))
+    sta_warnings = len(_WARNING_MARK.findall(sta)) - len(_DAT_POINTER.findall(sta))
     if printed_text is not None:
         if errors is None:
             fatal = _FATAL.search(printed_text)
             errors = (
-                int(fatal.group(1)) if fatal else len(_ERROR_MARK.findall(printed_text))
+                int(fatal.group(1))
+                if fatal
+                else len(_ERROR_MARK.findall(printed_text)) + sta_errors
             )
         if warnings is None:
-            warnings = len(_WARNING_MARK.findall(printed_text))
+            warnings = len(_WARNING_MARK.findall(printed_text)) + sta_warnings
     return errors, warnings
 
 
@@ -162,25 +197,34 @@ def read_abaqus_run_evidence(
     ValueError
         If ``source_units`` is not a known unit system.
     """
-    unit_factors(source_units)  # validate; no field of this record is scaled yet
+    time_factor = unit_factors(source_units)["time"]
     tokens: set[str] = set()
 
     version = _version(status_text, messages_text, printed_text)
     identity = None
     if version is not None:
-        # Precision and the parallel layout are not printed in any observed
-        # file, so they stay unset rather than assumed.
-        identity = SolverIdentity("abaqus", version)
+        # An Explicit status file prints its precision; a Standard job printed
+        # none, so there it stays unset. No file prints the parallel layout.
+        found = _PRECISION.search(status_text or "")
+        precision = found.group(1).lower() if found else None
+        identity = SolverIdentity("abaqus", version, precision=precision)  # type: ignore[arg-type]
 
-    termination = _termination(status_text, printed_text, tokens)
-    n_errors, n_warnings = _diagnostics(messages_text, printed_text)
+    termination = _termination(status_text, printed_text, tokens, time_factor)
+    n_errors, n_warnings = _diagnostics(messages_text, printed_text, status_text)
+    rows = _EXPLICIT_ROW.findall(status_text or "")
+    timestep = None
+    if rows:  # E4: the Explicit increment table is a stable-increment series
+        timestep = (
+            tuple(float(r[2]) * time_factor for r in rows),
+            tuple(float(r[3]) * time_factor for r in rows),
+        )
 
     return RunEvidence(
         identity,
         (termination,) if termination is not None else None,
         n_errors,
         n_warnings,
-        None,  # E4: the increment table is not yet read into a time-step series
+        timestep,  # E4: Explicit only; a Standard table is read as a count
         None,  # E5: no energy ledger is written unless the job asks for one
         frozenset(tokens),
     )
