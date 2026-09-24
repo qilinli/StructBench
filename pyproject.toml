@@ -28,6 +28,9 @@ viz = [
 data = [
     "huggingface_hub>=1.0",
 ]
+datagen = [
+    "scipy>=1.15",
+]
 dev = [
     "ruff>=0.5",
     "mypy>=1.10",
