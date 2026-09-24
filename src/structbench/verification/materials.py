@@ -64,6 +64,15 @@ _CLASSES = (
         yield_law="tabulated_j2",
         has_equation_of_state=True,
     ),
+    # ADR-0070. Abaqus *ELASTIC + *PLASTIC with isotropic hardening and no EOS:
+    # von Mises bounded by the deck's own table, held at its last value.
+    MaterialClass(
+        "elastic_plastic_isotropic",
+        state_variable="plastic_strain",
+        state_bounds=(0.0, None),
+        monotone=True,
+        yield_law="tabulated_j2",
+    ),
     # ADR-0067. The K&C slot holds a scaled damage measure, not plastic
     # strain: unitless on 0..2, measured exactly so across 22 notch cases,
     # with zero decreasing samples in ~66 million. Its yield surface is
