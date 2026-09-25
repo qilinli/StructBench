@@ -220,6 +220,11 @@ _REQUIREMENTS = (
     _zero("nonfinite_count", "A stored response contains no NaN or infinity."),
     _zero("time_axis_monotone", "Stored times strictly increase."),
     _zero(
+        "sampling_clock_consistent",
+        "Every stored frame has a ledger sample at the same instant, so the"
+        " energy record describes the states that were stored.",
+    ),
+    _zero(
         "elements_without_input_part",
         "Every stored element belongs to a part the solver input defines.",
     ),
@@ -301,6 +306,15 @@ _REQUIREMENTS = (
 )
 
 _TOLERANCES = (
+    _tolerance(
+        "initial_state_matches_input",
+        None,
+        1.0e-5,
+        "The first frame should hold the initial state the input states;"
+        " float32 storage resolves 6e-8 of a value, and an Abaqus run stored"
+        " its initial velocity and hardening to within that. 1e-5 leaves two"
+        " decades; a wrong unit or node order is off by far more.",
+    ),
     _tolerance(
         "reached_end_time",
         1.0 - 1.0e-6,

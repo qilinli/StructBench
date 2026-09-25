@@ -33,6 +33,9 @@ _IMPLEMENTED = {
     "total_energy_change_final",
     "declared_traits_match_input",
     "stored_globals_match_ledger",
+    "sampling_clock_consistent",
+    "initial_state_matches_input",
+    "plastic_dissipation_late_growth",
     "input_requests_required_evidence",
     "density_slot_matches_input",
     "elements_without_input_part",
@@ -202,8 +205,10 @@ def test_missing_anchors_have_no_home_yet() -> None:
 
 
 def test_a_missing_declaration_blocks_the_row() -> None:
+    # The yield rows fall back to the input's table (plan 2, Decision 4);
+    # the coverage row still needs the declared one.
     row = gate(
-        get_quantity("yield_ratio_max"),
+        get_quantity("yield_table_covers_range"),
         _facts(),
         DeclaredFacts(unit_system="g-mm-ms"),
         _STAGE1,

@@ -47,9 +47,9 @@ with `C3D` elements. The rest does not exist: no deck generation, no runner, no
    and the yield bound. Energy and other solution-verification indicators are
    **measured only**, with no threshold. This is the maintainer's 2026-09-21
    decision applied unchanged.
-6. **Where runs live.** Jobs execute in a local work root (default
-   `C:\structbench-runs\<name>\` on the maintainer's machine) and never inside
-   the OneDrive tree while the solver is writing. A finished case is then
+6. **Where runs live.** Jobs execute in a local work root (on the
+   maintainer's machine, a gitignored folder beside the private dataset
+   definitions) and never inside the OneDrive tree while the solver is writing. A finished case is then
    archived to the data tree of ADR-0031: `<data-root>/raw/<name>/abaqus/<case_id>/`
    for the run folder and `<data-root>/canonical/<name>/` for the `.h5`. Both
    roots are arguments, not constants.

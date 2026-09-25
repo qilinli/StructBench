@@ -238,6 +238,14 @@ class InputFacts:
         (``"lsdyna"``, ``"abaqus"``). A record that cannot say which solver
         it describes cannot be interpreted, and since ADR-0068 there is more
         than one reader.
+    initial_velocity : tuple of (frozenset of int, int, float), or None
+        ``*INITIAL CONDITIONS, TYPE=VELOCITY`` rows as (node ids, 1-based
+        degree of freedom, velocity [m/s]). ``()`` when the input states
+        none; ``None`` when not established (a reader that does not parse
+        it, or a target it could not resolve).
+    initial_hardening : tuple of (int, float), or None
+        ``*INITIAL CONDITIONS, TYPE=HARDENING`` rows as (element id,
+        equivalent plastic strain [-]); ``()`` and ``None`` as above.
     """
 
     parts: tuple[PartTraits, ...]
@@ -259,6 +267,10 @@ class InputFacts:
     databases_requested: frozenset[str] | None
     unparsable: frozenset[str]
     solver: str
+    #: E1: `*INITIAL CONDITIONS, TYPE=VELOCITY` as (node ids, dof 1-based, value m/s).
+    initial_velocity: tuple[tuple[frozenset[int], int, float], ...] | None = None
+    #: E1: `*INITIAL CONDITIONS, TYPE=HARDENING` as (element id, plastic strain).
+    initial_hardening: tuple[tuple[int, float], ...] | None = None
 
     def __post_init__(self) -> None:
         for token in self.unparsable | self.other_termination_criteria:

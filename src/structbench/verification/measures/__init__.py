@@ -30,12 +30,14 @@ __all__ = ["CLOSURE_MEASURES", "MEASURES", "RUN_MEASURES", "measure_case"]
 #: Measures that read the SPH block directly. On a case without one the
 #: access is a ``KeyError``, which ``measure_case`` would stamp
 #: ``source_unreadable`` -- a contributor-owned reason -- for a case that is
-#: perfectly readable. Eleven of these sixteen carry no particle trait gate, so
-#: the guard belongs here rather than on each row; a census that said nine of
+#: perfectly readable. Most of these carry no particle trait gate, so the
+#: guard belongs here rather than on each row; a census that said nine of
 #: fifteen is what let `rigid_surface_penetration_max` slip out of the set,
 #: since its gate is `needs_rigid_plane`. The quantity exists for a
 #: meshed element too; what is missing is a measure that reads one, which is
-#: the platform's gap (``unsupported``), never the dataset's.
+#: the platform's gap (``unsupported``), never the dataset's. The yield and
+#: state rows read ``solid`` blocks as well (plan 2, Decision 5), so they
+#: left the set.
 _PARTICLE_ONLY: frozenset[str] = frozenset(
     {
         "active_mass_drift",
@@ -49,10 +51,6 @@ _PARTICLE_ONLY: frozenset[str] = frozenset(
         "rigid_surface_penetration_max",
         "smoothing_length_at_bound_fraction",
         "smoothing_length_within_input_bounds",
-        "state_variable_decrease_max",
-        "state_variable_min",
-        "yield_ratio_max",
-        "yield_saturation_min",
         "yield_table_covers_range",
     }
 )

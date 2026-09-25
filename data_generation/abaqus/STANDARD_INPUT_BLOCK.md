@@ -120,10 +120,15 @@ Two consequences for the readers:
 - **Field output.** `*Output, field, time interval=Δ, time marks=YES` wrote
   frames at `kΔ` for `k = 0 … N`: frame times on the grid to float32 rounding,
   which is float32 rounding (npz `step/<step>/frame_times`). It **also wrote an
-  extra end-of-step frame (N + 1)** at the same time as frame N, with identical
-  data (`.sta`: an `Output Field Frame Number N+1` line at the step's end
-  time, after frame N at the same time).
-  Consumers must expect that duplicate frame.
+  extra end-of-step frame (N + 1)** at the same time as frame N (`.sta`: an
+  `Output Field Frame Number N+1` line after `Restart Number 1`, at the
+  step's end time). Its U, V, S, PEEQ and every history output repeat
+  frame N's to float32 storage (in a few percent of runs a value or two
+  differs by a few ulp, at most 1.8e-7 of frame N's largest magnitude). **Its A does
+  not:** in every run of a 2026-09-24 sweep it differed from frame N's, by up
+  to 64 % of frame N's largest magnitude, sign changes included. Why is not
+  established. Consumers must expect that frame; the canonical adapter keeps
+  frame N (`core/io/abaqus.py`).
 - **Field data are float32 under `double=both`** (npz dtypes; manifest
   precision `DOUBLE_PRECISION`). The analysis runs in double precision; the
   stored fields do not.
@@ -136,6 +141,27 @@ Two consequences for the readers:
   ALLVD, ALLWK, ETOTAL` wrote all ten terms under the history region
   `Assembly Assembly-1`. They were sampled at the same instants as the field
   frames, including the duplicate end frame (npz `history/…`).
+- **The energy identity (E5).** Measured on the exports, as residual over
+  the initial kinetic energy, maximum over all samples:
+  - `ETOTAL = ALLKE + ALLIE + ALLVD + ALLFD + ALLCD − ALLWK` does **not**
+    close: 5e-4 to 1.2e-3 on six impact runs of a 2026-09-24 sweep that
+    requested the ten terms above (their files are named in that study's
+    notes). The residual grows during the first ~20 µs of contact and then
+    stays constant.
+  - A diagnostic rerun of one of them with `*Energy Output, variable=ALL`
+    wrote four more terms (`ALLCW`, `ALLDMD`, `ALLMW`, `ALLPW`). Only `ALLPW`
+    was non-zero (8.6e-4), and
+    `ETOTAL = ALLKE + ALLIE + ALLVD + ALLFD + ALLCD − ALLWK − ALLPW`
+    closes to **6.6e-8**: float32 storage. `ALLPW` is non-zero even with
+    kinematic contact against an analytical rigid surface.
+  - `ALLSE + ALLPD + ALLAE = ALLIE` to 3e-8 on the same runs, so these are
+    parts of `ALLIE`, not addends. `ALLCD`, `ALLFD`, `ALLCW`, `ALLMW` and
+    `ALLDMD` were zero throughout, so their place in the identity is not
+    exercised.
+
+  So a ledger needs `ALLPW` requested (see `abaqus_ledger` in
+  `core/io/abaqus.py`, which maps contact = `ALLFD − ALLPW`). Without it the
+  balance rows cannot be measured.
 - **Reaction (E7, partly).** `*Node Output` of `RF2` on the rigid body's
   reference node, in the history request, wrote region
   `Node <instance>.<label>`. That is the wall's reaction resultant.
@@ -168,6 +194,36 @@ intermediate the extractor writes beside the `.odb` (ADR-0068 clause 6),
 because an `.odb` alone cannot be opened by a recipient without an Abaqus
 licence and so does not satisfy ADR-0040's sharing promise.
 
+### The abaqus-npz/1 intermediate
+
+`odb_export.py` writes `<case_id>.npz` (`np.savez_compressed`, no pickles)
+beside the `.odb`. It runs under `abaqus python` and needs no StructBench
+install. Its layout (module docstring of `odb_export.py`):
+
+    manifest                                        0-d str: JSON (format, odb_sha256,
+                                                    abaqus_release, precision,
+                                                    materials, sections, fields, skipped)
+    mesh/<instance>/node_labels                     (n,) int64
+    mesh/<instance>/node_coords                     (n, 3) float64
+    mesh/<instance>/elements/<type>/labels          (e,) int64
+    mesh/<instance>/elements/<type>/connectivity    (e, k) int64 node labels
+    step/<step>/frame_times                         (T,) float64, step time
+    field/<step>/<name>/<instance>/data             (T, m, c) as stored
+    field/<step>/<name>/<instance>/node_labels      (m,) int64, or element_labels
+    field/<step>/<name>/<instance>/integration_points  (m,) int64, element fields
+    history/<step>/<region>/<output>                (s, 2) float64 (time, value)
+
+Established from the conformance exports:
+- 2D instances store three coordinate columns, the third zero.
+- An analytical rigid surface appears as its own instance (e.g. `WALL`) with
+  no field blocks.
+- A rigid body's reference node carries no field output unless it is in the
+  requested node set.
+- The file keeps the end-of-step frame: the last two records share a time,
+  and all but the acceleration hold the same values to float32 storage.
+- Units are the deck's own; ids are Abaqus labels, never minted by the
+  exporter.
+
 Then the dataset's glue reads the three text files through
 `structbench.core.io.abaqus_run.read_abaqus_run_evidence` and writes one
 whitelisted JSON record, exactly as the LS-DYNA glue does:
@@ -181,12 +237,12 @@ whitelisted JSON record, exactly as the LS-DYNA glue does:
 These are **not established**. None is a recommendation; each is a question a
 sourced dossier and one conformance run must settle (ADR-0068 clause 8).
 
-1. **Energy output (E5), partly settled.** Which keyword requests the global
-   energy history, and what the terms are called, is now established (see
-   *Abaqus/Explicit* above). Two things are not. First, whether the terms'
-   sum reproduces `ETOTAL`: the identity has not been measured. Second,
+1. **Energy output (E5), partly settled.** The keyword, the term names and
+   the identity with `ALLPW` are established (see above). Not established:
+   where a non-zero `ALLCD`, `ALLCW`, `ALLMW` or `ALLDMD` enters it, and
    whether any term goes uncomputed unless asked for, the way LS-DYNA's
-   `*CONTROL_ENERGY` terms do.
+   `*CONTROL_ENERGY` terms do (`ETOTAL` closed with `ALLPW` although the
+   production decks never asked for it).
 2. **What `variable=PRESELECT` actually selects**, for both `*Output, field`
    and `*Output, history`. The Standard job used it for both. The Explicit jobs
    named their variables explicitly and did not use it. Whether it yields
@@ -205,8 +261,14 @@ sourced dossier and one conformance run must settle (ADR-0068 clause 8).
    checks one out is still unverified; the conformance export did not look.
    It decides whether a recipient needs a seat merely to read an archive.
 7. **Element-code semantics, partly settled.** CAX4R is established as
-   reduced-integration (see above). Every other code, including CPE4R, is
-   still unread, and the reader refuses them by name.
+   reduced-integration (see above). `CAX*` and `CPE*` codes are read as
+   solid continua (axisymmetric and plane strain), with `under_integrated`
+   left unset for every code but CAX4R. Any other family is refused by name.
 8. ~~Whether a rejected job's `.dat` always carries the fatal-error count~~ —
    settled: it does not. An Explicit job that fails during the analysis leaves
    no count in the `.dat`; its record is the `.sta` (see above).
+9. **What the end-of-step frame's acceleration is.** It differs from frame N's
+   at the same instant (see above). Which one is the state at the step's end,
+   and whether a field frame's A at a node in kinematic contact is taken
+   before or after the contact correction, is not established. Nothing in
+   verification reads A.

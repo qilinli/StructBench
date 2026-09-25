@@ -68,3 +68,13 @@ def test_bilinear_steel_keeps_an_unbounded_monotone_plastic_strain() -> None:
     assert cls.state_bounds == (0.0, None)
     assert cls.monotone and cls.structural
     assert not cls.has_equation_of_state
+
+
+def test_isotropic_tabulated_class() -> None:
+    """ADR-0070: Abaqus *PLASTIC with isotropic hardening and no EOS."""
+    cls = material_class("elastic_plastic_isotropic")
+    assert cls is not None
+    assert cls.state_variable == "plastic_strain"
+    assert cls.state_bounds == (0.0, None)
+    assert cls.monotone and cls.yield_law == "tabulated_j2"
+    assert not cls.has_equation_of_state and cls.structural

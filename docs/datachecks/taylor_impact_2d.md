@@ -1,22 +1,22 @@
 # Taylor2D-Impact — reference-data verification
 
-Dataset revision v0.1.0 · 33 cases · 63 checks per case · structbench 0.3.0
+Dataset revision v0.1.0 · 33 cases · 65 checks per case · structbench 0.3.0
 
 This report says what was checked about the simulation runs behind this dataset, what was found, and what could not be checked. It is generated from a committed record of measurements; no verdict here rests on a number fitted to this dataset. A pass is a necessary sign of a healthy run, not evidence that the simulation matches reality.
 
 ## Summary
 
-- **20 checks pass** wherever they apply.
+- **21 checks pass** wherever they apply.
 - **4 findings** — 2 in the stored response: stored elements that no input part owns; stored global energies against the solver's ledger; 2 in the solver input: dips in the input's hardening table; output the input asks the solver to write.
 - **17 quantities are measured but not judged**: the platform has no confirmed criterion. The values are below for you to weigh.
-- **7 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
+- **8 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
 - 15 checks do not apply to these runs.
 
 | | Pass | Finding | Measured, not judged | Not checked | Not applicable |
 |---|---|---|---|---|---|
-| Data integrity | 6 | 4 | 1 | 1 |  |
+| Data integrity | 7 | 4 | 1 | 1 |  |
 | Numerical health of the runs | 6 |  | 5 | 1 | 10 |
-| Energy and mass conservation | 1 |  | 5 | 4 | 4 |
+| Energy and mass conservation | 1 |  | 5 | 5 | 4 |
 | Material behaviour | 5 |  | 2 |  |  |
 | Units and magnitudes | 2 |  | 4 | 1 | 1 |
 
@@ -62,12 +62,13 @@ This report says what was checked about the simulation runs behind this dataset,
 | Stored global energies against the solver's ledger | 0.00641502 to 0.0123032 | `T-20-60-180` | **fail** (33 of 33) | at most 1e-05 (provisional tolerance) |
 | Declared traits against the solver input | 0 |  | pass | must be zero |
 | Declared yield table against the input's | 0 |  | pass | at most 1e-09 |
+| Energy ledger sampled on the field-output clock | 0 |  | pass | must be zero |
 | Non-finite values (NaN, infinity) | 0 |  | pass | must be zero |
 | Plastic strain reached, relative to the table's range | 0.0530745 to 0.150588 | `T-20-80-200` | pass | at most 1 |
 | Stored fields against the declared field list | 0 |  | pass | must be zero |
 | Time steps that go backward | 0 |  | pass | must be zero |
 | Frames written off the sampling interval | 1 |  | not judged | no criterion |
-| Energy ledger sampled on the field-output clock | — |  | not checked | this instrument cannot measure it yet |
+| First stored frame against the initial state | — |  | not checked | this instrument cannot measure it yet |
 
 ### Numerical health of the runs
 
@@ -101,6 +102,7 @@ Does not apply to these runs: hourglass energy vs initial energy; hourglass ener
 | External work against the applied loads | — |  | not checked | the runs did not supply applied loads and reaction forces over time |
 | Internal energy: stored fields vs solver ledger | — |  | not checked | this instrument cannot measure it yet |
 | Momentum change against applied impulse | — |  | not checked | the runs did not supply applied loads and reaction forces over time |
+| Plastic dissipation still growing at the end | — |  | not checked | the runs did not supply the global energy ledger |
 | Pressure against the equation of state | — |  | not checked | this instrument cannot measure it yet |
 
 Does not apply to these runs: contact energy against internal energy; kinetic energy in a quasi-static run; mass bookkeeping with scaling or deletion; negative contact energy.
@@ -192,6 +194,7 @@ Bounds applied:
 - *Declared yield table against the input's* — at most 1e-09. The declared table equals the input's. Both reach SI through their own float64 conversion, so equality is taken to the nine significant digits the report stores.
 - *Dips in the input's hardening table* — must be zero. A tabulated yield stress does not fall with its state variable; a dip is an input defect.
 - *Drift of the total mass* — at most 0.0001 % (provisional). With mass scaling and deletion off, every stored mass is one constant rounded the same way each frame; 1e-6 is a decade above float32 resolution.
+- *Energy ledger sampled on the field-output clock* — must be zero. Every stored frame has a ledger sample at the same instant, so the energy record describes the states that were stored.
 - *Non-finite values (NaN, infinity)* — must be zero. A stored response contains no NaN or infinity.
 - *Out-of-plane shear in a two-dimensional run* — must be zero (provisional). A two-dimensional formulation carries no out-of-plane shear; the slots hold exact zeros, so any other value is a slot mix-up.
 - *Out-of-plane strain in a plane-strain run* — at most 1e-06 (provisional). Plane strain sets the out-of-plane normal strain to zero; 1e-6 is a decade above float32 resolution of a strain of order one, and three decades below the smallest hoop strain of an axisymmetric run.

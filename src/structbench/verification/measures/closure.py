@@ -20,6 +20,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ...core import AbsenceReason, Case, InputFacts, RunEvidence
+from ...datasets import n_valid_frames
 from ..results import Location, Measurement
 from ._common import (
     PARTICLES,
@@ -156,7 +157,27 @@ def _stored_globals_match_ledger(
     return value(name, worst, CASE, RUN, n=frames.size, detail=detail)
 
 
+def _sampling_clock_consistent(
+    case: Case, facts: InputFacts | None, run: RunEvidence
+) -> Measurement:
+    """Frames on the output grid with no ledger sample at the same instant.
+
+    "The same instant" is ``shared_samples``'s alignment, the one every
+    closure uses: a ledger printed to six digits sits within 5e-4 of an
+    interval of its frame, while a missing sample is a whole interval away.
+    A terminal frame off the grid (ADR-0028) is ``terminal_artifact_frames``'s
+    to report; E9 asks only that the ledger divide the output interval.
+    """
+    name = "sampling_clock_consistent"
+    assert case.response is not None
+    on_grid = n_valid_frames(case.response.time)
+    frames, _ = shared_samples(case, run)
+    missing = on_grid - int((frames < on_grid).sum())
+    return value(name, missing, CASE, RUN, n=on_grid)
+
+
 CLOSURE_MEASURES: dict[str, ClosureFn] = {
+    "sampling_clock_consistent": _sampling_clock_consistent,
     "kinetic_energy_closure": _kinetic_energy_closure,
     "stored_globals_match_ledger": _stored_globals_match_ledger,
 }

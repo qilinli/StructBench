@@ -35,13 +35,34 @@ from ..evidence import (
 )
 from .lsdyna import unit_factors
 
-__all__ = ["mint_ids", "read_abaqus_input_facts", "read_abaqus_run_evidence"]
+__all__ = [
+    "ENERGY_LEDGER_TERMS",
+    "mint_ids",
+    "read_abaqus_input_facts",
+    "read_abaqus_run_evidence",
+]
 
 #: ``Abaqus/Standard 2025 ...`` in the status file, ``Abaqus 2025 ...`` in the
 #: message and printed files. The release year is the version token.
 _VERSION = re.compile(r"^\s*Abaqus(?:/\w+)?\s+(\d{4})\b", re.MULTILINE)
 #: The banner a completed job writes to its status file.
 _COMPLETED = re.compile(r"THE ANALYSIS HAS COMPLETED SUCCESSFULLY")
+#: The banner an Explicit job writes when its analysis phase stops early
+#: (2026-09-24 conformance run: excessive distortion).
+_NOT_COMPLETED = re.compile(r"THE ANALYSIS HAS NOT BEEN COMPLETED")
+#: An Explicit increment row: increment, total time, step time, CPU hh:mm:ss,
+#: stable increment, critical element, kinetic energy, total energy.
+_EXPLICIT_ROW = re.compile(
+    r"^\s+(\d+)\s+(\S+)\s+(\S+)\s+\d+:\d\d:\d\d\s+(\S+)\s+(\d+)\s+(\S+)\s+(\S+)\s*$",
+    re.MULTILINE,
+)
+#: The precision line an Explicit status file prints.
+_PRECISION = re.compile(r"(Double|Single) precision package and explicit", re.I)
+#: The status file's pointer to the printed file's own warnings: not a new one.
+_DAT_POINTER = re.compile(
+    r"^\s*\*{3}WARNING: There (?:is|are) \d+ warning messages? in the data",
+    re.MULTILINE,
+)
 #: What the pre-processor writes when it refuses the input.
 _FATAL = re.compile(r"THE PROGRAM HAS DISCOVERED\s+(\d+)\s+FATAL ERRORS")
 #: A status-file increment row: step, increment, then further integer columns.
@@ -70,19 +91,29 @@ def _version(*texts: str | None) -> str | None:
 
 
 def _termination(
-    status_text: str | None, printed_text: str | None, tokens: set[str]
+    status_text: str | None,
+    printed_text: str | None,
+    tokens: set[str],
+    time_factor: float = 1.0,
 ) -> TerminationRecord | None:
     """How the job ended, from whichever files it left behind."""
     if status_text is None and printed_text is None:
         return None
     n_steps = None
+    final_time = None
     if status_text:
-        rows = _INCREMENT.findall(status_text)
-        n_steps = len(rows) or None
+        explicit = _EXPLICIT_ROW.findall(status_text)
+        if explicit:
+            n_steps = len(explicit)
+            final_time = float(explicit[-1][2]) * time_factor
+        else:
+            n_steps = len(_INCREMENT.findall(status_text)) or None
     if status_text and _COMPLETED.search(status_text):
-        return TerminationRecord("normal", None, n_steps, "analysis_completed")
+        return TerminationRecord("normal", final_time, n_steps, "analysis_completed")
+    if status_text and _NOT_COMPLETED.search(status_text):
+        return TerminationRecord("error", final_time, n_steps, "analysis_not_completed")
     if printed_text and _FATAL.search(printed_text):
-        return TerminationRecord("error", None, n_steps, "fatal_error")
+        return TerminationRecord("error", final_time, n_steps, "fatal_error")
     # A record exists and says neither. Refusing to classify is the point:
     # an unrecognised banner must not read as a clean run.
     tokens.add("termination_wording")
@@ -90,7 +121,9 @@ def _termination(
 
 
 def _diagnostics(
-    messages_text: str | None, printed_text: str | None
+    messages_text: str | None,
+    printed_text: str | None,
+    status_text: str | None = None,
 ) -> tuple[int | None, int | None]:
     """``(errors, warnings)`` from the run's own record, or ``(None, None)``.
 
@@ -116,14 +149,21 @@ def _diagnostics(
             errors = sum(int(n) for n in stated_errors)
         if stated_warnings:
             warnings = sum(int(n) for n in stated_warnings)
+    # Explicit writes its analysis-phase diagnostics to the status file, and its
+    # message file states no totals (2026-09-24 conformance run).
+    sta = status_text or ""
+    sta_errors = len(_ERROR_MARK.findall(sta))
+    sta_warnings = len(_WARNING_MARK.findall(sta)) - len(_DAT_POINTER.findall(sta))
     if printed_text is not None:
         if errors is None:
             fatal = _FATAL.search(printed_text)
             errors = (
-                int(fatal.group(1)) if fatal else len(_ERROR_MARK.findall(printed_text))
+                int(fatal.group(1))
+                if fatal
+                else len(_ERROR_MARK.findall(printed_text)) + sta_errors
             )
         if warnings is None:
-            warnings = len(_WARNING_MARK.findall(printed_text))
+            warnings = len(_WARNING_MARK.findall(printed_text)) + sta_warnings
     return errors, warnings
 
 
@@ -162,25 +202,34 @@ def read_abaqus_run_evidence(
     ValueError
         If ``source_units`` is not a known unit system.
     """
-    unit_factors(source_units)  # validate; no field of this record is scaled yet
+    time_factor = unit_factors(source_units)["time"]
     tokens: set[str] = set()
 
     version = _version(status_text, messages_text, printed_text)
     identity = None
     if version is not None:
-        # Precision and the parallel layout are not printed in any observed
-        # file, so they stay unset rather than assumed.
-        identity = SolverIdentity("abaqus", version)
+        # An Explicit status file prints its precision; a Standard job printed
+        # none, so there it stays unset. No file prints the parallel layout.
+        found = _PRECISION.search(status_text or "")
+        precision = found.group(1).lower() if found else None
+        identity = SolverIdentity("abaqus", version, precision=precision)  # type: ignore[arg-type]
 
-    termination = _termination(status_text, printed_text, tokens)
-    n_errors, n_warnings = _diagnostics(messages_text, printed_text)
+    termination = _termination(status_text, printed_text, tokens, time_factor)
+    n_errors, n_warnings = _diagnostics(messages_text, printed_text, status_text)
+    rows = _EXPLICIT_ROW.findall(status_text or "")
+    timestep = None
+    if rows:  # E4: the Explicit increment table is a stable-increment series
+        timestep = (
+            tuple(float(r[2]) * time_factor for r in rows),
+            tuple(float(r[3]) * time_factor for r in rows),
+        )
 
     return RunEvidence(
         identity,
         (termination,) if termination is not None else None,
         n_errors,
         n_warnings,
-        None,  # E4: the increment table is not yet read into a time-step series
+        timestep,  # E4: Explicit only; a Standard table is read as a count
         None,  # E5: no energy ledger is written unless the job asks for one
         frozenset(tokens),
     )
@@ -193,9 +242,27 @@ def read_abaqus_run_evidence(
 #: not been sourced (ADR-0068 clause 8). Only codes a real deck was observed
 #: to use are mapped; anything else is refused by name rather than guessed
 #: from its letters.
-_ELEMENT_KINDS: dict[str, str] = {"C3D": "solid"}
-#: A keyword introducing inelasticity withdraws a ``linear_elastic`` claim.
-_INELASTIC = ("PLASTIC", "CREEP", "DAMAGE", "CONCRETE", "HYPERELASTIC", "VISCOELASTIC")
+_ELEMENT_KINDS: dict[str, str] = {"C3D": "solid", "CAX": "solid", "CPE": "solid"}
+#: Codes whose reduced integration is established: one integration point per
+#: element, non-zero ALLAE (2026-09-24 conformance run). Any other code reads
+#: ``under_integrated = None`` rather than a guess from its trailing letter.
+_UNDER_INTEGRATED = frozenset({"CAX4R"})
+#: The part a deck without ``*Part`` blocks is written as. Abaqus names the
+#: ``.odb`` part of a flat input ``PART-1``, so the stored response carries
+#: the same name and ``mint_ids`` agrees on both sides.
+_IMPLICIT_PART = "PART-1"
+#: A keyword introducing inelasticity withdraws a ``linear_elastic`` claim, and
+#: an ``elastic_plastic_isotropic`` one: the yield stress is then no longer a
+#: function of plastic strain alone.
+_INELASTIC = (
+    "PLASTIC",
+    "CREEP",
+    "DAMAGE",
+    "CONCRETE",
+    "HYPERELASTIC",
+    "VISCOELASTIC",
+    "RATE DEPENDENT",
+)
 #: ``*Boundary, type=`` values that prescribe motion rather than fix a degree
 #: of freedom. A plain ``*Boundary`` is a fixity.
 _MOTION_TYPES = ("VELOCITY", "ACCELERATION", "DISPLACEMENT")
@@ -231,6 +298,11 @@ _ENDS_MATERIAL = frozenset(
         "DYNAMIC",
         "AMPLITUDE",
         "SYSTEM",
+        # Model-level cards a flat deck writes straight after a material.
+        "SECTION CONTROLS",
+        "SURFACE INTERACTION",
+        "RIGID BODY",
+        "INITIAL CONDITIONS",
     }
 )
 #: Keywords that close a part definition.
@@ -238,6 +310,33 @@ _ENDS_PART = frozenset({"END PART", "ASSEMBLY", "MATERIAL", "STEP"})
 #: Cards whose payload is a data block, so an ``input=`` option on one of them
 #: moves that payload into another file and hides it from this reader.
 _DATA_BEARING = frozenset({"NODE", "ELEMENT", "NSET", "ELSET", "SURFACE"})
+#: Whole-model energy outputs -> the ledger term each is (E5). Established on
+#: a 2026-09-24 diagnostic run requesting every energy variable, where
+#: ETOTAL = ALLKE + ALLIE + ALLVD + ALLFD + ALLCD - ALLWK - ALLPW closed to
+#: 6.6e-8 of the initial kinetic energy (STANDARD_INPUT_BLOCK.md). ALLAE is
+#: part of ALLIE, not an addend. The contact term is ALLFD - ALLPW, so it
+#: exists only when both are output: see ``_CONTACT_OUTPUTS``.
+ENERGY_LEDGER_TERMS: dict[str, str] = {
+    "ALLKE": "kinetic",
+    "ALLIE": "internal",
+    "ALLVD": "damping",
+    "ALLWK": "external_work",
+    "ALLAE": "zero_energy_mode",
+}
+_CONTACT_OUTPUTS = frozenset({"ALLFD", "ALLPW"})
+#: Cards that give a material a way to fail, the only way an Explicit element
+#: is deleted; `*Section Controls, element deletion=YES` states it outright.
+#: Read, like `*Mass Scaling` and `*Damping`, by the card's presence.
+_FAILURE_CARDS = frozenset(
+    {
+        "DAMAGE INITIATION",
+        "DAMAGE EVOLUTION",
+        "SHEAR FAILURE",
+        "TENSILE FAILURE",
+        "BRITTLE FAILURE",
+        "USER MATERIAL",
+    }
+)
 
 
 def mint_ids(names: list[str]) -> dict[str, int]:
@@ -293,6 +392,68 @@ def _options(line: str) -> dict[str, str]:
     return out
 
 
+def _flags(line: str) -> set[str]:
+    """``*Nset, nset=A, generate`` -> ``{"GENERATE"}``: the options with no value."""
+    return {
+        p.strip().upper() for p in line.split(",")[1:] if "=" not in p and p.strip()
+    }
+
+
+def _data_rows(lines: list[str], index: int) -> list[list[str]]:
+    """The data lines after ``lines[index]`` up to the next keyword, as columns."""
+    rows = []
+    for line in lines[index + 1 :]:
+        if line.startswith("*"):
+            break
+        if line.strip():
+            rows.append([c.strip() for c in line.split(",")])
+    return rows
+
+
+def _node_labels(
+    columns: list[str], node_sets: dict[str, frozenset[int] | None]
+) -> frozenset[int] | None:
+    """Node labels and set names -> labels; ``None`` if any entry is unresolved."""
+    labels: set[int] = set()
+    for entry in columns:
+        if not entry:
+            continue
+        try:
+            labels.add(int(entry))
+        except ValueError:
+            named = node_sets.get(entry.upper())
+            if named is None:
+                return None
+            labels |= named
+    return frozenset(labels)
+
+
+def _plastic_table(
+    rows: list[list[str]], stress: float
+) -> tuple[tuple[float, ...], tuple[float, ...]] | None:
+    """``*Plastic`` rows ``(stress, plastic strain)`` -> ``(strains, stresses)``.
+
+    ``None`` for any other layout: a third column is a rate or a temperature,
+    so the stress would no longer be a function of plastic strain alone.
+    """
+    knots = []
+    for columns in rows:
+        values = [c for c in columns if c]
+        if len(values) != 2:
+            return None
+        try:
+            knots.append((float(values[1]), float(values[0]) * stress))
+        except ValueError:
+            return None
+    if not knots:
+        return None
+    if len(knots) == 1:
+        # ADR-0070: the table is held at its last value, so one row is flat.
+        return (0.0, 1.0), (knots[0][1], knots[0][1])
+    strains, stresses = zip(*knots, strict=True)
+    return tuple(strains), tuple(stresses)
+
+
 def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     """Read what an Abaqus input establishes about a run (evidence item E1).
 
@@ -344,6 +505,21 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     dimension: int | None = None
     time_integration: str | None = None
     motion = False
+    has_parts = "PART" in keywords
+    element_codes: set[str] = set()
+    part_codes: dict[str, set[str]] = {}
+    # Upper-cased name -> labels; `None` marks a set this reader could not
+    # resolve, so a card targeting it is refused rather than read as empty.
+    node_sets: dict[str, frozenset[int] | None] = {}
+    velocity: list[tuple[frozenset[int], int, float]] = []
+    hardening: list[tuple[int, float]] = []
+    velocity_read = hardening_read = True
+    n_steps = 0
+    periods: list[float] = []
+    # Whole-model energy outputs named by `*Energy Output`; `None` once a card
+    # asks in a way this reader does not resolve (a preselected set, a region).
+    energy_outputs: set[str] | None = set()
+    energy_cards = 0
 
     for index, line in enumerate(lines):
         if not line.startswith("*"):
@@ -362,6 +538,15 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
             current_material = None
         if word in _ENDS_PART:
             current_part = None
+        if (
+            not has_parts
+            and current_part is None
+            and word in ("ELEMENT", "SOLID SECTION")
+        ):
+            current_part = _IMPLICIT_PART
+            if current_part not in per_part:
+                part_names.append(current_part)
+                per_part[current_part] = {}
 
         if word == "PART" and "NAME" in options:
             current_part = options["NAME"]
@@ -378,19 +563,135 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
             )
             if kind is None:
                 tokens.add(_element_token(code))
+            element_codes.add(code)
             if current_part is not None:
-                per_part.setdefault(current_part, {})["kind"] = kind or "unknown"
+                block = per_part.setdefault(current_part, {})
+                block["kind"] = kind or "unknown"
+                part_codes.setdefault(current_part, set()).add(code)
         elif word == "SOLID SECTION" and "MATERIAL" in options:
             if current_part is not None:
-                per_part.setdefault(current_part, {})["material"] = options["MATERIAL"]
+                block = per_part.setdefault(current_part, {})
+                if block.get("material", options["MATERIAL"]) != options["MATERIAL"]:
+                    # Sections of two materials in one part: a part carries one
+                    # material id, so keeping either would mislabel the other's
+                    # elements. Left unresolved rather than chosen.
+                    tokens.add("unknown_card_layout:SOLID_SECTION")
+                    block["material_conflict"] = True
+                block["material"] = options["MATERIAL"]
         elif word == "NODE":
             columns = [c for c in row.split(",") if c.strip()]
             if len(columns) >= 3:
                 dimension = len(columns) - 1  # the first column is the label
+        elif word == "NSET" and "NSET" in options:
+            name = options["NSET"].upper()
+            labels: frozenset[int] | None = None
+            if "GENERATE" in _flags(line):
+                tokens.add("unread_card:NSET_GENERATE")
+            elif "ELSET" in options:
+                tokens.add("unread_card:NSET_ELSET")
+            else:
+                columns = [c for r in _data_rows(lines, index) for c in r]
+                labels = _node_labels(columns, node_sets)
+            # A repeated name adds to the set; an unresolved part poisons it.
+            if name in node_sets:
+                earlier = node_sets[name]
+                labels = None if earlier is None or labels is None else earlier | labels
+            node_sets[name] = labels
+        elif word == "INITIAL CONDITIONS":
+            kind = options.get("TYPE", "").upper()
+            rows = _data_rows(lines, index)
+            if set(options) - {"TYPE"} or _flags(line):
+                # REBAR, SECTION POINTS, USER...: the columns mean something else.
+                tokens.add("unknown_card_layout:INITIAL_CONDITIONS")
+                velocity_read = velocity_read and kind != "VELOCITY"
+                hardening_read = hardening_read and kind != "HARDENING"
+            elif kind == "VELOCITY":
+                for columns in rows:
+                    target = _node_labels(columns[:1], node_sets)
+                    try:
+                        dof, value = int(columns[1]), float(columns[2]) * f["velocity"]
+                    except (IndexError, ValueError):
+                        tokens.add("unknown_card_layout:INITIAL_CONDITIONS")
+                        velocity_read = False
+                        continue
+                    if not target:  # unresolved, or an empty label
+                        tokens.add("unresolved_initial_condition_target")
+                        velocity_read = False
+                        continue
+                    velocity.append((target, dof, value))
+            elif kind == "HARDENING":
+                for columns in rows:
+                    try:
+                        element = int(columns[0])
+                    except ValueError:
+                        tokens.add("unread_card:HARDENING_ELSET")
+                        hardening_read = False
+                        continue
+                    try:
+                        hardening.append((element, float(columns[1])))
+                    except (IndexError, ValueError):
+                        tokens.add("unknown_card_layout:INITIAL_CONDITIONS")
+                        hardening_read = False
+            else:
+                label = f"INITIAL_CONDITIONS_{kind.replace(' ', '_')}"
+                tokens.add(
+                    f"unread_card:{label}"
+                    if _TOKENLIKE.fullmatch(label)
+                    else "unread_card:INITIAL_CONDITIONS"
+                )
+        elif word == "STEP":
+            n_steps += 1
+        elif word == "ENERGY OUTPUT":
+            energy_cards += 1
+            variable = options.get("VARIABLE", "").upper()
+            if (
+                set(options) - {"VARIABLE"}
+                or _flags(line)
+                or variable not in ("", "ALL")
+            ):
+                tokens.add("unknown_card_layout:ENERGY_OUTPUT")
+                energy_outputs = None
+            elif energy_outputs is not None:
+                if variable == "ALL":
+                    energy_outputs |= set(ENERGY_LEDGER_TERMS) | _CONTACT_OUTPUTS
+                else:
+                    rows = _data_rows(lines, index)
+                    energy_outputs |= {c.upper() for r in rows for c in r if c}
         elif word == "STATIC":
             time_integration = "implicit"
         elif word == "DYNAMIC":
             time_integration = "explicit" if "EXPLICIT" in line.upper() else "implicit"
+            if time_integration == "explicit":
+                # `, <time period>`: the first column is a fixed increment, unused.
+                columns = row.split(",")
+                try:
+                    periods.append(float(columns[1]) * f["time"])
+                except (IndexError, ValueError):
+                    tokens.add("unknown_card_layout:DYNAMIC")
+        elif word == "DENSITY" and current_material is not None:
+            rows = _data_rows(lines, index)
+            if len(rows) == 1 and len([c for c in rows[0] if c]) == 1:
+                try:
+                    density = float(rows[0][0]) * f["density"]
+                    per_material.setdefault(current_material, {})["density"] = density
+                except ValueError:
+                    tokens.add("unknown_card_layout:DENSITY")
+            else:  # a temperature column or table: no single reference density
+                tokens.add("unknown_card_layout:DENSITY")
+        elif (
+            word == "PLASTIC"
+            and current_material is not None
+            and options.get("HARDENING", "ISOTROPIC").upper() == "ISOTROPIC"
+            and not set(options) - {"HARDENING"}
+            and not _flags(line)
+        ):
+            block = per_material.setdefault(current_material, {})
+            table = _plastic_table(_data_rows(lines, index), f["stress"])
+            if table is None:
+                tokens.add("unknown_card_layout:PLASTIC")
+                block["inelastic"] = True
+            else:
+                block["yield_table"] = table
         elif word == "ELASTIC":
             kind = options.get("TYPE", "ISOTROPIC").upper()
             values = [c.strip() for c in row.split(",") if c.strip()]
@@ -418,18 +719,24 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     hidden = "include" in tokens
     materials_by_name = mint_ids(material_names)
     parts_by_name = mint_ids(part_names)
+
+    def canonical(block: dict[str, object]) -> str | None:
+        if block.get("youngs") is None or block.get("inelastic"):
+            return None
+        # ADR-0070: an isotropic `*Plastic` table and nothing else inelastic.
+        return (
+            "elastic_plastic_isotropic" if "yield_table" in block else "linear_elastic"
+        )
+
     materials = tuple(
         MaterialInput(
             mid,
-            "linear_elastic"
-            if per_material.get(name, {}).get("youngs") is not None
-            and not per_material.get(name, {}).get("inelastic")
-            else None,
-            None,
+            canonical(per_material.get(name, {})),
+            per_material.get(name, {}).get("density"),  # type: ignore[arg-type]
             None,
             per_material.get(name, {}).get("youngs"),  # type: ignore[arg-type]
             per_material.get(name, {}).get("poisson"),  # type: ignore[arg-type]
-            None,
+            per_material.get(name, {}).get("yield_table"),  # type: ignore[arg-type]
         )
         for name, mid in sorted(materials_by_name.items(), key=lambda kv: kv[1])
     )
@@ -437,29 +744,48 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     for name, pid in sorted(parts_by_name.items(), key=lambda kv: kv[1]):
         block = per_part.get(name, {})
         material_name = block.get("material")
-        material_id = materials_by_name.get(str(material_name), 0)
+        material_id = (
+            0
+            if block.get("material_conflict")
+            else materials_by_name.get(str(material_name), 0)
+        )
         if material_id == 0:
             # No material owns this part's section. Silently minting 0 -- an id
             # no material has -- would drop the part from every class-masked
             # check without saying so.
             tokens.add("unresolved_section_material")
+        codes = part_codes.get(name, set())
+        under = True if codes and codes <= _UNDER_INTEGRATED else None
         built.append(
-            PartTraits(pid, material_id, block.get("kind", "unknown"), None)  # type: ignore[arg-type]
+            PartTraits(pid, material_id, block.get("kind", "unknown"), under)  # type: ignore[arg-type]
         )
     parts = tuple(built)
+    plane_strain = None
+    if element_codes and all(c.startswith("CPE") for c in element_codes):
+        plane_strain = True
+    elif element_codes and all(c.startswith("CAX") for c in element_codes):
+        plane_strain = False
 
     return InputFacts(
         parts=parts,
         materials=materials,
         time_integration=time_integration,  # type: ignore[arg-type]
         dimension=dimension,  # type: ignore[arg-type]
-        plane_strain=None,
-        # A `*Static` step's time period is a dimensionless load parameter,
-        # not a duration; converting it to seconds would be a category error.
-        end_time=None,
+        plane_strain=plane_strain,
+        # Only an explicit step's period is a duration: a `*Static` step's is a
+        # dimensionless load parameter. Several steps have no single period.
+        end_time=periods[0] if n_steps == 1 and len(periods) == 1 else None,
         other_termination_criteria=frozenset(),
         mass_scaling_enabled=requested("MASS SCALING" in keywords),
-        erosion_enabled=None,  # element deletion is a `*Section Controls` option
+        erosion_enabled=requested(
+            bool(keywords & _FAILURE_CARDS)
+            or any(
+                _keyword(ln) == "SECTION CONTROLS"
+                and _options(ln).get("ELEMENT DELETION", "").upper() == "YES"
+                for ln in lines
+                if ln.startswith("*")
+            )
+        ),
         contact_defined=requested(
             any(k.startswith("CONTACT") or k == "SURFACE INTERACTION" for k in keywords)
         ),
@@ -468,10 +794,18 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
         rigid_planes=(),
         particle_pairwise_conservative=None,
         smoothing_length_scale_bounds=None,
-        # ADR-0068 clause 8: the Abaqus output-request vocabulary is deferred
-        # until the claim dossier exists, so neither of these is established.
-        energy_terms_computed=None,
+        # Abaqus computes every term whatever is asked; what a ledger can hold
+        # is what `*Energy Output` writes. The database vocabulary stays
+        # deferred (ADR-0068 clause 8).
+        energy_terms_computed=None
+        if hidden or not energy_cards or energy_outputs is None
+        else frozenset(
+            {ENERGY_LEDGER_TERMS[n] for n in energy_outputs if n in ENERGY_LEDGER_TERMS}
+            | ({"contact"} if _CONTACT_OUTPUTS <= energy_outputs else set())
+        ),
         databases_requested=None,
         unparsable=frozenset(tokens),
         solver="abaqus",
+        initial_velocity=None if hidden or not velocity_read else tuple(velocity),
+        initial_hardening=None if hidden or not hardening_read else tuple(hardening),
     )

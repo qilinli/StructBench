@@ -10,12 +10,21 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from ...core import AbsenceReason, Case, DeclaredFacts, InputFacts
+from ...core import AbsenceReason, Case, DeclaredFacts, EvidenceItem, InputFacts
 from ...datasets import n_valid_frames
 from ..kernels import nonfinite_count
 from ..materials import material_class
 from ..results import Location, Measurement
-from ._common import MeasureFn, absent, input_gap, needs_case, value
+from ._common import (
+    STATE_BLOCKS,
+    MeasureFn,
+    absent,
+    field_gap,
+    input_gap,
+    needs_case,
+    not_applicable,
+    value,
+)
 
 CASE, INPUT, DECLARED = Location.CASE, Location.INPUT, Location.DECLARED
 
@@ -201,7 +210,84 @@ def _input_requests_required_evidence(
     )
 
 
+#: Readers that parse the input's initial conditions into ``InputFacts``.
+_READS_INITIAL_STATE = frozenset({"abaqus"})
+
+
+def _initial_state_matches_input(
+    case: Case, facts: InputFacts | None, declared: DeclaredFacts | None
+) -> Measurement:
+    """Worst deviation of frame 0 from the stated initial state, over its scale.
+
+    Velocity rows compare the stated component on the listed nodes; hardening
+    rows compare the stored plastic strain of the listed elements. Each kind
+    is scaled by its largest stated magnitude (1 if all are zero).
+    """
+    name = "initial_state_matches_input"
+    assert facts is not None and case.response is not None
+    if facts.solver not in _READS_INITIAL_STATE:
+        return absent(name, AbsenceReason.UNSUPPORTED)  # the reader's gap
+    if facts.initial_velocity is None or facts.initial_hardening is None:
+        return input_gap(name, facts)
+    if not facts.initial_velocity and not facts.initial_hardening:
+        return not_applicable(name)
+    worst: dict[str, float] = {}
+    checked = 0
+    if facts.initial_velocity:
+        velocity = case.response.node.get("velocity")
+        if velocity is None:
+            return field_gap(name)
+        index = {int(label): k for k, label in enumerate(case.nodes.node_id)}
+        scale = max(abs(v) for _, _, v in facts.initial_velocity) or 1.0
+        for nodes, dof, stated in facts.initial_velocity:
+            if not set(nodes) <= set(index) or not 1 <= dof <= velocity.shape[2]:
+                return field_gap(name)
+            rows = np.array([index[n] for n in sorted(nodes)], dtype=np.intp)
+            got = velocity[0, rows, dof - 1].astype(np.float64)
+            worst["velocity"] = max(
+                worst.get("velocity", 0.0), float(np.abs(got - stated).max()) / scale
+            )
+            checked += len(rows)
+    if facts.initial_hardening:
+        stored: dict[int, float] = {}
+        for block in STATE_BLOCKS:
+            peeq = case.response.element.get(block, {}).get("effective_plastic_strain")
+            if peeq is not None:
+                for k, label in enumerate(case.elements[block].element_id):
+                    stored[int(label)] = float(peeq[0, k])
+        scale = max(abs(p) for _, p in facts.initial_hardening) or 1.0
+        for element, stated in facts.initial_hardening:
+            if element not in stored:
+                return field_gap(name)
+            deviation = abs(stored[element] - stated) / scale
+            worst["hardening"] = max(worst.get("hardening", 0.0), deviation)
+        checked += len(facts.initial_hardening)
+    kind = max(worst, key=worst.__getitem__)
+    return value(name, worst[kind], CASE, INPUT, n=checked, detail={"worst": kind})
+
+
+def _plastic_dissipation_late_growth(
+    case: Case, facts: InputFacts | None, declared: DeclaredFacts | None
+) -> Measurement:
+    """Share of the final plastic work done in the last tenth of the frames."""
+    name = "plastic_dissipation_late_growth"
+    assert case.response is not None
+    stored = case.response.globals_.get("plastic_dissipation")
+    if stored is None:
+        # The series is the energy record's, stored with the case; a run that
+        # kept no plastic-dissipation history lacks E5, not field output.
+        return absent(name, AbsenceReason.SOURCE_MISSING, EvidenceItem.E5)
+    work = np.asarray(stored, dtype=np.float64)
+    if work[-1] == 0.0:
+        return not_applicable(name)  # nothing yielded
+    at = min(int(np.floor(0.9 * work.size)), work.size - 1)
+    growth = float((work[-1] - work[at]) / work[-1])
+    return value(name, growth, CASE, n=work.size, detail={"from_frame": at})
+
+
 MEASURES: dict[str, MeasureFn] = {
+    "initial_state_matches_input": needs_case(_initial_state_matches_input),
+    "plastic_dissipation_late_growth": needs_case(_plastic_dissipation_late_growth),
     "input_requests_required_evidence": _input_requests_required_evidence,
     "nonfinite_count": needs_case(_nonfinite_count),
     "time_axis_monotone": needs_case(_time_axis_monotone),

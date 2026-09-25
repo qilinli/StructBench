@@ -102,7 +102,7 @@ def test_adding_plasticity_withdraws_the_linear_elastic_claim() -> None:
         "*Elastic\n210000., 0.3", "*Elastic\n210000., 0.3\n*Plastic\n250., 0."
     )
     (material,) = _read(deck).materials
-    assert material.canonical_model is None
+    assert material.canonical_model == "elastic_plastic_isotropic"  # ADR-0070
 
 
 def test_ids_are_minted_by_order_of_first_appearance() -> None:
@@ -199,7 +199,7 @@ def test_plasticity_in_one_material_does_not_touch_another() -> None:
     )
     by_id = {m.material_id: m for m in _read(deck).materials}
     assert by_id[1].canonical_model == "linear_elastic"  # Steel, untouched
-    assert by_id[2].canonical_model is None  # Rubber, now inelastic
+    assert by_id[2].canonical_model == "elastic_plastic_isotropic"  # Rubber
 
 
 def test_a_material_card_the_reader_skips_is_recorded_not_ignored() -> None:
@@ -210,12 +210,14 @@ def test_a_material_card_the_reader_skips_is_recorded_not_ignored() -> None:
     """
     deck = _TWO_MATERIALS.replace(
         "*Material, name=Steel\n*Elastic\n210000., 0.3",
-        "*Material, name=Steel\n*Density\n7.85e-09\n*Elastic\n210000., 0.3"
-        "\n*Plastic\n250., 0.",
+        "*Material, name=Steel\n*Conductivity\n45.\n*Elastic\n210000., 0.3"
+        "\n*Plastic, hardening=KINEMATIC\n250., 0.",
     )
     facts = _read(deck)
     assert "unread_card:PLASTIC" in facts.unparsable
-    assert "unread_card:DENSITY" in facts.unparsable
+    assert "unread_card:CONDUCTIVITY" in facts.unparsable
+    by_id = {m.material_id: m for m in facts.materials}
+    assert by_id[1].canonical_model is None  # kinematic is not ADR-0070's class
 
 
 def test_a_typed_elastic_card_is_not_read_positionally() -> None:
@@ -246,3 +248,191 @@ def test_a_node_lookahead_that_lands_on_a_keyword_is_not_read_as_coordinates() -
     facts = _read(deck)
     assert facts.dimension is None  # not 2, which the *Nset line would have given
     assert "include" in facts.unparsable  # `input=` hides content, like *Include
+
+
+# --- 2D decks as the Abaqus pipeline writes them (plan 2, Task 4) -----------
+
+_FLAT_2D = """*HEADING
+toy
+*NODE
+1, 0.0, 0.0
+2, 1.0, 0.0
+3, 0.0, 1.0
+4, 1.0, 1.0
+*ELEMENT, TYPE=CAX4R, ELSET=E
+1, 1, 2, 4, 3
+*NSET, NSET=ALLN
+1, 2, 3, 4
+*MATERIAL, NAME=M
+*DENSITY
+7e-09
+*ELASTIC
+200000.0, 0.3
+*PLASTIC
+250.0, 0.0
+1250.0, 10.0
+*SECTION CONTROLS, NAME=HG_ENHANCED, HOURGLASS=ENHANCED
+*SOLID SECTION, ELSET=E, MATERIAL=M, CONTROLS=HG_ENHANCED
+*INITIAL CONDITIONS, TYPE=VELOCITY
+ALLN, 2, -30000.0
+*INITIAL CONDITIONS, TYPE=HARDENING
+1, 0.15
+*STEP, NAME=S, NLGEOM=YES
+*DYNAMIC, EXPLICIT
+, 0.001
+*END STEP
+"""
+
+
+def test_flat_axisymmetric_deck():
+    f = read_abaqus_input_facts(_FLAT_2D, source_units="t-mm-s")
+    assert f.dimension == 2 and f.plane_strain is False
+    assert f.time_integration == "explicit" and f.end_time == pytest.approx(0.001)
+    (part,) = f.parts
+    assert (part.discretisation, part.under_integrated) == ("solid", True)
+    (m,) = f.materials
+    assert m.canonical_model == "elastic_plastic_isotropic"
+    assert m.density == pytest.approx(7000.0)  # t/mm^3 -> kg/m^3
+    assert m.yield_table == ((0.0, 10.0), pytest.approx((250e6, 1250e6)))
+    assert f.initial_velocity == ((frozenset({1, 2, 3, 4}), 2, pytest.approx(-30.0)),)
+    assert f.initial_hardening == ((1, pytest.approx(0.15)),)
+    assert not {t for t in f.unparsable if t.startswith("unread_card")}
+
+
+def test_single_row_plastic_is_flat_and_cpe_is_plane_strain():
+    deck = _FLAT_2D.replace("CAX4R", "CPE4R").replace("1250.0, 10.0\n", "")
+    f = read_abaqus_input_facts(deck, source_units="t-mm-s")
+    assert f.plane_strain is True
+    assert f.materials[0].yield_table == ((0.0, 1.0), pytest.approx((250e6, 250e6)))
+    assert f.parts[0].under_integrated is None  # only CAX4R is established
+
+
+def test_a_deck_stating_no_initial_conditions_states_none() -> None:
+    """`()` is the input's positive claim of none; `None` is "not established"."""
+    deck = _FLAT_2D.split("*INITIAL CONDITIONS")[0] + "*STEP, NAME=S\n*END STEP\n"
+    f = read_abaqus_input_facts(deck, source_units="t-mm-s")
+    assert (f.initial_velocity, f.initial_hardening) == ((), ())
+
+
+def test_a_generated_node_set_leaves_the_initial_velocity_unestablished() -> None:
+    """Review Focus 3: an unresolved target is not an empty target."""
+    deck = _FLAT_2D.replace(
+        "*NSET, NSET=ALLN\n1, 2, 3, 4", "*NSET, NSET=ALLN, GENERATE\n1, 4, 1"
+    )
+    f = read_abaqus_input_facts(deck, source_units="t-mm-s")
+    assert f.initial_velocity is None
+    assert {
+        "unread_card:NSET_GENERATE",
+        "unresolved_initial_condition_target",
+    } <= f.unparsable
+
+
+def test_hardening_on_an_element_set_is_refused_by_name() -> None:
+    deck = _FLAT_2D.replace("TYPE=HARDENING\n1, 0.15", "TYPE=HARDENING\nE, 0.15")
+    f = read_abaqus_input_facts(deck, source_units="t-mm-s")
+    assert f.initial_hardening is None
+    assert "unread_card:HARDENING_ELSET" in f.unparsable
+
+
+def test_a_rate_or_temperature_column_is_not_a_strain_only_table() -> None:
+    """A third column makes the yield stress depend on more than PEEQ."""
+    deck = _FLAT_2D.replace(
+        "250.0, 0.0\n1250.0, 10.0", "250.0, 0.0, 20.0\n1250.0, 10.0, 20.0"
+    )
+    (m,) = read_abaqus_input_facts(deck, source_units="t-mm-s").materials
+    assert m.yield_table is None and m.canonical_model is None
+
+
+def test_two_steps_establish_no_single_end_time() -> None:
+    deck = _FLAT_2D + "*STEP, NAME=T\n*DYNAMIC, EXPLICIT\n, 0.002\n*END STEP\n"
+    assert read_abaqus_input_facts(deck, source_units="t-mm-s").end_time is None
+
+
+def test_a_flat_deck_with_the_section_after_the_material_has_one_part() -> None:
+    f = read_abaqus_input_facts(_FLAT_2D, source_units="t-mm-s")
+    assert [(p.part_id, p.material_id) for p in f.parts] == [(1, 1)]
+    assert "unresolved_section_material" not in f.unparsable
+
+
+def test_a_rate_dependent_suboption_withdraws_the_isotropic_class() -> None:
+    deck = _FLAT_2D.replace(
+        "1250.0, 10.0\n", "1250.0, 10.0\n*RATE DEPENDENT\n40.0, 5.0\n"
+    )
+    (m,) = read_abaqus_input_facts(deck, source_units="t-mm-s").materials
+    assert m.canonical_model is None
+
+
+_PRODUCTION_ENERGY = (
+    "*OUTPUT, HISTORY, TIME INTERVAL=1e-06\n*ENERGY OUTPUT\n"
+    "ALLAE, ALLCD, ALLFD, ALLIE, ALLKE, ALLPD, ALLSE, ALLVD, ALLWK, ETOTAL\n"
+)
+
+
+def _with_energy(block: str):
+    deck = _FLAT_2D.replace("*END STEP\n", block + "*END STEP\n")
+    return read_abaqus_input_facts(deck, source_units="t-mm-s")
+
+
+def test_energy_output_rows_name_the_ledger_terms() -> None:
+    f = _with_energy(_PRODUCTION_ENERGY)
+    assert f.energy_terms_computed == {
+        "kinetic",
+        "internal",
+        "damping",
+        "external_work",
+        "zero_energy_mode",
+    }  # no contact: ALLPW is not requested
+    assert f.databases_requested is None
+
+
+def test_the_contact_term_needs_the_penalty_work() -> None:
+    f = _with_energy(_PRODUCTION_ENERGY.replace("ETOTAL", "ETOTAL, ALLPW"))
+    assert "contact" in f.energy_terms_computed
+
+
+def test_variable_all_requests_every_term() -> None:
+    f = _with_energy("*ENERGY OUTPUT, VARIABLE=ALL\n")
+    assert "contact" in f.energy_terms_computed and "kinetic" in f.energy_terms_computed
+
+
+def test_an_unread_energy_request_establishes_nothing() -> None:
+    assert (
+        _with_energy("*ENERGY OUTPUT, VARIABLE=PRESELECT\n").energy_terms_computed
+        is None
+    )
+    assert (
+        read_abaqus_input_facts(_FLAT_2D, source_units="t-mm-s").energy_terms_computed
+        is None
+    )
+
+
+def test_erosion_needs_a_stated_failure_or_deletion_mechanism() -> None:
+    def erosion(deck: str) -> bool | None:
+        return read_abaqus_input_facts(deck, source_units="t-mm-s").erosion_enabled
+
+    assert erosion(_FLAT_2D) is False
+    plastic = "*PLASTIC\n250.0, 0.0\n1250.0, 10.0\n"
+    damage = plastic + "*DAMAGE INITIATION, CRITERION=DUCTILE\n0.5, 0.3, 0.0\n"
+    assert erosion(_FLAT_2D.replace(plastic, damage)) is True
+    deletion = "HOURGLASS=ENHANCED, ELEMENT DELETION=YES"
+    assert erosion(_FLAT_2D.replace("HOURGLASS=ENHANCED", deletion)) is True
+    assert (
+        erosion(_FLAT_2D.replace("*HEADING", "*HEADING\n*INCLUDE, INPUT=more.inp"))
+        is None
+    )
+
+
+def test_two_sections_with_two_materials_in_one_part_are_not_merged() -> None:
+    """Review (final) I2: the last section's material must not claim every element."""
+    second = (
+        "*MATERIAL, NAME=N\n*ELASTIC\n100000.0, 0.3\n"
+        "*SOLID SECTION, ELSET=F, MATERIAL=N\n"
+    )
+    deck = _FLAT_2D.replace(
+        "*INITIAL CONDITIONS, TYPE=VELOCITY",
+        second + "*INITIAL CONDITIONS, TYPE=VELOCITY",
+    )
+    f = read_abaqus_input_facts(deck, source_units="t-mm-s")
+    (part,) = f.parts
+    assert part.material_id == 0  # unresolved, not material 2
+    assert "unknown_card_layout:SOLID_SECTION" in f.unparsable

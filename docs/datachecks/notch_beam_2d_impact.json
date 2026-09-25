@@ -136,6 +136,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -281,6 +289,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -689,6 +707,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -834,6 +860,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -1242,6 +1278,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -1387,6 +1431,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -1795,6 +1849,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -1940,6 +2002,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -2348,6 +2420,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -2493,6 +2573,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -2901,6 +2991,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -3046,6 +3144,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -3454,6 +3562,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -3599,6 +3715,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -4007,6 +4133,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -4152,6 +4286,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -4560,6 +4704,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -4705,6 +4857,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -5113,6 +5275,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -5258,6 +5428,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -5666,6 +5846,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -5811,6 +5999,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -6219,6 +6417,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -6364,6 +6570,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -6772,6 +6988,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -6917,6 +7141,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -7325,6 +7559,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -7470,6 +7712,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -7878,6 +8130,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -8023,6 +8283,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -8431,6 +8701,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -8576,6 +8854,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -8984,6 +9272,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -9129,6 +9425,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -9537,6 +9843,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -9682,6 +9996,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -10090,6 +10414,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -10235,6 +10567,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -10643,6 +10985,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -10788,6 +11138,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -11196,6 +11556,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -11341,6 +11709,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -11749,6 +12127,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -11894,6 +12280,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -12302,6 +12698,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -12447,6 +12851,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -12855,6 +13269,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -13000,6 +13422,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -13408,6 +13840,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -13553,6 +13993,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -13961,6 +14411,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -14106,6 +14564,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -14514,6 +14982,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -14659,6 +15135,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -15067,6 +15553,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -15212,6 +15706,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -15620,6 +16124,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -15765,6 +16277,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -16173,6 +16695,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -16318,6 +16848,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -16726,6 +17266,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -16871,6 +17419,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -17279,6 +17837,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -17424,6 +17990,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -17832,6 +18408,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -17977,6 +18561,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -18385,6 +18979,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -18530,6 +19132,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -18938,6 +19550,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -19083,6 +19703,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -19491,6 +20121,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -19636,6 +20274,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -20044,6 +20692,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -20189,6 +20845,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -20597,6 +21263,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -20742,6 +21416,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -21150,6 +21834,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -21295,6 +21987,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -21703,6 +22405,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -21848,6 +22558,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -22256,6 +22976,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -22401,6 +23129,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -22809,6 +23547,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -22954,6 +23700,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -23362,6 +24118,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -23507,6 +24271,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -23915,6 +24689,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -24060,6 +24842,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -24468,6 +25260,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -24613,6 +25413,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -25021,6 +25831,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -25166,6 +25984,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -25574,6 +26402,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -25719,6 +26555,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -26127,6 +26973,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -26272,6 +27126,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -26680,6 +27544,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -26825,6 +27697,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -27233,6 +28115,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -27378,6 +28268,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -27786,6 +28686,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -27931,6 +28839,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -28339,6 +29257,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -28484,6 +29410,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -28892,6 +29828,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -29037,6 +29981,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -29445,6 +30399,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -29590,6 +30552,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -29998,6 +30970,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -30143,6 +31123,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -30551,6 +31541,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -30696,6 +31694,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -31104,6 +32112,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -31249,6 +32265,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -31657,6 +32683,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -31802,6 +32836,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -32210,6 +33254,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -32355,6 +33407,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -32763,6 +33825,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -32908,6 +33978,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -33316,6 +34396,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -33461,6 +34549,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -33869,6 +34967,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -34014,6 +35120,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -34422,6 +35538,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -34567,6 +35691,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -34975,6 +36109,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -35120,6 +36262,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -35528,6 +36680,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -35673,6 +36833,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -36081,6 +37251,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -36226,6 +37404,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -36634,6 +37822,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -36779,6 +37975,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -37187,6 +38393,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -37332,6 +38546,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -37740,6 +38964,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -37885,6 +39117,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -38293,6 +39535,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -38438,6 +39688,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -38846,6 +40106,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -38991,6 +40259,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -39399,6 +40677,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -39544,6 +40830,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -39952,6 +41248,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -40097,6 +41401,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -40505,6 +41819,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -40650,6 +41972,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -41058,6 +42390,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -41203,6 +42543,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -41611,6 +42961,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -41756,6 +43114,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -42164,6 +43532,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -42309,6 +43685,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -42717,6 +44103,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -42862,6 +44256,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -43270,6 +44674,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -43415,6 +44827,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -43823,6 +45245,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -43968,6 +45398,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -44376,6 +45816,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -44521,6 +45969,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -44929,6 +46387,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -45074,6 +46540,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -45482,6 +46958,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -45627,6 +47111,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -46035,6 +47529,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -46180,6 +47682,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -46588,6 +48100,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -46733,6 +48253,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -47141,6 +48671,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -47286,6 +48824,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -47694,6 +49242,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -47839,6 +49395,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -48247,6 +49813,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -48392,6 +49966,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -48800,6 +50384,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -48945,6 +50537,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -49353,6 +50955,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -49498,6 +51108,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -49906,6 +51526,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -50051,6 +51679,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -50459,6 +52097,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -50604,6 +52250,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -51012,6 +52668,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -51157,6 +52821,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -51565,6 +53239,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -51710,6 +53392,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -52118,6 +53810,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -52263,6 +53963,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -52671,6 +54381,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -52816,6 +54534,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -53224,6 +54952,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -53369,6 +55105,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -53777,6 +55523,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -53922,6 +55676,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -54330,6 +56094,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -54475,6 +56247,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -54883,6 +56665,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -55028,6 +56818,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -55436,6 +57236,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -55581,6 +57389,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -55989,6 +57807,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -56134,6 +57960,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -56542,6 +58378,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -56687,6 +58531,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -57095,6 +58949,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -57240,6 +59102,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -57648,6 +59520,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -57793,6 +59673,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -58201,6 +60091,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -58346,6 +60244,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -58754,6 +60662,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -58899,6 +60815,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -59307,6 +61233,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -59452,6 +61386,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -59860,6 +61804,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -60005,6 +61957,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -60413,6 +62375,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "locations": [
             "input"
           ],
@@ -60558,6 +62528,16 @@
           "quantity": "plane_strain_ezz_max",
           "unit": "1",
           "value": 0.0
+        },
+        {
+          "absence": {
+            "missing": [
+              "E5"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
         },
         {
           "absence": {
@@ -60842,6 +62822,7 @@
     "energy_loss_max": 1,
     "energy_residual_final": 1,
     "fields_match_declaration": 1,
+    "initial_state_matches_input": 1,
     "input_constants_plausible": 1,
     "input_density_plausible": 1,
     "input_dimensionless_groups_plausible": 1,
@@ -60854,10 +62835,12 @@
     "particle_neighbors_growth": 1,
     "particle_neighbors_min": 1,
     "plane_strain_ezz_max": 1,
+    "plastic_dissipation_late_growth": 1,
     "pressure_trace_residual": 1,
     "reached_end_time": 1,
     "response_magnitudes_plausible": 1,
     "rigid_surface_penetration_max": 1,
+    "sampling_clock_consistent": 1,
     "smoothing_length_at_bound_fraction": 1,
     "smoothing_length_within_input_bounds": 1,
     "solver_error_count": 1,

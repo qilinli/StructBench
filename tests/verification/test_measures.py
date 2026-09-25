@@ -207,9 +207,21 @@ def test_every_catalogue_row_answers_once_in_name_order() -> None:
     assert result.declared_intent == frozenset()
 
 
+#: Rows this LS-DYNA particle fixture cannot reach: the reader parses no
+#: initial conditions, and the case stores no plastic dissipation. Both are
+#: measured on a solid block in test_measures_solid.py.
+_ELSEWHERE = frozenset(
+    {"initial_state_matches_input", "plastic_dissipation_late_growth"}
+)
+
+
 def test_a_healthy_run_measures_every_implemented_quantity() -> None:
     result = _run()
-    unmeasured = [name for name in MEASURES if _get(result, name).value is None]
+    unmeasured = [
+        name
+        for name in MEASURES
+        if name not in _ELSEWHERE and _get(result, name).value is None
+    ]
     assert unmeasured == []
 
 
@@ -301,7 +313,7 @@ _HEALTHY = {
 
 
 def test_the_healthy_table_covers_every_measure() -> None:
-    assert set(_HEALTHY) == set(MEASURES)
+    assert set(_HEALTHY) == set(MEASURES) - _ELSEWHERE
 
 
 @pytest.mark.parametrize("name", sorted(_HEALTHY))
