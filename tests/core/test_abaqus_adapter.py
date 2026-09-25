@@ -221,7 +221,7 @@ def test_the_end_frame_acceleration_is_the_grid_frames(tmp_path):
 
 def test_an_end_frame_equal_to_float32_storage_is_a_duplicate(tmp_path):
     """A few percent of real end frames re-store a value or two a few ulp
-    apart (at most 1.8e-7 of the field's peak); that is still the same state."""
+    apart (at most 1.8e-7 of frame N's largest magnitude): still the same state."""
     a = _arrays()
     key = f"field/S/S/{_INST}/data"
     a[key] = a[key].copy()
@@ -307,3 +307,30 @@ def test_several_reference_nodes_keep_their_labels(tmp_path):
     a[f"history/S/Node {_INST}.6/RF2"] = np.stack([t, [0.0, 3.0, 3.0]], -1)
     names = set(_case(tmp_path, a).response.globals_)
     assert {"reaction_force_2_node_5", "reaction_force_2_node_6"} <= names
+
+
+def test_stress_not_at_one_integration_point_per_element_is_refused(tmp_path):
+    """Review (final) I1: no integration points, or repeated labels, is not
+    one point per element -- a nodal stress must not pass as a point value."""
+    a = _arrays()
+    key = f"field/S/S/{_INST}"
+    a[f"{key}/data"] = np.repeat(a[f"{key}/data"], 4, axis=1)
+    a[f"{key}/element_labels"] = np.array([1, 1, 1, 1])
+    a[f"{key}/integration_points"] = np.zeros(0, dtype=np.int64)
+    with pytest.raises(NotImplementedError):
+        _case(tmp_path, a)
+    a[f"{key}/integration_points"] = np.array([1, 1, 1, 1])
+    with pytest.raises((NotImplementedError, ValueError)):
+        _case(tmp_path, a)
+
+
+def test_the_stored_total_energy_is_the_ledgers_total(tmp_path):
+    """Review (final) I4: ETOTAL subtracts the external work; the ledger's
+    total and the canonical `total_energy` both mean the energy content, so
+    `stored_globals_match_ledger` compares like with like when ALLWK != 0."""
+    a = _with(_arrays(), ALLCD=0.0, ALLPW=3.0)
+    case = _case(tmp_path, a)
+    ledger = abaqus_ledger(tmp_path / "toy.npz", source_units="t-mm-s")
+    np.testing.assert_allclose(
+        case.response.globals_["total_energy"], ledger.solver_total, rtol=1e-6
+    )

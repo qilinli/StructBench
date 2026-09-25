@@ -9,11 +9,14 @@ measurements.json``. For each, the run record and the export go to
 ``<data-root>/raw/<name>/abaqus/<id>/`` -- ``<id>.inp``, ``provenance.json``,
 ``run.json``, ``<id>.sta/.msg/.dat``, ``<id>.npz``, and ``<id>.odb`` when
 retained -- and the canonical case to ``<data-root>/canonical/<name>/<id>.h5``.
-``runner.log`` is never copied: it holds the licence text.
+``runner.log`` is never copied: it holds the licence text. The ``.dat`` and
+``.msg`` are copied with their licence header and any licence line removed
+(``redact``), and verified against the redacted bytes.
 
 Retention comes from ``[retention]`` in ``<dataset-dir>/sweep.toml``:
-``odb_fraction`` (default 0.05) of the cases, drawn with ``odb_seed``, plus
-the named ``odb_cases``. The draw is deterministic.
+about ``odb_fraction`` (default 0.05) of the cases, each decided by a hash of
+``odb_seed`` and its id, plus the named ``odb_cases``. A named case that is
+not in the sweep, and a retained case whose ODB is gone, are reported.
 
 Without ``--yes`` this prints the plan and writes nothing. With it, each file
 is copied through a ``.partial`` name and verified by size and sha256; a file
@@ -31,6 +34,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import tomllib
@@ -50,6 +54,48 @@ _RUN_FILES = (
 )
 
 
+#: Files whose header names the licensee, host, seat or site. They are copied
+#: redacted, like ``runner.log`` is not copied at all.
+_REDACTED = frozenset({".dat", ".msg"})
+#: A line that says something about the licence, wherever it stands.
+_LICENCE_LINE = re.compile(
+    r"licen[cs]|flexnet|\bseat\b|site id|for use by|on machine|"
+    r"authori[sz]ed to run|\btokens?\b|\buntil \d",
+    re.IGNORECASE,
+)
+#: The version line the run-record reader keys on (``Abaqus 2025``).
+_VERSION_LINE = re.compile(r"^\s*Abaqus(?:/\w+)?\s+\d{4}\b")
+#: The asterisk box that ends the printed file's header.
+_BANNER = re.compile(r"^\s*\*(\s|$)")
+_MARK = "   [licence header removed by archive.py]\n"
+
+
+def redact(text: str) -> str:
+    """``text`` without its licence header or any licence line.
+
+    Before the first asterisk banner only version lines are kept; after it,
+    only lines that do not match ``_LICENCE_LINE``. What the run-record
+    reader needs -- the version, the banners, the counts, the markers --
+    survives.
+    """
+    lines = text.splitlines(keepends=True)
+    banner = next((i for i, ln in enumerate(lines[:200]) if _BANNER.match(ln)), 0)
+    kept = [
+        ln
+        for i, ln in enumerate(lines)
+        if not _LICENCE_LINE.search(ln)
+        and (i >= banner or not ln.strip() or _VERSION_LINE.match(ln))
+    ]
+    return _MARK + "".join(kept)
+
+
+def _payload(src: Path) -> bytes | None:
+    """The bytes to archive for ``src`` when they are not the file's own."""
+    if src.suffix not in _REDACTED:
+        return None
+    return redact(src.read_text(encoding="utf-8", errors="replace")).encode("utf-8")
+
+
 @dataclass(frozen=True)
 class Copy:
     case_id: str
@@ -61,11 +107,21 @@ class Copy:
 def retained(
     case_ids: list[str], *, fraction: float, seed: int, named: list[str]
 ) -> set[str]:
-    """Cases whose ODB is kept: a seeded draw of ``fraction``, plus ``named``."""
-    ids = sorted(case_ids)
-    k = round(fraction * len(ids))
-    drawn = np.random.default_rng(seed).choice(ids, size=k, replace=False) if k else []
-    return {str(c) for c in drawn} | (set(named) & set(ids))
+    """Cases whose ODB is kept: about ``fraction`` of them, plus ``named``.
+
+    Each case is decided on its own, by where ``sha256("<seed>:<case id>")``
+    falls in [0, 1). The answer for a case therefore never depends on which
+    other cases one invocation lists (a ``--split``, a partial record) nor on
+    a random-number stream, so a later prune cannot delete an ODB an earlier
+    archive meant to keep.
+    """
+    cut = fraction * 2**256
+    drawn = {
+        c
+        for c in case_ids
+        if int(hashlib.sha256(f"{seed}:{c}".encode()).hexdigest(), 16) < cut
+    }
+    return drawn | (set(named) & set(case_ids))
 
 
 def _sha256(path: Path) -> str:
@@ -109,16 +165,23 @@ def plan(
 def _copy_case(copies: list[Copy], counts: Counter[str]) -> str | None:
     """Copy one case's files; the reason it stopped, or ``None``."""
     for c in copies:
-        want = _sha256(c.src)
+        payload = _payload(c.src)
+        if payload is None:
+            want, size = _sha256(c.src), c.src.stat().st_size
+        else:
+            want, size = hashlib.sha256(payload).hexdigest(), len(payload)
         if c.dst.exists():
-            if c.dst.stat().st_size == c.src.stat().st_size and _sha256(c.dst) == want:
+            if c.dst.stat().st_size == size and _sha256(c.dst) == want:
                 counts["verified"] += 1
                 continue
             return f"mismatch at {c.dst.name}: a different file is there; left as is"
         c.dst.parent.mkdir(parents=True, exist_ok=True)
         partial = c.dst.with_name(c.dst.name + ".partial")
-        shutil.copyfile(c.src, partial)
-        if partial.stat().st_size != c.src.stat().st_size or _sha256(partial) != want:
+        if payload is None:
+            shutil.copyfile(c.src, partial)
+        else:
+            partial.write_bytes(payload)
+        if partial.stat().st_size != size or _sha256(partial) != want:
             partial.unlink()
             return f"copy of {c.src.name} did not verify"
         os.replace(partial, c.dst)
@@ -157,6 +220,12 @@ def main(argv: list[str] | None = None) -> int:
         named=list(rules.get("odb_cases", [])),
     )
     copies = plan(args.sweep, name, args.data_root, case_ids, keep)
+    unknown = sorted(set(rules.get("odb_cases", [])) - set(case_ids))
+    if unknown:
+        print(f"odb_cases not among these cases: {', '.join(unknown)}")
+    gone = sorted(c for c in keep if not (args.sweep / c / f"{c}.odb").is_file())
+    if gone:
+        print(f"retained but no local ODB to archive: {', '.join(gone)}")
     prunable = [
         cid
         for cid in case_ids

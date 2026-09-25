@@ -34,19 +34,20 @@ has no `HARDENING=` option or has `HARDENING=ISOTROPIC`, and which carries no
 other inelastic card.
 
 - **`monotone`, `state_bounds`.** Equivalent plastic strain under isotropic
-  hardening accumulates and never decreases. Measured on the 2026-09-24
-  production sweep: no decrease in any of 500 cases, and PEEQ ≥ 0 throughout.
+  hardening accumulates and never decreases. Measured on a 2026-09-24
+  sweep: no decrease in any case, and PEEQ ≥ 0 throughout.
 - **`yield_law = tabulated_j2`.** The von Mises stress is bounded by the
   table's yield stress at the current PEEQ. A one-element check (2026-09-24,
   initial PEEQ 0.2, σ₀ = 100 MPa, H = 500 MPa) yielded at 199.7–200.0 MPa and
-  then followed σ₀ + H·PEEQ exactly. The table is held at its last value past
-  its final knot. That is Abaqus's documented behaviour and has not been
-  re-derived here, so the reader stores a one-row table as a flat two-knot
-  table and verification interpolates with end-clamping.
-- **The yield table is the case's own.** A sweep that varies σ₀ and H declares
-  no single hardening curve, so the yield rows read the per-case table from
-  the stored deck when the benchmark declares none. A declared table still
-  takes precedence (ADR-0066 note, 2026-09-25).
+  then followed σ₀ + H·PEEQ exactly. Past the table's final knot the stress
+  is taken as held at its last value: the reader stores a one-row table as a
+  flat two-knot table, and verification interpolates with end-clamping. No
+  run has yet been checked beyond a final knot, so that is an assumption of
+  this instrument, not an observed fact about the solver.
+- **The yield table is the case's own.** A sweep whose hardening varies from
+  case to case declares no single curve, so the yield rows read the per-case
+  table from the stored deck when the benchmark declares none. A declared
+  table still takes precedence (ADR-0066 note, 2026-09-25).
 
 ## Alternatives considered
 
@@ -56,7 +57,7 @@ other inelastic card.
   blaming the platform for evidence the input fully states.
 - **One class per Abaqus hardening option (isotropic, kinematic, combined)
   now.** Rejected: only isotropic is exercised. Combined hardening, with
-  backstress state, arrives with the second dataset and is decided then.
+  backstress state, is decided when a dataset first needs it.
 
 ## Consequences
 

@@ -92,12 +92,30 @@ def test_yes_copies_the_case_files_and_never_the_runner_log(tmp_path):
     )
 
 
-def test_retention_is_deterministic_for_a_seed():
-    ids = [f"T-{i:04d}" for i in range(100)]
-    first = archive.retained(ids, fraction=0.05, seed=3, named=[])
-    assert first == archive.retained(ids, fraction=0.05, seed=3, named=[])
-    assert len(first) == 5
+def test_retention_is_decided_per_case():
+    """Review (final) I7: a case's answer must not depend on which other cases
+    this invocation lists (a --split, a partial record), nor on NumPy's
+    stream, or a later prune could delete an ODB an earlier run meant to keep."""
+    ids = [f"T-{i:04d}" for i in range(1000)]
+    everything = archive.retained(ids, fraction=0.05, seed=3, named=[])
+    assert everything == archive.retained(ids, fraction=0.05, seed=3, named=[])
+    half = ids[::2]
+    assert archive.retained(half, fraction=0.05, seed=3, named=[]) == everything & set(
+        half
+    )
+    assert 25 <= len(everything) <= 80  # about 5 % of 1000
+    assert archive.retained(ids, fraction=0.05, seed=4, named=[]) != everything
     assert "T-0042" in archive.retained(ids, fraction=0.05, seed=3, named=["T-0042"])
+
+
+def test_named_cases_that_are_not_there_are_reported(tmp_path, capsys):
+    sweep, dataset, data = _sweep(tmp_path)
+    toml = (dataset / "sweep.toml").read_text(encoding="utf-8")
+    (dataset / "sweep.toml").write_text(
+        toml.replace('["T-0003"]', '["T-0003", "T-9999"]'), encoding="utf-8"
+    )
+    archive.main(_argv(sweep, dataset, data))
+    assert "T-9999" in capsys.readouterr().out
 
 
 def test_a_rerun_skips_verified_files_and_refuses_a_mismatch(tmp_path, capsys):
@@ -129,3 +147,35 @@ def test_prune_deletes_only_an_odb_its_export_vouches_for(tmp_path, capsys):
     for cid in keep:
         assert (sweep / cid / f"{cid}.odb").exists()
     assert bad in capsys.readouterr().out
+
+
+_DAT = (
+    "1\n\n   Abaqus 2025                                  Date 01-Jan-2026\n"
+    "   For use by An Invented Customer\n\n"
+    "   On machine build-box-17\n   you are authorized to run\n"
+    "   Abaqus/Explicit until 31-Dec-2099\n\n   Your site id is: 4242\n\n"
+    "   *   *   *   *\n   *   Abaqus   *\n"
+    " ***WARNING: THE PARAMETER HOURGLASS ON THE *SECTION CONTROLS\n"
+)
+
+
+def test_the_licence_header_never_reaches_the_data_tree(tmp_path):
+    """Review (final) I8: the printed file names the licensee, host and site,
+    like runner.log; what the readers need survives the redaction."""
+    sweep, dataset, data = _sweep(tmp_path)
+    for cid in ("T-0000", "T-0001"):
+        (sweep / cid / f"{cid}.dat").write_text(_DAT, encoding="utf-8")
+        (sweep / cid / f"{cid}.msg").write_text(
+            " Abaqus 2025\n Licensed to: seat 4242\n STEP 1\n", encoding="utf-8"
+        )
+    assert archive.main(_argv(sweep, dataset, data, "--yes")) == 0
+    raw = data / "raw" / "toy" / "abaqus" / "T-0000"
+    for name in ("T-0000.dat", "T-0000.msg"):
+        text = (raw / name).read_text(encoding="utf-8")
+        for secret in ("Invented", "build-box", "4242", "2099"):
+            assert secret not in text, (name, secret)
+        assert "Abaqus 2025" in text
+    assert "***WARNING" in (raw / "T-0000.dat").read_text(encoding="utf-8")
+    capsys_free = archive.main(_argv(sweep, dataset, data, "--yes"))
+    assert capsys_free == 0  # a re-run verifies the redacted copies, not the sources
+    assert (sweep / "T-0000" / "T-0000.dat").read_text(encoding="utf-8") == _DAT

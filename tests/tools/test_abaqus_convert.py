@@ -86,3 +86,17 @@ def test_main_prints_the_counts(tmp_path, capsys):
     _case(sweep, "T-0000")
     assert convert.main(["--sweep", str(sweep)]) == 0
     assert "written=1 skipped=0 failed=0" in capsys.readouterr().out
+
+
+def test_a_case_the_schema_refuses_does_not_stop_the_sweep(tmp_path):
+    """Review (final) I3: SchemaError is not a ValueError."""
+    sweep = tmp_path / "toy_sweep"
+    bad = _case(sweep, "T-0000")
+    _case(sweep, "T-0001")
+    deck = _FIXTURE._ADAPTER_DECK.replace(
+        "*MATERIAL, NAME=M\n", "*INCLUDE, INPUT=m.inp\n"
+    )
+    (bad / "T-0000.inp").write_text(deck, encoding="utf-8")
+    report = convert.convert_sweep(sweep)
+    assert report.written == ["T-0001"]
+    assert "SchemaError" in report.failed["T-0000"]

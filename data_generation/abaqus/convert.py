@@ -23,6 +23,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from structbench.core.exceptions import StructBenchError
 from structbench.core.io import abaqus_export_to_case, write_case
 
 
@@ -68,7 +69,13 @@ def convert_sweep(
             out.mkdir(parents=True, exist_ok=True)
             write_case(case, partial)
             os.replace(partial, target)
-        except (OSError, KeyError, ValueError, NotImplementedError) as exc:
+        except (
+            OSError,
+            KeyError,
+            ValueError,
+            NotImplementedError,
+            StructBenchError,
+        ) as exc:
             partial.unlink(missing_ok=True)
             report.failed[case_dir.name] = f"{type(exc).__name__}: {exc}"
             continue

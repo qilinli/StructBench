@@ -11,8 +11,9 @@
    measured from its deck and run record alone, so it is reported, not lost.
 3. Judges the record and writes ``run_evidence.json``, ``measurements.json``
    and ``report.md`` into ``<sweep>/datacheck/``.
-4. Prints the failing rows by case, and the lowest, median and highest value
-   of each measured-only row. Exits 1 on any ``fail``, else 0.
+4. Prints the cases with no canonical file, the failing rows by case, and
+   the lowest, median and highest value of each measured-only row. Exits 1
+   on any ``fail`` or any case without a canonical file, else 0.
 """
 
 from __future__ import annotations
@@ -91,6 +92,11 @@ def validate_sweep(
         if r.verdict is Verdict.FAIL
     ]
     print(f"cases={len(record.cases)} fail_rows={len(failing)} -> {out}")
+    missing = sorted(set(runs) - set(stored))
+    if missing:
+        # Measured on the deck and run record alone: their response rows read
+        # as absences, which a summary of fails would never show.
+        print(f"  no canonical file: {', '.join(missing)}")
     by_case: dict[str, list[str]] = defaultdict(list)
     for case_id, r in failing:
         by_case[case_id].append(f"{r.quantity}={r.value}")
@@ -110,7 +116,7 @@ def validate_sweep(
         if values:
             lo, mid, hi = np.min(values), np.median(values), np.max(values)
             print(f"  {q.name}: {lo:.4g} / {mid:.4g} / {hi:.4g} (n={len(values)})")
-    return 1 if failing else 0
+    return 1 if failing or missing else 0
 
 
 def main(argv: list[str] | None = None) -> int:

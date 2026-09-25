@@ -20,6 +20,7 @@ from structbench.core import (
     Case,
     ElementBlock,
     EnergyLedger,
+    EvidenceItem,
     InputFacts,
     MaterialInput,
     Metadata,
@@ -210,9 +211,12 @@ def test_no_plastic_dissipation_is_not_applicable() -> None:
     assert _row("plastic_dissipation_late_growth", case).not_applicable
 
 
-def test_without_the_global_the_source_is_missing() -> None:
+def test_without_the_global_the_energy_history_is_missing() -> None:
+    """Review (final) I5: what is missing is a series of the energy record,
+    not field output at the material points -- the report says which."""
     row = _row("plastic_dissipation_late_growth", _case(globals_={}))
     assert row.absence.reason is AbsenceReason.SOURCE_MISSING
+    assert row.absence.missing == {EvidenceItem.E5}
 
 
 # --- sampling_clock_consistent --------------------------------------------------
@@ -277,3 +281,20 @@ def test_a_terminal_artifact_frame_is_not_a_clock_mismatch() -> None:
     r.globals_ = {k: np.append(v, v[-1]) for k, v in r.globals_.items()}
     run = _run(np.linspace(0.0, 1.0e-5, _T))
     assert _row("sampling_clock_consistent", case, run=run).value == 0.0
+
+
+def test_a_declared_table_wins_and_the_disagreement_is_reported() -> None:
+    """Review Focus 4 (Decision 4): declared beats the input's own table."""
+    from structbench.core import DeclaredFacts
+
+    declared = DeclaredFacts(
+        unit_system="t-mm-s", yield_table=((0.0, 1.0), (120.0e6, 240.0e6))
+    )
+    result = measure_case(_case(), _facts(), declared, case_id="s")
+    rows = {m.quantity: m for m in result.measurements}
+    ratio = rows["yield_ratio_max"]
+    assert Location.DECLARED in ratio.locations
+    assert ratio.value == pytest.approx(1 / 1.2, rel=1e-6)  # the input sits 20 % below
+    assert rows["yield_table_matches_input"].value == pytest.approx(
+        0.2
+    )  # 20 of 100 MPa

@@ -75,6 +75,7 @@ def test_an_aborted_run_is_reported_as_a_failure(tmp_path, capsys):
     printed = capsys.readouterr().out
     assert "T-0001" in printed and "terminated_normally" in printed
     assert "measured only" in printed
+    assert "no canonical file: T-0001" in printed  # Review (final) I9
 
 
 def test_splits_narrow_the_cases(tmp_path):

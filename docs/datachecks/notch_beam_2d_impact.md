@@ -81,7 +81,7 @@ Does not apply to these runs: deepest penetration of a rigid surface; hourglass 
 | Largest energy gain during the run | — |  | not checked | the runs did not supply the global energy ledger |
 | Largest energy loss during the run | — |  | not checked | the runs did not supply the global energy ledger |
 | Momentum change against applied impulse | — |  | not checked | the runs did not supply applied loads and reaction forces over time |
-| Plastic dissipation still growing at the end | — |  | not checked | the runs did not supply field output at the material points |
+| Plastic dissipation still growing at the end | — |  | not checked | the runs did not supply the global energy ledger |
 
 Does not apply to these runs: contact energy against internal energy; kinetic energy in a quasi-static run; mass bookkeeping with scaling or deletion; negative contact energy; pressure against the equation of state.
 

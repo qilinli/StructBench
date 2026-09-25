@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from ...core import AbsenceReason, Case, DeclaredFacts, InputFacts
+from ...core import AbsenceReason, Case, DeclaredFacts, EvidenceItem, InputFacts
 from ...datasets import n_valid_frames
 from ..kernels import nonfinite_count
 from ..materials import material_class
@@ -274,7 +274,9 @@ def _plastic_dissipation_late_growth(
     assert case.response is not None
     stored = case.response.globals_.get("plastic_dissipation")
     if stored is None:
-        return field_gap(name)
+        # The series is the energy record's, stored with the case; a run that
+        # kept no plastic-dissipation history lacks E5, not field output.
+        return absent(name, AbsenceReason.SOURCE_MISSING, EvidenceItem.E5)
     work = np.asarray(stored, dtype=np.float64)
     if work[-1] == 0.0:
         return not_applicable(name)  # nothing yielded

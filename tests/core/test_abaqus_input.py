@@ -420,3 +420,19 @@ def test_erosion_needs_a_stated_failure_or_deletion_mechanism() -> None:
         erosion(_FLAT_2D.replace("*HEADING", "*HEADING\n*INCLUDE, INPUT=more.inp"))
         is None
     )
+
+
+def test_two_sections_with_two_materials_in_one_part_are_not_merged() -> None:
+    """Review (final) I2: the last section's material must not claim every element."""
+    second = (
+        "*MATERIAL, NAME=N\n*ELASTIC\n100000.0, 0.3\n"
+        "*SOLID SECTION, ELSET=F, MATERIAL=N\n"
+    )
+    deck = _FLAT_2D.replace(
+        "*INITIAL CONDITIONS, TYPE=VELOCITY",
+        second + "*INITIAL CONDITIONS, TYPE=VELOCITY",
+    )
+    f = read_abaqus_input_facts(deck, source_units="t-mm-s")
+    (part,) = f.parts
+    assert part.material_id == 0  # unresolved, not material 2
+    assert "unknown_card_layout:SOLID_SECTION" in f.unparsable

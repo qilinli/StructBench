@@ -570,7 +570,14 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
                 part_codes.setdefault(current_part, set()).add(code)
         elif word == "SOLID SECTION" and "MATERIAL" in options:
             if current_part is not None:
-                per_part.setdefault(current_part, {})["material"] = options["MATERIAL"]
+                block = per_part.setdefault(current_part, {})
+                if block.get("material", options["MATERIAL"]) != options["MATERIAL"]:
+                    # Sections of two materials in one part: a part carries one
+                    # material id, so keeping either would mislabel the other's
+                    # elements. Left unresolved rather than chosen.
+                    tokens.add("unknown_card_layout:SOLID_SECTION")
+                    block["material_conflict"] = True
+                block["material"] = options["MATERIAL"]
         elif word == "NODE":
             columns = [c for c in row.split(",") if c.strip()]
             if len(columns) >= 3:
@@ -737,7 +744,11 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     for name, pid in sorted(parts_by_name.items(), key=lambda kv: kv[1]):
         block = per_part.get(name, {})
         material_name = block.get("material")
-        material_id = materials_by_name.get(str(material_name), 0)
+        material_id = (
+            0
+            if block.get("material_conflict")
+            else materials_by_name.get(str(material_name), 0)
+        )
         if material_id == 0:
             # No material owns this part's section. Silently minting 0 -- an id
             # no material has -- would drop the part from every class-masked

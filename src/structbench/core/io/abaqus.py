@@ -57,6 +57,7 @@ __all__ = [
 ABAQUS_NPZ_FORMAT = "abaqus-npz/1"
 
 #: `*Energy Output` terms -> canonical global names (all ten are requested).
+#: ``total_energy`` is stored as ETOTAL + ALLWK: see the loop that fills it.
 _ENERGY = {
     "ALLKE": "kinetic_energy",
     "ALLIE": "internal_energy",
@@ -79,12 +80,12 @@ _NODE_FIELDS = {
 _STRESS_2D = ["S11", "S22", "S33", "S12"]
 #: Fields the end-of-step frame writes afresh rather than repeating. In every
 #: run of a 2026-09-24 sweep its A differed from frame N's, by up to 64 % of
-#: the field's peak; why is not established. Frame N, on the output grid and
-#: made the way every other frame is, is the one kept.
+#: frame N's largest magnitude; why is not established. Frame N, on the output
+#: grid and made the way every other frame is, is the one kept.
 _END_FRAME_RECOMPUTED = frozenset({"A"})
 #: Every other series must repeat frame N to float32 storage: in that sweep a
 #: few percent of runs re-stored a value or two a few ulp apart, at most
-#: 1.8e-7 of the field's peak. Any larger difference is a different state.
+#: 1.8e-7 of frame N's largest magnitude. Anything larger is a different state.
 _END_FRAME_RTOL = 1e-6
 #: Assembly energy outputs the identity was closed with: every addend, and the
 #: parts of ALLIE (ALLSE + ALLPD + ALLAE = ALLIE to 3e-8 on the same runs).
@@ -178,8 +179,14 @@ def read_abaqus_export(npz_path: str | Path) -> AbaqusExport:
 def _positions(
     labels: NDArray[Any], among: NDArray[Any], what: str
 ) -> NDArray[np.int64]:
-    """0-based positions of ``labels`` in ``among``; raises on a missing label."""
+    """0-based positions of ``labels`` in ``among``; raises on a missing label.
+
+    A label ``among`` holds twice is refused: keeping either copy would pick
+    one value for an entity that has two.
+    """
     lookup = {int(label): i for i, label in enumerate(among)}
+    if len(lookup) != len(among):
+        raise ValueError(f"{what} labels repeat; one value per {what} is expected")
     try:
         flat = [lookup[int(label)] for label in labels.ravel()]
     except KeyError as exc:
@@ -288,8 +295,16 @@ def abaqus_export_to_case(
         key = f"field/{step}/{name}/{inst}"
         if f"{key}/data" not in a:
             continue
-        if np.any(a[f"{key}/integration_points"] != 1):
-            raise NotImplementedError(f"{name}: more than one integration point")
+        points = a[f"{key}/integration_points"]
+        position = fields.get(key, {}).get("position", "INTEGRATION_POINT")
+        if (
+            position != "INTEGRATION_POINT"
+            or points.shape != a[f"{key}/element_labels"].shape
+            or np.any(points != 1)
+        ):
+            raise NotImplementedError(
+                f"{name}: not one integration point per element ({position})"
+            )
         order = _positions(element_id, a[f"{key}/element_labels"], f"{name} element")
         data = a[f"{key}/data"][:, order, :]
         if name == "PEEQ":
@@ -320,6 +335,14 @@ def abaqus_export_to_case(
         region, output = parts[2], parts[3]
         if region.startswith("Assembly") and output in _ENERGY:
             values = _clocked(export, key) * f["energy"]
+            if output == "ETOTAL":
+                # ETOTAL subtracts the external work; the canonical total is the
+                # energy content, ETOTAL + ALLWK, which is also the ledger's
+                # `solver_total`. Without ALLWK there is no such total to store.
+                work = key.rsplit("/", 1)[0] + "/ALLWK"
+                if work not in a:
+                    continue
+                values = values + _clocked(export, work) * f["energy"]
             globals_[_ENERGY[output]] = values.astype(np.float32)
         elif (at := _NODE_REGION.match(region)) and (rf := _REACTION.match(output)):
             label = int(at["label"])

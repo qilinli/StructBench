@@ -102,7 +102,7 @@ Does not apply to these runs: hourglass energy vs initial energy; hourglass ener
 | External work against the applied loads | — |  | not checked | the runs did not supply applied loads and reaction forces over time |
 | Internal energy: stored fields vs solver ledger | — |  | not checked | this instrument cannot measure it yet |
 | Momentum change against applied impulse | — |  | not checked | the runs did not supply applied loads and reaction forces over time |
-| Plastic dissipation still growing at the end | — |  | not checked | the runs did not supply field output at the material points |
+| Plastic dissipation still growing at the end | — |  | not checked | the runs did not supply the global energy ledger |
 | Pressure against the equation of state | — |  | not checked | this instrument cannot measure it yet |
 
 Does not apply to these runs: contact energy against internal energy; kinetic energy in a quasi-static run; mass bookkeeping with scaling or deletion; negative contact energy.

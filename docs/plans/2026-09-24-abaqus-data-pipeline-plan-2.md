@@ -392,7 +392,7 @@ def abaqus_export_to_case(
     - `source_units` from `provenance.json`.
   - Idempotent; prints `written=/skipped=/failed=` and the failure reasons.
   - **Test:** `tests/tools/test_abaqus_convert.py` uses the synthetic npz plus a fake `run.json` and `provenance.json`.
-- [ ] **Step 5: Real data.** Run `convert.py` on the conformance cases (the probe split in the private work root). Then:
+- [ ] **Step 5: Real data.** Run `convert.py` on the conformance cases in the private work root. Then:
   - `read_case` round-trips;
   - the frame count is 401;
   - `validate` passes;
@@ -528,7 +528,7 @@ def measure_cases(
 
 **Files:** none in the repository; output goes to `<work-root>/<name>/datacheck/`.
 
-- [ ] **Step 1: Convert.** Run `convert.py` on the production splits (500 cases). Record the `.h5` count, total size and any failures.
+- [ ] **Step 1: Convert.** Run `convert.py` on the production splits. Record the `.h5` count, total size and any failures.
 - [ ] **Step 2: Validate.** Run `validate.py` on the production splits.
 - [ ] **Step 3: Report to the maintainer:**
   - verdict counts per row;

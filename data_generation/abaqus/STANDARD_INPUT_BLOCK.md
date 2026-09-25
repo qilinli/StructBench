@@ -124,9 +124,9 @@ Two consequences for the readers:
   `Output Field Frame Number N+1` line after `Restart Number 1`, at the
   step's end time). Its U, V, S, PEEQ and every history output repeat
   frame N's to float32 storage (in a few percent of runs a value or two
-  differs by a few ulp, at most 1.8e-7 of the field's peak). **Its A does
+  differs by a few ulp, at most 1.8e-7 of frame N's largest magnitude). **Its A does
   not:** in every run of a 2026-09-24 sweep it differed from frame N's, by up
-  to 64 % of the field's peak, sign changes included. Why is not
+  to 64 % of frame N's largest magnitude, sign changes included. Why is not
   established. Consumers must expect that frame; the canonical adapter keeps
   frame N (`core/io/abaqus.py`).
 - **Field data are float32 under `double=both`** (npz dtypes; manifest
