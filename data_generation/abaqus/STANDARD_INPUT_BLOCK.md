@@ -141,6 +141,27 @@ Two consequences for the readers:
   ALLVD, ALLWK, ETOTAL` wrote all ten terms under the history region
   `Assembly Assembly-1`. They were sampled at the same instants as the field
   frames, including the duplicate end frame (npz `history/…`).
+- **The energy identity (E5).** Measured on the exports, as residual over
+  the initial kinetic energy, maximum over all samples:
+  - `ETOTAL = ALLKE + ALLIE + ALLVD + ALLFD + ALLCD − ALLWK` does **not**
+    close: 5e-4 to 1.2e-3 on six impact runs of a 2026-09-24 sweep that
+    requested the ten terms above (their files are named in that study's
+    notes). The residual grows during the first ~20 µs of contact and then
+    stays constant.
+  - A diagnostic rerun of one of them with `*Energy Output, variable=ALL`
+    wrote four more terms (`ALLCW`, `ALLDMD`, `ALLMW`, `ALLPW`). Only `ALLPW`
+    was non-zero (8.6e-4), and
+    `ETOTAL = ALLKE + ALLIE + ALLVD + ALLFD + ALLCD − ALLWK − ALLPW`
+    closes to **6.6e-8**: float32 storage. `ALLPW` is non-zero even with
+    kinematic contact against an analytical rigid surface.
+  - `ALLSE + ALLPD + ALLAE = ALLIE` to 3e-8 on the same runs, so these are
+    parts of `ALLIE`, not addends. `ALLCD`, `ALLFD`, `ALLCW`, `ALLMW` and
+    `ALLDMD` were zero throughout, so their place in the identity is not
+    exercised.
+
+  So a ledger needs `ALLPW` requested (see `abaqus_ledger` in
+  `core/io/abaqus.py`, which maps contact = `ALLFD − ALLPW`). Without it the
+  balance rows cannot be measured.
 - **Reaction (E7, partly).** `*Node Output` of `RF2` on the rigid body's
   reference node, in the history request, wrote region
   `Node <instance>.<label>`. That is the wall's reaction resultant.
@@ -216,12 +237,12 @@ whitelisted JSON record, exactly as the LS-DYNA glue does:
 These are **not established**. None is a recommendation; each is a question a
 sourced dossier and one conformance run must settle (ADR-0068 clause 8).
 
-1. **Energy output (E5), partly settled.** Which keyword requests the global
-   energy history, and what the terms are called, is now established (see
-   *Abaqus/Explicit* above). Two things are not. First, whether the terms'
-   sum reproduces `ETOTAL`: the identity has not been measured. Second,
+1. **Energy output (E5), partly settled.** The keyword, the term names and
+   the identity with `ALLPW` are established (see above). Not established:
+   where a non-zero `ALLCD`, `ALLCW`, `ALLMW` or `ALLDMD` enters it, and
    whether any term goes uncomputed unless asked for, the way LS-DYNA's
-   `*CONTROL_ENERGY` terms do.
+   `*CONTROL_ENERGY` terms do (`ETOTAL` closed with `ALLPW` although the
+   production decks never asked for it).
 2. **What `variable=PRESELECT` actually selects**, for both `*Output, field`
    and `*Output, history`. The Standard job used it for both. The Explicit jobs
    named their variables explicitly and did not use it. Whether it yields

@@ -360,3 +360,63 @@ def test_a_rate_dependent_suboption_withdraws_the_isotropic_class() -> None:
     )
     (m,) = read_abaqus_input_facts(deck, source_units="t-mm-s").materials
     assert m.canonical_model is None
+
+
+_PRODUCTION_ENERGY = (
+    "*OUTPUT, HISTORY, TIME INTERVAL=1e-06\n*ENERGY OUTPUT\n"
+    "ALLAE, ALLCD, ALLFD, ALLIE, ALLKE, ALLPD, ALLSE, ALLVD, ALLWK, ETOTAL\n"
+)
+
+
+def _with_energy(block: str):
+    deck = _FLAT_2D.replace("*END STEP\n", block + "*END STEP\n")
+    return read_abaqus_input_facts(deck, source_units="t-mm-s")
+
+
+def test_energy_output_rows_name_the_ledger_terms() -> None:
+    f = _with_energy(_PRODUCTION_ENERGY)
+    assert f.energy_terms_computed == {
+        "kinetic",
+        "internal",
+        "damping",
+        "external_work",
+        "zero_energy_mode",
+    }  # no contact: ALLPW is not requested
+    assert f.databases_requested is None
+
+
+def test_the_contact_term_needs_the_penalty_work() -> None:
+    f = _with_energy(_PRODUCTION_ENERGY.replace("ETOTAL", "ETOTAL, ALLPW"))
+    assert "contact" in f.energy_terms_computed
+
+
+def test_variable_all_requests_every_term() -> None:
+    f = _with_energy("*ENERGY OUTPUT, VARIABLE=ALL\n")
+    assert "contact" in f.energy_terms_computed and "kinetic" in f.energy_terms_computed
+
+
+def test_an_unread_energy_request_establishes_nothing() -> None:
+    assert (
+        _with_energy("*ENERGY OUTPUT, VARIABLE=PRESELECT\n").energy_terms_computed
+        is None
+    )
+    assert (
+        read_abaqus_input_facts(_FLAT_2D, source_units="t-mm-s").energy_terms_computed
+        is None
+    )
+
+
+def test_erosion_needs_a_stated_failure_or_deletion_mechanism() -> None:
+    def erosion(deck: str) -> bool | None:
+        return read_abaqus_input_facts(deck, source_units="t-mm-s").erosion_enabled
+
+    assert erosion(_FLAT_2D) is False
+    plastic = "*PLASTIC\n250.0, 0.0\n1250.0, 10.0\n"
+    damage = plastic + "*DAMAGE INITIATION, CRITERION=DUCTILE\n0.5, 0.3, 0.0\n"
+    assert erosion(_FLAT_2D.replace(plastic, damage)) is True
+    deletion = "HOURGLASS=ENHANCED, ELEMENT DELETION=YES"
+    assert erosion(_FLAT_2D.replace("HOURGLASS=ENHANCED", deletion)) is True
+    assert (
+        erosion(_FLAT_2D.replace("*HEADING", "*HEADING\n*INCLUDE, INPUT=more.inp"))
+        is None
+    )

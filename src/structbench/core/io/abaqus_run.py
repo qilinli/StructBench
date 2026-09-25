@@ -35,7 +35,12 @@ from ..evidence import (
 )
 from .lsdyna import unit_factors
 
-__all__ = ["mint_ids", "read_abaqus_input_facts", "read_abaqus_run_evidence"]
+__all__ = [
+    "ENERGY_LEDGER_TERMS",
+    "mint_ids",
+    "read_abaqus_input_facts",
+    "read_abaqus_run_evidence",
+]
 
 #: ``Abaqus/Standard 2025 ...`` in the status file, ``Abaqus 2025 ...`` in the
 #: message and printed files. The release year is the version token.
@@ -305,6 +310,33 @@ _ENDS_PART = frozenset({"END PART", "ASSEMBLY", "MATERIAL", "STEP"})
 #: Cards whose payload is a data block, so an ``input=`` option on one of them
 #: moves that payload into another file and hides it from this reader.
 _DATA_BEARING = frozenset({"NODE", "ELEMENT", "NSET", "ELSET", "SURFACE"})
+#: Whole-model energy outputs -> the ledger term each is (E5). Established on
+#: a 2026-09-24 diagnostic run requesting every energy variable, where
+#: ETOTAL = ALLKE + ALLIE + ALLVD + ALLFD + ALLCD - ALLWK - ALLPW closed to
+#: 6.6e-8 of the initial kinetic energy (STANDARD_INPUT_BLOCK.md). ALLAE is
+#: part of ALLIE, not an addend. The contact term is ALLFD - ALLPW, so it
+#: exists only when both are output: see ``_CONTACT_OUTPUTS``.
+ENERGY_LEDGER_TERMS: dict[str, str] = {
+    "ALLKE": "kinetic",
+    "ALLIE": "internal",
+    "ALLVD": "damping",
+    "ALLWK": "external_work",
+    "ALLAE": "zero_energy_mode",
+}
+_CONTACT_OUTPUTS = frozenset({"ALLFD", "ALLPW"})
+#: Cards that give a material a way to fail, the only way an Explicit element
+#: is deleted; `*Section Controls, element deletion=YES` states it outright.
+#: Read, like `*Mass Scaling` and `*Damping`, by the card's presence.
+_FAILURE_CARDS = frozenset(
+    {
+        "DAMAGE INITIATION",
+        "DAMAGE EVOLUTION",
+        "SHEAR FAILURE",
+        "TENSILE FAILURE",
+        "BRITTLE FAILURE",
+        "USER MATERIAL",
+    }
+)
 
 
 def mint_ids(names: list[str]) -> dict[str, int]:
@@ -484,6 +516,10 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     velocity_read = hardening_read = True
     n_steps = 0
     periods: list[float] = []
+    # Whole-model energy outputs named by `*Energy Output`; `None` once a card
+    # asks in a way this reader does not resolve (a preselected set, a region).
+    energy_outputs: set[str] | None = set()
+    energy_cards = 0
 
     for index, line in enumerate(lines):
         if not line.startswith("*"):
@@ -598,6 +634,22 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
                 )
         elif word == "STEP":
             n_steps += 1
+        elif word == "ENERGY OUTPUT":
+            energy_cards += 1
+            variable = options.get("VARIABLE", "").upper()
+            if (
+                set(options) - {"VARIABLE"}
+                or _flags(line)
+                or variable not in ("", "ALL")
+            ):
+                tokens.add("unknown_card_layout:ENERGY_OUTPUT")
+                energy_outputs = None
+            elif energy_outputs is not None:
+                if variable == "ALL":
+                    energy_outputs |= set(ENERGY_LEDGER_TERMS) | _CONTACT_OUTPUTS
+                else:
+                    rows = _data_rows(lines, index)
+                    energy_outputs |= {c.upper() for r in rows for c in r if c}
         elif word == "STATIC":
             time_integration = "implicit"
         elif word == "DYNAMIC":
@@ -714,7 +766,15 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
         end_time=periods[0] if n_steps == 1 and len(periods) == 1 else None,
         other_termination_criteria=frozenset(),
         mass_scaling_enabled=requested("MASS SCALING" in keywords),
-        erosion_enabled=None,  # element deletion is a `*Section Controls` option
+        erosion_enabled=requested(
+            bool(keywords & _FAILURE_CARDS)
+            or any(
+                _keyword(ln) == "SECTION CONTROLS"
+                and _options(ln).get("ELEMENT DELETION", "").upper() == "YES"
+                for ln in lines
+                if ln.startswith("*")
+            )
+        ),
         contact_defined=requested(
             any(k.startswith("CONTACT") or k == "SURFACE INTERACTION" for k in keywords)
         ),
@@ -723,9 +783,15 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
         rigid_planes=(),
         particle_pairwise_conservative=None,
         smoothing_length_scale_bounds=None,
-        # ADR-0068 clause 8: the Abaqus output-request vocabulary is deferred
-        # until the claim dossier exists, so neither of these is established.
-        energy_terms_computed=None,
+        # Abaqus computes every term whatever is asked; what a ledger can hold
+        # is what `*Energy Output` writes. The database vocabulary stays
+        # deferred (ADR-0068 clause 8).
+        energy_terms_computed=None
+        if hidden or not energy_cards or energy_outputs is None
+        else frozenset(
+            {ENERGY_LEDGER_TERMS[n] for n in energy_outputs if n in ENERGY_LEDGER_TERMS}
+            | ({"contact"} if _CONTACT_OUTPUTS <= energy_outputs else set())
+        ),
         databases_requested=None,
         unparsable=frozenset(tokens),
         solver="abaqus",

@@ -36,15 +36,17 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from ..evidence import EnergyLedger
 from ..schema import Case, ElementBlock, Material, Metadata, Nodes, Provenance, Response
 from ..validation import validate
-from .abaqus_run import read_abaqus_input_facts
+from .abaqus_run import ENERGY_LEDGER_TERMS, read_abaqus_input_facts
 from .lsdyna import unit_factors
 
 __all__ = [
     "ABAQUS_NPZ_FORMAT",
     "AbaqusExport",
     "abaqus_export_to_case",
+    "abaqus_ledger",
     "read_abaqus_export",
 ]
 
@@ -81,6 +83,14 @@ _END_FRAME_RECOMPUTED = frozenset({"A"})
 #: few percent of runs re-stored a value or two a few ulp apart, at most
 #: 1.8e-7 of the field's peak. Any larger difference is a different state.
 _END_FRAME_RTOL = 1e-6
+#: Assembly energy outputs the identity was closed with: every addend, and the
+#: parts of ALLIE (ALLSE + ALLPD + ALLAE = ALLIE to 3e-8 on the same runs).
+#: ALLCD was zero in the closing run, so a non-zero ALLCD -- or any other
+#: output, non-zero -- leaves the ledger unestablished rather than guessed.
+_LEDGER_CLOSED = frozenset(
+    {"ALLKE", "ALLIE", "ALLVD", "ALLFD", "ALLPW", "ALLWK", "ETOTAL", "ALLAE"}
+    | {"ALLPD", "ALLSE"}
+)
 _NODE_REGION = re.compile(r"^Node (?P<instance>.+)\.(?P<label>\d+)$")
 _REACTION = re.compile(r"^RF(?P<k>[1-3])$")
 _RELEASE_YEAR = re.compile(r"\b(\d{4})\b")
@@ -349,3 +359,50 @@ def abaqus_export_to_case(
     )
     validate(case)
     return case
+
+
+def abaqus_ledger(npz_path: str | Path, *, source_units: str) -> EnergyLedger | None:
+    """The run's energy ledger (E5) from an export's Assembly history.
+
+    The identity is the one established on a diagnostic run
+    (``ENERGY_LEDGER_TERMS``): kinetic + internal + damping + contact equals
+    ``ETOTAL + ALLWK``, with contact = ALLFD - ALLPW. An export without ALLPW
+    has no contact term, and the balance rows then read ``source_missing``.
+
+    Returns
+    -------
+    EnergyLedger or None
+        ``None`` when the export lacks ALLKE, ALLIE, ALLVD, ALLWK or ETOTAL,
+        or carries a non-zero output the identity was not closed with.
+    """
+    f = unit_factors(source_units)
+    export = read_abaqus_export(npz_path)
+    prefix = f"history/{export.step}/"
+    history = {
+        key.rsplit("/", 1)[1]: _clocked(export, key)
+        for key in export.arrays
+        if key.startswith(prefix) and key.split("/")[2].startswith("Assembly")
+    }
+    if not {"ALLKE", "ALLIE", "ALLVD", "ALLWK", "ETOTAL"} <= set(history):
+        return None
+    if any(
+        name not in _LEDGER_CLOSED and np.any(series != 0.0)
+        for name, series in history.items()
+    ):
+        return None
+    joules = {name: series * f["energy"] for name, series in history.items()}
+    terms = {
+        term: joules[name]
+        for name, term in ENERGY_LEDGER_TERMS.items()
+        if name in joules
+    }
+    identity = {"kinetic": 1, "internal": 1, "damping": 1}
+    if {"ALLFD", "ALLPW"} <= set(joules):
+        terms["contact"] = joules["ALLFD"] - joules["ALLPW"]
+        identity["contact"] = 1
+    return EnergyLedger(
+        time=tuple(float(x) for x in export.time * f["time"]),
+        terms={k: tuple(float(x) for x in v) for k, v in terms.items()},
+        identity=identity,
+        solver_total=tuple(float(x) for x in joules["ETOTAL"] + joules["ALLWK"]),
+    )

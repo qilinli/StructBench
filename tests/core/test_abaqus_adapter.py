@@ -14,7 +14,11 @@ import json
 import numpy as np
 import pytest
 
-from structbench.core.io.abaqus import ABAQUS_NPZ_FORMAT, abaqus_export_to_case
+from structbench.core.io.abaqus import (
+    ABAQUS_NPZ_FORMAT,
+    abaqus_export_to_case,
+    abaqus_ledger,
+)
 from structbench.core.validation import validate
 
 _ADAPTER_DECK = """*HEADING
@@ -224,3 +228,68 @@ def test_an_end_frame_equal_to_float32_storage_is_a_duplicate(tmp_path):
     np.testing.assert_array_equal(
         case.response.element["solid"]["stress"][-1, 0, 0], a[key][1, 0, 0] * 1e6
     )
+
+
+# --- the energy ledger (plan 2, Task 6) -------------------------------------
+
+
+def _with(a, **terms):
+    """`a` with Assembly history terms set to (0, v, v) in mJ."""
+    t = a["step/S/frame_times"]
+    for term, v in terms.items():
+        a[f"history/S/Assembly Assembly-1/{term}"] = np.stack([t, [0.0, v, v]], -1)
+    return a
+
+
+def _ledger(tmp_path, a):
+    path = tmp_path / "toy.npz"
+    np.savez(path, **a)
+    return abaqus_ledger(path, source_units="t-mm-s")
+
+
+def test_the_ledger_maps_the_established_identity(tmp_path):
+    """ETOTAL = ALLKE + ALLIE + ALLVD + ALLFD + ALLCD - ALLWK - ALLPW closed to
+    6.6e-8 of the initial kinetic energy on a diagnostic run requesting every
+    energy variable (STANDARD_INPUT_BLOCK.md, "Energy identity")."""
+    a = _with(_arrays(), ALLCD=0.0, ALLPW=3.0)
+    ledger = _ledger(tmp_path, a)
+    assert set(ledger.terms) == {
+        "kinetic",
+        "internal",
+        "damping",
+        "contact",
+        "zero_energy_mode",
+        "external_work",
+    }
+    assert dict(ledger.identity) == {
+        "kinetic": 1,
+        "internal": 1,
+        "damping": 1,
+        "contact": 1,
+    }
+    assert ledger.time == pytest.approx((0.0, 0.0005))  # duplicate dropped
+    fd = 1.0 + _TERMS.index("ALLFD")
+    assert ledger.terms["contact"] == pytest.approx((0.0, (fd - 3.0) * 1e-3))
+    ke, total, work = (1.0 + _TERMS.index(n) for n in ("ALLKE", "ETOTAL", "ALLWK"))
+    assert ledger.terms["kinetic"] == pytest.approx((0.0, ke * 1e-3))
+    assert ledger.solver_total == pytest.approx((0.0, (total + work) * 1e-3))
+
+
+def test_without_the_penalty_work_there_is_no_contact_term(tmp_path):
+    """The 2026-09-24 production decks did not request ALLPW: the ledger then
+    carries no contact term, so the balance rows read source_missing."""
+    ledger = _ledger(tmp_path, _with(_arrays(), ALLCD=0.0))
+    assert "contact" not in ledger.terms
+    assert "contact" not in ledger.identity
+
+
+@pytest.mark.parametrize("term", ["ALLCD", "ALLCW", "ALLMW"])
+def test_a_term_the_identity_was_not_closed_with_is_not_guessed(tmp_path, term):
+    """Only zero-valued ALLCD, ALLCW, ALLMW were in the closing run."""
+    assert _ledger(tmp_path, _with(_arrays(), ALLPW=3.0, **{term: 2.0})) is None
+
+
+def test_an_export_without_etotal_has_no_ledger(tmp_path):
+    a = _arrays()
+    del a["history/S/Assembly Assembly-1/ETOTAL"]
+    assert _ledger(tmp_path, a) is None
