@@ -146,6 +146,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -298,6 +306,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -349,12 +367,14 @@
           "value": 0.000294453368
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -736,6 +756,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -888,6 +916,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -939,12 +977,14 @@
           "value": 0.000296958392
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -1326,6 +1366,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -1478,6 +1526,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -1529,12 +1587,14 @@
           "value": 0.000304077655
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -1916,6 +1976,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -2068,6 +2136,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -2119,12 +2197,14 @@
           "value": 0.000357682487
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -2506,6 +2586,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -2658,6 +2746,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -2709,12 +2807,14 @@
           "value": 0.000389356535
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -3096,6 +3196,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -3248,6 +3356,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -3299,12 +3417,14 @@
           "value": 0.00034257108
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -3686,6 +3806,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -3838,6 +3966,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -3889,12 +4027,14 @@
           "value": 0.000349389758
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -4276,6 +4416,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -4428,6 +4576,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -4479,12 +4637,14 @@
           "value": 0.000370201092
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -4866,6 +5026,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -5018,6 +5186,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -5069,12 +5247,14 @@
           "value": 0.000362834796
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -5456,6 +5636,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -5608,6 +5796,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -5659,12 +5857,14 @@
           "value": 0.00033530397
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -6046,6 +6246,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -6198,6 +6406,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -6249,12 +6467,14 @@
           "value": 0.000347965067
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -6636,6 +6856,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -6788,6 +7016,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -6839,12 +7077,14 @@
           "value": 0.000279486315
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -7226,6 +7466,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -7378,6 +7626,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -7429,12 +7687,14 @@
           "value": 0.000275594318
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -7816,6 +8076,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -7968,6 +8236,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -8019,12 +8297,14 @@
           "value": 0.000272232244
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -8406,6 +8686,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -8558,6 +8846,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -8609,12 +8907,14 @@
           "value": 0.000333233407
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -8996,6 +9296,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -9148,6 +9456,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -9199,12 +9517,14 @@
           "value": 0.000334374743
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -9586,6 +9906,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -9738,6 +10066,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -9789,12 +10127,14 @@
           "value": 0.000333025489
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -10176,6 +10516,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -10328,6 +10676,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -10379,12 +10737,14 @@
           "value": 0.000331361448
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -10766,6 +11126,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -10918,6 +11286,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -10969,12 +11347,14 @@
           "value": 0.000351075219
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -11356,6 +11736,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -11508,6 +11896,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -11559,12 +11957,14 @@
           "value": 0.000301204292
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -11946,6 +12346,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -12098,6 +12506,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -12149,12 +12567,14 @@
           "value": 0.00029866248
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -12536,6 +12956,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -12688,6 +13116,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -12739,12 +13177,14 @@
           "value": 0.000316944109
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -13126,6 +13566,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -13278,6 +13726,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -13329,12 +13787,14 @@
           "value": 0.000288438886
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -13716,6 +14176,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -13868,6 +14336,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -13919,12 +14397,14 @@
           "value": 0.000289832611
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -14306,6 +14786,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -14458,6 +14946,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -14509,12 +15007,14 @@
           "value": 0.000297587268
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -14896,6 +15396,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -15048,6 +15556,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -15099,12 +15617,14 @@
           "value": 0.000331573324
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -15486,6 +16006,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -15638,6 +16166,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -15689,12 +16227,14 @@
           "value": 0.000326222876
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -16076,6 +16616,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -16228,6 +16776,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -16279,12 +16837,14 @@
           "value": 0.000343009034
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -16666,6 +17226,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -16818,6 +17386,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -16869,12 +17447,14 @@
           "value": 0.000313856076
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -17256,6 +17836,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -17408,6 +17996,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -17459,12 +18057,14 @@
           "value": 0.000323096193
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -17846,6 +18446,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -17998,6 +18606,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -18049,12 +18667,14 @@
           "value": 0.00031754458
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -18436,6 +19056,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -18588,6 +19216,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -18639,12 +19277,14 @@
           "value": 0.000323389094
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -19026,6 +19666,14 @@
           "unit": "1"
         },
         {
+          "absence": {
+            "missing": [],
+            "reason": "unsupported"
+          },
+          "quantity": "initial_state_matches_input",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "input_constants_plausible",
           "unit": "Pa"
@@ -19178,6 +19826,16 @@
           "value": 0.0
         },
         {
+          "absence": {
+            "missing": [
+              "E8"
+            ],
+            "reason": "source_missing"
+          },
+          "quantity": "plastic_dissipation_late_growth",
+          "unit": "1"
+        },
+        {
           "not_applicable": true,
           "quantity": "prescribed_motion_realised",
           "unit": "1"
@@ -19229,12 +19887,14 @@
           "value": 0.000361640142
         },
         {
-          "absence": {
-            "missing": [],
-            "reason": "unsupported"
-          },
+          "locations": [
+            "case",
+            "run"
+          ],
+          "n_samples": 151,
           "quantity": "sampling_clock_consistent",
-          "unit": "1"
+          "unit": "1",
+          "value": 0.0
         },
         {
           "not_applicable": true,
@@ -19482,6 +20142,7 @@
     "energy_loss_max": 1,
     "energy_residual_final": 1,
     "fields_match_declaration": 1,
+    "initial_state_matches_input": 1,
     "input_constants_plausible": 1,
     "input_density_plausible": 1,
     "input_dimensionless_groups_plausible": 1,
@@ -19494,10 +20155,12 @@
     "particle_neighbors_growth": 1,
     "particle_neighbors_min": 1,
     "plane_strain_ezz_max": 1,
+    "plastic_dissipation_late_growth": 1,
     "pressure_trace_residual": 1,
     "reached_end_time": 1,
     "response_magnitudes_plausible": 1,
     "rigid_surface_penetration_max": 1,
+    "sampling_clock_consistent": 1,
     "smoothing_length_at_bound_fraction": 1,
     "smoothing_length_within_input_bounds": 1,
     "solver_error_count": 1,

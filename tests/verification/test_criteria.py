@@ -127,6 +127,7 @@ def test_the_quantities_shipped_without_a_criterion_are_the_named_ones() -> None
         "rigid_surface_penetration_max",
         "smoothing_length_at_bound_fraction",
         "yield_ratio_max",
+        "plastic_dissipation_late_growth",  # measured only (plan 2)
     }
 
 

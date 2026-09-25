@@ -858,3 +858,50 @@ requirement working as designed — the same reading notch gets, for the same
 reason — and it is the argument for
 `data_generation/abaqus/STANDARD_INPUT_BLOCK.md` existing before any Abaqus
 data is generated rather than after.
+
+## Solid-block note (2026-09-25, agent): three rows, and where the yield table comes from
+
+Plan 2 of the Abaqus pipeline (`docs/plans/2026-09-24-abaqus-data-pipeline-plan-2.md`)
+took the instrument onto meshed continuum elements. The maintainer accepted its
+six decisions as proposed; these are the ones that touch this ADR.
+
+**The constitutive rows read `solid` blocks.** `yield_ratio_max`,
+`yield_saturation_min`, `state_variable_decrease_max` and `state_variable_min`
+now read every block in `STATE_BLOCKS` (`sph`, `solid`) whose material class
+calls for them (clause 6), concatenated on the element axis. They left the
+particle-only set; on an SPH-only case they measure exactly as before.
+
+**The yield table: declared if declared, otherwise the input's own.** A sweep
+that varies the hardening across cases has no single curve to declare, so
+`yield_ratio_max` and `yield_saturation_min` no longer require
+`declared.yield_table`. When one is declared it still wins, and
+`yield_table_matches_input` reports any disagreement with the input. When
+none is declared, each case is judged against the one table its own input
+states, and the measurement's location says `input` rather than `declared`.
+`yield_table_covers_range` still needs the declared table.
+
+**Three rows are built.**
+- `initial_state_matches_input` (data integrity, E1 + E8, bears on the
+  response): the worst deviation of the first stored frame from the initial
+  velocity and hardening the input states, each scaled by its largest stated
+  magnitude. Instrument tolerance 1e-5, provisional, argued from float32
+  storage. It is `unsupported` for a reader that does not parse initial
+  conditions (LS-DYNA today), `not_applicable` when the input states none,
+  and `unparsable` when the reader refused a target.
+- `plastic_dissipation_late_growth` (conservation, E8): the share of the final
+  plastic dissipation done after frame ⌊0.9 T⌋. It is measured only, with no
+  criterion, like every energy indicator.
+- `sampling_clock_consistent` (data integrity, E5 + E8 + E9), open since the
+  coverage note: the number of stored frames with no ledger sample at the same
+  instant. "The same instant" is the closures' alignment (1e-2 of the median
+  stored interval), not an exact match, because LS-DYNA prints its ledger
+  times to six digits. It is a requirement of zero.
+
+The two published LS-DYNA records were re-measured with the new catalogue and
+change only in these three rows. `initial_state_matches_input` reads
+`unsupported` (the LS-DYNA reader parses no initial conditions) and
+`plastic_dissipation_late_growth` reads `source_missing` on both. On Taylor,
+`sampling_clock_consistent` now measures 0 on all 33 cases: its terminal
+frame, off the grid, is `terminal_artifact_frames`'s to report, so it is
+not counted again here. Notch keeps no ledger, so the row stays
+`source_missing` there.

@@ -31,6 +31,9 @@ MeasureFn = Callable[
 CaseMeasureFn = Callable[[Case, InputFacts | None, DeclaredFacts | None], Measurement]
 
 PARTICLES = "sph"  # element-block key of particle elements in the case schema
+#: Element blocks whose integration points carry a constitutive state: SPH
+#: particles, and meshed continuum elements (plan 2, Decision 5).
+STATE_BLOCKS = (PARTICLES, "solid")
 
 
 def needs_case(fn: CaseMeasureFn) -> MeasureFn:
@@ -107,20 +110,30 @@ def known_particles(case: Case, facts: InputFacts | None) -> NDArray[np.bool_]:
     return np.isin(block.part_id, [p.part_id for p in facts.parts])
 
 
+def element_field(
+    case: Case, block: str, name: str, keep: NDArray[np.bool_]
+) -> NDArray[np.float32] | None:
+    """One element-block response field ``(T, E_kept, ...)``, or ``None``."""
+    if case.response is None:
+        return None
+    data = case.response.element.get(block, {}).get(name)
+    return None if data is None else data[:, keep]
+
+
 def particle_field(
     case: Case, name: str, keep: NDArray[np.bool_]
 ) -> NDArray[np.float32] | None:
     """One particle response field ``(T, P_kept, ...)``, or ``None`` if not stored."""
-    if case.response is None:
-        return None
-    data = case.response.element.get(PARTICLES, {}).get(name)
-    return None if data is None else data[:, keep]
+    return element_field(case, PARTICLES, name, keep)
 
 
 def class_mask(
-    case: Case, facts: InputFacts, wanted: Callable[[MaterialClass], bool]
+    case: Case,
+    facts: InputFacts,
+    wanted: Callable[[MaterialClass], bool],
+    block: str = PARTICLES,
 ) -> NDArray[np.bool_]:
-    """Particles whose part's material class satisfies ``wanted``."""
+    """Elements of ``block`` whose part's material class satisfies ``wanted``."""
     by_id = {m.material_id: m for m in facts.materials}
     parts: list[int] = []
     for part in facts.parts:
@@ -128,4 +141,4 @@ def class_mask(
         cls = material_class(material.canonical_model) if material else None
         if cls is not None and wanted(cls):
             parts.append(part.part_id)
-    return np.isin(case.elements[PARTICLES].part_id, parts)
+    return np.isin(case.elements[block].part_id, parts)

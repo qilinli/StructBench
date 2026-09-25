@@ -155,6 +155,7 @@ _TITLES: dict[str, str] = {
     "active_mass_drift": "Drift of the total mass",
     "mass_closure": "Mass bookkeeping with scaling or deletion",
     "eos_closure": "Pressure against the equation of state",
+    "plastic_dissipation_late_growth": "Plastic dissipation still growing at the end",
     # constitutive
     "yield_ratio_max": "Largest stress relative to the yield surface",
     "yield_saturation_min": "Yielding material sits on the yield surface",
@@ -185,6 +186,7 @@ _TITLES: dict[str, str] = {
     "input_requests_required_evidence": "Output the input asks the solver to write",
     "sampling_clock_consistent": "Energy ledger sampled on the field-output clock",
     "stored_globals_match_ledger": "Stored global energies against the solver's ledger",
+    "initial_state_matches_input": "First stored frame against the initial state",
 }
 
 #: Ratios a reader takes in as a percentage.
@@ -214,6 +216,8 @@ _PERCENT = frozenset(
         "eos_closure",
         "density_slot_matches_input",
         "pressure_trace_residual",
+        "initial_state_matches_input",
+        "plastic_dissipation_late_growth",
     }
 )
 #: Whole numbers.
@@ -233,6 +237,7 @@ _COUNTS = frozenset(
         "fields_match_declaration",
         "declared_traits_match_input",
         "yield_table_monotone",
+        "sampling_clock_consistent",
     }
 )
 #: One means yes.
@@ -268,6 +273,8 @@ _BEARS_ON: dict[str, BearsOn] = {
     "density_slot_matches_input": "response",
     "elements_without_input_part": "response",
     "eos_closure": "response",
+    "initial_state_matches_input": "response",
+    "plastic_dissipation_late_growth": "response",
     "internal_energy_closure": "response",
     "kinetic_energy_closure": "response",
     "nonfinite_count": "response",
@@ -668,6 +675,14 @@ _ROWS = (
         "stored pressure disagrees with the equation of state",
         gate=TraitGate(needs_eos_material=True),
     ),
+    _row(
+        "plastic_dissipation_late_growth",
+        _C,
+        "1",
+        {E.E8},
+        "plastic work is still growing at the end (the run stopped too early)",
+        implemented=True,
+    ),
     # --------------------------------------------------------- constitutive
     _row(
         "yield_ratio_max",
@@ -676,7 +691,6 @@ _ROWS = (
         {E.E1, E.E8},
         "stress lies outside the yield surface (export or post-processing error)",
         gate=_YIELD,
-        declared=("yield_table",),
         implemented=True,
     ),
     _row(
@@ -686,7 +700,6 @@ _ROWS = (
         {E.E1, E.E8},
         "yielding material sits far inside the surface (stress or table scale error)",
         gate=_YIELD,
-        declared=("yield_table",),
         implemented=True,
     ),
     _row(
@@ -893,6 +906,15 @@ _ROWS = (
         "1",
         {E.E5, E.E8, E.E9},
         "the ledger is not sampled on the field-output clock",
+        implemented=True,
+    ),
+    _row(
+        "initial_state_matches_input",
+        _D,
+        "1",
+        {E.E1, E.E8},
+        "the first stored frame is not the initial state the input states",
+        implemented=True,
     ),
     _row(
         "stored_globals_match_ledger",
