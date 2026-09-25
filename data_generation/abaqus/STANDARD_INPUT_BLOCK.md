@@ -162,6 +162,7 @@ Two consequences for the readers:
   So a ledger needs `ALLPW` requested (see `abaqus_ledger` in
   `core/io/abaqus.py`, which maps contact = `ALLFD − ALLPW`). Without it the
   balance rows cannot be measured.
+  Since 2026-09-25 the shared deck writer requests it (`deck.ENERGY_TERMS`).
 - **Reaction (E7, partly).** `*Node Output` of `RF2` on the rigid body's
   reference node, in the history request, wrote region
   `Node <instance>.<label>`. That is the wall's reaction resultant.

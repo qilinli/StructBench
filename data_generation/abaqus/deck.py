@@ -15,6 +15,9 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 #: Whole-model energy terms requested on the history clock (the E5 ledger).
+#: ALLPW (contact penalty work) is non-zero even with kinematic contact against
+#: an analytical rigid surface, and ETOTAL closes only with it
+#: (STANDARD_INPUT_BLOCK.md, "The energy identity").
 ENERGY_TERMS = (
     "ALLAE",
     "ALLCD",
@@ -22,6 +25,7 @@ ENERGY_TERMS = (
     "ALLIE",
     "ALLKE",
     "ALLPD",
+    "ALLPW",
     "ALLSE",
     "ALLVD",
     "ALLWK",
