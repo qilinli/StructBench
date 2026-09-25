@@ -21,7 +21,7 @@
 
 ## Global Constraints
 
-- **Branch** `feat/abaqus-pipeline-2`. **Interpreter** `PY=/c/Users/kylin/.venvs/structbench/Scripts/python.exe`.
+- **Branch** `feat/abaqus-pipeline-2`. **Interpreter** `PY=<venv>/Scripts/python.exe`.
 - **Gates** before every commit (full suite; no CI):
   ```bash
   set -o pipefail; $PY -m ruff format --check . && $PY -m ruff check . && $PY -m mypy src && $PY -m pytest -q && $PY tools/gen_benchmark_docs.py --check

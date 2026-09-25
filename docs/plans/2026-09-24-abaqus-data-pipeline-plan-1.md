@@ -25,10 +25,10 @@
 ## Global Constraints
 
 - **Branch:** `feat/abaqus-data-pipeline`. Never commit to `main`. Merging and pushing happen only on the maintainer's word (ADR-0023).
-- **Interpreter:** `PY=/c/Users/kylin/.venvs/structbench/Scripts/python.exe`, the uv env outside the repo. Never create a venv inside the repo.
+- **Interpreter:** `PY=<venv>/Scripts/python.exe`, the uv env outside the repo. Never create a venv inside the repo.
 - **Gates** (all must pass before every commit; there is no CI):
   ```bash
-  set -o pipefail; PY=/c/Users/kylin/.venvs/structbench/Scripts/python.exe
+  set -o pipefail; PY=<venv>/Scripts/python.exe
   $PY -m ruff format --check . && $PY -m ruff check . && $PY -m mypy src && $PY -m pytest -q && $PY tools/gen_benchmark_docs.py --check
   ```
   Run the **full** suite; test directories have no `__init__.py`, so test file basenames must be unique across `tests/`.
@@ -105,8 +105,8 @@ datagen = [
 - [ ] **Step 3: Relock and install without removing anything already in the env**
 
 ```bash
-cd /c/Users/kylin/Desktop/StructBench && uv lock && UV_PROJECT_ENVIRONMENT=/c/Users/kylin/.venvs/structbench uv sync --inexact --extra dev --extra datagen
-/c/Users/kylin/.venvs/structbench/Scripts/python.exe -c "import scipy, scipy.stats.qmc as q; print(scipy.__version__); q.Sobol(d=2, scramble=True, rng=__import__('numpy').random.default_rng(1)).random_base2(m=3)"
+cd <repo> && uv lock && UV_PROJECT_ENVIRONMENT=<venv> uv sync --inexact --extra dev --extra datagen
+<venv>/Scripts/python.exe -c "import scipy, scipy.stats.qmc as q; print(scipy.__version__); q.Sobol(d=2, scramble=True, rng=__import__('numpy').random.default_rng(1)).random_base2(m=3)"
 ```
 Expected: a version ≥ 1.15 and no error. Sobol's `rng=` keyword needs ≥ 1.15. If it raises `TypeError`, the lock resolved an older scipy, so fix the lock rather than the code.
 
@@ -1227,7 +1227,7 @@ Also move the companion note from StructBench `scratch/` into `<private-repo>/ab
 - [ ] **Step 2: Dry run (counts only; no model code runs)**
 
 ```bash
-cd /c/Users/kylin/Desktop/StructBench && $PY data_generation/abaqus/generate.py --dataset <private-repo>/abaqus/<dataset> --work-root /c/structbench-runs --dry-run
+cd <repo> && $PY data_generation/abaqus/generate.py --dataset <private-repo>/abaqus/<dataset> --work-root /c/structbench-runs --dry-run
 ```
 Expected: one line per split, and the counts equal those in the companion note's "Expected checks".
 
@@ -1686,7 +1686,7 @@ git commit -m "feat(datagen): Abaqus runner with resumable case state and a run 
 - [ ] **Step 3: Run in the background**
 
 ```bash
-cd /c/Users/kylin/Desktop/StructBench && $PY data_generation/abaqus/run_jobs.py --sweep /c/structbench-runs/<dataset> --split pilot --split probe --workers 6
+cd <repo> && $PY data_generation/abaqus/run_jobs.py --sweep /c/structbench-runs/<dataset> --split pilot --split probe --workers 6
 ```
 (Use a background run and wait for the notification.) Expected: seven result lines and a summary.
 
@@ -2006,8 +2006,8 @@ if __name__ == "__main__":
 - [ ] **Step 5: Export the conformance ODBs and check the file**
 
 ```bash
-cd /c/structbench-runs/<dataset> && abaqus python /c/Users/kylin/Desktop/StructBench/data_generation/abaqus/odb_export.py --sweep /c/structbench-runs/<dataset>
-cd /c/Users/kylin/Desktop/StructBench && STRUCTBENCH_ABAQUS_RUN_DIR=/c/structbench-runs/<dataset>/<PROBE_CASE> $PY -m pytest tests/tools/test_abaqus_odb_export.py -q
+cd /c/structbench-runs/<dataset> && abaqus python <repo>/data_generation/abaqus/odb_export.py --sweep /c/structbench-runs/<dataset>
+cd <repo> && STRUCTBENCH_ABAQUS_RUN_DIR=/c/structbench-runs/<dataset>/<PROBE_CASE> $PY -m pytest tests/tools/test_abaqus_odb_export.py -q
 ```
 If an ODB API call fails (attribute names on blocks, `position`, a missing `instance`, the shape of `history` data), fix the exporter from the real ODB's behaviour, keep the pure-helper tests green, and write the fix into the Task 7 notes. Then load one `.npz` in `$PY` and add these facts to the notes:
   1. **Clock:** do the `frame_times` sit on exact multiples of 1 µs, and how many are there (401 expected)?
