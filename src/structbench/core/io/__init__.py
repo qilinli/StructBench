@@ -33,6 +33,7 @@ from ..schema import (
     Response,
 )
 from ..validation import validate
+from .abaqus import ABAQUS_NPZ_FORMAT, abaqus_export_to_case, read_abaqus_export
 from .lsdyna import (
     build_case,
     extract_geometry,
@@ -49,6 +50,9 @@ from .run_evidence import RUN_EVIDENCE_SCHEMA, dump_run_evidence, load_run_evide
 __all__ = [
     "read_case",
     "write_case",
+    "ABAQUS_NPZ_FORMAT",
+    "abaqus_export_to_case",
+    "read_abaqus_export",
     "lsdyna_to_case",
     "read_input_facts",
     "read_run_evidence",

@@ -120,10 +120,15 @@ Two consequences for the readers:
 - **Field output.** `*Output, field, time interval=Δ, time marks=YES` wrote
   frames at `kΔ` for `k = 0 … N`: frame times on the grid to float32 rounding,
   which is float32 rounding (npz `step/<step>/frame_times`). It **also wrote an
-  extra end-of-step frame (N + 1)** at the same time as frame N, with identical
-  data (`.sta`: an `Output Field Frame Number N+1` line at the step's end
-  time, after frame N at the same time).
-  Consumers must expect that duplicate frame.
+  extra end-of-step frame (N + 1)** at the same time as frame N (`.sta`: an
+  `Output Field Frame Number N+1` line after `Restart Number 1`, at the
+  step's end time). Its U, V, S, PEEQ and every history output repeat
+  frame N's to float32 storage (in a few percent of runs a value or two
+  differs by a few ulp, at most 1.8e-7 of the field's peak). **Its A does
+  not:** in every run of a 2026-09-24 sweep it differed from frame N's, by up
+  to 64 % of the field's peak, sign changes included. Why is not
+  established. Consumers must expect that frame; the canonical adapter keeps
+  frame N (`core/io/abaqus.py`).
 - **Field data are float32 under `double=both`** (npz dtypes; manifest
   precision `DOUBLE_PRECISION`). The analysis runs in double precision; the
   stored fields do not.
@@ -193,8 +198,8 @@ Established from the conformance exports:
   no field blocks.
 - A rigid body's reference node carries no field output unless it is in the
   requested node set.
-- The file keeps the duplicate end-of-step frame: the last two records share
-  a time and hold identical values.
+- The file keeps the end-of-step frame: the last two records share a time,
+  and all but the acceleration hold the same values to float32 storage.
 - Units are the deck's own; ids are Abaqus labels, never minted by the
   exporter.
 
@@ -235,8 +240,14 @@ sourced dossier and one conformance run must settle (ADR-0068 clause 8).
    checks one out is still unverified; the conformance export did not look.
    It decides whether a recipient needs a seat merely to read an archive.
 7. **Element-code semantics, partly settled.** CAX4R is established as
-   reduced-integration (see above). Every other code, including CPE4R, is
-   still unread, and the reader refuses them by name.
+   reduced-integration (see above). `CAX*` and `CPE*` codes are read as
+   solid continua (axisymmetric and plane strain), with `under_integrated`
+   left unset for every code but CAX4R. Any other family is refused by name.
 8. ~~Whether a rejected job's `.dat` always carries the fatal-error count~~ —
    settled: it does not. An Explicit job that fails during the analysis leaves
    no count in the `.dat`; its record is the `.sta` (see above).
+9. **What the end-of-step frame's acceleration is.** It differs from frame N's
+   at the same instant (see above). Which one is the state at the step's end,
+   and whether a field frame's A at a node in kinematic contact is taken
+   before or after the contact correction, is not established. Nothing in
+   verification reads A.
