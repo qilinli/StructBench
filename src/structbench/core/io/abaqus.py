@@ -15,7 +15,10 @@ strict-SI canonical case. It decides three things the export leaves open:
    case.
 2. **A rigid body's reference node.** It carries no field output, so it is
    left out of ``Nodes``. Each ``RF<k>`` it writes to the history becomes the
-   global ``reaction_force_<k>_node_<label>`` [N].
+   global ``reaction_force_<k>_reference_node`` [N]: its label moves with the
+   mesh numbering, and one declared field list must fit every case of a
+   sweep. With several such nodes each keeps its label,
+   ``reaction_force_<k>_node_<label>``, as does a meshed node.
 3. **A deck without ``*Part`` blocks** is one part, ``PART-1``, as the input
    reader mints it; the export's instance is that part's (``PART-1-1``).
 
@@ -302,6 +305,14 @@ def abaqus_export_to_case(
         element["stress"] = (voigt * f["stress"]).astype(np.float32)
 
     globals_: dict[str, NDArray[np.float32]] = {}
+    meshed = {int(n) for n in node_id}
+    reference = {
+        int(at["label"])
+        for key in a
+        if key.startswith("history/")
+        and (at := _NODE_REGION.match(key.split("/")[2]))
+        and int(at["label"]) not in meshed
+    }
     for key in a:
         parts = key.split("/")
         if parts[0] != "history" or len(parts) != 4:
@@ -311,7 +322,10 @@ def abaqus_export_to_case(
             values = _clocked(export, key) * f["energy"]
             globals_[_ENERGY[output]] = values.astype(np.float32)
         elif (at := _NODE_REGION.match(region)) and (rf := _REACTION.match(output)):
-            name = f"reaction_force_{rf['k']}_node_{at['label']}"
+            label = int(at["label"])
+            own = label not in meshed and reference == {label}
+            where = "reference_node" if own else f"node_{label}"
+            name = f"reaction_force_{rf['k']}_{where}"
             globals_[name] = (_clocked(export, key) * f["force"]).astype(np.float32)
 
     materials = [

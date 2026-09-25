@@ -158,8 +158,10 @@ def test_a_duplicate_that_differs_is_refused(tmp_path, key):
 def test_the_reference_node_is_a_global_reaction(tmp_path):
     case = _case(tmp_path)
     assert case.nodes.node_id.tolist() == [1, 2, 3, 4]
+    # One reference node: a name that does not move with the mesh numbering,
+    # so one declared field list fits every case of a sweep.
     np.testing.assert_allclose(
-        case.response.globals_["reaction_force_2_node_5"], [0, 7]
+        case.response.globals_["reaction_force_2_reference_node"], [0, 7]
     )
 
 
@@ -293,3 +295,15 @@ def test_an_export_without_etotal_has_no_ledger(tmp_path):
     a = _arrays()
     del a["history/S/Assembly Assembly-1/ETOTAL"]
     assert _ledger(tmp_path, a) is None
+
+
+def test_several_reference_nodes_keep_their_labels(tmp_path):
+    a = _arrays()
+    a[f"mesh/{_INST}/node_labels"] = np.array([1, 2, 3, 4, 5, 6])
+    a[f"mesh/{_INST}/node_coords"] = np.vstack(
+        [a[f"mesh/{_INST}/node_coords"], [0, -2, 0]]
+    )
+    t = a["step/S/frame_times"]
+    a[f"history/S/Node {_INST}.6/RF2"] = np.stack([t, [0.0, 3.0, 3.0]], -1)
+    names = set(_case(tmp_path, a).response.globals_)
+    assert {"reaction_force_2_node_5", "reaction_force_2_node_6"} <= names
