@@ -217,6 +217,18 @@ def read_abaqus_run_evidence(
     termination = _termination(status_text, printed_text, tokens, time_factor)
     n_errors, n_warnings = _diagnostics(messages_text, printed_text, status_text)
     rows = _EXPLICIT_ROW.findall(status_text or "")
+    if (
+        len(rows) > 1
+        and termination is not None
+        and termination.status == "normal"
+        and rows[-1][2] == rows[-2][2]
+        and int(rows[-1][0]) == int(rows[-2][0]) + 1
+    ):
+        # A completed step's last row is the increment that lands on the step
+        # end: it repeats the previous row's step time and records the step
+        # it was truncated to (6.5e-20 s under penalty contact, 2026-09-26),
+        # not a stable increment. An aborted run keeps every row.
+        rows = rows[:-1]
     timestep = None
     if rows:  # E4: the Explicit increment table is a stable-increment series
         timestep = (

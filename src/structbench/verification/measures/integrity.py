@@ -285,9 +285,40 @@ def _plastic_dissipation_late_growth(
     return value(name, growth, CASE, n=work.size, detail={"from_frame": at})
 
 
+def _plastic_dissipation_excess_max(
+    case: Case, facts: InputFacts | None, declared: DeclaredFacts | None
+) -> Measurement:
+    """Largest excess of plastic dissipation over internal energy, over the run.
+
+    Internal energy includes the plastic work done on the material, so the
+    plastic dissipation can never exceed it: an excess means the solver's
+    energy accounting failed, whatever its ledger total says. Normalised by
+    the larger of the two series' peaks, so the number reads as a fraction of
+    the energy the material ever held. A healthy run reads zero or below: both
+    series start at zero, and the internal energy stays at or above the
+    plastic part of it.
+    """
+    name = "plastic_dissipation_excess_max"
+    assert case.response is not None
+    plastic = case.response.globals_.get("plastic_dissipation")
+    internal = case.response.globals_.get("internal_energy")
+    if plastic is None or internal is None:
+        # Both are series of the energy record stored with the case (E5).
+        return absent(name, AbsenceReason.SOURCE_MISSING, EvidenceItem.E5)
+    work = np.asarray(plastic, dtype=np.float64)
+    held = np.asarray(internal, dtype=np.float64)
+    scale = max(float(np.abs(work).max()), float(np.abs(held).max()))
+    if scale == 0.0:
+        return not_applicable(name)  # no energy entered the material
+    excess = (work - held) / scale
+    at = int(np.argmax(excess))
+    return value(name, float(excess[at]), CASE, n=work.size, detail={"frame": at})
+
+
 MEASURES: dict[str, MeasureFn] = {
     "initial_state_matches_input": needs_case(_initial_state_matches_input),
     "plastic_dissipation_late_growth": needs_case(_plastic_dissipation_late_growth),
+    "plastic_dissipation_excess_max": needs_case(_plastic_dissipation_excess_max),
     "input_requests_required_evidence": _input_requests_required_evidence,
     "nonfinite_count": needs_case(_nonfinite_count),
     "time_axis_monotone": needs_case(_time_axis_monotone),

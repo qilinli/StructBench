@@ -400,6 +400,8 @@ anchors.
 | `active_mass_drift` | E8 | mass scaling off and deletion off | tol | S1 |
 | `mass_closure` (active + deleted − added = initial) | E4, E6, E8 | mass scaling or deletion enabled | tol | gate |
 | `eos_closure` | E1, E8 | equation-of-state material | tol | gate |
+| `plastic_dissipation_late_growth` (share of the final plastic dissipation done after frame ⌊0.9 T⌋; added 2026-09-25, ADR-0066 solid-block note) | E8 | plastic dissipation stored | — | S1 |
+| `plastic_dissipation_excess_max` (largest excess of plastic dissipation over internal energy, which contains it, over the larger peak; added 2026-09-26, ADR-0066 energy-account note) | E8 | plastic dissipation and internal energy stored | req, tol 1e-5 (float32 storage) | S1 |
 | *Constitutive* | | | | |
 | `yield_ratio_max` (+ detail) | E1, E8, declared | class with an assessable yield law | — (mechanism unconfirmed) | S1 |
 | `yield_saturation_min` (largest yield ratio among samples whose plastic strain is increasing; a coarse scale screen, also a units row) | E1, E8, declared | same; constitutive-point data; at least one point yielding across two consecutive stored intervals | req, coarse scale bound | S1 |
@@ -424,6 +426,7 @@ anchors.
 | `declared_traits_match_input` | E1, declared | always | req | S1 |
 | `yield_table_matches_input` · `yield_table_monotone` · `yield_table_covers_range` | E1, E8, declared | tabulated yield law | req | S1 |
 | `sampling_clock_consistent` | E5, E8, E9 | always | req | S2 |
+| `initial_state_matches_input` (first stored frame against the initial velocity and hardening the input states; added 2026-09-25, ADR-0066 solid-block note) | E1, E8 | the input states initial conditions | req, tol 1e-5 (float32 storage) | S1 |
 | `stored_globals_match_ledger` | E5, E8, E9 | the case's globals come from a stream independent of the ledger | tol | S2 |
 
 Every stage-1 row's requirement lies within {E1, E4 for one bound, E8, E10,

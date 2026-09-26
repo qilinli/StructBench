@@ -106,7 +106,7 @@ job's ODB exported through `odb_export.py`.
 | E3, analysis-phase failure | `.sta`, last line | `THE ANALYSIS HAS NOT BEEN COMPLETED` |
 | E3, diagnostics | `.sta` | Explicit writes its `***ERROR` and `***WARNING` blocks here, for example `***ERROR: Excessive distortion of element number N` |
 | E3, diagnostics | `.msg` | holds only `STEP 1 ORIGIN` markers; it has **no** ANALYSIS SUMMARY with message counts |
-| E4, time step | `.sta` increment table | one row per printed increment, with columns `INCREMENT, TOTAL TIME, STEP TIME, CPU TIME, STABLE INCREMENT, CRITICAL ELEMENT, KINETIC ENERGY, TOTAL ENERGY`. A distortion failure shows the stable increment collapsing (to `1.00000E-14` in one run) |
+| E4, time step | `.sta` increment table | one row per printed increment, with columns `INCREMENT, TOTAL TIME, STEP TIME, CPU TIME, STABLE INCREMENT, CRITICAL ELEMENT, KINETIC ENERGY, TOTAL ENERGY`. A distortion failure shows the stable increment collapsing (to `1.00000E-14` in one run). A completed step's last row repeats the previous row's step time on the next increment and records the step truncated to land on the step end (`6.50521E-20` in a penalty-contact run, 2026-09-26), not a stable increment, so the reader drops it |
 
 Two consequences for the readers:
 - Under Explicit, diagnostics must be counted from the `.sta`. Reading only the
@@ -186,6 +186,27 @@ every node at `y ≥ −4e-15` over the whole run. So its contact side faced `+y
 kinematic `*Contact Pair` constraint gets a `.sta` warning
 (`WarnNodeBcIntersectKinCon`) saying that the boundary condition overrides
 contact on that degree of freedom.
+
+**Kinematic contact can create energy (2026-09-26).** A later sweep of the
+same impact model ran on a mesh twice as fine. In a few of its runs,
+kinematic `*Contact Pair` enforcement against the analytical surface created
+energy within one output interval, with no warning or error in any file:
+- `ETOTAL` rose by up to about a tenth of the initial kinetic energy;
+- `ALLPD` rose past `ALLIE`, which contains it, by up to a third of the peak
+  `ALLIE`, and the stored plastic strain jumped by more than one in a band of
+  the contact face;
+- the contact face lifted off the surface at about three times the impact
+  speed.
+
+The same inputs created none with `MECHANICAL CONSTRAINT=PENALTY`, and none
+with kinematic contact on a mesh twice as fine again. Kinematic runs that
+otherwise looked healthy still showed `ALLPD` above `ALLIE` by up to a few
+parts in 1e3 of the peak. Penalty contact also removes the energy kinematic
+contact takes out at impact, which is proportional to the element size. In
+the runs checked, penalty penetration was 3–8 % of an element. The
+verification row `plastic_dissipation_excess_max` (ADR-0066, energy-account
+note) fails a run whose plastic dissipation exceeds its internal energy.
+`deck.contact_pair` takes the constraint as `mechanical_constraint`.
 
 ## After the run
 

@@ -219,6 +219,47 @@ def test_without_the_global_the_energy_history_is_missing() -> None:
     assert row.absence.missing == {EvidenceItem.E5}
 
 
+# --- plastic_dissipation_excess_max ---------------------------------------------
+
+
+def _energies(plastic, internal) -> Case:
+    return _case(
+        globals_={
+            "plastic_dissipation": np.asarray(plastic, np.float32),
+            "internal_energy": np.asarray(internal, np.float32),
+        }
+    )
+
+
+def test_plastic_work_inside_internal_energy_never_exceeds_it() -> None:
+    plastic = np.linspace(0, 10, _T)
+    row = _row("plastic_dissipation_excess_max", _energies(plastic, plastic + 1.0))
+    # the largest excess is the smallest shortfall, -1, over the peak, 11
+    assert row.value == pytest.approx(-1.0 / 11.0)
+
+
+def test_plastic_work_above_internal_energy_reads_the_excess() -> None:
+    plastic = np.linspace(0, 10, _T)
+    internal = plastic.copy()
+    internal[6] -= 2.0  # the accounting slips at one frame
+    row = _row("plastic_dissipation_excess_max", _energies(plastic, internal))
+    assert row.value == pytest.approx(2.0 / 10.0)
+    assert row.detail["frame"] == 6
+
+
+def test_a_run_that_stored_no_energy_is_not_applicable() -> None:
+    zero = np.zeros(_T)
+    assert _row("plastic_dissipation_excess_max", _energies(zero, zero)).not_applicable
+
+
+@pytest.mark.parametrize("kept", ["plastic_dissipation", "internal_energy"])
+def test_either_series_missing_is_a_gap_in_the_energy_history(kept) -> None:
+    case = _case(globals_={kept: np.linspace(0, 10, _T).astype(np.float32)})
+    row = _row("plastic_dissipation_excess_max", case)
+    assert row.absence.reason is AbsenceReason.SOURCE_MISSING
+    assert row.absence.missing == {EvidenceItem.E5}
+
+
 # --- sampling_clock_consistent --------------------------------------------------
 
 

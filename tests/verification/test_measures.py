@@ -211,7 +211,11 @@ def test_every_catalogue_row_answers_once_in_name_order() -> None:
 #: initial conditions, and the case stores no plastic dissipation. Both are
 #: measured on a solid block in test_measures_solid.py.
 _ELSEWHERE = frozenset(
-    {"initial_state_matches_input", "plastic_dissipation_late_growth"}
+    {
+        "initial_state_matches_input",
+        "plastic_dissipation_late_growth",
+        "plastic_dissipation_excess_max",
+    }
 )
 
 

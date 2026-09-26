@@ -905,3 +905,53 @@ change only in these three rows. `initial_state_matches_input` reads
 frame, off the grid, is `terminal_artifact_frames`'s to report, so it is
 not counted again here. Notch keeps no ledger, so the row stays
 `source_missing` there.
+
+## Energy-account note (2026-09-26, agent; the maintainer approved the row "if it holds")
+
+**What prompted it.** A private Abaqus/Explicit sweep of impact runs used
+kinematic contact against an analytical rigid surface. In a few runs the
+solver created energy within one output interval: its own total rose by up
+to about a tenth of the initial kinetic energy, with no warning or error in any
+file. The instrument measured this and let it pass. `energy_residual_final`
+read it, but the energy rows are indicators with no ratified level (this
+ADR's maintainer decision of 2026-09-21), so the case read clean. The same
+runs showed the plastic dissipation rising past the internal energy.
+
+**One row is added: `plastic_dissipation_excess_max`** (conservation, E8,
+bears on the response).
+- The measure: the largest excess of `global/plastic_dissipation` over
+  `global/internal_energy` over the run, divided by the larger of the two
+  series' peaks.
+- Why the requirement is definitional: internal energy includes the plastic
+  work done on the material, so plastic dissipation above it is a failed
+  energy account, not an accuracy question. Its verdict therefore needs no
+  sourced level, only an instrument tolerance (clause 7).
+- The tolerance: 1e-5, provisional. The two series are stored as float32,
+  which resolves 6e-8 of a value, so 1e-5 leaves two decades.
+- The evidence behind it:
+  - healthy runs read exactly zero, since both series start at zero and the
+    internal energy stays above its plastic part;
+  - every penalty-contact run of the diagnosis read zero;
+  - the kinematic runs that created energy read up to a third of the peak;
+  - kinematic runs that otherwise looked healthy read up to a few parts in
+    1e3, a small, persistent version of the same failed account.
+- Absences: without either series it is `source_missing` (E5). When neither
+  series ever leaves zero it is `not_applicable`.
+
+**What is not added: "the total energy must not rise."** A rise in the
+balance is an error of the same kind as a fall, and the energy balance is an
+indicator under clause 7, whose verdict needs a sourced level. Making a gain
+a requirement would ratify a level for one direction by the back door.
+Whether to ratify a level for `energy_gain_max` stays the maintainer's call.
+
+**One reader fix (E4).** A completed Abaqus/Explicit step ends its `.sta`
+table with the increment that lands on the step end. That row repeats the
+previous row's step time on the next increment and records the step it was
+truncated to (6.5e-20 s in a penalty-contact run), not a stable increment,
+and `timestep_min_ratio` read it as a collapse of twelve decades. The reader
+now drops that row, and only for a run that completed, so an aborted run
+keeps its last increment however small.
+
+The two published LS-DYNA records were re-measured and change only in the new
+row. It reads `source_missing` on every case, because the LS-DYNA adapter
+stores no plastic-dissipation series.

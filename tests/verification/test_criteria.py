@@ -147,6 +147,16 @@ def test_an_instrument_tolerance_fails_and_says_it_is_provisional() -> None:
     assert (short.verdict, short.provisional) == (Verdict.FAIL, True)
 
 
+def test_plastic_work_above_internal_energy_fails_beyond_storage_resolution() -> None:
+    # Internal energy contains the plastic work, so any excess is an accounting
+    # failure; the tolerance only covers float32 storage of the two series.
+    name = "plastic_dissipation_excess_max"
+    assert _judge_one(_value(name, 0.0)).verdict is Verdict.PASS
+    assert _judge_one(_value(name, -0.05)).verdict is Verdict.PASS
+    failed = _judge_one(_value(name, 3.0e-4))
+    assert (failed.verdict, failed.provisional) == (Verdict.FAIL, True)
+
+
 def test_an_unratified_level_is_shown_and_judges_nothing() -> None:
     assert all(not c.ratified for c in CRITERIA if c.kind is CriterionKind.INDICATOR)
     assert all(c.ratified for c in CRITERIA if c.kind is not CriterionKind.INDICATOR)

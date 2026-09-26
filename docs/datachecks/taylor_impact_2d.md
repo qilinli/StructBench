@@ -1,6 +1,6 @@
 # Taylor2D-Impact — reference-data verification
 
-Dataset revision v0.1.0 · 33 cases · 65 checks per case · structbench 0.3.0
+Dataset revision v0.1.0 · 33 cases · 66 checks per case · structbench 0.3.0
 
 This report says what was checked about the simulation runs behind this dataset, what was found, and what could not be checked. It is generated from a committed record of measurements; no verdict here rests on a number fitted to this dataset. A pass is a necessary sign of a healthy run, not evidence that the simulation matches reality.
 
@@ -9,14 +9,14 @@ This report says what was checked about the simulation runs behind this dataset,
 - **21 checks pass** wherever they apply.
 - **4 findings** — 2 in the stored response: stored elements that no input part owns; stored global energies against the solver's ledger; 2 in the solver input: dips in the input's hardening table; output the input asks the solver to write.
 - **17 quantities are measured but not judged**: the platform has no confirmed criterion. The values are below for you to weigh.
-- **8 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
+- **9 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
 - 15 checks do not apply to these runs.
 
 | | Pass | Finding | Measured, not judged | Not checked | Not applicable |
 |---|---|---|---|---|---|
 | Data integrity | 7 | 4 | 1 | 1 |  |
 | Numerical health of the runs | 6 |  | 5 | 1 | 10 |
-| Energy and mass conservation | 1 |  | 5 | 5 | 4 |
+| Energy and mass conservation | 1 |  | 5 | 6 | 4 |
 | Material behaviour | 5 |  | 2 |  |  |
 | Units and magnitudes | 2 |  | 4 | 1 | 1 |
 
@@ -102,6 +102,7 @@ Does not apply to these runs: hourglass energy vs initial energy; hourglass ener
 | External work against the applied loads | — |  | not checked | the runs did not supply applied loads and reaction forces over time |
 | Internal energy: stored fields vs solver ledger | — |  | not checked | this instrument cannot measure it yet |
 | Momentum change against applied impulse | — |  | not checked | the runs did not supply applied loads and reaction forces over time |
+| Plastic dissipation above the internal energy | — |  | not checked | the runs did not supply the global energy ledger |
 | Plastic dissipation still growing at the end | — |  | not checked | the runs did not supply the global energy ledger |
 | Pressure against the equation of state | — |  | not checked | this instrument cannot measure it yet |
 
