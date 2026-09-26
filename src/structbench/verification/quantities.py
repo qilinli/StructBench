@@ -156,6 +156,7 @@ _TITLES: dict[str, str] = {
     "mass_closure": "Mass bookkeeping with scaling or deletion",
     "eos_closure": "Pressure against the equation of state",
     "plastic_dissipation_late_growth": "Plastic dissipation still growing at the end",
+    "plastic_dissipation_excess_max": "Plastic dissipation above the internal energy",
     # constitutive
     "yield_ratio_max": "Largest stress relative to the yield surface",
     "yield_saturation_min": "Yielding material sits on the yield surface",
@@ -218,6 +219,7 @@ _PERCENT = frozenset(
         "pressure_trace_residual",
         "initial_state_matches_input",
         "plastic_dissipation_late_growth",
+        "plastic_dissipation_excess_max",
     }
 )
 #: Whole numbers.
@@ -275,6 +277,7 @@ _BEARS_ON: dict[str, BearsOn] = {
     "eos_closure": "response",
     "initial_state_matches_input": "response",
     "plastic_dissipation_late_growth": "response",
+    "plastic_dissipation_excess_max": "response",
     "internal_energy_closure": "response",
     "kinetic_energy_closure": "response",
     "nonfinite_count": "response",
@@ -681,6 +684,15 @@ _ROWS = (
         "1",
         {E.E8},
         "plastic work is still growing at the end (the run stopped too early)",
+        implemented=True,
+    ),
+    _row(
+        "plastic_dissipation_excess_max",
+        _C,
+        "1",
+        {E.E8},
+        "plastic work exceeds the internal energy it is part of (the solver's"
+        " energy accounting failed during the run)",
         implemented=True,
     ),
     # --------------------------------------------------------- constitutive

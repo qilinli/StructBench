@@ -307,6 +307,15 @@ _REQUIREMENTS = (
 
 _TOLERANCES = (
     _tolerance(
+        "plastic_dissipation_excess_max",
+        None,
+        1.0e-5,
+        "Internal energy contains the plastic work, so plastic dissipation above"
+        " it is a failed energy account, not an accuracy question. The two"
+        " series are stored as float32, which resolves 6e-8 of a value; 1e-5"
+        " leaves two decades. Healthy Abaqus runs read exactly zero.",
+    ),
+    _tolerance(
         "initial_state_matches_input",
         None,
         1.0e-5,

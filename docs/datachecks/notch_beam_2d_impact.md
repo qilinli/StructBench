@@ -1,6 +1,6 @@
 # NotchBeam2D-Impact — reference-data verification
 
-Dataset revision v0.1.0 · 110 cases · 65 checks per case · structbench 0.3.0
+Dataset revision v0.1.0 · 110 cases · 66 checks per case · structbench 0.3.0
 
 This report says what was checked about the simulation runs behind this dataset, what was found, and what could not be checked. It is generated from a committed record of measurements; no verdict here rests on a number fitted to this dataset. A pass is a necessary sign of a healthy run, not evidence that the simulation matches reality.
 
@@ -9,14 +9,14 @@ This report says what was checked about the simulation runs behind this dataset,
 - **18 checks pass** wherever they apply.
 - **1 finding** — in the solver input: output the input asks the solver to write.
 - **8 quantities are measured but not judged**: the platform has no confirmed criterion. The values are below for you to weigh.
-- **21 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
+- **22 checks could not be made**, because the runs did not keep the evidence or the instrument cannot do it yet.
 - 17 checks do not apply to these runs.
 
 | | Pass | Finding | Measured, not judged | Not checked | Not applicable |
 |---|---|---|---|---|---|
 | Data integrity | 5 | 1 | 1 | 6 |  |
 | Numerical health of the runs | 6 |  | 3 | 3 | 10 |
-| Energy and mass conservation | 1 |  |  | 9 | 5 |
+| Energy and mass conservation | 1 |  |  | 10 | 5 |
 | Material behaviour | 4 |  | 1 | 2 |  |
 | Units and magnitudes | 2 |  | 3 | 1 | 2 |
 
@@ -81,6 +81,7 @@ Does not apply to these runs: deepest penetration of a rigid surface; hourglass 
 | Largest energy gain during the run | — |  | not checked | the runs did not supply the global energy ledger |
 | Largest energy loss during the run | — |  | not checked | the runs did not supply the global energy ledger |
 | Momentum change against applied impulse | — |  | not checked | the runs did not supply applied loads and reaction forces over time |
+| Plastic dissipation above the internal energy | — |  | not checked | the runs did not supply the global energy ledger |
 | Plastic dissipation still growing at the end | — |  | not checked | the runs did not supply the global energy ledger |
 
 Does not apply to these runs: contact energy against internal energy; kinetic energy in a quasi-static run; mass bookkeeping with scaling or deletion; negative contact energy; pressure against the equation of state.

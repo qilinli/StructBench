@@ -242,6 +242,35 @@ def test_explicit_completed_run_reads_series_precision_and_counts() -> None:
     assert (ev.n_errors, ev.n_warnings) == (0, 2)
 
 
+#: A completed step's last row lands the increment on the step end: it repeats
+#: the previous row's step time on the next increment and records the
+#: truncated step (6.5e-20 s under penalty contact, 2026-09-26), not a stable
+#: increment.
+_EXPLICIT_TRUNCATED_END = _EXPLICIT_HEAD + (
+    "       40  2.000E-06 2.000E-06  00:00:01 3.00000E-08           7  9.000E+03  9.990E+03\n"  # noqa: E501 - the real fixed-width format
+    "       41  2.000E-06 2.000E-06  00:00:01 6.50521E-20           7  9.000E+03  9.990E+03\n"  # noqa: E501 - the real fixed-width format
+    "\n  THE ANALYSIS HAS COMPLETED SUCCESSFULLY\n"
+)
+
+
+def test_the_end_of_step_increment_is_not_a_stable_increment() -> None:
+    ev = _read(_EXPLICIT_TRUNCATED_END, _EXPLICIT_MSG, _EXPLICIT_DAT)
+    assert ev.timestep is not None
+    times, steps = ev.timestep
+    assert times == pytest.approx((0.0, 1.0e-6, 2.0e-6))
+    assert steps == pytest.approx((5.0e-8, 4.0e-8, 3.0e-8))
+
+
+def test_an_aborted_run_keeps_its_last_increment_however_small() -> None:
+    # the collapse is the evidence; only a completed step's landing row is dropped
+    collapsed = _EXPLICIT_ABORTED.replace(
+        "       30  1.500E-06", "       21  1.000E-06"
+    )
+    ev = _read(collapsed, _EXPLICIT_MSG, _EXPLICIT_DAT)
+    assert ev.timestep is not None
+    assert min(ev.timestep[1]) == pytest.approx(1.0e-14)
+
+
 def test_explicit_analysis_failure_is_an_error_with_its_markers_counted() -> None:
     ev = _read(_EXPLICIT_ABORTED, _EXPLICIT_MSG, _EXPLICIT_DAT)
     assert ev.termination is not None

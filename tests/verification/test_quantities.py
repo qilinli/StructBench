@@ -36,6 +36,7 @@ _IMPLEMENTED = {
     "sampling_clock_consistent",
     "initial_state_matches_input",
     "plastic_dissipation_late_growth",
+    "plastic_dissipation_excess_max",
     "input_requests_required_evidence",
     "density_slot_matches_input",
     "elements_without_input_part",
