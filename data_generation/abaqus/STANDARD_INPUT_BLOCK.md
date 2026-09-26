@@ -199,7 +199,14 @@ energy within one output interval, with no warning or error in any file:
   speed.
 
 The same inputs created none with `MECHANICAL CONSTRAINT=PENALTY`, and none
-with kinematic contact on a mesh twice as fine again. Kinematic runs that
+with kinematic contact on a mesh twice as fine again. They also created none
+with kinematic contact and the stable increment halved
+(`*Dynamic, Explicit, scale factor=0.5`). That held on 13 runs, including
+every one where the account had failed. On healthy runs it moved the final
+shape by under 0.03 % and stored stresses by 2–4 %. Penalty contact is no
+general cure: its wall force differed by 19–30 % between a mesh and one twice
+as fine, against 1–2 % for kinematic contact, because the penalty stiffness
+follows the element size. Contact damping did not change that. Kinematic runs that
 otherwise looked healthy still showed `ALLPD` above `ALLIE` by up to a few
 parts in 1e3 of the peak. Penalty contact also removes the energy kinematic
 contact takes out at impact, which is proportional to the element size. In
