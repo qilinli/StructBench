@@ -47,9 +47,11 @@ from .lsdyna import unit_factors
 
 __all__ = [
     "ABAQUS_NPZ_FORMAT",
+    "LEDGER_CLOSED_TERMS",
     "AbaqusExport",
     "abaqus_export_to_case",
     "abaqus_ledger",
+    "assembly_history",
     "read_abaqus_export",
 ]
 
@@ -91,10 +93,14 @@ _END_FRAME_RTOL = 1e-6
 #: parts of ALLIE (ALLSE + ALLPD + ALLAE = ALLIE to 3e-8 on the same runs).
 #: ALLCD was zero in the closing run, so a non-zero ALLCD -- or any other
 #: output, non-zero -- leaves the ledger unestablished rather than guessed.
-_LEDGER_CLOSED = frozenset(
+#: The terms the ledger identity was closed with on the diagnostic run; any
+#: other term with a non-zero value means the identity no longer accounts for
+#: everything the solver did (the preflight's conformance step checks this).
+LEDGER_CLOSED_TERMS = frozenset(
     {"ALLKE", "ALLIE", "ALLVD", "ALLFD", "ALLPW", "ALLWK", "ETOTAL", "ALLAE"}
     | {"ALLPD", "ALLSE"}
 )
+_LEDGER_CLOSED = LEDGER_CLOSED_TERMS
 _NODE_REGION = re.compile(r"^Node (?P<instance>.+)\.(?P<label>\d+)$")
 _REACTION = re.compile(r"^RF(?P<k>[1-3])$")
 _RELEASE_YEAR = re.compile(r"\b(\d{4})\b")
@@ -398,6 +404,20 @@ def abaqus_export_to_case(
     return case
 
 
+def assembly_history(export: AbaqusExport) -> dict[str, NDArray[np.float64]]:
+    """The Assembly-level history outputs by term, on the frame clock.
+
+    The duplicate end frame is already dropped by ``read_abaqus_export``; the
+    values are in the deck's own units.
+    """
+    prefix = f"history/{export.step}/"
+    return {
+        key.rsplit("/", 1)[1]: _clocked(export, key)
+        for key in export.arrays
+        if key.startswith(prefix) and key.split("/")[2].startswith("Assembly")
+    }
+
+
 def abaqus_ledger(npz_path: str | Path, *, source_units: str) -> EnergyLedger | None:
     """The run's energy ledger (E5) from an export's Assembly history.
 
@@ -414,12 +434,7 @@ def abaqus_ledger(npz_path: str | Path, *, source_units: str) -> EnergyLedger | 
     """
     f = unit_factors(source_units)
     export = read_abaqus_export(npz_path)
-    prefix = f"history/{export.step}/"
-    history = {
-        key.rsplit("/", 1)[1]: _clocked(export, key)
-        for key in export.arrays
-        if key.startswith(prefix) and key.split("/")[2].startswith("Assembly")
-    }
+    history = assembly_history(export)
     if not {"ALLKE", "ALLIE", "ALLVD", "ALLWK", "ETOTAL"} <= set(history):
         return None
     if any(

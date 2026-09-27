@@ -1,6 +1,7 @@
 """Tests for the shared Abaqus keyword writers (ADR-0069). Text only."""
 
 import numpy as np
+import pytest
 
 from structbench.datagen.abaqus import deck
 
@@ -127,3 +128,17 @@ def test_contact_damping_is_a_critical_damping_fraction():
     assert deck.contact_damping(0.1) == (
         "*CONTACT DAMPING, DEFINITION=CRITICAL DAMPING FRACTION\n0.1\n"
     )
+
+
+def test_with_all_energy_widens_the_standard_request_and_nothing_else():
+    body = deck.standard_output(
+        1e-6, node_set="N", node_vars=("U",), element_set="E", element_vars=("S",)
+    )
+    text = deck.heading("x") + deck.explicit_step("S", 1e-3, body)
+    widened = deck.with_all_energy(text)
+    standard = "*ENERGY OUTPUT\n" + ", ".join(deck.ENERGY_TERMS) + "\n"
+    assert "*ENERGY OUTPUT, VARIABLE=ALL\n" in widened
+    assert standard not in widened
+    assert widened.replace("*ENERGY OUTPUT, VARIABLE=ALL\n", standard) == text
+    with pytest.raises(ValueError, match="ENERGY OUTPUT"):
+        deck.with_all_energy(deck.heading("no step"))

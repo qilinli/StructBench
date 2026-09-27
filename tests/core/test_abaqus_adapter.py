@@ -334,3 +334,20 @@ def test_the_stored_total_energy_is_the_ledgers_total(tmp_path):
     np.testing.assert_allclose(
         case.response.globals_["total_energy"], ledger.solver_total, rtol=1e-6
     )
+
+
+def test_assembly_history_names_every_term_on_the_frame_clock(tmp_path):
+    """Plan 2b: the preflight's conformance step reads the terms itself."""
+    from structbench.core.io.abaqus import (
+        LEDGER_CLOSED_TERMS,
+        assembly_history,
+        read_abaqus_export,
+    )
+
+    path = tmp_path / "toy.npz"
+    np.savez(path, **_arrays())
+    history = assembly_history(read_abaqus_export(path))
+    assert set(history) == set(_TERMS)
+    assert history["ALLKE"].shape == (2,)  # the duplicate end frame dropped
+    assert history["ALLKE"].tolist() == [0.0, 5.0]
+    assert {"ALLKE", "ALLIE", "ALLVD", "ALLWK", "ETOTAL"} <= LEDGER_CLOSED_TERMS
