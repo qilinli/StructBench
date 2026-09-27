@@ -7,6 +7,7 @@
     structbench-datagen export   --sweep <runs>/<name> [--cases ID ...] [--abaqus EXE]
     structbench-datagen convert  --sweep <runs>/<name> [...]
     structbench-datagen verify   --sweep <runs>/<name> --dataset <dir> [...]
+    structbench-datagen converge --dataset <dir> --sweep <runs>/<name> [--root DIR ...]
     structbench-datagen archive  --sweep <runs>/<name> --dataset <dir>
                                  --data-root <tree> [...]
 
@@ -26,7 +27,15 @@ from collections.abc import Callable, Sequence
 from importlib import resources
 from pathlib import Path
 
-from structbench.datagen import archive, convert, generate, run, template, verify
+from structbench.datagen import (
+    archive,
+    converge,
+    convert,
+    generate,
+    run,
+    template,
+    verify,
+)
 
 EXPORTER = resources.files("structbench.datagen.abaqus") / "odb_export.py"
 
@@ -37,6 +46,7 @@ STAGES: dict[str, Callable[[list[str] | None], int]] = {
     "run": run.main,
     "convert": convert.main,
     "verify": verify.main,
+    "converge": converge.main,
     "archive": archive.main,
 }
 #: Old names, refused with a pointer (ADR-0072: validate now means
