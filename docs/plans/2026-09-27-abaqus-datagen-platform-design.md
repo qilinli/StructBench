@@ -66,7 +66,7 @@ against the contract before anything runs.
 | `[regions.<r>]` | sub-boxes | no | for `exclude` and `within` |
 | `[splits.<s>]` | `n` + `seed`, or `points`; `exclude` / `within`; `extra`; `categorical`; `variants`; `probe = true` | yes, at least one | as today; `probe` marks a split the preflight gate does not guard |
 | `[limits]` | parameters `feasible()` reads | no | the declared feasibility or severity limit, stated where it is applied |
-| `[levels]` | `refine_key = "refine"`, `production = "2"`, `pilot = ["1", "2", "4"]` | yes | the mesh-level convention the preflight uses; `mesh()` must nest across them |
+| `[levels]` | `refine_key = "refine"`, `production = "2"`, `pilot = ["1", "2", "4"]`, `symmetry = "axisymmetric"` (or `planar`; plan 2a) | yes | the mesh-level convention the preflight uses; `mesh()` must nest across them |
 | `[pilot]` | `split`, `fine_cases`, `min_free_gb`, `accepted_gaps` | yes | the preflight's targets: the pilot split, which pilots also run at the finest level, the disk margin, the verification rows the dataset accepts as known gaps |
 | `[qoi]` | `names`, `units` | yes | the keys `qoi()` returns, for `converge` and the card |
 | `[retention]` | `odb_fraction`, `odb_seed`, `odb_cases` | no | as today |

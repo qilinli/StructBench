@@ -7,7 +7,8 @@
     structbench-datagen export   --sweep <runs>/<name> [--cases ID ...] [--abaqus EXE]
     structbench-datagen convert  --sweep <runs>/<name> [...]
     structbench-datagen verify   --sweep <runs>/<name> --dataset <dir> [...]
-    structbench-datagen converge --dataset <dir> --sweep <runs>/<name> [--root DIR ...]
+    structbench-datagen converge --dataset <dir> --sweep <runs>/<name>
+                                 [--root DIR ...] [--out DIR]
     structbench-datagen archive  --sweep <runs>/<name> --dataset <dir>
                                  --data-root <tree> [...]
 

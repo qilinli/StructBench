@@ -53,13 +53,15 @@ def qoi(case):
 BASE = {"L": 1.0, "v0": 10.0, "E": 1000.0}
 
 
-def _case(problem, params, level, *, with_stress=True, elements_across=None):
+def _case(
+    problem, params, level, *, with_stress=True, elements_across=None, h_level=None
+):
     k = elements_across or int(level)
     grid = problem.mesh({**params, "refine": k})
     coords = np.asarray(grid.coords, float)
     conn = np.asarray(grid.connectivity) - 1
     n, e = len(coords), len(conn)
-    h = float(params["L"]) / int(level)
+    h = float(params["L"]) / (h_level or int(level))
     u = np.zeros((3, n, 2), np.float32)
     u[:, :, 0] = 1.0 + 0.04 * h * h
     element = {"stress": np.ones((3, e, 6), np.float32)} if with_stress else {}

@@ -8,11 +8,15 @@ key and the ``[limits]`` values) and their variant; a production case is a run
 of a split that is not a probe, and the probe runs at other levels are its
 levels. At each level the first run with a canonical file counts — the
 production run first, then root order, then case id — and duplicates are
-named. Each quantity of interest (the dataset's ``qoi()``) is extrapolated
-with the engine of ``structbench.verification.convergence`` when three levels
-stand in a constant ratio, and every stored field of each coarser level is
-measured against the finest. The record (``convergence-record/1``) is
-byte-stable and names cases, never paths; its Markdown is rendered from it.
+named. Levels are ordered as ``[levels].pilot`` lists them (coarse to fine),
+then numerically; a label is a refinement factor, larger meaning finer. Each
+quantity of interest (the dataset's ``qoi()``) is extrapolated with the engine
+of ``structbench.verification.convergence`` when the three finest levels have
+positive numeric labels in a constant ratio, and every stored field of each
+coarser level is measured against the finest. The record
+(``convergence-record/1``) is byte-stable and names cases, never paths; its
+Markdown is rendered from it. Exit 0 clean, 1 when a case carries a finding
+(a refusal, a gap, no pairs at all), 2 when refused (definition, paths).
 """
 
 from __future__ import annotations
@@ -52,11 +56,31 @@ class LevelRun:
     canonical: Path | None
 
 
-def _level_key(label: str) -> tuple[int, float, str]:
+def _numeric(label: str) -> float | None:
+    """The label as a positive finite number, or None."""
     try:
-        return (0, float(label), label)
+        value = float(label)
     except ValueError:
-        return (1, 0.0, label)
+        return None
+    return value if 0.0 < value < float("inf") else None
+
+
+def _level_key(label: str) -> tuple[int, float, str]:
+    value = _numeric(label)
+    return (0, value, label) if value is not None else (1, 0.0, label)
+
+
+def level_order(defn: Definition, labels: set[str]) -> list[str]:
+    """Labels as ``[levels].pilot`` lists them, then the rest by number, then name."""
+    listed = list(defn.levels.pilot)
+
+    def key(label: str) -> tuple[int, int, float, str]:
+        if label in listed:
+            return (0, listed.index(label), 0.0, label)
+        kind, value, name = _level_key(label)
+        return (1, kind, value, name)
+
+    return sorted(labels, key=key)
 
 
 def pair_levels(
@@ -70,7 +94,8 @@ def pair_levels(
     unknown_splits: set[str] = set()
     unlevelled: dict[str, list[str]] = {}
     for index, root in enumerate(roots):
-        for prov_path in sorted(root.glob("*/provenance.json")):
+        found = sorted(root.glob("*/provenance.json"), key=lambda p: p.parent.name)
+        for prov_path in found:
             prov = json.loads(prov_path.read_text(encoding="utf-8"))
             case_id = str(prov.get("case_id", prov_path.parent.name))
             split = str(prov.get("split", ""))
@@ -112,7 +137,7 @@ def pair_levels(
             continue
         case_id = production[0].case_id
         by_level: dict[str, LevelRun] = {}
-        for level in sorted({r.level for r in runs}, key=_level_key):
+        for level in level_order(defn, {r.level for r in runs}):
             same = sorted(
                 (r for r in runs if r.level == level and r.canonical is not None),
                 key=lambda r: (not r.production, r.root_index, r.case_id),
@@ -120,10 +145,13 @@ def pair_levels(
             if not same:
                 continue
             if len(same) > 1:
-                others = ", ".join(r.case_id for r in same[1:])
+                others = ", ".join(
+                    f"{r.case_id} (root {r.root_index})" for r in same[1:]
+                )
                 notes.append(
                     f"{case_id}: level {level} has {len(same)} runs with a canonical "
-                    f"file; {same[0].case_id} stands for it, not {others}"
+                    f"file; {same[0].case_id} (root {same[0].root_index}) stands for "
+                    f"it, not {others}"
                 )
             by_level[level] = same[0]
         if len(by_level) >= 2:
@@ -153,17 +181,31 @@ def _one_case(
     case_id: str,
     by_level: dict[str, LevelRun],
 ) -> dict[str, Any]:
+    production_level = defn.levels.production
     entry: dict[str, Any] = {
         "case_id": case_id,
         "levels": {label: run.case_id for label, run in by_level.items()},
-        "production_level": next(
-            (label for label, run in by_level.items() if run.production), None
-        ),
+        "production_level": production_level,
         "qoi": {},
         "extrapolation": {},
         "fields": {},
         "notes": [],
     }
+    standing = by_level.get(production_level)
+    if standing is not None and not standing.production:
+        entry["notes"].append(
+            f"level {production_level} (the production level) is stood for by a probe "
+            f"run, {standing.case_id}"
+        )
+    elsewhere = [
+        lv for lv, run in by_level.items() if run.production and lv != production_level
+    ]
+    if elsewhere:
+        entry["notes"].append(
+            "production runs also stand at levels "
+            + ", ".join(elsewhere)
+            + f" (older roots); the errors below are read at level {production_level}"
+        )
     loaded: dict[str, Case] = {}
     for label, run in by_level.items():
         assert run.canonical is not None
@@ -174,42 +216,51 @@ def _one_case(
                 f"level {label} ({run.case_id}) could not be read: "
                 f"{type(exc).__name__}: {exc}"
             )
-    labels = sorted(loaded, key=_level_key)
+    labels = level_order(defn, set(loaded))
     for label in labels:
         try:
             values = problem.qoi(loaded[label])
+            found = {
+                name: float(values[name]) for name in defn.qoi.names if name in values
+            }
         except Exception as exc:
             entry["notes"].append(
                 f"level {label}: qoi() raised {type(exc).__name__}: {exc}"
             )
             continue
-        for name in defn.qoi.names:
-            if name in values:
-                entry["qoi"].setdefault(name, {})[label] = float(values[name])
-    ratio = None
-    numeric = all(_level_key(label)[0] == 0 for label in labels)
-    if numeric and len(labels) >= 3:
-        h = [float(label) for label in labels]
-        ratios = [h[i + 1] / h[i] for i in range(len(h) - 1)]
-        if all(abs(r - ratios[0]) <= 1e-9 * ratios[0] for r in ratios):
-            ratio = ratios[0]
-        else:
-            entry["notes"].append(
-                f"levels {labels} are not in a constant ratio: no extrapolation"
-            )
-    elif len(labels) >= 3:
-        entry["notes"].append(
-            f"levels {labels} are not numeric labels: no extrapolation"
-        )
+        for name, value in found.items():
+            entry["qoi"].setdefault(name, {})[label] = value
     finest_three = labels[-3:]
+    ratio = None
+    if len(finest_three) == 3:
+        h = [_numeric(label) for label in finest_three]
+        if h[0] is None or h[1] is None or h[2] is None:
+            entry["notes"].append(
+                f"levels {finest_three} are not positive numeric labels: "
+                "no extrapolation"
+            )
+        else:
+            ratios = [h[1] / h[0], h[2] / h[1]]
+            if abs(ratios[1] - ratios[0]) <= 1e-9 * ratios[0]:
+                ratio = ratios[0]
+            else:
+                entry["notes"].append(
+                    f"levels {finest_three} are not in a constant ratio: "
+                    "no extrapolation"
+                )
     for name in defn.qoi.names:
         per_level = entry["qoi"].get(name, {})
         if ratio is None or any(label not in per_level for label in finest_three):
             entry["extrapolation"][name] = None
             continue
-        x = engine.richardson(
-            {label: per_level[label] for label in finest_three}, ratio=ratio
-        )
+        try:
+            x = engine.richardson(
+                {label: per_level[label] for label in finest_three}, ratio=ratio
+            )
+        except (ValueError, ZeroDivisionError) as exc:
+            entry["extrapolation"][name] = None
+            entry["notes"].append(f"{name}: no extrapolation: {exc}")
+            continue
         entry["extrapolation"][name] = {
             **asdict(x),
             "ratio": ratio,
@@ -251,6 +302,7 @@ def converge(
         for case_id, by_level in paired.items()
     ]
     level_counts = Counter(label for c in cases for label in c["levels"])
+    order = level_order(defn, set(level_counts))
     summary: dict[str, Any] = {"qoi": {}, "fields": {}}
     for name in defn.qoi.names:
         statuses = Counter(
@@ -258,14 +310,12 @@ def converge(
             for c in cases
             if c["extrapolation"].get(name)
         )
-        at_production = [
-            c["extrapolation"][name]["error_vs_extrapolated"][c["production_level"]]
-            for c in cases
-            if c["extrapolation"].get(name)
-            and c["extrapolation"][name]["error_vs_extrapolated"]
-            and c["production_level"]
-            in c["extrapolation"][name]["error_vs_extrapolated"]
-        ]
+        at_production = []
+        for c in cases:
+            x = c["extrapolation"].get(name)
+            errors = (x or {}).get("error_vs_extrapolated") or {}
+            if c["production_level"] in errors:
+                at_production.append(errors[c["production_level"]])
         summary["qoi"][name] = {
             "statuses": dict(sorted(statuses.items())),
             "error_at_production_level": _spread(at_production),
@@ -273,24 +323,22 @@ def converge(
     fields = sorted({f for c in cases for f in c["fields"]})
     for field in fields:
         summary["fields"][field] = {}
-        for label in sorted(
-            {lv for c in cases for lv in c["fields"].get(field, {})}, key=_level_key
-        ):
-            summary["fields"][field][label] = _spread(
-                [
-                    c["fields"][field][label]
-                    for c in cases
-                    if label in c["fields"].get(field, {})
-                ]
-            )
+        for label in order:
+            values = [
+                c["fields"][field][label]
+                for c in cases
+                if label in c["fields"].get(field, {})
+            ]
+            if values:
+                summary["fields"][field][label] = _spread(values)
     return {
         "format": RECORD_FORMAT,
         "dataset": defn.name,
         "refine_key": defn.levels.refine_key,
         "symmetry": defn.levels.symmetry,
-        "levels": {
-            label: level_counts[label] for label in sorted(level_counts, key=_level_key)
-        },
+        "production_level": defn.levels.production,
+        "level_order": order,
+        "levels": {label: level_counts[label] for label in order},
         "cases": cases,
         "summary": summary,
         "notes": notes,
@@ -299,9 +347,10 @@ def converge(
 
 
 def to_json(record: dict[str, Any]) -> bytes:
-    return (
-        json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-    ).encode("utf-8")
+    text = json.dumps(
+        record, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False
+    )
+    return (text + "\n").encode("utf-8")
 
 
 def _pct(x: float | None) -> str:
@@ -316,13 +365,14 @@ def _spread_row(s: dict[str, Any]) -> str:
 
 def render_markdown(record: dict[str, Any]) -> str:
     """The reader's document, from the record alone."""
-    levels = list(record["levels"])
+    levels = list(record.get("level_order") or sorted(record["levels"], key=_level_key))
     out = [f"# Convergence of {record['dataset']} across mesh levels", ""]
     out.append(
         f"*From the `{record['format']}` record (StructBench "
         f"{record['structbench_version']}); refine key `{record['refine_key']}`, "
-        f"{record['symmetry']} volume weights. Levels: "
-        + ", ".join(f"{lv} ({n} cases)" for lv, n in record["levels"].items())
+        f"{record['symmetry']} volume weights, production level "
+        f"{record.get('production_level', '?')}. Levels: "
+        + ", ".join(f"{lv} ({record['levels'][lv]} cases)" for lv in levels)
         + ".*"
     )
     cases = record["cases"]
@@ -333,27 +383,26 @@ def render_markdown(record: dict[str, Any]) -> str:
         out.append(
             header
             + " | Status | Order | Extrapolated | Error at production level"
-            + " | GCI (finest) |"
+            + " | Coarsest vs finest | GCI (finest) |"
         )
-        out.append("|---|" + "---|" * (len(levels) + 5))
+        out.append("|---|" + "---|" * (len(levels) + 6))
         for c in cases:
-            values = " | ".join(
-                f"{c['qoi'].get(name, {}).get(lv):.6g}"
-                if lv in c["qoi"].get(name, {})
-                else "—"
-                for lv in levels
-            )
+            per = c["qoi"].get(name, {})
+            values = " | ".join(f"{per[lv]:.6g}" if lv in per else "—" for lv in levels)
             x = c["extrapolation"].get(name)
-            if x:
+            if x and x["status"] == "monotone":
                 prod = (x["error_vs_extrapolated"] or {}).get(c["production_level"])
+                order = f"{x['order']:.3g}" if x["order"] is not None else "—"
                 tail = (
-                    f"{x['status']} | {x['order']:.3g} | {x['extrapolated']:.6g} | "
-                    f"{_pct(prod)} | {_pct(x['gci_fine'])}"
-                    if x["status"] == "monotone"
-                    else f"{x['status']} | — | — | — | —"
+                    f"{x['status']} | {order} | {x['extrapolated']:.6g} | {_pct(prod)}"
+                    f" | {_pct(x['coarsest_vs_finest'])} | {_pct(x['gci_fine'])}"
+                )
+            elif x:
+                tail = (
+                    f"{x['status']} | — | — | — | {_pct(x['coarsest_vs_finest'])} | —"
                 )
             else:
-                tail = "— | — | — | — | —"
+                tail = "— | — | — | — | — | —"
             out.append(f"| {c['case_id']} | {values} | {tail} |")
         s = record["summary"]["qoi"].get(name, {})
         out += [
@@ -371,9 +420,8 @@ def render_markdown(record: dict[str, Any]) -> str:
     if fields:
         out += ["", "## Field errors against the finest level (pooled relative L2)", ""]
         coarser = levels[:-1]
-        out.append(
-            "| Case | Field | " + " | ".join(f"level {lv}" for lv in coarser) + " |"
-        )
+        columns = " | ".join(f"level {lv}" for lv in coarser)
+        out.append(f"| Case | Field | {columns} |")
         out.append("|---|---|" + "---|" * len(coarser))
         for c in cases:
             for field in fields:
@@ -387,8 +435,10 @@ def render_markdown(record: dict[str, Any]) -> str:
             "|---|---|---|---|---|---|",
         ]
         for field in fields:
-            for lv, s in record["summary"]["fields"].get(field, {}).items():
-                out.append(f"| {field} | {lv} | {_spread_row(s)} |")
+            for lv in levels:
+                s = record["summary"]["fields"].get(field, {}).get(lv)
+                if s:
+                    out.append(f"| {field} | {lv} | {_spread_row(s)} |")
     notes = list(record["notes"]) + [
         f"{c['case_id']}: {n}" for c in cases for n in c["notes"]
     ]
@@ -405,7 +455,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--sweep", type=Path, required=True)
     parser.add_argument("--root", type=Path, action="append", default=[])
-    parser.add_argument("--out", type=Path)
+    parser.add_argument("--out", type=Path, help="default: <sweep>/converge")
     args = parser.parse_args(argv)
     try:
         defn = load_definition(args.dataset)
@@ -413,16 +463,25 @@ def main(argv: list[str] | None = None) -> int:
     except DefinitionError as exc:
         print(exc, file=sys.stderr)
         return 2
-    record = converge(defn, problem, [args.sweep, *args.root])
+    roots = [args.sweep, *args.root]
+    for root in roots:
+        if not root.is_dir():
+            print(f"{root} is not a directory", file=sys.stderr)
+            return 2
+    record = converge(defn, problem, roots)
     out = args.out or args.sweep / "converge"
     out.mkdir(parents=True, exist_ok=True)
     (out / "convergence.json").write_bytes(to_json(record))
     (out / "convergence.md").write_bytes(render_markdown(record).encode("utf-8"))
     n = len(record["cases"])
-    print(f"{n} case{'s' if n != 1 else ''} across levels -> {out}")
+    findings = sum(len(c["notes"]) for c in record["cases"])
+    print(
+        f"{n} case{'s' if n != 1 else ''} across levels, "
+        f"{findings} finding{'s' if findings != 1 else ''} -> {out}"
+    )
     for note in record["notes"]:
         print(f"  {note}")
-    return 0 if n else 1
+    return 0 if n and not findings else 1
 
 
 if __name__ == "__main__":

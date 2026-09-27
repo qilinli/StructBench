@@ -26,7 +26,8 @@ STATUSES = ("monotone", "oscillatory", "diverging", "flat")
 
 
 class NestingError(ValueError):
-    """Two meshes of which one is not a refinement of the other."""
+    """Two meshes of which one is not a refinement of the other, or elements the
+    restriction cannot own."""
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class Extrapolation:
     differences between levels have one sign and shrink; ``oscillatory``,
     ``diverging`` or ``flat`` otherwise, and then the other fields are None
     except ``coarsest_vs_finest``, which is reported whatever the status.
+    A relative quantity whose denominator is zero is None rather than a crash.
     """
 
     status: str
@@ -44,7 +46,11 @@ class Extrapolation:
     extrapolated: float | None
     gci_fine: float | None
     error_vs_extrapolated: dict[str, float] | None  # by level label
-    coarsest_vs_finest: float
+    coarsest_vs_finest: float | None
+
+
+def _ratio(numerator: float, denominator: float) -> float | None:
+    return None if denominator == 0.0 else abs(numerator) / abs(denominator)
 
 
 def richardson(
@@ -53,18 +59,25 @@ def richardson(
     """Observed order and extrapolated value from three levels, coarse to fine.
 
     ``values`` maps the three level labels, coarsest first, to the quantity;
-    ``ratio`` is the refinement ratio between consecutive levels.
+    ``ratio`` is the refinement ratio between consecutive levels. Non-finite
+    values are refused by name.
     """
     if len(values) != 3:
         raise ValueError(
             f"Richardson extrapolation needs exactly three levels, got {len(values)}"
         )
+    if not all(math.isfinite(v) for v in values.values()):
+        raise ValueError(
+            f"Richardson extrapolation needs finite values, got {dict(values)}"
+        )
     (_lc, fc), (_lm, fm), (_lf, ff) = values.items()
     e32, e21 = fc - fm, fm - ff
-    coarsest_vs_finest = abs(fc - ff) / abs(ff)
+    coarsest_vs_finest = _ratio(fc - ff, ff)
     if e21 == 0.0:
         status = "flat"
-    elif e32 / e21 <= 0.0:
+    elif e32 == 0.0:
+        status = "diverging"  # no change at the first step, a change at the second
+    elif e32 / e21 < 0.0:
         status = "oscillatory"
     elif abs(e32) <= abs(e21):
         status = "diverging"
@@ -75,10 +88,15 @@ def richardson(
     p = math.log(e32 / e21) / math.log(ratio)
     gain = ratio**p - 1.0
     extrapolated = ff + (ff - fm) / gain
-    errors = {
-        label: abs(v - extrapolated) / abs(extrapolated) for label, v in values.items()
-    }
-    gci = safety * abs(e21 / ff) / gain
+    errors = (
+        None
+        if extrapolated == 0.0
+        else {
+            label: abs(v - extrapolated) / abs(extrapolated)
+            for label, v in values.items()
+        }
+    )
+    gci = None if ff == 0.0 else safety * abs(e21 / ff) / gain
     return Extrapolation(status, p, extrapolated, gci, errors, coarsest_vs_finest)
 
 
@@ -115,11 +133,23 @@ def element_weights(
     return np.abs(cross.sum(axis=1)) / 2.0
 
 
+def _not_rectangles(xy: NDArray[np.float64], conn: NDArray[np.int64]) -> int:
+    """How many quads are not axis-aligned rectangles (two x values, two y values)."""
+    quads = xy[conn]  # (E, 4, 2)
+    scale = float(np.ptp(xy, axis=0).max()) or 1.0
+    xs, ys = np.sort(quads[..., 0], axis=1), np.sort(quads[..., 1], axis=1)
+    tol = 1e-9 * scale
+    ok_x = (np.abs(xs[:, 1] - xs[:, 0]) <= tol) & (np.abs(xs[:, 3] - xs[:, 2]) <= tol)
+    ok_y = (np.abs(ys[:, 1] - ys[:, 0]) <= tol) & (np.abs(ys[:, 3] - ys[:, 2]) <= tol)
+    return int((~(ok_x & ok_y)).sum())
+
+
 class Restriction:
     """Average fine element values onto the coarse elements that contain them.
 
-    Each fine element goes to the coarse element whose axis-aligned box holds
-    its centroid (structured meshes), weighted by ``element_weights``.
+    The meshes must be structured from axis-aligned rectangular quads (the
+    owner of a fine element is the coarse box holding its centroid); any other
+    element is refused by name. Weighted by ``element_weights``.
     """
 
     def __init__(
@@ -133,6 +163,13 @@ class Restriction:
     ) -> None:
         cxy, cconn = np.asarray(coarse_xy, float), np.asarray(coarse_conn, np.int64)
         fxy, fconn = np.asarray(fine_xy, float), np.asarray(fine_conn, np.int64)
+        for name, xy, conn in (("coarse", cxy, cconn), ("fine", fxy, fconn)):
+            bad = _not_rectangles(xy, conn)
+            if bad:
+                raise NestingError(
+                    "restriction supports axis-aligned rectangular elements only; "
+                    f"{bad} {name} elements are not"
+                )
         boxes = cxy[cconn]
         lo, hi = boxes.min(axis=1), boxes.max(axis=1)
         centroid = fxy[fconn].mean(axis=1)
@@ -199,7 +236,8 @@ def field_errors(
     element fields on the coarse elements, the fine children restricted with
     volume weights. Fields default to those both cases store; one stored on a
     single side is left out. Raises ``NestingError`` when the meshes do not
-    nest and ``ValueError`` when the time grids differ.
+    nest (or are not rectangular quads) and ``ValueError`` when the time grids
+    differ.
     """
     if coarse.response is None or fine.response is None:
         raise ValueError("both cases must store a response")
@@ -215,16 +253,13 @@ def field_errors(
     fe = fine.response.element.get("solid", {})
     names_n = [n for n in (node_fields or cn) if n in cn and n in fn]
     names_e = [n for n in (element_fields or ce) if n in ce and n in fe]
-    errors = {
-        n: float(
-            relative_l2_pooled(np.asarray(cn[n])[:, used], np.asarray(fn[n])[:, index])
-        )
-        for n in names_n
-    }
+    errors = {}
+    for n in names_n:
+        a, b = np.asarray(cn[n])[:, used], np.asarray(fn[n])[:, index]
+        errors[n] = float(relative_l2_pooled(a, b))
     if names_e:
         restrict = Restriction(cxy, cconn, fxy, fconn, axisymmetric=axisymmetric)
         for n in names_e:
-            errors[n] = float(
-                relative_l2_pooled(np.asarray(ce[n]), restrict.apply(fe[n]))
-            )
+            fine_on_coarse = restrict.apply(fe[n])
+            errors[n] = float(relative_l2_pooled(np.asarray(ce[n]), fine_on_coarse))
     return errors

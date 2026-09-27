@@ -60,7 +60,12 @@ coarser level against the finest with the headline relative L2, restricted
 with the `[levels].symmetry` volume weights. It writes `convergence.json`
 (byte-stable, case ids only) and `convergence.md` under `<sweep>/converge/`.
 The dataset supplies only `[levels]` and `qoi()`; the engine is
-`structbench.verification.convergence`.
+`structbench.verification.convergence`. Level labels are refinement factors
+proportional to 1 / h, larger meaning finer, and `[levels].pilot` lists them
+coarse to fine; Richardson extrapolation needs the three finest to be
+positive numbers in a constant ratio (word labels get field errors only).
+The restriction of element fields supports meshes of axis-aligned
+rectangular quads; other elements are refused by name, per case.
 
 ## Before production
 

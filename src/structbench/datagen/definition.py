@@ -89,6 +89,14 @@ def file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
+def _number(label: str) -> float | None:
+    """The label as a number, or None when it is not one."""
+    try:
+        return float(label)
+    except ValueError:
+        return None
+
+
 def _table(raw: dict[str, Any], name: str) -> dict[str, Any]:
     table = raw.get(name)
     if not isinstance(table, dict):
@@ -166,6 +174,18 @@ def load_definition(dataset_dir: Path) -> Definition:
         _strings(lv, "levels", "pilot"),
         symmetry,
     )
+    if len(set(levels.pilot)) != len(levels.pilot):
+        raise DefinitionError("levels.pilot: labels must be unique")
+    numbers = [_number(label) for label in levels.pilot]
+    if None not in numbers:
+        values = [v for v in numbers if v is not None]
+        if any(v <= 0.0 for v in values) or any(
+            b <= a for a, b in zip(values[:-1], values[1:], strict=True)
+        ):
+            raise DefinitionError(
+                "levels.pilot: numeric labels are refinement factors and must be "
+                "positive and increasing, coarse to fine"
+            )
     if levels.production not in levels.pilot:
         raise DefinitionError(
             f"levels.production: {levels.production!r} is not among levels.pilot"
@@ -231,7 +251,8 @@ def load_problem(dataset_dir: Path) -> ModuleType:
     A ``__pycache__`` inside the dataset's repository would make its provenance
     read as uncommitted work. The dataset's directory is importable while the
     module loads, so ``problem.py`` may import a sibling (its measures, say);
-    the entry is removed afterwards.
+    the entry is removed afterwards, and so are the sibling modules it
+    imported, so two datasets' siblings of one name never meet.
     """
     path = dataset_dir / PROBLEM_FILE
     if not path.is_file():
@@ -244,6 +265,7 @@ def load_problem(dataset_dir: Path) -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     previous, sys.dont_write_bytecode = sys.dont_write_bytecode, True
     sys.path.insert(0, str(dataset_dir))
+    known = set(sys.modules)
     # Registered before execution, as importlib's recipe says: dataclasses
     # resolve a class's annotations through sys.modules[cls.__module__].
     sys.modules[spec.name] = module
@@ -259,6 +281,11 @@ def load_problem(dataset_dir: Path) -> ModuleType:
         sys.dont_write_bytecode = previous
         if str(dataset_dir) in sys.path:
             sys.path.remove(str(dataset_dir))
+        root = dataset_dir.resolve()
+        for name in set(sys.modules) - known - {spec.name}:
+            file = getattr(sys.modules.get(name), "__file__", None)
+            if file and root in Path(file).resolve().parents:
+                del sys.modules[name]  # a sibling stays with its dataset
     for hook in REQUIRED_HOOKS:
         if not callable(getattr(module, hook, None)):
             raise DefinitionError(f"{PROBLEM_FILE}: defines no {hook}()")
