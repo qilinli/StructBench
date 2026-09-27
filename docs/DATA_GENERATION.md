@@ -6,10 +6,11 @@ StructBench generates reference data through `structbench-datagen`. A dataset is
 a definition in a directory of its own, which may be private:
 
 - `dataset.toml` — what the dataset is: identity, declaration, constants, the
-  sampled box, splits, mesh levels, the pilot cases, quantities of interest,
-  ODB retention.
+  sampled box, splits, mesh levels (and their `symmetry`, `axisymmetric` or
+  `planar`, which chooses the volume weights `converge` uses), the pilot
+  cases, quantities of interest, ODB retention.
 - `problem.py` — how one case is built and read: `input_deck`, `feasible`,
-  `mesh`, `qoi`.
+  `mesh`, `qoi`. It may import sibling modules of its own directory.
 
 Start from the template and check it before anything runs:
 

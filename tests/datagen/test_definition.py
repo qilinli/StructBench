@@ -143,3 +143,32 @@ def test_a_problem_that_defines_a_dataclass_loads(definition_dir):
     (definition_dir / "problem.py").write_bytes(problem.encode())
     module = definition.load_problem(definition_dir)
     assert module.Measure().value == 1.0
+
+
+def test_a_problem_may_import_a_sibling_module(definition_dir):
+    import sys
+
+    (definition_dir / "helpers.py").write_bytes(b"SCALE = 3.0\n")
+    problem = MINIMAL_PROBLEM.replace(
+        "from structbench.datagen.abaqus import deck",
+        "from structbench.datagen.abaqus import deck\nfrom helpers import SCALE",
+    )
+    (definition_dir / "problem.py").write_bytes(problem.encode())
+    module = definition.load_problem(definition_dir)
+    assert module.SCALE == 3.0
+    assert str(definition_dir) not in sys.path  # the entry is removed afterwards
+
+
+def test_levels_symmetry_defaults_to_axisymmetric_and_refuses_others(tmp_path):
+    d = definition.load_definition(write_definition(tmp_path / "a"))
+    assert d.levels.symmetry == "axisymmetric"
+    planar = MINIMAL_TOML.replace(
+        'refine_key = "refine"', 'refine_key = "refine"\nsymmetry = "planar"'
+    )
+    d = definition.load_definition(write_definition(tmp_path / "b", toml=planar))
+    assert d.levels.symmetry == "planar"
+    odd = MINIMAL_TOML.replace(
+        'refine_key = "refine"', 'refine_key = "refine"\nsymmetry = "spherical"'
+    )
+    with pytest.raises(definition.DefinitionError, match="levels.symmetry"):
+        definition.load_definition(write_definition(tmp_path / "c", toml=odd))

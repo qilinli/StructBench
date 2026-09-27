@@ -24,6 +24,8 @@ from structbench.datagen import sampling
 DEFINITION_FILE = "dataset.toml"
 PROBLEM_FILE = "problem.py"
 SOLVERS = ("abaqus",)
+#: The volume weights the convergence engine restricts element fields with.
+SYMMETRIES = ("axisymmetric", "planar")
 REQUIRED_HOOKS = ("input_deck", "mesh", "qoi")
 OPTIONAL_HOOKS = ("feasible",)
 
@@ -37,6 +39,7 @@ class Levels:
     refine_key: str
     production: str
     pilot: tuple[str, ...]
+    symmetry: str = "axisymmetric"  # one of SYMMETRIES
 
 
 @dataclass(frozen=True)
@@ -152,10 +155,16 @@ def load_definition(dataset_dir: Path) -> Definition:
         raise DefinitionError(str(exc)) from exc
 
     lv = _table(raw, "levels")
+    symmetry = str(lv.get("symmetry", "axisymmetric"))
+    if symmetry not in SYMMETRIES:
+        raise DefinitionError(
+            f"levels.symmetry: {symmetry!r} is not one of {SYMMETRIES}"
+        )
     levels = Levels(
         _field(lv, "levels", "refine_key", str),
         _field(lv, "levels", "production", str),
         _strings(lv, "levels", "pilot"),
+        symmetry,
     )
     if levels.production not in levels.pilot:
         raise DefinitionError(
@@ -220,7 +229,9 @@ def load_problem(dataset_dir: Path) -> ModuleType:
     """Import ``<dataset_dir>/problem.py`` by path; no bytecode is written.
 
     A ``__pycache__`` inside the dataset's repository would make its provenance
-    read as uncommitted work.
+    read as uncommitted work. The dataset's directory is importable while the
+    module loads, so ``problem.py`` may import a sibling (its measures, say);
+    the entry is removed afterwards.
     """
     path = dataset_dir / PROBLEM_FILE
     if not path.is_file():
@@ -232,6 +243,7 @@ def load_problem(dataset_dir: Path) -> ModuleType:
         raise DefinitionError(f"{PROBLEM_FILE}: cannot be loaded from {dataset_dir}")
     module = importlib.util.module_from_spec(spec)
     previous, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    sys.path.insert(0, str(dataset_dir))
     # Registered before execution, as importlib's recipe says: dataclasses
     # resolve a class's annotations through sys.modules[cls.__module__].
     sys.modules[spec.name] = module
@@ -245,6 +257,8 @@ def load_problem(dataset_dir: Path) -> ModuleType:
         raise
     finally:
         sys.dont_write_bytecode = previous
+        if str(dataset_dir) in sys.path:
+            sys.path.remove(str(dataset_dir))
     for hook in REQUIRED_HOOKS:
         if not callable(getattr(module, hook, None)):
             raise DefinitionError(f"{PROBLEM_FILE}: defines no {hook}()")
