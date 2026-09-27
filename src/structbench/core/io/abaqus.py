@@ -2,7 +2,7 @@
 
 ``data_generation/abaqus/odb_export.py`` runs under ``abaqus python`` and
 writes the ``.odb`` as plain arrays in the deck's own units, keyed by Abaqus
-labels (layout: ``STANDARD_INPUT_BLOCK.md``). This module turns that into the
+labels (layout: ``docs/datagen/abaqus-conformance.md``). This module turns that into the
 strict-SI canonical case. It decides three things the export leaves open:
 
 1. **The duplicate end frame.** Abaqus/Explicit writes an extra field frame

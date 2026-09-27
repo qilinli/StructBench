@@ -2,7 +2,8 @@
 
 Runs under Abaqus's own interpreter (Python 3.10, numpy, odbAccess)::
 
-    abaqus python data_generation/abaqus/odb_export.py --sweep <work-root>/<name>
+    structbench-datagen export --sweep <work-root>/<name>
+        (which runs: abaqus python <this file> --sweep ...)
         [--cases ID ...]
 
 Dataset-blind: it writes whatever the ODB holds, for cases whose ``run.json``
@@ -35,6 +36,7 @@ import hashlib
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -57,7 +59,7 @@ def selected_cases(sweep: Path, cases: list[str] | None = None) -> list[Path]:
     return out
 
 
-def _labels(values) -> np.ndarray:
+def _labels(values: Any) -> np.ndarray:
     """A block's label array; odbAccess gives ``None`` for labels it lacks."""
     return np.asarray(() if values is None else values, dtype=np.int64).reshape(-1)
 
@@ -102,7 +104,7 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _mesh(odb, arrays: dict) -> None:
+def _mesh(odb: Any, arrays: dict[str, np.ndarray]) -> None:
     for iname, inst in odb.rootAssembly.instances.items():
         base = f"mesh/{iname}"
         arrays[f"{base}/node_labels"] = np.array(
@@ -111,7 +113,7 @@ def _mesh(odb, arrays: dict) -> None:
         arrays[f"{base}/node_coords"] = np.array(
             [n.coordinates for n in inst.nodes], dtype=np.float64
         )
-        by_type = {}
+        by_type: dict[str, list[Any]] = {}
         for element in inst.elements:
             by_type.setdefault(element.type, []).append(element)
         for etype, elements in by_type.items():
@@ -123,17 +125,19 @@ def _mesh(odb, arrays: dict) -> None:
             )
 
 
-def _fields(sname: str, frames, arrays: dict, manifest: dict) -> None:
+def _fields(
+    sname: str, frames: Any, arrays: dict[str, np.ndarray], manifest: dict[str, Any]
+) -> None:
     for fname in sorted(frames[0].fieldOutputs.keys()):
         if any(fname not in f.fieldOutputs.keys() for f in frames):
             manifest["skipped"].append(
                 {"step": sname, "field": fname, "reason": "absent_in_some_frames"}
             )
             continue
-        per_instance = {}
-        positions = {}
+        per_instance: dict[str, list[Any]] = {}
+        positions: dict[str, str] = {}
         for frame in frames:
-            groups = {}
+            groups: dict[str, list[Any]] = {}
             for block in frame.fieldOutputs[fname].bulkDataBlocks:
                 key = block.instance.name if block.instance is not None else ASSEMBLY
                 groups.setdefault(key, []).append(block)
@@ -165,12 +169,12 @@ def _fields(sname: str, frames, arrays: dict, manifest: dict) -> None:
             }
 
 
-def export(odb_path: Path, out_path: Path) -> dict:
+def export(odb_path: Path, out_path: Path) -> dict[str, Any]:
     """Write ``out_path`` from ``odb_path``; return the manifest."""
     from odbAccess import openOdb  # Abaqus interpreter only
 
-    arrays = {}
-    manifest = {
+    arrays: dict[str, np.ndarray] = {}
+    manifest: dict[str, Any] = {
         "format": FORMAT,
         "odb_sha256": _sha256(odb_path),
         "fields": {},
@@ -198,7 +202,8 @@ def export(odb_path: Path, out_path: Path) -> dict:
         odb.close()
     arrays["manifest"] = np.array(json.dumps(manifest, sort_keys=True))
     partial = out_path.with_name(out_path.stem + ".partial.npz")
-    np.savez_compressed(partial, **arrays)
+    # numpy's stub types **kwds against allow_pickle; the keys are array names.
+    np.savez_compressed(partial, **arrays)  # type: ignore[arg-type]
     partial.replace(out_path)
     return manifest
 

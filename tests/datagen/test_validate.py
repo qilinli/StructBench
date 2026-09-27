@@ -4,10 +4,10 @@ import importlib.util
 import json
 from pathlib import Path
 
-import abaqus_paths  # noqa: F401
-import convert
 import numpy as np
-import validate
+from conftest import MINIMAL_TOML
+
+from structbench.datagen import convert, validate
 
 _HERE = Path(__file__).resolve().parent
 
@@ -23,21 +23,13 @@ def _load(name: str, path: Path):
 _FIXTURE = _load(
     "abaqus_adapter_fixture", _HERE.parent / "core" / "test_abaqus_adapter.py"
 )
-_COLLECT = _load("abaqus_collect_fixture", _HERE / "test_abaqus_collect.py")
+_COLLECT = _load("abaqus_collect_fixture", _HERE / "test_collect.py")
 
-_TOML = """
-[dataset]
-name = "toy_sweep"
-
-[declaration]
-unit_system = "t-mm-s"
-fields = [
-    "node/displacement", "node/velocity", "node/acceleration",
-    "solid/stress", "solid/effective_plastic_strain", "global/kinetic_energy",
-]
-discretisation = "FEM"
-erosion = false
-"""
+_TOML = MINIMAL_TOML.replace('name = "toy"', 'name = "toy_sweep"').replace(
+    'fields = ["node/displacement", "solid/stress", "global/kinetic_energy"]',
+    'fields = ["node/displacement", "node/velocity", "node/acceleration", '
+    '"solid/stress", "solid/effective_plastic_strain", "global/kinetic_energy"]',
+)
 _ABORTED_STA = _COLLECT._STA.replace(
     "THE ANALYSIS HAS COMPLETED SUCCESSFULLY", "THE ANALYSIS HAS NOT BEEN COMPLETED"
 )
@@ -54,7 +46,7 @@ def _sweep(tmp_path: Path) -> tuple[Path, Path]:
     (sweep / "T-0001" / "T-0001.sta").write_text(_ABORTED_STA, encoding="utf-8")
     dataset = tmp_path / "dataset"
     dataset.mkdir()
-    (dataset / "sweep.toml").write_text(_TOML, encoding="utf-8")
+    (dataset / "dataset.toml").write_text(_TOML, encoding="utf-8")
     convert.convert_sweep(sweep)
     return sweep, dataset
 

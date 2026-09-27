@@ -1,0 +1,145 @@
+"""The dataset definition contract (ADR-0071): dataset.toml and problem.py."""
+
+import hashlib
+
+import pytest
+from conftest import MINIMAL_PROBLEM, MINIMAL_TOML, write_definition
+
+from structbench.datagen import definition
+
+
+def test_a_minimal_definition_loads_every_table(definition_dir):
+    d = definition.load_definition(definition_dir)
+    assert (d.name, d.case_prefix, d.units, d.solver) == (
+        "toy",
+        "TOY",
+        "t-mm-s",
+        "abaqus",
+    )
+    assert d.variables == {"L": (1.0, 2.0), "v0": (10.0, 20.0)}
+    assert [s.name for s in d.splits] == ["train", "pilot"]
+    assert d.split("pilot").probe is True and d.split("train").probe is False
+    assert d.levels.production == "1" and d.levels.pilot == ("1", "2")
+    assert d.pilot.split == "pilot"
+    assert d.pilot.accepted_gaps == ("solver_identity_complete",)
+    assert d.qoi.names == ("length",) and d.qoi.units == ("m",)
+    assert d.limits == {} and d.retention == {}
+    assert len(d.sha256()) == 64
+
+
+@pytest.mark.parametrize(
+    "drop, expected",
+    [
+        ("[levels]", "levels"),
+        ("[pilot]", "pilot"),
+        ("[qoi]", "qoi"),
+        ('refine_key = "refine"', "levels.refine_key"),
+        ("min_free_gb = 5.0", "pilot.min_free_gb"),
+    ],
+)
+def test_missing_table_is_named(tmp_path, drop, expected):
+    toml = MINIMAL_TOML.replace(drop, "")
+    with pytest.raises(definition.DefinitionError, match=expected):
+        definition.load_definition(write_definition(tmp_path / "d", toml=toml))
+
+
+def test_pilot_split_must_be_an_explicit_probe(tmp_path):
+    sampled = MINIMAL_TOML.replace('split = "pilot"', 'split = "train"')
+    with pytest.raises(definition.DefinitionError, match="pilot.split"):
+        definition.load_definition(write_definition(tmp_path / "a", toml=sampled))
+    unmarked = MINIMAL_TOML.replace("probe = true\n", "")
+    with pytest.raises(definition.DefinitionError, match="probe"):
+        definition.load_definition(write_definition(tmp_path / "b", toml=unmarked))
+
+
+def test_production_level_must_be_a_pilot_level(tmp_path):
+    toml = MINIMAL_TOML.replace('production = "1"', 'production = "4"')
+    with pytest.raises(definition.DefinitionError, match="levels.production"):
+        definition.load_definition(write_definition(tmp_path / "d", toml=toml))
+
+
+def test_refine_key_may_not_be_a_variable_or_a_constant(tmp_path):
+    toml = MINIMAL_TOML.replace("E = 1000.0", "E = 1000.0\nrefine = 2")
+    with pytest.raises(definition.DefinitionError, match="refine"):
+        definition.load_definition(write_definition(tmp_path / "d", toml=toml))
+
+
+def test_qoi_names_and_units_must_pair(tmp_path):
+    toml = MINIMAL_TOML.replace('units = ["m"]', 'units = ["m", "m"]')
+    with pytest.raises(definition.DefinitionError, match="qoi.units"):
+        definition.load_definition(write_definition(tmp_path / "d", toml=toml))
+
+
+def test_unknown_unit_label_and_solver_are_refused(tmp_path):
+    bad_units = MINIMAL_TOML.replace('units = "t-mm-s"', 'units = "furlongs"')
+    with pytest.raises(definition.DefinitionError, match="dataset.units"):
+        definition.load_definition(write_definition(tmp_path / "u", toml=bad_units))
+    bad_solver = MINIMAL_TOML.replace('solver = "abaqus"', 'solver = "ansys"')
+    with pytest.raises(definition.DefinitionError, match="dataset.solver"):
+        definition.load_definition(write_definition(tmp_path / "s", toml=bad_solver))
+
+
+def test_problem_must_define_the_three_required_hooks(definition_dir):
+    problem = definition.load_problem(definition_dir)
+    assert callable(problem.input_deck)
+    assert callable(problem.mesh) and callable(problem.qoi)
+    broken = MINIMAL_PROBLEM.replace("def qoi", "def qoi_")
+    (definition_dir / "problem.py").write_bytes(broken.encode())
+    with pytest.raises(definition.DefinitionError, match="qoi"):
+        definition.load_problem(definition_dir)
+
+
+def test_problem_hash_is_of_the_file_bytes(definition_dir):
+    expected = hashlib.sha256((definition_dir / "problem.py").read_bytes()).hexdigest()
+    assert definition.problem_sha256(definition_dir) == expected
+
+
+def test_definition_hashes_do_not_change_with_line_endings(tmp_path):
+    # a checkout's CRLF conversion must not make a definition read as another
+    lf = write_definition(tmp_path / "lf")
+    crlf = tmp_path / "crlf"
+    crlf.mkdir()
+    for name in ("dataset.toml", "problem.py"):
+        (crlf / name).write_bytes((lf / name).read_bytes().replace(b"\n", b"\r\n"))
+    assert (
+        definition.load_definition(lf).sha256()
+        == definition.load_definition(crlf).sha256()
+    )
+    assert definition.problem_sha256(lf) == definition.problem_sha256(crlf)
+
+
+def test_malformed_toml_is_a_definition_error(tmp_path):
+    ds = write_definition(tmp_path / "d", toml="[dataset\nname = 'x'\n")
+    with pytest.raises(definition.DefinitionError, match="dataset.toml"):
+        definition.load_definition(ds)
+
+
+def test_a_problem_that_fails_to_import_is_a_definition_error(definition_dir):
+    broken = "import no_such_module_xyz\n" + MINIMAL_PROBLEM
+    (definition_dir / "problem.py").write_bytes(broken.encode())
+    with pytest.raises(
+        definition.DefinitionError, match="problem.py.*no_such_module_xyz"
+    ):
+        definition.load_problem(definition_dir)
+
+
+DATACLASS_HEADER = (
+    '"""A toy problem with a dataclass."""\n'
+    "from __future__ import annotations\n"
+    "from dataclasses import dataclass\n"
+    "\n\n"
+    "@dataclass(frozen=True)\n"
+    "class Measure:\n"
+    "    value: float = 1.0\n"
+)
+
+
+def test_a_problem_that_defines_a_dataclass_loads(definition_dir):
+    # dataclasses resolve string annotations through sys.modules[cls.__module__];
+    # a module executed by path without being registered there cannot define one
+    problem = MINIMAL_PROBLEM.replace(
+        '"""A toy problem: one quad per level, byte-stable."""', DATACLASS_HEADER
+    )
+    (definition_dir / "problem.py").write_bytes(problem.encode())
+    module = definition.load_problem(definition_dir)
+    assert module.Measure().value == 1.0

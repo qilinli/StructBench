@@ -1,6 +1,6 @@
 """Copy a validated sweep into the data tree; keep a sample of its ODBs.
 
-    python data_generation/abaqus/archive.py --sweep <work-root>/<name>
+    structbench-datagen archive --sweep <work-root>/<name>
         --dataset <dataset-dir> --data-root <data tree>
         [--split NAME ...] [--prune-odb] [--yes]
 
@@ -13,7 +13,7 @@ retained -- and the canonical case to ``<data-root>/canonical/<name>/<id>.h5``.
 ``.msg`` are copied with their licence header and any licence line removed
 (``redact``), and verified against the redacted bytes.
 
-Retention comes from ``[retention]`` in ``<dataset-dir>/sweep.toml``:
+Retention comes from ``[retention]`` in ``<dataset-dir>/dataset.toml``:
 about ``odb_fraction`` (default 0.05) of the cases, each decided by a hash of
 ``odb_seed`` and its id, plus the named ``odb_cases``. A named case that is
 not in the sweep, and a retained case whose ODB is gone, are reported.
@@ -37,12 +37,13 @@ import os
 import re
 import shutil
 import sys
-import tomllib
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+
+from structbench.datagen.definition import load_definition
 
 _RUN_FILES = (
     "{id}.inp",
@@ -200,7 +201,9 @@ def _odb_vouched(sweep: Path, cid: str) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog="structbench-datagen archive", description=(__doc__ or "").splitlines()[0]
+    )
     parser.add_argument("--sweep", type=Path, required=True)
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--data-root", type=Path, required=True)
@@ -209,9 +212,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--yes", action="store_true")
     args = parser.parse_args(argv)
 
-    toml = tomllib.loads((args.dataset / "sweep.toml").read_text(encoding="utf-8"))
-    name = toml["dataset"]["name"]
-    rules = toml.get("retention", {})
+    defn = load_definition(args.dataset)
+    name, rules = defn.name, defn.retention
     case_ids = _case_ids(args.sweep, args.split)
     keep = retained(
         case_ids,

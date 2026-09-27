@@ -325,7 +325,7 @@ _DATA_BEARING = frozenset({"NODE", "ELEMENT", "NSET", "ELSET", "SURFACE"})
 #: Whole-model energy outputs -> the ledger term each is (E5). Established on
 #: a 2026-09-24 diagnostic run requesting every energy variable, where
 #: ETOTAL = ALLKE + ALLIE + ALLVD + ALLFD + ALLCD - ALLWK - ALLPW closed to
-#: 6.6e-8 of the initial kinetic energy (STANDARD_INPUT_BLOCK.md). ALLAE is
+#: 6.6e-8 of the initial kinetic energy (docs/datagen/abaqus-conformance.md). ALLAE is
 #: part of ALLIE, not an addend. The contact term is ALLFD - ALLPW, so it
 #: exists only when both are output: see ``_CONTACT_OUTPUTS``.
 ENERGY_LEDGER_TERMS: dict[str, str] = {

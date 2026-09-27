@@ -856,7 +856,7 @@ observed Abaqus run wrote an energy ledger, because none asked for one; the E5
 rows will read `source_missing` until a conformance run does. That is the
 requirement working as designed — the same reading notch gets, for the same
 reason — and it is the argument for
-`data_generation/abaqus/STANDARD_INPUT_BLOCK.md` existing before any Abaqus
+`docs/datagen/abaqus-conformance.md` (moved 2026-09-27; was `data_generation/abaqus/STANDARD_INPUT_BLOCK.md`) existing before any Abaqus
 data is generated rather than after.
 
 ## Solid-block note (2026-09-25, agent): three rows, and where the yield table comes from

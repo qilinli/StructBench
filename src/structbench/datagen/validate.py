@@ -1,12 +1,12 @@
 """Validate a sweep: run evidence, measurements and verdicts in one pass.
 
-    python data_generation/abaqus/validate.py --sweep <work-root>/<name>
+    structbench-datagen validate --sweep <work-root>/<name>
         --dataset <dataset-dir> [--split NAME ...] [--data-root DIR]
 
 1. Collects the run evidence of every case that ran (``collect_run_evidence``).
 2. Measures the canonical cases under ``--data-root`` (default
    ``<sweep>/canonical``, what ``convert.py`` writes) against the
-   ``[declaration]`` of ``<dataset-dir>/sweep.toml``. A case that ran but has
+   ``[declaration]`` of ``<dataset-dir>/dataset.toml``. A case that ran but has
    no canonical file -- an aborted run, or one that failed to convert -- is
    measured from its deck and run record alone, so it is reported, not lost.
 3. Judges the record and writes ``run_evidence.json``, ``measurements.json``
@@ -25,13 +25,14 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
-from collect_run_evidence import collect_sweep
 
 from structbench import __version__
 from structbench.cli.datacheck import declared_from_toml, measure_cases
+from structbench.core import DeclaredFacts, RunEvidence
 from structbench.core.io import dump_run_evidence
 from structbench.core.io.abaqus_run import read_abaqus_input_facts
-from structbench.verification import Verdict
+from structbench.datagen.collect import collect_sweep
+from structbench.verification import CaseMeasurements, Verdict
 from structbench.verification.criteria import judge
 from structbench.verification.measures import measure_case
 from structbench.verification.quantities import CATALOGUE
@@ -39,7 +40,9 @@ from structbench.verification.report import render_markdown, to_json
 from structbench.verification.results import DatasetMeasurements
 
 
-def _without_case(sweep: Path, case_id: str, declared, run):  # noqa: ANN001
+def _without_case(
+    sweep: Path, case_id: str, declared: DeclaredFacts | None, run: RunEvidence | None
+) -> CaseMeasurements:
     """A run with no canonical file, measured on its deck and run record."""
     folder = sweep / case_id
     prov = json.loads((folder / "provenance.json").read_text(encoding="utf-8"))
@@ -67,7 +70,7 @@ def validate_sweep(
     out.mkdir(parents=True, exist_ok=True)
     runs = collect_sweep(sweep, splits=splits)
     (out / "run_evidence.json").write_text(dump_run_evidence(runs), encoding="utf-8")
-    _, declared = declared_from_toml(dataset / "sweep.toml")
+    _, declared = declared_from_toml(dataset / "dataset.toml")
     stored = sorted(cid for cid in runs if (data_root / f"{cid}.h5").is_file())
     record = measure_cases(declared, None, data_root, stored, run_evidence=runs)
     extra = [
@@ -120,7 +123,9 @@ def validate_sweep(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog="structbench-datagen validate", description=(__doc__ or "").splitlines()[0]
+    )
     parser.add_argument("--sweep", type=Path, required=True)
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--split", action="append")

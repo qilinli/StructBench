@@ -1,6 +1,6 @@
-"""Generate a sweep's Abaqus case folders from a dataset's sweep.toml and model.py.
+"""Generate a sweep's Abaqus case folders from a dataset's dataset.toml and problem.py.
 
-    python data_generation/abaqus/generate.py --dataset <dir> --work-root <root>
+    structbench-datagen generate --dataset <dir> --work-root <root>
         [--split NAME ...] [--force] [--dry-run]
 
 Each case gets ``<work-root>/<name>/<case_id>/<case_id>.inp`` and a
@@ -15,28 +15,34 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import importlib.util
 import json
 import re
 import subprocess
 import sys
-import tomllib
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from types import ModuleType
 from typing import Any, Literal
 
 import numpy as np
-import sampling
 import scipy
 
+from structbench import __version__
 from structbench.core.io import unit_factors
+from structbench.datagen import sampling
+from structbench.datagen.definition import (
+    Definition,
+    load_definition,
+    load_problem,
+    problem_sha256,
+)
 
-_REPO = Path(__file__).resolve().parents[2]
-PROVENANCE_FORMAT = "abaqus-provenance/1"
+#: The checkout this module runs from, when it is one (src/structbench/datagen
+#: -> repo root); an installed package has no commit to record, only a version.
+_REPO = Path(__file__).resolve().parents[3]
+PROVENANCE_FORMAT = "abaqus-provenance/2"
 #: A conservative Abaqus job-name rule; the conformance run confirms or relaxes it.
 _CASE_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,37}$")
 
@@ -53,54 +59,19 @@ class CaseSpec:
     params: dict[str, float | str]
 
 
-def load_sweep(dataset_dir: Path) -> dict[str, Any]:
-    with (dataset_dir / "sweep.toml").open("rb") as handle:
-        return tomllib.load(handle)
-
-
-def load_model(dataset_dir: Path) -> ModuleType:
-    """Import the dataset's model.py by path; it must define ``build``.
-
-    No bytecode is written: a ``__pycache__`` inside the dataset's repository
-    would make its provenance read as uncommitted work.
-    """
-    path = dataset_dir / "model.py"
-    spec = importlib.util.spec_from_file_location(
-        f"dataset_model_{dataset_dir.name}", path
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load {path.name} from {dataset_dir.name}")
-    module = importlib.util.module_from_spec(spec)
-    previous, sys.dont_write_bytecode = sys.dont_write_bytecode, True
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    if not callable(getattr(module, "build", None)):
-        raise AttributeError(f"{dataset_dir.name}/model.py defines no build()")
-    return module
-
-
 def plan_cases(
-    sweep: dict[str, Any], feasible: Callable[[dict[str, Any]], bool] | None = None
+    defn: Definition, feasible: Callable[[dict[str, Any]], bool] | None = None
 ) -> list[CaseSpec]:
     """Every case of every split, in file then Sobol order.
 
-    ``feasible`` is the dataset model's optional ``feasible(params)``, its
-    declared solver-feasibility limit; it sees the fixed values too, and it
-    filters sampled points only (explicit points are deliberate).
+    ``feasible`` is the problem's optional hook, its declared feasibility or
+    severity limit; it sees the fixed values and the ``[limits]`` too, and it
+    filters sampled points only (explicit points are deliberate). A split that
+    is not a probe runs at ``[levels].production``: its cases carry the refine
+    key at that level, and a split naming another level is refused.
     """
-    prefix = sweep["dataset"]["case_prefix"]
-    # An unknown unit label fails here, before any deck exists, not after a solve.
-    unit_factors(sweep["dataset"]["units"])
-    fixed = dict(sweep.get("fixed", {}))
-    variables = sampling.parse_bounds(sweep["variables"], "variables")
-    regions = {
-        name: sampling.parse_bounds(box, f"regions.{name}")
-        for name, box in sweep.get("regions", {}).items()
-    }
-    splits = sampling.parse_splits(sweep)
-    seeds = Counter(s.seed for s in splits if s.seed is not None)
+    unit_factors(defn.units)
+    seeds = Counter(s.seed for s in defn.splits if s.seed is not None)
     shared = sorted(seed for seed, count in seeds.items() if count > 1)
     if shared:
         # Same seed, same engine: two splits would draw the same points.
@@ -110,23 +81,32 @@ def plan_cases(
         model_feasible = feasible
 
         def check(params: dict[str, float | str]) -> bool:
-            return bool(model_feasible({**fixed, **params}))
+            return bool(model_feasible({**defn.fixed, **defn.limits, **params}))
 
     specs = []
-    for split in splits:
-        sampled = set(variables) | set(split.extra) | set(split.categorical)
-        clash = set(fixed) & sampled
+    for split in defn.splits:
+        sampled = set(defn.variables) | set(split.extra) | set(split.categorical)
+        clash = set(defn.fixed) & sampled
         if clash:
             raise ValueError(f"{sorted(clash)} are both fixed and sampled")
-        for point in sampling.sample_split(variables, regions, split, check):
+        for point in sampling.sample_split(defn.variables, defn.regions, split, check):
             for variant in split.variants or (None,):
-                case_id = f"{prefix}-{split.name}-{point.index:04d}"
+                case_id = f"{defn.case_prefix}-{split.name}-{point.index:04d}"
                 case_id += f"-{variant}" if variant else ""
                 if not _CASE_ID.fullmatch(case_id):
                     raise ValueError(
                         f"case id {case_id!r} is not a safe Abaqus job name"
                     )
-                params = {**fixed, **point.params}
+                params = {**defn.fixed, **point.params}
+                if not split.probe:
+                    key, production = defn.levels.refine_key, defn.levels.production
+                    named = params.get(key)
+                    if named is not None and str(named) != production:
+                        raise ValueError(
+                            f"splits.{split.name}: {key}={named!r}, but a split that "
+                            f"is not a probe runs at levels.production={production!r}"
+                        )
+                    params[key] = production
                 specs.append(
                     CaseSpec(
                         case_id, split.name, point.index, variant, split.seed, params
@@ -150,6 +130,15 @@ def git_state(path: Path) -> dict[str, Any]:
         raise RuntimeError(
             f"{path.name} is not a git repository with a commit"
         ) from exc
+
+
+def package_state() -> dict[str, Any]:
+    """StructBench's identity for the provenance: the version, and the commit
+    when the package runs from a checkout (an installed copy records none)."""
+    state: dict[str, Any] = {"version": __version__, "commit": None, "dirty": None}
+    if (_REPO / ".git").exists():
+        state.update(git_state(_REPO))
+    return state
 
 
 def write_case(
@@ -183,7 +172,9 @@ def write_manifest(sweep_dir: Path, specs: list[CaseSpec]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog="structbench-datagen generate", description=(__doc__ or "").splitlines()[0]
+    )
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--work-root", type=Path, required=True)
     parser.add_argument("--split", action="append")
@@ -192,19 +183,32 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     dataset_dir = args.dataset.resolve()
-    sweep = load_sweep(dataset_dir)
-    model = load_model(dataset_dir)
-    specs = plan_cases(sweep, getattr(model, "feasible", None))
+    try:
+        defn = load_definition(dataset_dir)
+        problem = load_problem(dataset_dir)
+        specs = plan_cases(defn, getattr(problem, "feasible", None))
+    except (ValueError, KeyError) as exc:  # DefinitionError is a ValueError
+        print(
+            f"{dataset_dir.name}: {exc.args[0] if exc.args else exc}", file=sys.stderr
+        )
+        return 2
     selected = [s for s in specs if not args.split or s.split in args.split]
     if args.dry_run:
         for split, count in Counter(s.split for s in selected).items():
             print(f"{split}: {count} cases")
         return 0
 
-    sweep_dir = args.work_root / sweep["dataset"]["name"]
+    try:
+        dataset_repo = git_state(dataset_dir)
+    except RuntimeError as exc:
+        print(
+            f"{dataset_dir.name}: {exc}; commit the definition first", file=sys.stderr
+        )
+        return 2
+    sweep_dir = args.work_root / defn.name
     sweep_dir.mkdir(parents=True, exist_ok=True)
-    sweep_sha = hashlib.sha256((dataset_dir / "sweep.toml").read_bytes()).hexdigest()
-    repo, dataset_repo = git_state(_REPO), git_state(dataset_dir)
+    definition_sha, problem_sha = defn.sha256(), problem_sha256(dataset_dir)
+    repo = package_state()
     if dataset_repo["dirty"]:
         print(
             "warning: the dataset repository has uncommitted changes", file=sys.stderr
@@ -212,18 +216,19 @@ def main(argv: list[str] | None = None) -> int:
     counts: Counter[str] = Counter()
     problems = []
     for spec in selected:
-        text = model.build(dict(spec.params), spec.variant)
+        text = problem.input_deck(dict(spec.params), spec.variant)
         provenance = {
             "format": PROVENANCE_FORMAT,
             "case_id": spec.case_id,
-            "dataset": sweep["dataset"]["name"],
-            "units": sweep["dataset"]["units"],
+            "dataset": defn.name,
+            "units": defn.units,
             "split": spec.split,
             "index": spec.index,
             "variant": spec.variant,
             "seed": spec.seed,
             "params": spec.params,
-            "sweep_sha256": sweep_sha,
+            "definition_sha256": definition_sha,
+            "problem_sha256": problem_sha,
             "inp_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
             "repository": repo,
             "dataset_repository": dataset_repo,

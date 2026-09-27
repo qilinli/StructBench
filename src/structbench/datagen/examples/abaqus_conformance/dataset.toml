@@ -1,0 +1,71 @@
+# The example dataset definition: one copper-like rod striking a frictionless
+# rigid wall (the conformance case of docs/datagen/abaqus-conformance.md).
+# Every table below is part of the contract; "required" tables must be present.
+# Units: t-mm-s (tonne, mm, s -> N, MPa, mJ). Canonical files are written in SI.
+
+[dataset]                       # required: identity
+name = "abaqus_conformance"     # the sweep folder name and the canonical dataset id
+case_prefix = "ACX"             # case ids are <prefix>-<split>-<index>[-<variant>]
+units = "t-mm-s"                # a unit label structbench.core.io.unit_factors knows
+solver = "abaqus"
+
+[declaration]                   # required: what a benchmark card would declare
+unit_system = "t-mm-s"
+discretisation = "FEM"
+erosion = false
+fields = [
+    "node/displacement", "node/velocity", "node/acceleration",
+    "solid/stress", "solid/effective_plastic_strain",
+    "global/kinetic_energy", "global/internal_energy", "global/total_energy",
+    "global/hourglass_energy", "global/plastic_dissipation",
+    "global/viscous_dissipation", "global/external_work",
+    "global/frictional_dissipation", "global/strain_energy",
+    "global/creep_dissipation", "global/reaction_force_2_reference_node",
+]
+
+[fixed]                         # required (may be empty): constants every case gets
+E = 124000.0                    # MPa, copper
+nu = 0.34
+rho = 8.96e-9                   # t/mm^3
+L = 40.0                        # mm
+D = 10.0                        # mm
+sigma0 = 200.0                  # MPa, initial yield
+H = 500.0                       # MPa, linear hardening slope
+frame_interval = 1.0e-6         # s, the output clock
+n_intervals = 400               # 401 stored frames
+dt_scale = 0.5                  # the stable increment scaled by 0.5; see the conformance document
+
+[variables]                     # required: the sampled box, name = [low, high]
+v0 = [1.0e5, 2.0e5]             # mm/s (100-200 m/s)
+
+[splits.train]                  # a sampled split: n points of a seeded Sobol sequence
+n = 8
+seed = 1
+
+[splits.pilot]                  # an explicit split: the preflight's cases; probe splits are not gated
+points = [
+  { v0 = 1.0e5 },
+  { v0 = 1.5e5 },
+  { v0 = 2.0e5 },
+]
+probe = true
+
+[levels]                        # required: the mesh-level convention problem.mesh follows
+refine_key = "refine"           # the reserved parameter the pipeline sets
+production = "1"                # the level production runs at
+pilot = ["1", "2"]              # the levels the preflight runs the pilots at
+
+[pilot]                         # required: the preflight's targets
+split = "pilot"
+fine_cases = ["ACX-pilot-0001"] # pilots that also run at the finest level
+min_free_gb = 20.0              # the runner refuses to start below this margin
+accepted_gaps = ["solver_identity_complete"]  # verification rows this dataset accepts as known gaps
+
+[qoi]                           # required: the keys problem.qoi returns, and their units
+names = ["final_length", "face_radius"]
+units = ["m", "m"]
+
+[retention]                     # optional: which ODBs the archive keeps (defaults: 5 %, seed 0)
+odb_fraction = 0.05
+odb_seed = 0
+odb_cases = ["ACX-pilot-0001"]

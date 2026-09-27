@@ -5,9 +5,9 @@ import json
 import sys
 import time
 
-import abaqus_paths  # noqa: F401
 import pytest
-import run_jobs
+
+from structbench.datagen import run as run_jobs
 
 FAKE = r"""
 import pathlib, sys, time

@@ -1,7 +1,7 @@
 """Tests for the Abaqus adapter: abaqus-npz/1 -> canonical case (plan 2, Task 5).
 
 The npz is synthetic, written in exactly the layout `odb_export.py` writes
-(STANDARD_INPUT_BLOCK.md, "The abaqus-npz/1 intermediate"): one CAX4R element
+(docs/datagen/abaqus-conformance.md, "The abaqus-npz/1 intermediate"): one CAX4R element
 on four field nodes, a rigid-body reference node (label 5) with no field
 output, and three frames of which the last is the solver's duplicate
 end-of-step frame.
@@ -252,7 +252,7 @@ def _ledger(tmp_path, a):
 def test_the_ledger_maps_the_established_identity(tmp_path):
     """ETOTAL = ALLKE + ALLIE + ALLVD + ALLFD + ALLCD - ALLWK - ALLPW closed to
     6.6e-8 of the initial kinetic energy on a diagnostic run requesting every
-    energy variable (STANDARD_INPUT_BLOCK.md, "Energy identity")."""
+    energy variable (docs/datagen/abaqus-conformance.md, "Energy identity")."""
     a = _with(_arrays(), ALLCD=0.0, ALLPW=3.0)
     ledger = _ledger(tmp_path, a)
     assert set(ledger.terms) == {

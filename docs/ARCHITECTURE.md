@@ -98,11 +98,15 @@ FEM-postprocessor-style visualization of particle physics fields (ADR-0022). Any
 
 The `viz/` plotting core (`fringe.py`) depends on `core/` (reading canonical cases) and `datasets/` (working-frame conversions) only — it plots arrays, not models. Its `__main__` CLI entry additionally reads `benchmarks/` and the top-level `config.py` to resolve a run's benchmark spec (the ADR-0032-era run-record resolver), so the "does not depend on benchmarks/eval" rule holds for the plotting core but not for that entry point (see the dependency-graph note below). Its matplotlib dependency is the optional `viz` extra, never a hard runtime dependency: importing `structbench.viz` without matplotlib succeeds, and plotting calls raise with the install instruction.
 
+### `datagen/`
+
+The data-generation pipeline, `structbench-datagen` (ADR-0071). Solver-agnostic stages (`sampling`, `generate`, `run`, `convert`, `validate`, `archive`, `definition`, `template`, `cli`) and per-solver subpackages (`abaqus`: `deck`, `odb_export`). It depends on `core` (readers, adapter, schema) and `verification` (through `validate`), and nothing depends on it. One exception stands today: `datagen/validate` takes the dataset-level helpers `declared_from_toml` and `measure_cases` from `cli/datacheck`, which imports `benchmarks` (and so `torch`); part two of ADR-0071 moves those helpers into `verification` and removes the edge. `odb_export.py` is package data as much as code: Python 3.10, no imports from `structbench`, handed to `abaqus python` by the CLI.
+
 ### `cli/`
 
 Command-line entry points. Thin wrappers around functionality in the other modules. The CLI exposes `structbench-train` with `train`/`valid`/`rollout` modes — training a baseline on a benchmark and evaluating it on the benchmark's splits. (Dataset/model listing operations are part of the intended scope but are not yet implemented.)
 
-`cli/` depends on most other modules but is depended on by none. It is the outermost layer. (`viz/` additionally carries its own `__main__` so `python -m structbench.viz` can regenerate a run's standard figures without a console-script entry.)
+`cli/` depends on most other modules but is depended on by none. It is the outermost layer. `datagen/` sits beside `eval/` and `benchmarks/`, above `verification/`; `cli/` and `datagen/cli` are both entry-point layers. (`viz/` additionally carries its own `__main__` so `python -m structbench.viz` can regenerate a run's standard figures without a console-script entry.)
 
 ### `config.py`
 
@@ -169,7 +173,8 @@ StructBench treats the FEM solver as an external data source rather than as a pa
 
 Solver-related code is split across two locations:
 
-- **`data_generation/`** at repo root holds the solver-specific scripts: input deck templates, parameter sweep configurations, Pawsey job submission scripts, and any glue code needed to orchestrate batch simulations. For v0.1, this folder contains LS-DYNA-specific content. As contributions arrive from groups using other solvers (Kratos, OpenSees, Abaqus), each solver's content lives in its own subfolder here. None of this is importable as part of `structbench`; users who only consume datasets never touch it.
+- **`datagen/`** inside the package holds the data-generation pipeline (ADR-0069, ADR-0071): sampling, deck generation with provenance, the job runner, conversion, verification, archive, the dataset-definition contract with its scaffold and check, and per-solver subpackages (`datagen/abaqus/`: the deck writers and the ODB exporter, which runs under the solver's own Python). A dataset is a definition (`dataset.toml`, `problem.py`) that the pipeline consumes; definitions may live outside the repository. The package still depends on no solver: `datagen` shells out to one.
+- **`data_generation/`** at repo root keeps only glue that is not importable: the LS-DYNA per-dataset collectors and converters that predate `datagen`.
 - **`core/io/`** inside the package holds the readers and writers for the canonical HDF5 format, and (when needed) adapters that convert raw solver outputs into the canonical format. These adapters are the bridge: they let data produced by any solver be consumed by the rest of the package uniformly.
 
 This separation enforces the solver-agnostic posture committed to in ADR-0004. The package depends on no solver. Contributions from other solvers integrate via output adapters in `core/io/`, not via package modifications.

@@ -1,6 +1,6 @@
 """Collect a sweep's run evidence into one whitelisted JSON record.
 
-    python data_generation/abaqus/collect_run_evidence.py --sweep <work-root>/<name>
+    python -m structbench.datagen.collect --sweep <work-root>/<name>
         [--split NAME ...] --out <evidence.json>
 
 For every case folder with a ``run.json`` -- completed or not, so a failed run

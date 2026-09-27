@@ -1,8 +1,8 @@
 """Tests for the shared Abaqus keyword writers (ADR-0069). Text only."""
 
-import abaqus_paths  # noqa: F401
-import deck
 import numpy as np
+
+from structbench.datagen.abaqus import deck
 
 
 def test_structured_mesh_numbering_and_orientation():
@@ -113,3 +113,17 @@ def test_contact_and_rigid_surface_writers():
     )
     assert deck.boundary("AXIS", 1) == "*BOUNDARY\nAXIS, 1, 1\n"
     assert deck.encastre("RP") == "*BOUNDARY\nRP, ENCASTRE\n"
+
+
+def test_explicit_step_takes_a_stable_increment_scale_factor():
+    plain = deck.explicit_step("S", 4.0e-4, "")
+    scaled = deck.explicit_step("S", 4.0e-4, "", scale_factor=0.5)
+    assert plain.splitlines()[1] == "*DYNAMIC, EXPLICIT"
+    assert scaled.splitlines()[1] == "*DYNAMIC, EXPLICIT, SCALE FACTOR=0.5"
+    assert plain.splitlines()[2] == scaled.splitlines()[2] == ", 0.0004"
+
+
+def test_contact_damping_is_a_critical_damping_fraction():
+    assert deck.contact_damping(0.1) == (
+        "*CONTACT DAMPING, DEFINITION=CRITICAL DAMPING FRACTION\n0.1\n"
+    )

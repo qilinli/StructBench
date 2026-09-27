@@ -1,11 +1,10 @@
 """Tests for the shared Sobol sampler (ADR-0069). Toy variables only."""
 
-import abaqus_paths  # noqa: F401
 import pytest
 
 pytest.importorskip("scipy")
 
-import sampling  # noqa: E402
+from structbench.datagen import sampling  # noqa: E402
 
 VARIABLES = {"a": (0.0, 1.0), "b": (10.0, 20.0)}
 REGIONS = {"corner": {"a": (0.8, 1.0), "b": (18.0, 20.0)}}
@@ -97,3 +96,9 @@ def test_region_naming_unknown_variable_raises():
 def test_bounds_must_be_increasing():
     with pytest.raises(ValueError, match="low < high"):
         sampling.parse_bounds({"a": [1.0, 1.0]}, "variables")
+
+
+def test_a_split_may_be_marked_as_a_probe():
+    raw = {"p": {"points": [{"a": 1.0}], "probe": True}, "s": {"n": 2, "seed": 3}}
+    splits = sampling.parse_splits({"splits": raw})
+    assert [s.probe for s in splits] == [True, False]

@@ -8,11 +8,10 @@ import importlib.util
 import json
 from pathlib import Path
 
-import abaqus_paths  # noqa: F401
-import collect_run_evidence as collect
 import numpy as np
 
 from structbench.core.io import load_run_evidence
+from structbench.datagen import collect as collect
 
 _SPEC = importlib.util.spec_from_file_location(
     "abaqus_adapter_fixture",
