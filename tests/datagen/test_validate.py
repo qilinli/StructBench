@@ -4,10 +4,9 @@ import importlib.util
 import json
 from pathlib import Path
 
-import abaqus_paths  # noqa: F401
-import convert
 import numpy as np
-import validate
+
+from structbench.datagen import convert, validate
 
 _HERE = Path(__file__).resolve().parent
 
@@ -23,7 +22,7 @@ def _load(name: str, path: Path):
 _FIXTURE = _load(
     "abaqus_adapter_fixture", _HERE.parent / "core" / "test_abaqus_adapter.py"
 )
-_COLLECT = _load("abaqus_collect_fixture", _HERE / "test_abaqus_collect.py")
+_COLLECT = _load("abaqus_collect_fixture", _HERE / "test_collect.py")
 
 _TOML = """
 [dataset]

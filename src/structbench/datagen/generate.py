@@ -30,12 +30,12 @@ from types import ModuleType
 from typing import Any, Literal
 
 import numpy as np
-import sampling
 import scipy
 
 from structbench.core.io import unit_factors
+from structbench.datagen import sampling
 
-_REPO = Path(__file__).resolve().parents[2]
+_REPO = Path(__file__).resolve().parents[3]  # src/structbench/datagen -> repo root
 PROVENANCE_FORMAT = "abaqus-provenance/1"
 #: A conservative Abaqus job-name rule; the conformance run confirms or relaxes it.
 _CASE_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,37}$")

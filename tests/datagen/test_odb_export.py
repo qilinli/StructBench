@@ -9,14 +9,14 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
-import abaqus_paths
 import numpy as np
-import odb_export
 import pytest
+
+from structbench.datagen.abaqus import odb_export
 
 
 def test_parses_as_python_3_10():
-    source = (abaqus_paths.ABAQUS_DIR / "odb_export.py").read_text(encoding="utf-8")
+    source = (Path(odb_export.__file__)).read_text(encoding="utf-8")
     ast.parse(source, feature_version=(3, 10))
     assert "\nimport odbAccess" not in source and "\nfrom odbAccess" not in source
 
@@ -95,7 +95,7 @@ def test_exports_a_real_odb(tmp_path):
     (case / "run.json").write_text(json.dumps({"status": "completed"}))
     exe = shutil.which("abaqus")
     assert exe is not None
-    script = str(abaqus_paths.ABAQUS_DIR / "odb_export.py")
+    script = str(Path(odb_export.__file__))
     subprocess.run([exe, "python", script, "--sweep", str(tmp_path)], check=True)
     with np.load(case / f"{source.name}.npz", allow_pickle=False) as npz:
         manifest = json.loads(str(npz["manifest"]))

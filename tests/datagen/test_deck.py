@@ -1,8 +1,8 @@
 """Tests for the shared Abaqus keyword writers (ADR-0069). Text only."""
 
-import abaqus_paths  # noqa: F401
-import deck
 import numpy as np
+
+from structbench.datagen.abaqus import deck
 
 
 def test_structured_mesh_numbering_and_orientation():

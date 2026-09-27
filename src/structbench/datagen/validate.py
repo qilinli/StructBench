@@ -25,13 +25,14 @@ from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
-from collect_run_evidence import collect_sweep
 
 from structbench import __version__
 from structbench.cli.datacheck import declared_from_toml, measure_cases
+from structbench.core import DeclaredFacts, RunEvidence
 from structbench.core.io import dump_run_evidence
 from structbench.core.io.abaqus_run import read_abaqus_input_facts
-from structbench.verification import Verdict
+from structbench.datagen.collect import collect_sweep
+from structbench.verification import CaseMeasurements, Verdict
 from structbench.verification.criteria import judge
 from structbench.verification.measures import measure_case
 from structbench.verification.quantities import CATALOGUE
@@ -39,7 +40,9 @@ from structbench.verification.report import render_markdown, to_json
 from structbench.verification.results import DatasetMeasurements
 
 
-def _without_case(sweep: Path, case_id: str, declared, run):  # noqa: ANN001
+def _without_case(
+    sweep: Path, case_id: str, declared: DeclaredFacts | None, run: RunEvidence | None
+) -> CaseMeasurements:
     """A run with no canonical file, measured on its deck and run record."""
     folder = sweep / case_id
     prov = json.loads((folder / "provenance.json").read_text(encoding="utf-8"))

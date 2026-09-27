@@ -4,12 +4,11 @@ import importlib.util
 import json
 from pathlib import Path
 
-import abaqus_paths  # noqa: F401
-import convert
 import numpy as np
 
 from structbench.core.io import read_case
 from structbench.core.validation import validate
+from structbench.datagen import convert
 
 # The adapter's synthetic export and deck, loaded by path: test folders are
 # not packages, and one fixture keeps the two tests describing one layout.

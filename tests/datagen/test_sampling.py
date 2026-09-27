@@ -1,11 +1,10 @@
 """Tests for the shared Sobol sampler (ADR-0069). Toy variables only."""
 
-import abaqus_paths  # noqa: F401
 import pytest
 
 pytest.importorskip("scipy")
 
-import sampling  # noqa: E402
+from structbench.datagen import sampling  # noqa: E402
 
 VARIABLES = {"a": (0.0, 1.0), "b": (10.0, 20.0)}
 REGIONS = {"corner": {"a": (0.8, 1.0), "b": (18.0, 20.0)}}

@@ -8,9 +8,9 @@ import hashlib
 import json
 from pathlib import Path
 
-import abaqus_paths  # noqa: F401
-import archive
 import numpy as np
+
+from structbench.datagen import archive
 
 _TOML = """
 [dataset]

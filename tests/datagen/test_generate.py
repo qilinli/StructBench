@@ -4,15 +4,14 @@ import csv
 import json
 import subprocess
 
-import abaqus_paths  # noqa: F401
 import pytest
 
 pytest.importorskip("scipy")
 
-import generate  # noqa: E402
+from structbench.datagen import generate  # noqa: E402
 
 TOY_MODEL = """
-import deck
+from structbench.datagen.abaqus import deck
 
 def build(params, variant):
     mesh = deck.structured_quad_mesh(1, 1, 0.0, params["a"], 0.0, 1.0)
