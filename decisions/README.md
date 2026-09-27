@@ -119,6 +119,7 @@ What becomes easier, harder, or constrained as a result.
 | 0069 | The Abaqus data-generation pipeline (four stages, shared scripts, `abaqus-npz/1`, `datagen` extra) | Durable | Proposed |
 | 0070 | Material class `elastic_plastic_isotropic` (Abaqus `*PLASTIC`, isotropic, no EOS) | Durable | Proposed |
 | 0071 | The Abaqus data-generation pipeline becomes a StructBench capability: `structbench.datagen`, the dataset template and `check`, the preflight gate, the convergence engine in `verification`, runner budget and `follow` (amends ADR-0069) | Durable | Proposed |
+| 0072 | Validation against experiments: `structbench.validation`, reference-experiment sets with provenance, measures shared by experiment and simulation, a record that reports deviations and never judges; the datagen stage `validate` renamed `verify` | Durable | Proposed |
 
 ---
 
