@@ -221,8 +221,14 @@ def load_problem(dataset_dir: Path) -> ModuleType:
         raise DefinitionError(f"{PROBLEM_FILE}: cannot be loaded from {dataset_dir}")
     module = importlib.util.module_from_spec(spec)
     previous, sys.dont_write_bytecode = sys.dont_write_bytecode, True
+    # Registered before execution, as importlib's recipe says: dataclasses
+    # resolve a class's annotations through sys.modules[cls.__module__].
+    sys.modules[spec.name] = module
     try:
         spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(spec.name, None)
+        raise
     finally:
         sys.dont_write_bytecode = previous
     for hook in REQUIRED_HOOKS:

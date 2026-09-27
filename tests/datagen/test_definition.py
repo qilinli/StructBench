@@ -92,3 +92,25 @@ def test_problem_must_define_the_three_required_hooks(definition_dir):
 def test_problem_hash_is_of_the_file_bytes(definition_dir):
     expected = hashlib.sha256((definition_dir / "problem.py").read_bytes()).hexdigest()
     assert definition.problem_sha256(definition_dir) == expected
+
+
+DATACLASS_HEADER = (
+    '"""A toy problem with a dataclass."""\n'
+    "from __future__ import annotations\n"
+    "from dataclasses import dataclass\n"
+    "\n\n"
+    "@dataclass(frozen=True)\n"
+    "class Measure:\n"
+    "    value: float = 1.0\n"
+)
+
+
+def test_a_problem_that_defines_a_dataclass_loads(definition_dir):
+    # dataclasses resolve string annotations through sys.modules[cls.__module__];
+    # a module executed by path without being registered there cannot define one
+    problem = MINIMAL_PROBLEM.replace(
+        '"""A toy problem: one quad per level, byte-stable."""', DATACLASS_HEADER
+    )
+    (definition_dir / "problem.py").write_bytes(problem.encode())
+    module = definition.load_problem(definition_dir)
+    assert module.Measure().value == 1.0
