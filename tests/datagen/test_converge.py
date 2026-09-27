@@ -265,3 +265,17 @@ def test_the_command_writes_json_and_markdown_and_exits_one_without_pairs(
         converge.main(["--dataset", str(tmp_path / "nowhere"), "--sweep", str(s.root)])
         == 2
     )
+
+
+def test_runs_without_the_refine_key_are_noted_once_per_split(tmp_path, toy):
+    _, defn, problem = toy
+    s = _three_levels(tmp_path, problem)
+    s.run("TOY-pilot-0000", "pilot", "1", refine_key=None)
+    s.run("TOY-pilot-0001", "pilot", "1", refine_key=None)
+    notes = converge.converge(defn, problem, [s.root])["notes"]
+    about = [n for n in notes if "refine" in n and "pilot" in n]
+    assert (
+        len(about) == 1
+        and "TOY-pilot-0000" in about[0]
+        and "TOY-pilot-0001" in about[0]
+    )

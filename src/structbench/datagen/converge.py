@@ -68,6 +68,7 @@ def pair_levels(
     candidates: dict[str, list[LevelRun]] = {}
     notes: list[str] = []
     unknown_splits: set[str] = set()
+    unlevelled: dict[str, list[str]] = {}
     for index, root in enumerate(roots):
         for prov_path in sorted(root.glob("*/provenance.json")):
             prov = json.loads(prov_path.read_text(encoding="utf-8"))
@@ -78,7 +79,7 @@ def pair_levels(
                 continue
             params = dict(prov.get("params", {}))
             if key_of not in params:
-                notes.append(f"{case_id}: no {key_of!r} in its parameters; skipped")
+                unlevelled.setdefault(split, []).append(case_id)
                 continue
             level = str(params.pop(key_of))
             for limit in defn.limits:
@@ -95,6 +96,11 @@ def pair_levels(
                     canonical if canonical.is_file() else None,
                 )
             )
+    for split, ids in sorted(unlevelled.items()):
+        notes.append(
+            f"split {split!r}: {len(ids)} runs without {key_of!r} in their parameters, "
+            f"skipped: {', '.join(ids)}"
+        )
     for split in sorted(unknown_splits):
         notes.append(f"split {split!r} is not in the definition; its runs were skipped")
     paired: dict[str, dict[str, LevelRun]] = {}
