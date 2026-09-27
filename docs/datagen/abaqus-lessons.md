@@ -219,7 +219,10 @@ redacts what the solver wrote about its licence.
 8. **Material constants**: sourced and cited before production.
 9. **Retention**: `[retention]` set before any pruning.
 10. **Resolution**: the convergence set on nested meshes, the frame interval
-    and the horizon settled from the pilots (ADR-0071, note of 2026-09-27).
+    and the horizon settled from the pilots (ADR-0071, note of 2026-09-27) —
+    `structbench-datagen preflight` runs all three and writes the stamp
+    `generate` needs; `[qoi].tolerance`, `[pilot].settling_margin` and
+    `contact_force_global` are the dataset's part of it.
 11. **After any solver-setting change**: the h / h/2 pair again.
 12. **Disk**: budgeted per version.
 13. **Before every push or share**: the private-detail and licence scans.

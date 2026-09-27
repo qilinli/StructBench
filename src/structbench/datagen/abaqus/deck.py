@@ -31,6 +31,10 @@ ENERGY_TERMS = (
     "ALLWK",
     "ETOTAL",
 )
+#: The energy request ``standard_output`` writes, and the widened one the
+#: preflight's conformance run uses (every term the solver has).
+STANDARD_ENERGY_REQUEST = "*ENERGY OUTPUT\n" + ", ".join(ENERGY_TERMS) + "\n"
+ALL_ENERGY_REQUEST = "*ENERGY OUTPUT, VARIABLE=ALL\n"
 _PER_LINE = 16  # labels per data line in a set
 
 
@@ -230,12 +234,26 @@ def standard_output(
         f"*NODE OUTPUT, NSET={node_set}\n{', '.join(node_vars)}\n"
         f"*ELEMENT OUTPUT, ELSET={element_set}\n{', '.join(element_vars)}\n"
         f"*OUTPUT, HISTORY, TIME INTERVAL={num(interval)}\n"
-        f"*ENERGY OUTPUT\n{', '.join(ENERGY_TERMS)}\n"
+        f"{STANDARD_ENERGY_REQUEST}"
     )
     if history_node_set is not None:
         variables = ", ".join(history_node_vars)
         text += f"*NODE OUTPUT, NSET={history_node_set}\n{variables}\n"
     return text
+
+
+def with_all_energy(text: str) -> str:
+    """The deck with ``standard_output``'s energy request widened to every term.
+
+    The preflight's conformance run (design, step 1): the ledger identity must
+    close with the standard terms, and no other term may be non-zero. The
+    transformation is the writer's own, so a dataset needs no parameter for it.
+    """
+    if STANDARD_ENERGY_REQUEST not in text:
+        raise ValueError(
+            "no *ENERGY OUTPUT block written by standard_output in the deck"
+        )
+    return text.replace(STANDARD_ENERGY_REQUEST, ALL_ENERGY_REQUEST, 1)
 
 
 def explicit_step(

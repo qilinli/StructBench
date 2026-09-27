@@ -39,10 +39,19 @@ def _load(path: Path) -> dict:
 
 
 def convert_sweep(
-    sweep: Path, *, splits: list[str] | None = None, out: Path | None = None
+    sweep: Path,
+    *,
+    splits: list[str] | None = None,
+    out: Path | None = None,
+    dataset_id: str | None = None,
 ) -> ConvertReport:
-    """Convert every eligible case of ``sweep``; see the module docstring."""
+    """Convert every eligible case of ``sweep``; see the module docstring.
+
+    ``dataset_id`` defaults to the sweep folder's name; the preflight, whose
+    cases live in a sub-sweep, passes the dataset's own.
+    """
     out = out or sweep / "canonical"
+    dataset_id = dataset_id or sweep.name
     report = ConvertReport()
     for case_dir in sorted(p for p in sweep.iterdir() if (p / "run.json").is_file()):
         if splits and _load(case_dir / "provenance.json").get("split") not in splits:
@@ -63,7 +72,7 @@ def convert_sweep(
                 source_units=prov["units"],
                 dimension=2,
                 case_id=case_dir.name,
-                dataset_id=sweep.name,
+                dataset_id=dataset_id,
                 generation_date=str(run.get("end_utc", "unknown"))[:10],
             )
             out.mkdir(parents=True, exist_ok=True)

@@ -67,8 +67,8 @@ against the contract before anything runs.
 | `[splits.<s>]` | `n` + `seed`, or `points`; `exclude` / `within`; `extra`; `categorical`; `variants`; `probe = true` | yes, at least one | as today; `probe` marks a split the preflight gate does not guard |
 | `[limits]` | parameters `feasible()` reads | no | the declared feasibility or severity limit, stated where it is applied |
 | `[levels]` | `refine_key = "refine"`, `production = "2"`, `pilot = ["1", "2", "4"]`, `symmetry = "axisymmetric"` (or `planar`; plan 2a) | yes | the mesh-level convention the preflight uses; `mesh()` must nest across them |
-| `[pilot]` | `split`, `fine_cases`, `min_free_gb`, `accepted_gaps` | yes | the preflight's targets: the pilot split, which pilots also run at the finest level, the disk margin, the verification rows the dataset accepts as known gaps |
-| `[qoi]` | `names`, `units` | yes | the keys `qoi()` returns, for `converge` and the card |
+| `[pilot]` | `split`, `fine_cases`, `min_free_gb`, `accepted_gaps`; with defaults (plan 2b): `increment_key = "dt_scale"`, `increment_factors = [0.5]`, `frame_key = "frame_interval"`, `frame_count_key = "n_intervals"`, `frame_factor = 0.5`, `frame_tolerance = 0.05`, `settling_margin = 0.25`, optional `contact_force_global` | yes | the preflight's targets: the pilot split, which pilots also run at the finest level, the disk margin, the verification rows the dataset accepts as known gaps, and the time and duration probes |
+| `[qoi]` | `names`, `units`, `tolerance` (one relative number per name, default 0.01; plan 2b) | yes | the keys `qoi()` returns, for `converge`, the preflight's targets and the card |
 | `[retention]` | `odb_fraction`, `odb_seed`, `odb_cases` | no | as today |
 
 Reserved parameter keys: `refine` (the mesh level) and `variant`. A dataset
@@ -116,10 +116,10 @@ environment (disk, solver missing).
 |---|---|---|
 | `new` | scaffold a definition | new |
 | `check` | validate a definition against the contract | new |
-| `preflight` | the gate (below) | new |
-| `generate` | decks and provenance for chosen splits | refuses production splits without a current preflight stamp; `--no-preflight` is allowed and recorded in every case's provenance |
-| `run` | the job runner | free-space check before each launch (`[pilot].min_free_gb`), clean stop with exit 3 when it fails, an estimate of the sweep's disk and time from the pilot measurements printed before the first launch |
-| `follow` | export and convert finished cases while a run proceeds | new (today a scratch loop) |
+| `preflight` | the gate (below) | built (plan 2b, 2026-09-28): the case set from the pilot points, ten steps as pure functions on records, `report.md` and `stamp.json` in `<work-root>/<name>/preflight/`; the settled `[pilot]` fields are in the row above and in `docs/DATA_GENERATION.md` |
+| `generate` | decks and provenance for chosen splits | built (plan 2b): refuses splits that are not probes without a passing stamp for the current `dataset.toml` and `problem.py`; `--no-preflight` is allowed and recorded as `{"skipped": true}` in every such case's provenance (`abaqus-provenance/3`) |
+| `run` | the job runner | built (plan 2b): free-space check before each launch (`--min-free-gb`, default the stamp's `[pilot].min_free_gb`), a clean stop with exit 3 (running jobs finish, held cases stay pending), the estimate from the stamp printed before the first launch |
+| `follow` | export and convert finished cases while a run proceeds | built (plan 2b) |
 | `export` | ODB to `abaqus-npz/1` under Abaqus's Python | unchanged; ships inside the package as a data file the CLI locates and hands to `abaqus python` |
 | `convert` | npz to canonical cases | unchanged |
 | `verify` | the ADR-0066 instrument over the sweep | renamed from `validate` (ADR-0072, 2026-09-27) |
@@ -309,10 +309,16 @@ cluster submission; any change to dataset A's data.
   test does.
 - The finest pilot level's cost for slow datasets (B's runs are minutes to an
   hour each); `[pilot].fine_cases` exists so that only a few pay it.
-- The `[pilot]` fields for the time and duration probes (`increment_scales`,
-  `frame_probe`, the QoI settling tolerance, the name of the contact-force
-  global, the horizon margin) are proposed in step 4 and not yet in
-  `load_definition`; part two settles their names and defaults. Whether the
+- The `[pilot]` fields for the time and duration probes were settled by plan
+  2b (2026-09-28), all with defaults: `increment_key = "dt_scale"` and
+  `increment_factors = [0.5]` relative to the production value; `frame_key`,
+  `frame_count_key`, `frame_factor = 0.5` (0 disables the probe);
+  `frame_tolerance = 0.05`; `settling_margin = 0.25`; an optional
+  `contact_force_global`; and `[qoi].tolerance`, one relative number per
+  quantity (0.01 each), as the single target of the space, increment and
+  settling rules. The frame probe's pass criterion became the
+  midpoint-interpolation error of the finer export (the resolution of the
+  stored clock), with the common-instant agreement reported. Whether the
   scored horizon is a card field per benchmark (ADR-0039) or per case is an
   admission question the card format must answer before the first Abaqus
   dataset is admitted.

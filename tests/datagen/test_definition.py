@@ -172,3 +172,105 @@ def test_levels_symmetry_defaults_to_axisymmetric_and_refuses_others(tmp_path):
     )
     with pytest.raises(definition.DefinitionError, match="levels.symmetry"):
         definition.load_definition(write_definition(tmp_path / "c", toml=odd))
+
+
+# --- the preflight's probe fields (plan 2b) ---------------------------------
+
+_FIXED_CLOCK = "[fixed]\nE = 1000.0\nframe_interval = 1.0\nn_intervals = 20"
+_GAPS = 'accepted_gaps = ["solver_identity_complete"]'
+
+
+def test_pilot_probe_fields_have_defaults(definition_dir):
+    d = definition.load_definition(definition_dir)
+    p = d.pilot
+    assert (p.increment_key, p.increment_factors) == ("dt_scale", (0.5,))
+    assert (p.frame_key, p.frame_count_key) == ("frame_interval", "n_intervals")
+    assert (p.frame_factor, p.frame_tolerance, p.settling_margin) == (0.5, 0.05, 0.25)
+    assert p.contact_force_global is None
+    assert d.qoi.tolerance == (0.01,)
+
+
+@pytest.mark.parametrize(
+    "extra, message",
+    [
+        ("increment_factors = [1.0]", "increment_factors"),
+        ("frame_factor = 1.0", "frame_factor"),
+        ("frame_factor = 0.3", "whole number"),  # fixed.n_intervals = 20
+        ("frame_factor = 0.4", "1 / 0.4"),  # 20 / 0.4 is whole, 1 / 0.4 is not
+        ('frame_key = "L"', "sampled"),
+        ("nonsense = 1", "unknown field"),
+        ('contact_force_global = ""', "contact_force_global"),
+        ("settling_margin = 1.0", "settling_margin"),
+        ("frame_tolerance = 0", "frame_tolerance"),
+    ],
+)
+def test_bad_pilot_probe_fields_are_refused(tmp_path, extra, message):
+    toml = MINIMAL_TOML.replace("[fixed]\nE = 1000.0", _FIXED_CLOCK)
+    toml = toml.replace(_GAPS, f"{_GAPS}\n{extra}")
+    with pytest.raises(definition.DefinitionError, match=message):
+        definition.load_definition(write_definition(tmp_path / "d", toml=toml))
+
+
+def test_a_probe_key_may_not_be_sampled_or_pinned_by_any_split(tmp_path):
+    """Review finding 3: the preflight scales the production value it finds in
+    [fixed]; a split that samples, pins or points the key elsewhere -- a probe
+    split included, the pilot split above all -- would make the pilots stand
+    for a production that never runs that way."""
+    toml = MINIMAL_TOML.replace(
+        "[fixed]\nE = 1000.0", "[fixed]\nE = 1000.0\ndt_scale = 0.5"
+    )
+    probe_varies = toml.replace(
+        "[splits.pilot]",
+        "[splits.dt]\nn = 2\nseed = 7\nextra = { dt_scale = [0.25, 1.0] }\n"
+        "probe = true\n\n[splits.pilot]",
+    )
+    with pytest.raises(definition.DefinitionError, match="dt.*sampled"):
+        definition.load_definition(
+            write_definition(tmp_path / "probe", toml=probe_varies)
+        )
+    pinned = toml.replace(
+        "[splits.train]\nn = 4\nseed = 1",
+        '[splits.train]\nn = 4\nseed = 1\ncategorical = { dt_scale = ["0.5"] }',
+    )
+    with pytest.raises(definition.DefinitionError, match=r"train.*\[fixed\]"):
+        definition.load_definition(write_definition(tmp_path / "pinned", toml=pinned))
+    pointed = toml.replace(
+        "points = [{ L = 1.0, v0 = 10.0 }, { L = 2.0, v0 = 20.0 }]",
+        "points = [{ L = 1.0, v0 = 10.0, dt_scale = 0.25 }, { L = 2.0, v0 = 20.0 }]",
+    )
+    with pytest.raises(definition.DefinitionError, match="pilot.*points"):
+        definition.load_definition(write_definition(tmp_path / "pointed", toml=pointed))
+    frame = toml.replace(
+        "[splits.pilot]",
+        "[splits.fr]\nn = 2\nseed = 8\n"
+        'categorical = { frame_interval = ["1.0", "0.5"] }\n'
+        "probe = true\n\n[splits.pilot]",
+    )
+    with pytest.raises(definition.DefinitionError, match="frame_interval"):
+        definition.load_definition(write_definition(tmp_path / "frame", toml=frame))
+
+
+def test_qoi_tolerance_is_one_positive_number_per_name(tmp_path):
+    two = MINIMAL_TOML.replace(
+        'units = ["m"]', 'units = ["m"]\ntolerance = [0.02, 0.02]'
+    )
+    with pytest.raises(definition.DefinitionError, match="qoi.tolerance"):
+        definition.load_definition(write_definition(tmp_path / "d", toml=two))
+    zero = MINIMAL_TOML.replace('units = ["m"]', 'units = ["m"]\ntolerance = [0.0]')
+    with pytest.raises(definition.DefinitionError, match="qoi.tolerance"):
+        definition.load_definition(write_definition(tmp_path / "e", toml=zero))
+    one = MINIMAL_TOML.replace('units = ["m"]', 'units = ["m"]\ntolerance = [0.02]')
+    d = definition.load_definition(write_definition(tmp_path / "f", toml=one))
+    assert d.qoi.tolerance == (0.02,)
+    odd = MINIMAL_TOML.replace('units = ["m"]', 'units = ["m"]\nextra = 1')
+    with pytest.raises(definition.DefinitionError, match="unknown field"):
+        definition.load_definition(write_definition(tmp_path / "g", toml=odd))
+
+
+def test_contact_force_global_drops_the_global_prefix(tmp_path):
+    toml = MINIMAL_TOML.replace(
+        _GAPS,
+        f'{_GAPS}\ncontact_force_global = "global/reaction_force_2_reference_node"',
+    )
+    p = definition.load_definition(write_definition(tmp_path / "d", toml=toml)).pilot
+    assert p.contact_force_global == "reaction_force_2_reference_node"

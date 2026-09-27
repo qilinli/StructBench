@@ -1,6 +1,7 @@
 """Tests for the sweep generator (ADR-0069, ADR-0071). A toy dataset, never a real one."""  # noqa: E501
 
 import csv
+import hashlib
 import json
 import subprocess
 
@@ -92,8 +93,25 @@ def _dataset(tmp_path, n=3, problem=TOY_PROBLEM, toml=None):
     return ds
 
 
-def _run(ds, work, *extra):
-    return generate.main(["--dataset", str(ds), "--work-root", str(work), *extra])
+def _run(ds, work, *extra, gate=False):
+    """Generate; the toy sweeps have no preflight stamp, so the gate is off
+    unless a test is about it."""
+    args = ["--dataset", str(ds), "--work-root", str(work), *extra]
+    return generate.main(args if gate else [*args, "--no-preflight"])
+
+
+def _stamp(work, ds, *, passed=True, definition_sha=None, problem_sha=None):
+    sweep = work / "toy"
+    (sweep / "preflight").mkdir(parents=True, exist_ok=True)
+    stamp = {
+        "format": "preflight-stamp/1",
+        "passed": passed,
+        "created_utc": "2026-09-27T00:00:00+00:00",
+        "definition_sha256": definition_sha or definition.load_definition(ds).sha256(),
+        "problem_sha256": problem_sha or definition.problem_sha256(ds),
+        "siblings_sha256": definition.NO_SIBLINGS_SHA256,  # the toy imports none
+    }
+    (sweep / "preflight" / "stamp.json").write_text(json.dumps(stamp), encoding="utf-8")
 
 
 def test_writes_cases_provenance_and_manifest(tmp_path):
@@ -121,7 +139,7 @@ def test_provenance_records_both_definition_hashes(tmp_path):
     ds, work = _dataset(tmp_path), tmp_path / "work"
     assert _run(ds, work) == 0
     prov = json.loads((work / "toy/TOY-main-0000/provenance.json").read_text())
-    assert prov["format"] == "abaqus-provenance/2"
+    assert prov["format"] == "abaqus-provenance/3"
     assert prov["definition_sha256"] == definition.load_definition(ds).sha256()
     assert prov["problem_sha256"] == definition.problem_sha256(ds)
     assert "sweep_sha256" not in prov
@@ -267,3 +285,97 @@ def test_the_minimal_definition_generates(tmp_path):
     ds = _dataset(tmp_path, problem=MINIMAL_PROBLEM, toml=MINIMAL_TOML)
     assert _run(ds, tmp_path / "work") == 0
     assert (tmp_path / "work/toy/TOY-pilot-0001/TOY-pilot-0001.inp").is_file()
+
+
+# --- the preflight gate (plan 2b) --------------------------------------------
+
+
+def test_production_splits_are_refused_without_a_passing_stamp(tmp_path, capsys):
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    assert _run(ds, work, gate=True) == 2
+    err = capsys.readouterr().err
+    assert "no preflight stamp" in err and "main" in err and "--no-preflight" in err
+    assert not (work / "toy" / "TOY-main-0000").exists()
+    _stamp(work, ds, passed=False)
+    assert _run(ds, work, gate=True) == 2
+    assert "did not pass" in capsys.readouterr().err
+    _stamp(work, ds, problem_sha="0" * 64)
+    assert _run(ds, work, gate=True) == 2
+    assert "another problem.py" in capsys.readouterr().err
+    _stamp(work, ds, definition_sha="0" * 64)
+    assert _run(ds, work, gate=True) == 2
+    assert "another dataset.toml" in capsys.readouterr().err
+    assert not (work / "toy" / "TOY-main-0000").exists()
+
+
+def test_probe_splits_are_never_gated(tmp_path):
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    assert _run(ds, work, "--split", "pilot", gate=True) == 0
+    prov = json.loads((work / "toy/TOY-pilot-0000/provenance.json").read_text())
+    assert prov["preflight"] is None and prov["probe"] is None
+
+
+def test_a_dry_run_is_not_gated(tmp_path, capsys):
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    assert _run(ds, work, "--dry-run", gate=True) == 0
+    assert "main: 3 cases" in capsys.readouterr().out
+
+
+def test_a_passing_stamp_is_recorded_in_every_guarded_case(tmp_path):
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    _stamp(work, ds)
+    assert _run(ds, work, gate=True) == 0
+    prov = json.loads((work / "toy/TOY-main-0000/provenance.json").read_text())
+    assert set(prov["preflight"]) == {"stamp_sha256", "created_utc"}
+    stamp_path = work / "toy/preflight/stamp.json"
+    assert prov["preflight"]["stamp_sha256"] == definition.file_sha256(stamp_path)
+    assert prov["preflight"]["created_utc"] == "2026-09-27T00:00:00+00:00"
+    pilot = json.loads((work / "toy/TOY-pilot-0000/provenance.json").read_text())
+    assert pilot["preflight"] is None
+
+
+def test_no_preflight_records_the_omission(tmp_path):
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    assert _run(ds, work) == 0
+    prov = json.loads((work / "toy/TOY-main-0000/provenance.json").read_text())
+    assert prov["preflight"] == {"skipped": True}
+    assert prov["format"] == "abaqus-provenance/3" and prov["probe"] is None
+
+
+def test_case_id_for_appends_a_suffix_within_the_job_name_rule(tmp_path):
+    defn = definition.load_definition(_dataset(tmp_path))
+    assert generate.case_id_for(defn, "pilot", 3, None, "-L2") == "TOY-pilot-0003-L2"
+    assert generate.case_id_for(defn, "pilot", 3, "x", "-T0p5") == (
+        "TOY-pilot-0003-x-T0p5"
+    )
+    with pytest.raises(ValueError, match="job name"):
+        generate.case_id_for(defn, "pilot", 3, None, "-" + "x" * 40)
+
+
+def test_materialise_writes_probe_metadata_and_a_given_deck(tmp_path):
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    defn, problem = definition.load_definition(ds), definition.load_problem(ds)
+    spec = generate.CaseSpec(
+        "TOY-pilot-0000-E",
+        "pilot",
+        0,
+        None,
+        None,
+        {"k": 2.0, "a": 1.25, "refine": "1"},
+        probe={"role": "conformance", "level": "1", "factor": None},
+    )
+    counts, problems = generate.materialise(
+        work / "toy",
+        [spec],
+        defn=defn,
+        problem=problem,
+        dataset_dir=ds,
+        decks={"TOY-pilot-0000-E": "*HEADING\nhanded in\n"},
+    )
+    assert (dict(counts), problems) == ({"written": 1}, [])
+    folder = work / "toy" / "TOY-pilot-0000-E"
+    assert (folder / "TOY-pilot-0000-E.inp").read_text() == "*HEADING\nhanded in\n"
+    prov = json.loads((folder / "provenance.json").read_text())
+    assert prov["probe"] == {"role": "conformance", "level": "1", "factor": None}
+    assert prov["preflight"] is None and prov["split"] == "pilot"
+    assert prov["inp_sha256"] == hashlib.sha256(b"*HEADING\nhanded in\n").hexdigest()

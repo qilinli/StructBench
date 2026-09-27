@@ -99,3 +99,15 @@ def test_a_case_the_schema_refuses_does_not_stop_the_sweep(tmp_path):
     report = convert.convert_sweep(sweep)
     assert report.written == ["T-0001"]
     assert "SchemaError" in report.failed["T-0000"]
+
+
+def test_dataset_id_defaults_to_the_sweep_name_and_can_be_given(tmp_path):
+    sweep = tmp_path / "toy_sweep"
+    _case(sweep, "T-0000")
+    convert.convert_sweep(sweep)
+    assert read_case(sweep / "canonical" / "T-0000.h5").metadata.dataset_id == (
+        "toy_sweep"
+    )
+    convert.convert_sweep(sweep, out=tmp_path / "named", dataset_id="toy")
+    named = read_case(tmp_path / "named" / "T-0000.h5")
+    assert named.metadata.dataset_id == "toy"

@@ -13,6 +13,7 @@ import hashlib
 import importlib.util
 import sys
 import tomllib
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -42,18 +43,57 @@ class Levels:
     symmetry: str = "axisymmetric"  # one of SYMMETRIES
 
 
+#: Every key ``[pilot]`` may carry; a misspelt optional key is refused, not ignored.
+PILOT_KEYS = frozenset(
+    {
+        "split",
+        "fine_cases",
+        "min_free_gb",
+        "accepted_gaps",
+        "increment_key",
+        "increment_factors",
+        "frame_key",
+        "frame_count_key",
+        "frame_factor",
+        "frame_tolerance",
+        "settling_margin",
+        "contact_force_global",
+    }
+)
+QOI_KEYS = frozenset({"names", "units", "tolerance"})
+
+
 @dataclass(frozen=True)
 class Pilot:
+    """The preflight's targets (ADR-0071, part two (b)).
+
+    The probe fields have defaults so that a definition written before them
+    still loads. ``increment_factors`` scale the production value of
+    ``increment_key`` (``[fixed]``'s, or 1.0 when absent); an empty list
+    disables the increment probe. ``frame_factor`` scales the stored frame
+    interval for the frame probe; 0 disables it. ``contact_force_global``
+    names a stored global whose separation frame the duration step measures.
+    """
+
     split: str
     fine_cases: tuple[str, ...]
     min_free_gb: float
     accepted_gaps: tuple[str, ...]
+    increment_key: str = "dt_scale"
+    increment_factors: tuple[float, ...] = (0.5,)
+    frame_key: str = "frame_interval"
+    frame_count_key: str = "n_intervals"
+    frame_factor: float = 0.5
+    frame_tolerance: float = 0.05
+    settling_margin: float = 0.25
+    contact_force_global: str | None = None
 
 
 @dataclass(frozen=True)
 class QoiSpec:
     names: tuple[str, ...]
     units: tuple[str, ...]
+    tolerance: tuple[float, ...] = ()  # relative, one per name; 0.01 each by default
 
 
 @dataclass(frozen=True)
@@ -120,6 +160,119 @@ def _strings(table: dict[str, Any], where: str, key: str) -> tuple[str, ...]:
     if not all(isinstance(v, str) for v in value):
         raise DefinitionError(f"{where}.{key}: expected a list of strings")
     return tuple(value)
+
+
+def _optional(
+    table: dict[str, Any], where: str, key: str, kind: type, default: Any
+) -> Any:
+    return _field(table, where, key, kind) if key in table else default
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _placements(
+    variables: Mapping[str, Any], splits: Sequence[sampling.Split]
+) -> dict[str, list[tuple[str, str]]]:
+    """Where each parameter name is set outside ``[fixed]``: (how, where)."""
+    out: dict[str, list[tuple[str, str]]] = {}
+    for name in variables:
+        out.setdefault(name, []).append(("sampled", "[variables]"))
+    for s in splits:
+        for name in s.extra:
+            out.setdefault(name, []).append(("sampled", f"splits.{s.name}.extra"))
+        for name in s.categorical:
+            out.setdefault(name, []).append(
+                ("pinned", f"splits.{s.name}'s categorical")
+            )
+        for point in s.points:
+            for name in point:
+                out.setdefault(name, []).append(
+                    ("set", f"the points of splits.{s.name}")
+                )
+    return out
+
+
+def _probe_fields(
+    pt: dict[str, Any],
+    fixed: dict[str, Any],
+    placements: Mapping[str, list[tuple[str, str]]],
+) -> dict[str, Any]:
+    """The optional ``[pilot]`` probe fields, checked against the definition.
+
+    The increment and frame keys must be constants: the preflight scales the
+    value it finds in ``[fixed]``, so a split that samples, pins or points the
+    key elsewhere -- a probe split included, the pilot split above all --
+    would make the pilots stand for a production that never runs that way.
+    """
+    out: dict[str, Any] = {
+        "increment_key": _optional(pt, "pilot", "increment_key", str, "dt_scale"),
+        "frame_key": _optional(pt, "pilot", "frame_key", str, "frame_interval"),
+        "frame_count_key": _optional(
+            pt, "pilot", "frame_count_key", str, "n_intervals"
+        ),
+    }
+    factors = _optional(pt, "pilot", "increment_factors", list, [0.5])
+    if not all(_is_number(f) for f in factors) or any(
+        f <= 0.0 or f == 1.0 for f in factors
+    ):
+        raise DefinitionError(
+            "pilot.increment_factors: each factor scales the production value and "
+            "must be positive and not 1"
+        )
+    out["increment_factors"] = tuple(float(f) for f in factors)
+    factor = _optional(pt, "pilot", "frame_factor", float, 0.5)
+    if not 0.0 <= factor < 1.0:
+        raise DefinitionError(
+            "pilot.frame_factor: a fraction of the stored frame interval, "
+            "0 <= factor < 1 (0 disables the frame probe)"
+        )
+    if factor > 0.0:
+        stride = 1.0 / factor
+        if abs(stride - round(stride)) > 1e-9:
+            raise DefinitionError(
+                f"pilot.frame_factor: 1 / {factor:g} is not a whole number of "
+                "frames, so the stored clock would not be a stride of the probe's; "
+                "use 0.5, 0.25, 0.2, 0.1, ..."
+            )
+    out["frame_factor"] = factor
+    out["frame_tolerance"] = _optional(pt, "pilot", "frame_tolerance", float, 0.05)
+    if out["frame_tolerance"] <= 0.0:
+        raise DefinitionError("pilot.frame_tolerance: must be positive")
+    out["settling_margin"] = _optional(pt, "pilot", "settling_margin", float, 0.25)
+    if not 0.0 <= out["settling_margin"] < 1.0:
+        raise DefinitionError("pilot.settling_margin: 0 <= margin < 1")
+    name = pt.get("contact_force_global")
+    if name is not None:
+        if not isinstance(name, str) or not name:
+            raise DefinitionError(
+                "pilot.contact_force_global: a stored global's name, or omit the key"
+            )
+        name = name.removeprefix("global/")
+    out["contact_force_global"] = name
+    for key in ("increment_key", "frame_key", "frame_count_key"):
+        for how, where in placements.get(out[key], []):
+            remedy = {
+                "sampled": "the probe scales the constant in [fixed]",
+                "pinned": "make it a constant in [fixed]",
+                "set": "the pilots must run at the constant in [fixed]",
+            }[how]
+            raise DefinitionError(
+                f"pilot.{key}: {out[key]!r} is {how} by {where}; {remedy}"
+            )
+    count_key = out["frame_count_key"]
+    if factor > 0.0 and out["frame_key"] in fixed and count_key in fixed:
+        count = fixed[count_key]
+        if not _is_number(count):
+            raise DefinitionError(f"fixed.{count_key}: expected a number of frames")
+        frames = count / factor
+        if abs(frames - round(frames)) > 1e-9:
+            raise DefinitionError(
+                f"pilot.frame_factor: fixed.{count_key} / {factor:g} is not a whole "
+                "number of frames"
+            )
+    return out
 
 
 def load_definition(dataset_dir: Path) -> Definition:
@@ -198,11 +351,16 @@ def load_definition(dataset_dir: Path) -> Definition:
             )
 
     pt = _table(raw, "pilot")
+    _table(raw, "qoi")  # a missing table is named before a stray key is blamed
+    unknown = sorted(set(pt) - PILOT_KEYS)
+    if unknown:
+        raise DefinitionError(f"pilot.{unknown[0]}: unknown field")
     pilot = Pilot(
         _field(pt, "pilot", "split", str),
         _strings(pt, "pilot", "fine_cases"),
         _field(pt, "pilot", "min_free_gb", float),
         _strings(pt, "pilot", "accepted_gaps"),
+        **_probe_fields(pt, fixed, _placements(variables, splits)),
     )
     names = {s.name: s for s in splits}
     if pilot.split not in names:
@@ -215,16 +373,29 @@ def load_definition(dataset_dir: Path) -> Definition:
         )
 
     q = _table(raw, "qoi")
-    qoi = QoiSpec(_strings(q, "qoi", "names"), _strings(q, "qoi", "units"))
-    if not qoi.names:
+    unknown = sorted(set(q) - QOI_KEYS)
+    if unknown:
+        raise DefinitionError(f"qoi.{unknown[0]}: unknown field")
+    qoi_names, qoi_units = _strings(q, "qoi", "names"), _strings(q, "qoi", "units")
+    if not qoi_names:
         raise DefinitionError("qoi.names: at least one quantity of interest")
-    if len(qoi.units) != len(qoi.names):
+    if len(qoi_units) != len(qoi_names):
         raise DefinitionError("qoi.units: one unit per name")
+    tolerance = q.get("tolerance", [0.01] * len(qoi_names))
+    if (
+        not isinstance(tolerance, list)
+        or len(tolerance) != len(qoi_names)
+        or not all(_is_number(t) and t > 0.0 for t in tolerance)
+    ):
+        raise DefinitionError(
+            "qoi.tolerance: one positive relative tolerance per name (default 0.01)"
+        )
+    qoi = QoiSpec(qoi_names, qoi_units, tuple(float(t) for t in tolerance))
 
     retention = dict(raw.get("retention", {}))
-    unknown = set(retention) - {"odb_fraction", "odb_seed", "odb_cases"}
-    if unknown:
-        raise DefinitionError(f"retention: unknown keys {sorted(unknown)}")
+    stray = sorted(set(retention) - {"odb_fraction", "odb_seed", "odb_cases"})
+    if stray:
+        raise DefinitionError(f"retention: unknown keys {stray}")
 
     return Definition(
         path,
@@ -282,15 +453,35 @@ def load_problem(dataset_dir: Path) -> ModuleType:
         if str(dataset_dir) in sys.path:
             sys.path.remove(str(dataset_dir))
         root = dataset_dir.resolve()
+        siblings: list[str] = []
         for name in set(sys.modules) - known - {spec.name}:
             file = getattr(sys.modules.get(name), "__file__", None)
             if file and root in Path(file).resolve().parents:
+                siblings.append(Path(file).resolve().relative_to(root).as_posix())
                 del sys.modules[name]  # a sibling stays with its dataset
     for hook in REQUIRED_HOOKS:
         if not callable(getattr(module, hook, None)):
             raise DefinitionError(f"{PROBLEM_FILE}: defines no {hook}()")
+    #: The dataset's own modules problem.py imported, relative to its directory;
+    #: the stamp and the provenance hash them beside the two definition files.
+    module.__siblings__ = tuple(sorted(siblings))  # type: ignore[attr-defined]
     return module
 
 
 def problem_sha256(dataset_dir: Path) -> str:
     return file_sha256(dataset_dir / PROBLEM_FILE)
+
+
+#: The siblings hash of a problem.py that imports no sibling.
+NO_SIBLINGS_SHA256 = hashlib.sha256(b"").hexdigest()
+
+
+def siblings_sha256(dataset_dir: Path, problem: ModuleType) -> str:
+    """One hash over the sibling modules ``problem.py`` imported: each file's
+    relative path and LF-normalised bytes, in path order."""
+    digest = hashlib.sha256()
+    for relative in getattr(problem, "__siblings__", ()):
+        digest.update(relative.encode("utf-8") + b"\n")
+        digest.update((dataset_dir / relative).read_bytes().replace(b"\r\n", b"\n"))
+        digest.update(b"\n")
+    return digest.hexdigest()

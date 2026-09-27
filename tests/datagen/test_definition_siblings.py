@@ -47,3 +47,19 @@ def test_pilot_levels_are_unique_and_numeric_ones_increase(tmp_path, pilot, expe
     )
     with pytest.raises(definition.DefinitionError, match=expected):
         definition.load_definition(write_definition(tmp_path / "d", toml=toml))
+
+
+def test_load_problem_records_the_siblings_it_imported_and_their_hash(tmp_path):
+    """Review finding 4: the stamp must cover what problem.py imports."""
+    ds = write_definition(tmp_path / "d", problem=WITH_HELPER)
+    (ds / "helpers.py").write_bytes(b"SCALE = 1.0\n")
+    problem = definition.load_problem(ds)
+    assert problem.__siblings__ == ("helpers.py",)
+    first = definition.siblings_sha256(ds, problem)
+    assert len(first) == 64 and first != definition.NO_SIBLINGS_SHA256
+    (ds / "helpers.py").write_bytes(b"SCALE = 2.0\n")
+    assert definition.siblings_sha256(ds, definition.load_problem(ds)) != first
+    plain_dir = write_definition(tmp_path / "plain")
+    plain = definition.load_problem(plain_dir)
+    assert plain.__siblings__ == ()
+    assert definition.siblings_sha256(plain_dir, plain) == definition.NO_SIBLINGS_SHA256

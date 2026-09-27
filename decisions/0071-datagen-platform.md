@@ -158,3 +158,33 @@ names the volume weights. The study's stress-breakdown diagnostic (contact
 phase, post-release, time shift) is not generic and stays out. Part two (b)
 owes the preflight and its stamp, `generate`'s gate, `run` hardening and
 `follow`.
+
+## Note 2026-09-28 — part two (b) built
+
+Clause 3's gate is delivered as `structbench-datagen preflight`: the pilot
+split's points become a case set — every pilot at every `[levels].pilot`
+level but the finest (the `fine_cases` there too), the pilots at production
+with the solver increment scaled, one pilot exported at a finer frame
+interval, one conformance run with every energy term requested — run in a
+sub-sweep of the work root, and ten steps turn the records of `run`,
+`export`, `convert`, `verify` and `converge` into verdicts in ADR-0066's
+vocabulary: deck regression, feasibility, conformance, the three resolutions
+of the 2026-09-27 note (space, increment, frame, duration), the energy
+account, the budget and the verification instrument. The stamp
+(`preflight-stamp/1`) binds the verdicts to the sha256 of both definition
+files; `generate` refuses a split that is not a probe without a passing
+stamp for the current definition, and `--no-preflight` records the
+omission in provenance (now `abaqus-provenance/3`, with `preflight` and
+`probe` keys). The `[pilot]` fields the note left open are settled with
+defaults (`increment_key`, `increment_factors`, `frame_key`,
+`frame_count_key`, `frame_factor`, `frame_tolerance`, `settling_margin`,
+`contact_force_global`) and `[qoi].tolerance` is the one target the space,
+increment and settling rules read. `run` stops launching below the
+free-space margin with exit 3 and prints the stamp's estimate; `follow`
+exports and converts finished cases beside a running sweep; `converge
+--anchor` compares groups that have runs from probe splits only. The
+temporal measures live in `verification/temporal.py`. The whole chain is
+tested end to end against a fake solver script; the first Abaqus run of the
+stage on a real dataset is the maintainer's to schedule. Part three owes the
+Abaqus `input_requests_required_evidence` and hourglass rows, the
+energy-gain indicator's ratification, the card generator and the full guide.

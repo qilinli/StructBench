@@ -53,18 +53,29 @@ probe = true
 [levels]                        # required: the mesh-level convention problem.mesh follows
 refine_key = "refine"           # the reserved parameter the pipeline sets
 production = "1"                # the level production runs at
-pilot = ["1", "2"]              # the levels the preflight runs the pilots at
+pilot = ["1", "2", "4"]         # the levels the preflight runs the pilots at; three, so a
+                                # quantity of interest can be extrapolated (fine_cases run the finest)
 symmetry = "axisymmetric"       # volume weights for converge: axisymmetric (r dA) or planar (dA)
 
 [pilot]                         # required: the preflight's targets
 split = "pilot"
 fine_cases = ["ACX-pilot-0001"] # pilots that also run at the finest level
-min_free_gb = 20.0              # the runner refuses to start below this margin
+min_free_gb = 20.0              # the runner launches nothing more below this margin
 accepted_gaps = ["solver_identity_complete"]  # verification rows this dataset accepts as known gaps
+# The probes (all optional; these are the defaults, written out so a new dataset sees them):
+increment_key = "dt_scale"      # the [fixed] key the increment probe scales (a constant, never sampled)
+increment_factors = [0.5]       # the production value times each factor; [] disables the probe
+frame_key = "frame_interval"    # the stored clock's keys in [fixed] ...
+frame_count_key = "n_intervals" # ... n_intervals / frame_factor must be a whole number
+frame_factor = 0.5              # the frame probe's interval as a fraction of the stored one; 0 disables it
+frame_tolerance = 0.05          # midpoint-interpolation error the stored clock may leave in node fields and globals
+settling_margin = 0.25          # share of the horizon that must lie after the slowest pilot's settling
+contact_force_global = "reaction_force_2_reference_node"  # a stored global whose separation frame is reported
 
-[qoi]                           # required: the keys problem.qoi returns, and their units
+[qoi]                           # required: the keys problem.qoi returns, their units and tolerances
 names = ["final_length", "face_radius"]
 units = ["m", "m"]
+tolerance = [0.01, 0.01]        # relative; the target for space, the increment probe and settling (default 0.01)
 
 [retention]                     # optional: which ODBs the archive keeps (defaults: 5 %, seed 0)
 odb_fraction = 0.05
