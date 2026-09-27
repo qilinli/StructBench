@@ -1,6 +1,6 @@
 """Validate a sweep: run evidence, measurements and verdicts in one pass.
 
-    python data_generation/abaqus/validate.py --sweep <work-root>/<name>
+    structbench-datagen validate --sweep <work-root>/<name>
         --dataset <dataset-dir> [--split NAME ...] [--data-root DIR]
 
 1. Collects the run evidence of every case that ran (``collect_run_evidence``).
@@ -123,7 +123,9 @@ def validate_sweep(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog="structbench-datagen validate", description=(__doc__ or "").splitlines()[0]
+    )
     parser.add_argument("--sweep", type=Path, required=True)
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--split", action="append")

@@ -2,7 +2,8 @@
 
 Runs under Abaqus's own interpreter (Python 3.10, numpy, odbAccess)::
 
-    abaqus python data_generation/abaqus/odb_export.py --sweep <work-root>/<name>
+    structbench-datagen export --sweep <work-root>/<name>
+        (which runs: abaqus python <this file> --sweep ...)
         [--cases ID ...]
 
 Dataset-blind: it writes whatever the ODB holds, for cases whose ``run.json``

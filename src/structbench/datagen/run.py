@@ -1,6 +1,6 @@
 """Run a sweep's Abaqus decks, N at a time, and record each run.
 
-    python data_generation/abaqus/run_jobs.py --sweep <work-root>/<name>
+    structbench-datagen run --sweep <work-root>/<name>
         [--split NAME ...] [--cases ID ...] [--limit N] [--workers 6]
         [--timeout S] [--retry-failed] [--abaqus EXE] [--dry-run]
 
@@ -317,7 +317,9 @@ def _summarise(results: list[JobResult]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog="structbench-datagen run", description=(__doc__ or "").splitlines()[0]
+    )
     parser.add_argument("--sweep", type=Path, required=True)
     parser.add_argument("--split", action="append")
     parser.add_argument("--cases", nargs="+")

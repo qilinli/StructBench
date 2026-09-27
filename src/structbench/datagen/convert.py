@@ -1,6 +1,6 @@
 """Convert a sweep's ``abaqus-npz/1`` exports into canonical HDF5 cases.
 
-    python data_generation/abaqus/convert.py --sweep <work-root>/<name>
+    structbench-datagen convert --sweep <work-root>/<name>
         [--split NAME ...] [--out DIR]
 
 A case is converted when its ``run.json`` says completed, its ``<id>.npz``
@@ -84,7 +84,9 @@ def convert_sweep(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog="structbench-datagen convert", description=(__doc__ or "").splitlines()[0]
+    )
     parser.add_argument("--sweep", type=Path, required=True)
     parser.add_argument("--split", action="append")
     parser.add_argument("--out", type=Path)

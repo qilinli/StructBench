@@ -1,6 +1,6 @@
 """Copy a validated sweep into the data tree; keep a sample of its ODBs.
 
-    python data_generation/abaqus/archive.py --sweep <work-root>/<name>
+    structbench-datagen archive --sweep <work-root>/<name>
         --dataset <dataset-dir> --data-root <data tree>
         [--split NAME ...] [--prune-odb] [--yes]
 
@@ -201,7 +201,9 @@ def _odb_vouched(sweep: Path, cid: str) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog="structbench-datagen archive", description=(__doc__ or "").splitlines()[0]
+    )
     parser.add_argument("--sweep", type=Path, required=True)
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--data-root", type=Path, required=True)

@@ -1,6 +1,6 @@
 """Generate a sweep's Abaqus case folders from a dataset's dataset.toml and problem.py.
 
-    python data_generation/abaqus/generate.py --dataset <dir> --work-root <root>
+    structbench-datagen generate --dataset <dir> --work-root <root>
         [--split NAME ...] [--force] [--dry-run]
 
 Each case gets ``<work-root>/<name>/<case_id>/<case_id>.inp`` and a
@@ -149,7 +149,9 @@ def write_manifest(sweep_dir: Path, specs: list[CaseSpec]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
+    parser = argparse.ArgumentParser(
+        prog="structbench-datagen generate", description=(__doc__ or "").splitlines()[0]
+    )
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--work-root", type=Path, required=True)
     parser.add_argument("--split", action="append")

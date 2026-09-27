@@ -20,6 +20,7 @@ dependencies = [
 
 [project.scripts]
 structbench-train = "structbench.cli.train:main"
+structbench-datagen = "structbench.datagen.cli:main"
 
 [project.optional-dependencies]
 viz = [
