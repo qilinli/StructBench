@@ -9,7 +9,17 @@ pytest.importorskip("scipy")
 
 from structbench.datagen import cli  # noqa: E402
 
-STAGES = ["new", "check", "generate", "run", "export", "convert", "verify", "archive"]
+STAGES = [
+    "new",
+    "check",
+    "generate",
+    "run",
+    "export",
+    "convert",
+    "verify",
+    "converge",
+    "archive",
+]
 
 
 @pytest.mark.parametrize("stage", STAGES)

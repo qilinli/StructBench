@@ -62,3 +62,13 @@ def test_no_living_document_or_code_still_says_datagen_validate():
 def test_the_guide_stub_exists():
     text = (ROOT / "docs" / "DATA_GENERATION.md").read_text(encoding="utf-8")
     assert "structbench-datagen" in text and "dataset.toml" in text
+
+
+def test_architecture_names_the_convergence_engine_and_the_adapter_names_its_exporter():
+    text = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    assert "`convergence.py`" in text and "`dataset.py`" in text
+    adapter = (ROOT / "src" / "structbench" / "core" / "io" / "abaqus.py").read_text(
+        encoding="utf-8"
+    )
+    assert "data_generation/abaqus/odb_export.py" not in adapter
+    assert "structbench/datagen/abaqus/odb_export.py" in adapter

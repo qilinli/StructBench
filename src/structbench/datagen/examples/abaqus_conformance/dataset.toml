@@ -54,6 +54,7 @@ probe = true
 refine_key = "refine"           # the reserved parameter the pipeline sets
 production = "1"                # the level production runs at
 pilot = ["1", "2"]              # the levels the preflight runs the pilots at
+symmetry = "axisymmetric"       # volume weights for converge: axisymmetric (r dA) or planar (dA)
 
 [pilot]                         # required: the preflight's targets
 split = "pilot"
