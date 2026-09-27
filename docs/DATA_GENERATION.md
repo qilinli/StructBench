@@ -46,3 +46,10 @@ number behind it:
 
 Until the stage exists, do these three by hand on the pilot split and record
 them in the data card; the questions do not change when the tooling arrives.
+
+## Before production
+
+[`datagen/abaqus-lessons.md`](datagen/abaqus-lessons.md) is what the first
+Abaqus dataset taught, written as rules with the reason behind each and what
+the pipeline now does about it, and it ends in a pre-production checklist.
+Read it before the first run of a new model.
