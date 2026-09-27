@@ -18,7 +18,7 @@ Start from the template and check it before anything runs:
     structbench-datagen check my_dataset
 
 Then the stages, in order: `generate`, `run`, `export`, `convert`, `verify`
-(the ADR-0066 instrument over the sweep), `archive`. The shipped example (`structbench/datagen/examples/abaqus_conformance`)
+(the ADR-0066 instrument over the sweep), `converge` (below), `archive`. The shipped example (`structbench/datagen/examples/abaqus_conformance`)
 is the single-rod conformance case described in `docs/datagen/abaqus-conformance.md`.
 The design is `docs/plans/2026-09-27-abaqus-datagen-platform-design.md`.
 
@@ -47,6 +47,20 @@ number behind it:
 
 Until the stage exists, do these three by hand on the pilot split and record
 them in the data card; the questions do not change when the tooling arrives.
+
+## Convergence across mesh levels
+
+`structbench-datagen converge --dataset <dir> --sweep <runs>/<name> [--root <other run root> ...]`
+pairs every production run with the probe runs at the other `[levels]` of the
+same parameters (across run roots, so a production that moved to a finer mesh
+keeps its older runs), extrapolates each quantity of interest from three
+levels in constant ratio (Richardson, with the observed order and a status
+that says when there is none), and measures every stored field of each
+coarser level against the finest with the headline relative L2, restricted
+with the `[levels].symmetry` volume weights. It writes `convergence.json`
+(byte-stable, case ids only) and `convergence.md` under `<sweep>/converge/`.
+The dataset supplies only `[levels]` and `qoi()`; the engine is
+`structbench.verification.convergence`.
 
 ## Before production
 

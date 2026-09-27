@@ -123,7 +123,7 @@ environment (disk, solver missing).
 | `export` | ODB to `abaqus-npz/1` under Abaqus's Python | unchanged; ships inside the package as a data file the CLI locates and hands to `abaqus python` |
 | `convert` | npz to canonical cases | unchanged |
 | `verify` | the ADR-0066 instrument over the sweep | renamed from `validate` (ADR-0072, 2026-09-27) |
-| `converge` | mesh-level comparison of QoIs and fields | new, generic |
+| `converge` | mesh-level comparison of QoIs and fields | built (plan 2a, 2026-09-27): the engine in `verification/convergence.py`, the pairing and the record in `datagen/converge.py` |
 | `archive` | copy to the data tree, retain ODBs, redact | unchanged |
 | `card` | render the generated sections of `DATA_CARD.md` | new |
 

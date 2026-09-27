@@ -1,6 +1,6 @@
 """Adapter: an ``abaqus-npz/1`` export -> a canonical :class:`Case` (ADR-0069).
 
-``data_generation/abaqus/odb_export.py`` runs under ``abaqus python`` and
+``structbench/datagen/abaqus/odb_export.py`` runs under ``abaqus python`` and
 writes the ``.odb`` as plain arrays in the deck's own units, keyed by Abaqus
 labels (layout: ``docs/datagen/abaqus-conformance.md``). This module turns that into the
 strict-SI canonical case. It decides three things the export leaves open:

@@ -143,3 +143,18 @@ ADR-0072 gives validation its meaning (comparison with experiment) and
 renames this pipeline's `validate` stage, which runs the ADR-0066
 verification instrument, to `verify`; the old name is refused with a
 pointer. Clause 1's stage list reads accordingly.
+
+## Note 2026-09-27 — part two (a) built
+
+Clause 4 is delivered: the convergence engine lives in
+`structbench.verification.convergence` and `structbench-datagen converge`
+pairs a sweep's runs across run roots, extrapolates each quantity of interest
+and measures every stored field of each coarser level against the finest,
+writing a byte-stable record. With it: the headline metric moved into
+`verification.kernels` (`eval.metrics` re-exports it), the dataset-level
+measurement helpers moved into `verification.dataset` so `datagen` no longer
+imports `cli`, `problem.py` may import its siblings, and `[levels].symmetry`
+names the volume weights. The study's stress-breakdown diagnostic (contact
+phase, post-release, time shift) is not generic and stays out. Part two (b)
+owes the preflight and its stamp, `generate`'s gate, `run` hardening and
+`follow`.
