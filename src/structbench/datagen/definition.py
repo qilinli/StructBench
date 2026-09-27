@@ -215,7 +215,8 @@ def _probe_fields(
     for key in ("increment_key", "frame_key", "frame_count_key"):
         if out[key] in sampled:
             raise DefinitionError(
-                f"pilot.{key}: {out[key]!r} is sampled; the probe needs a constant"
+                f"pilot.{key}: {out[key]!r} is sampled in production; the probe "
+                "needs a constant in [fixed]"
             )
     count_key = out["frame_count_key"]
     if factor > 0.0 and out["frame_key"] in fixed and count_key in fixed:
@@ -311,9 +312,13 @@ def load_definition(dataset_dir: Path) -> Definition:
     unknown = sorted(set(pt) - PILOT_KEYS)
     if unknown:
         raise DefinitionError(f"pilot.{unknown[0]}: unknown field")
+    # A probe key must be a constant in production: [variables], and the
+    # extras and categoricals of splits that are not probes. Probe splits may
+    # vary it -- that is how an increment or a frame interval is probed.
     sampled = set(variables)
     for s in splits:
-        sampled |= set(s.extra) | set(s.categorical)
+        if not s.probe:
+            sampled |= set(s.extra) | set(s.categorical)
     pilot = Pilot(
         _field(pt, "pilot", "split", str),
         _strings(pt, "pilot", "fine_cases"),

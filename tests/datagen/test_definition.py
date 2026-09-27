@@ -210,6 +210,40 @@ def test_bad_pilot_probe_fields_are_refused(tmp_path, extra, message):
         definition.load_definition(write_definition(tmp_path / "d", toml=toml))
 
 
+def test_a_probe_split_may_vary_a_probe_key_but_production_may_not(tmp_path):
+    """A study probes the increment by sampling it in a probe split; only the
+    production sampling ([variables] and the extras of splits that are not
+    probes) must hold the key constant."""
+    toml = MINIMAL_TOML.replace(
+        "[fixed]\nE = 1000.0", "[fixed]\nE = 1000.0\ndt_scale = 0.5"
+    )
+    probe_varies = toml.replace(
+        "[splits.pilot]",
+        "[splits.dt]\nn = 2\nseed = 7\nextra = { dt_scale = [0.25, 1.0] }\n"
+        "probe = true\n\n[splits.pilot]",
+    )
+    defn = definition.load_definition(
+        write_definition(tmp_path / "ok", toml=probe_varies)
+    )
+    assert defn.pilot.increment_key == "dt_scale"
+    production_varies = probe_varies.replace(
+        "extra = { dt_scale = [0.25, 1.0] }\nprobe = true",
+        "extra = { dt_scale = [0.25, 1.0] }",
+    )
+    with pytest.raises(definition.DefinitionError, match="sampled"):
+        definition.load_definition(
+            write_definition(tmp_path / "bad", toml=production_varies)
+        )
+    # a single-valued categorical pins the key per split: still not [fixed], so the
+    # preflight's production value would not be the sweep's; refused with the remedy
+    pinned = toml.replace(
+        "[splits.train]\nn = 4\nseed = 1",
+        '[splits.train]\nn = 4\nseed = 1\ncategorical = { dt_scale = ["0.5"] }',
+    )
+    with pytest.raises(definition.DefinitionError, match=r"\[fixed\]"):
+        definition.load_definition(write_definition(tmp_path / "pinned", toml=pinned))
+
+
 def test_qoi_tolerance_is_one_positive_number_per_name(tmp_path):
     two = MINIMAL_TOML.replace(
         'units = ["m"]', 'units = ["m"]\ntolerance = [0.02, 0.02]'
