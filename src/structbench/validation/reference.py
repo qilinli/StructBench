@@ -117,6 +117,13 @@ def load_reference_file(path: Path) -> ReferenceSet:
         ids = [t.id for t in tests]
         if len(set(ids)) != len(ids):
             raise ReferenceError(f"{path.name}: duplicate test ids")
+        fractions = tuple(float(f) for f in data["measures"]["fractions"])
+        for t in tests:
+            if len(t.Wf_mm) != len(fractions):
+                raise ReferenceError(
+                    f"{path.name}: test {t.id}: Wf_mm has {len(t.Wf_mm)} values "
+                    f"for {len(fractions)} fractions"
+                )
         return ReferenceSet(
             name=str(data["name"]),
             family=str(data["family"]),
@@ -124,7 +131,7 @@ def load_reference_file(path: Path) -> ReferenceSet:
             units={str(k): str(v) for k, v in data["units"].items()},
             sources=tuple(data["sources"]),
             extraction=dict(data["extraction"]),
-            fractions=tuple(float(f) for f in data["measures"]["fractions"]),
+            fractions=fractions,
             tests=tests,
             caveats=tuple(str(c) for c in data.get("caveats", ())),
             sha256=hashlib.sha256(raw).hexdigest(),

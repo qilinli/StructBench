@@ -25,11 +25,15 @@ deviations; no acceptance level is attached to them.
 | S3 | Wilkins M.L., Guinan M.W. *Impact of cylinders on a rigid boundary.* J. Appl. Phys. 1973, 44, 1200–1206. | [10.1063/1.1662328](https://doi.org/10.1063/1.1662328) | no | — | the original source of test 1, as S1 reports it |
 | S4 | Gust W.H. *High impact deformation of metal cylinders at elevated temperatures.* J. Appl. Phys. 1982, 53, 3566–3575. | [10.1063/1.331136](https://doi.org/10.1063/1.331136) | no | — | the original source of test 2, as S1 reports it |
 
-The outlines are redistributed from S1's figures under its CC BY 4.0
-licence, with this attribution. The conditions are S1's Table 1. S1's own
-simulated curves (the red curves of the same figures) are not part of this
-set: they are a simulation, not a measurement. The PDF is not in the
-repository.
+The outlines are redistributed from S1's figures under its Creative Commons
+Attribution 4.0 International licence (CC BY 4.0,
+https://creativecommons.org/licenses/by/4.0/), with this attribution. **They
+are modified from the source**: read from the vector drawing rather than
+copied as an image, converted from centimetres to millimetres, shifted so
+that each outline's lowest point is z = 0, rounded to 10⁻⁴ mm, and with the
+source's red (calculated) curves removed. The conditions are S1's Table 1.
+S1's own simulated curves are not part of this set: they are a simulation,
+not a measurement. The PDF is not in the repository.
 
 ## The tests
 

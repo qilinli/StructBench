@@ -91,7 +91,8 @@ def lateral_radii(
 ) -> list[float]:
     """W_f: the largest r where the outline crosses the height f * length, per fraction.
 
-    A vertex on the height counts once (through the segment that ends on it);
+    A vertex on the height counts once (through the segment that ends on it,
+    whether the outline crosses or only touches the height there);
     a segment lying along the height contributes both ends; a height the
     outline never reaches gives NaN.
     """
@@ -106,7 +107,9 @@ def lateral_radii(
                 if z1 == h:
                     hits += [float(r1), float(r2)]
                 continue
-            if min(z1, z2) < h <= max(z1, z2):
+            if z2 == h:  # a vertex on the height: the segment arriving at it
+                hits.append(float(r2))
+            elif min(z1, z2) < h < max(z1, z2):
                 hits.append(float(r1 + (h - z1) * (r2 - r1) / (z2 - z1)))
         out.append(max(hits) if hits else float("nan"))
     return out

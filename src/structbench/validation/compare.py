@@ -2,7 +2,7 @@
 
 A ``pairs.toml`` names the reference set, labels the variants compared side
 by side, and lists one pair per (variant, test): either a canonical case file
-or a status (``aborted``, with a reason) for a run that did not complete.
+or ``status = "aborted"`` with a reason, for a run that did not complete.
 """
 
 from __future__ import annotations
@@ -18,10 +18,12 @@ import numpy as np
 from structbench.core import Case
 from structbench.core.io import read_case
 from structbench.validation.measures import taylor
-from structbench.validation.reference import ReferenceSet
+from structbench.validation.reference import ReferenceSet, Test
 
 #: Canonical cases are SI; reference sets are in millimetres.
 CANONICAL_TO_MM = 1e3
+#: The one status a pairs file may state; the others are the comparison's own.
+STATED_STATUSES = ("aborted",)
 #: The measures the summary is built over, with the ``Result`` field each reads.
 MEASURES = (
     ("length", "dev_length"),
@@ -38,7 +40,8 @@ class PairsError(ValueError):
 class Pair:
     variant: str
     test: str
-    case: Path | None
+    case: Path | None  # resolved, for reading
+    case_text: str | None  # as written in the pairs file, for the record
     status: str | None
     reason: str | None
 
@@ -48,8 +51,12 @@ class Result:
     variant: str
     test: str
     case_id: str | None
+    case_path: str | None  # as written in the pairs file
     status: str  # completed | aborted | missing | unmeasurable
     reason: str | None
+    measured_length_mm: float
+    measured_radius_mm: float
+    measured_lateral_mm: tuple[float, ...]
     length_mm: float | None
     length_band_mm: float | None
     largest_radius_mm: float | None
@@ -72,15 +79,23 @@ def load_pairs(path: Path) -> tuple[str, dict[str, str], list[Pair]]:
     """``(reference name, variant labels, pairs)`` from a ``pairs.toml``."""
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as exc:
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise PairsError(f"{path.name}: {exc}") from exc
     name = data.get("reference")
     if not isinstance(name, str):
         raise PairsError(f"{path.name}: reference: a set name is required")
-    variants = {str(k): str(v) for k, v in data.get("variants", {}).items()}
+    raw_variants = data.get("variants", {})
+    if not isinstance(raw_variants, dict):
+        raise PairsError(f"{path.name}: [variants] must be a table of labels")
+    variants = {str(k): str(v) for k, v in raw_variants.items()}
+    raw_pairs = data.get("pair", [])
+    if not isinstance(raw_pairs, list) or not all(
+        isinstance(p, dict) for p in raw_pairs
+    ):
+        raise PairsError(f"{path.name}: pairs are [[pair]] tables")
     pairs: list[Pair] = []
     seen: set[tuple[str, str]] = set()
-    for k, raw in enumerate(data.get("pair", [])):
+    for k, raw in enumerate(raw_pairs):
         where = f"{path.name}: pair {k + 1}"
         variant, test = raw.get("variant"), raw.get("test")
         if variant not in variants:
@@ -93,23 +108,35 @@ def load_pairs(path: Path) -> tuple[str, dict[str, str], list[Pair]]:
                 f"{where}: variant {variant!r} test {test!r} appears twice"
             )
         seen.add(key)
+        if "case" in raw and "status" in raw:
+            raise PairsError(f"{where}: give a case file or a status, not both")
         case: Path | None
+        case_text: str | None
         status: str | None
         if "case" in raw:
-            given = Path(str(raw["case"]))
+            case_text = str(raw["case"])
+            given = Path(case_text)
             case = given if given.is_absolute() else (path.parent / given).resolve()
             status = None
         elif "status" in raw:
-            case, status = None, str(raw["status"])
+            status = str(raw["status"])
+            if status not in STATED_STATUSES:
+                raise PairsError(
+                    f"{where}: status {status!r}; a pairs file may state only "
+                    f"{', '.join(STATED_STATUSES)} (with a reason)"
+                )
+            case = case_text = None
         else:
             raise PairsError(f"{where}: give a case file or a status")
         reason = raw.get("reason")
-        pairs.append(Pair(*key, case, status, None if reason is None else str(reason)))
+        pairs.append(
+            Pair(*key, case, case_text, status, None if reason is None else str(reason))
+        )
     return name, variants, pairs
 
 
-def _measure_mm(case: Case) -> taylor.TaylorOutcome:
-    o = taylor.taylor_outcome(case)
+def _measure_mm(case: Case, fractions: tuple[float, ...]) -> taylor.TaylorOutcome:
+    o = taylor.taylor_outcome(case, fractions)
     s = CANONICAL_TO_MM
     return taylor.TaylorOutcome(
         o.length * s,
@@ -120,9 +147,20 @@ def _measure_mm(case: Case) -> taylor.TaylorOutcome:
 
 
 def _gap(
-    pair: Pair, status: str, reason: str | None, case_id: str | None = None
+    pair: Pair, t: Test, status: str, reason: str | None, case_id: str | None = None
 ) -> Result:
-    return Result(pair.variant, pair.test, case_id, status, reason, *(None,) * 7)
+    return Result(
+        pair.variant,
+        pair.test,
+        case_id,
+        pair.case_text,
+        status,
+        reason,
+        t.Lf_mm,
+        t.Rf_mm,
+        tuple(t.Wf_mm),
+        *(None,) * 7,
+    )
 
 
 def compare(
@@ -132,7 +170,7 @@ def compare(
     *,
     case_loader: Callable[[Path], Case] = read_case,
 ) -> Comparison:
-    """Every pair measured against its test; gaps named, never skipped."""
+    """Every pair measured against its test at the set's own heights; gaps named."""
     results: list[Result] = []
     for p in pairs:
         if p.variant not in variants:
@@ -144,17 +182,21 @@ def compare(
                 f"test {p.test!r} is not in reference set {ref.name!r}"
             ) from None
         if p.case is None:
-            results.append(_gap(p, p.status or "aborted", p.reason))
+            results.append(_gap(p, t, p.status or "aborted", p.reason))
             continue
         if not p.case.is_file():
-            results.append(_gap(p, "missing", str(p.case)))
+            results.append(_gap(p, t, "missing", f"no file at {p.case_text}"))
             continue
-        case = case_loader(p.case)
         try:
-            o = _measure_mm(case)
-        except (taylor.OutlineError, KeyError, ValueError) as exc:
+            case = case_loader(p.case)
+        except Exception as exc:  # h5py, the schema reader: named, not raised
+            results.append(_gap(p, t, "unmeasurable", f"{type(exc).__name__}: {exc}"))
+            continue
+        try:
+            o = _measure_mm(case, ref.fractions)
+        except (taylor.OutlineError, KeyError, ValueError, IndexError) as exc:
             reason = f"{type(exc).__name__}: {exc}"
-            results.append(_gap(p, "unmeasurable", reason, case.metadata.case_id))
+            results.append(_gap(p, t, "unmeasurable", reason, case.metadata.case_id))
             continue
         dev_w = [(a - b) / b for a, b in zip(o.lateral_radii, t.Wf_mm, strict=True)]
         results.append(
@@ -162,8 +204,12 @@ def compare(
                 p.variant,
                 p.test,
                 case.metadata.case_id,
+                p.case_text,
                 "completed",
                 None,
+                t.Lf_mm,
+                t.Rf_mm,
+                tuple(t.Wf_mm),
                 o.length,
                 o.length_band,
                 o.largest_radius,

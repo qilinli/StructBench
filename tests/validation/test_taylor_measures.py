@@ -68,3 +68,17 @@ def test_a_three_dimensional_case_is_refused():
     solid = dataclasses.replace(case, nodes=nodes, response=response)
     with pytest.raises(taylor.OutlineError, match="axisymmetric"):
         taylor.outline(solid)
+
+
+def test_a_horizontal_segment_on_a_fraction_height_counts_both_ends():
+    rz = np.array([[0, 0], [1, 0], [1, 2], [2, 2], [2, 4], [0, 4], [0, 0]], float)
+    assert taylor.lateral_radii(rz, 4.0, (0.5,)) == [2.0]
+
+
+def test_a_vertex_touching_the_height_from_above_counts():
+    # the outline dips to z = 2 at r = 2.5 and goes back up: that vertex is the
+    # largest r at that height
+    rz = np.array(
+        [[0, 0], [2, 0], [2, 3], [2.5, 2], [2.2, 3], [2.2, 4], [0, 4], [0, 0]], float
+    )
+    assert taylor.lateral_radii(rz, 4.0, (0.5,)) == [2.5]

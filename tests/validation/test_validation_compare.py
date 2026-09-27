@@ -120,16 +120,16 @@ def test_relative_paths_resolve_against_the_pairs_file(tmp_path):
 
 def test_a_missing_case_file_is_reported_not_raised(tmp_path):
     ref = toy_reference(tmp_path)
-    pairs = [compare.Pair("a", "1", tmp_path / "nowhere.h5", None, None)]
+    pairs = [compare.Pair("a", "1", tmp_path / "nowhere.h5", "nowhere.h5", None, None)]
     (result,) = compare.compare(ref, pairs, {"a": "A"}).results
     assert result.status == "missing" and result.case_id is None
-    assert "nowhere.h5" in (result.reason or "")
+    assert "nowhere.h5" in (result.reason or "") and result.case_path == "nowhere.h5"
 
 
 def test_a_case_without_one_outline_is_unmeasurable(tmp_path):
     ref = toy_reference(tmp_path)
     (tmp_path / "two.h5").write_bytes(b"")
-    pairs = [compare.Pair("a", "1", tmp_path / "two.h5", None, None)]
+    pairs = [compare.Pair("a", "1", tmp_path / "two.h5", "two.h5", None, None)]
     (result,) = compare.compare(
         ref, pairs, {"a": "A"}, case_loader=lambda p: two_body_case()
     ).results
@@ -162,3 +162,74 @@ def test_a_pair_needs_a_case_or_a_status(tmp_path):
     text = PAIRS.format(case="x.h5").replace('status = "aborted"\n', "")
     with pytest.raises(compare.PairsError, match="case file or a status"):
         compare.load_pairs(write_pairs(tmp_path, text))
+
+
+def test_the_reference_sets_own_fractions_are_used(tmp_path):
+    # a set declaring other heights, compared with an identical outline: zero deviation
+    ref = toy_reference(tmp_path)
+    import dataclasses
+
+    from structbench.validation import reference as refmod
+
+    rz = ref.test("1").outline_rz_mm
+    lf = taylor.final_length(rz)
+    other = (0.1, 0.9)
+    tests = tuple(
+        dataclasses.replace(t, Wf_mm=tuple(taylor.lateral_radii(rz, lf, other)))
+        for t in ref.tests
+    )
+    ref2 = refmod.ReferenceSet(
+        **{**dataclasses.asdict(ref), "fractions": other, "tests": tests}
+    )
+    (tmp_path / "c.h5").unlink(missing_ok=True)
+    write_case(rod_case(), tmp_path / "c.h5")
+    (r,) = compare.compare(
+        ref2,
+        [compare.Pair("a", "1", tmp_path / "c.h5", "c.h5", None, None)],
+        {"a": "A"},
+    ).results
+    assert r.status == "completed" and len(r.lateral_radii_mm) == 2
+    assert r.dev_lateral_rms == pytest.approx(0.0, abs=1e-9)
+
+
+def test_case_paths_are_recorded_as_written_not_resolved(tmp_path):
+    ref = toy_reference(tmp_path)
+    text = PAIRS.format(case="cases/nowhere.h5")
+    _, variants, pairs = compare.load_pairs(write_pairs(tmp_path, text))
+    assert pairs[0].case_text == "cases/nowhere.h5"
+    (missing, _) = compare.compare(ref, pairs, variants).results
+    assert missing.status == "missing" and missing.case_path == "cases/nowhere.h5"
+    assert str(tmp_path) not in (missing.reason or "")
+
+
+def test_an_unreadable_case_file_is_unmeasurable_with_its_path(tmp_path):
+    ref = toy_reference(tmp_path)
+    (tmp_path / "junk.h5").write_bytes(b"not an hdf5 file")
+    pairs = [compare.Pair("a", "1", tmp_path / "junk.h5", "junk.h5", None, None)]
+    (r,) = compare.compare(ref, pairs, {"a": "A"}).results
+    assert r.status == "unmeasurable" and r.case_path == "junk.h5"
+    assert "OSError" in (r.reason or "")
+
+
+def test_only_aborted_is_an_accepted_status(tmp_path):
+    text = PAIRS.format(case="x.h5").replace(
+        'status = "aborted"', 'status = "completed"'
+    )
+    with pytest.raises(compare.PairsError, match="aborted"):
+        compare.load_pairs(write_pairs(tmp_path, text))
+    both = PAIRS.format(case="x.h5").replace(
+        'case = "x.h5"', 'case = "x.h5"\nstatus = "aborted"'
+    )
+    with pytest.raises(compare.PairsError, match="not both"):
+        compare.load_pairs(write_pairs(tmp_path, both))
+
+
+def test_results_carry_the_measured_values(tmp_path):
+    ref = toy_reference(tmp_path)
+    write_case(rod_case(), tmp_path / "m.h5")
+    (r,) = compare.compare(
+        ref, [compare.Pair("a", "1", tmp_path / "m.h5", "m.h5", None, None)], {"a": "A"}
+    ).results
+    t = ref.test("1")
+    assert r.measured_length_mm == t.Lf_mm and r.measured_radius_mm == t.Rf_mm
+    assert r.measured_lateral_mm == tuple(t.Wf_mm)

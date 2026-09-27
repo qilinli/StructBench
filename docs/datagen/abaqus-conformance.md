@@ -253,13 +253,14 @@ Established from the conformance exports:
 - Units are the deck's own; ids are Abaqus labels, never minted by the
   exporter.
 
-Then the dataset's glue reads the three text files through
-`structbench.core.io.abaqus_run.read_abaqus_run_evidence` and writes one
-whitelisted JSON record, exactly as the LS-DYNA glue does:
+Then the pipeline's `verify` stage reads the three text files of every case
+through `structbench.core.io.abaqus_run.read_abaqus_run_evidence`
+(`structbench.datagen.collect`), measures the canonical cases against the
+dataset's `[declaration]`, judges the record and writes `run_evidence.json`,
+`measurements.json` and `report.md` into `<sweep>/datacheck/` — the same
+whitelisted evidence record the LS-DYNA glue writes by hand:
 
-    python data_generation/abaqus/<dataset>/collect_run_evidence.py --out runs/datachecks/<name>_run_evidence.json
-    python -m structbench.cli.datacheck measure --benchmark <name> --data-root <canonical dir> \
-        --run-evidence runs/datachecks/<name>_run_evidence.json --out runs/datachecks/<name>.json
+    structbench-datagen verify --sweep <runs>/<name> --dataset <dataset dir> [--split <split>]
 
 ## Open points
 

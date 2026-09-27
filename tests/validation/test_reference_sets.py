@@ -74,3 +74,14 @@ def test_architecture_names_the_validation_layer():
     text = (root / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
     assert "### `validation/`" in text and "structbench-validate" in text
     assert "{verification, validation}" in text
+
+
+def test_a_test_whose_wf_count_differs_from_the_fractions_is_refused(tmp_path):
+    import json
+
+    data = json.loads((REFS / "taylor_copper.json").read_bytes())
+    data["tests"][0]["Wf_mm"] = data["tests"][0]["Wf_mm"][:-1]
+    bad = tmp_path / "bad.json"
+    bad.write_bytes(json.dumps(data).encode())
+    with pytest.raises(reference.ReferenceError, match="Wf_mm"):
+        reference.load_reference_file(bad)
