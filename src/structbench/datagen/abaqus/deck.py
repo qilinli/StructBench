@@ -171,6 +171,11 @@ def surface_interaction(name: str) -> str:
     return f"*SURFACE INTERACTION, NAME={name}\n"
 
 
+def contact_damping(fraction: float) -> str:
+    """Contact damping as a fraction of critical, for the interaction that follows."""
+    return f"*CONTACT DAMPING, DEFINITION=CRITICAL DAMPING FRACTION\n{num(fraction)}\n"
+
+
 def boundary(target: str, first_dof: int, last_dof: int | None = None) -> str:
     return f"*BOUNDARY\n{target}, {first_dof}, {last_dof or first_dof}\n"
 
@@ -233,8 +238,17 @@ def standard_output(
     return text
 
 
-def explicit_step(name: str, period: float, body: str) -> str:
+def explicit_step(
+    name: str, period: float, body: str, *, scale_factor: float | None = None
+) -> str:
+    """An explicit dynamic step of ``period``.
+
+    ``scale_factor`` scales the stable increment (0.5 halves it): with kinematic
+    contact against a rigid surface the full increment created energy in some
+    runs of one sweep, see the conformance document.
+    """
+    option = f", SCALE FACTOR={num(scale_factor)}" if scale_factor is not None else ""
     return (
-        f"*STEP, NAME={name}, NLGEOM=YES\n*DYNAMIC, EXPLICIT\n, {num(period)}\n"
+        f"*STEP, NAME={name}, NLGEOM=YES\n*DYNAMIC, EXPLICIT{option}\n, {num(period)}\n"
         f"{body}*END STEP\n"
     )
