@@ -169,7 +169,8 @@ def solve(job: str, here: Path) -> None:
     for term, series in terms.items():
         out[f"history/{STEP}/Assembly ASSEMBLY/{term}"] = np.stack([t, series], -1)
     out[f"history/{STEP}/Node {INSTANCE}.{rp}/RF2"] = np.stack([t, force], -1)
-    np.savez_compressed(here / f"{job}.npz", **out)
+    if not os.environ.get("FAKE_SOLVER_NO_EXPORT"):  # a run whose export never comes
+        np.savez_compressed(here / f"{job}.npz", **out)
     (here / f"{job}.odb").write_bytes(b"")
     (here / f"{job}.sta").write_text(STA, encoding="utf-8")
     (here / f"{job}.msg").write_text(MSG, encoding="utf-8")

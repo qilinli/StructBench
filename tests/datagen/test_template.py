@@ -24,6 +24,8 @@ def test_the_example_declares_its_probes_and_the_documented_defaults():
     )
     assert (p.frame_tolerance, p.settling_margin) == (0.05, 0.25)
     assert defn.qoi.tolerance == (0.01, 0.01)
+    # three pilot levels, so the space step can extrapolate (review finding 12)
+    assert defn.levels.pilot == ("1", "2", "4") and defn.levels.production == "1"
 
 
 def test_scaffold_writes_the_four_files_and_renames_the_dataset(tmp_path):
@@ -168,3 +170,29 @@ def test_the_check_command_exits_one_on_problems_and_zero_when_clean(tmp_path, c
     ds = write_definition(tmp_path / "bad", toml=bad)
     assert template.main_check([str(ds)]) == 1
     assert "levels" in capsys.readouterr().out
+
+
+def test_check_names_a_preflight_id_that_breaks_the_job_name_rule(tmp_path):
+    """Review finding 18: the plain ids fit, the -T suffix does not."""
+    long_split = "p" * 24
+    toml = (
+        MINIMAL_TOML.replace("[splits.pilot]", f"[splits.{long_split}]")
+        .replace('split = "pilot"', f'split = "{long_split}"')
+        .replace(
+            'fine_cases = ["TOY-pilot-0000"]', f'fine_cases = ["TOY-{long_split}-0000"]'
+        )
+        .replace("[fixed]\nE = 1000.0", "[fixed]\nE = 1000.0\ndt_scale = 0.5")
+    )
+    problems = template.check_definition(write_definition(tmp_path / "d", toml=toml))
+    assert any("job name" in p and "T0p25" in p for p in problems), problems
+
+
+def test_check_exercises_qoi_on_a_one_frame_trajectory(tmp_path):
+    """Review finding 6: the preflight evaluates qoi() frame by frame."""
+    problem = MINIMAL_PROBLEM.replace(
+        "def qoi(case):", "def qoi(case):\n    case.response.time[1]"
+    )
+    problems = template.check_definition(
+        write_definition(tmp_path / "d", problem=problem)
+    )
+    assert any("one-frame" in p for p in problems), problems

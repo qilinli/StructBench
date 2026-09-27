@@ -60,6 +60,7 @@ from structbench.datagen.definition import (
     load_definition,
     load_problem,
     problem_sha256,
+    siblings_sha256,
 )
 from structbench.datagen.export import export_cases
 from structbench.datagen.generate import (
@@ -78,7 +79,7 @@ from structbench.datagen.verify import judge_sweep
 from structbench.verification.results import Verdict
 from structbench.verification.temporal import (
     common_instant_errors,
-    midpoint_interpolation_errors,
+    interpolation_errors,
     qoi_history,
     rise_time_frames,
     separation_frame,
@@ -150,10 +151,11 @@ def label_suffix(role: str, label: str | float | None) -> str:
     raise ValueError(f"unknown preflight role {role!r}")
 
 
-def production_value(defn: Definition) -> float:
-    """The production value of the increment key: ``[fixed]``'s, or 1.0."""
+def production_value(defn: Definition) -> float | None:
+    """The production value of the increment key: ``[fixed]``'s, or None when
+    the key is not a declared constant (then the probe cannot be built)."""
     value = defn.fixed.get(defn.pilot.increment_key)
-    return 1.0 if value is None else float(value)
+    return None if value is None else float(value)
 
 
 def by_role(specs: Sequence[CaseSpec], role: str) -> list[CaseSpec]:
@@ -229,8 +231,12 @@ def preflight_cases(defn: Definition) -> list[CaseSpec]:
                 )
             )
     base_value = production_value(defn)
-    for factor in pilot.increment_factors:
-        value = base_value * factor
+    scaled = (
+        [(factor, base_value * factor) for factor in pilot.increment_factors]
+        if base_value is not None
+        else []
+    )
+    for factor, value in scaled:
         for index, variant, base, _plain in pilots:
             params = {**base, key: production, pilot.increment_key: value}
             suffix = label_suffix("increment", value)
@@ -398,13 +404,16 @@ def step_conformance(npz_path: Path | None, units: str) -> Step:
         return Step(
             "conformance", "not_assessable", "the conformance run has no export", {}
         )
+    path = Path(npz_path)
     try:
-        history = assembly_history(read_abaqus_export(npz_path))
+        history = assembly_history(read_abaqus_export(path))
     except Exception as exc:  # an unreadable export is a finding about it
+        why = str(exc).replace(str(path), path.name).replace(str(path.parent), "…")
         return Step(
             "conformance",
             "not_assessable",
-            f"the conformance export could not be read: {type(exc).__name__}: {exc}",
+            f"the conformance export {path.name} could not be read: "
+            f"{type(exc).__name__}: {why}",
             {},
         )
     missing = sorted(REQUIRED_TERMS - set(history))
@@ -413,11 +422,18 @@ def step_conformance(npz_path: Path | None, units: str) -> Step:
         for term, values in history.items()
         if term not in LEDGER_CLOSED_TERMS and bool(np.any(values != 0.0))
     )
+    non_finite = sorted(
+        term
+        for term, values in history.items()
+        if not bool(np.all(np.isfinite(values)))
+    )
     residual: float | None = None
     problems: list[str] = []
+    if non_finite:
+        problems.append("non-finite values in " + ", ".join(non_finite))
     if missing:
         problems.append("missing " + ", ".join(missing))
-    else:
+    elif not non_finite:
         total = history["ETOTAL"] + history["ALLWK"]
         balance = history["ALLKE"] + history["ALLIE"] + history["ALLVD"]
         if "ALLFD" in history and "ALLPW" in history:
@@ -462,6 +478,7 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
     cases_detail: dict[str, dict[str, Any]] = {}
     fails: list[str] = []
     reviews: list[str] = []
+    unassessable: list[str] = []
     assessed = 0
     for entry in record.get("cases", []):
         per: dict[str, Any] = {}
@@ -479,6 +496,8 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
             }
             if x.get("status") != "monotone" or err is None:
                 reviews.append(f"{entry['case_id']}: {name} {x.get('status')}")
+            elif not math.isfinite(err):
+                unassessable.append(f"{entry['case_id']}: {name} is not finite")
             elif err > tol[name]:
                 fails.append(
                     f"{entry['case_id']}: {name} {err:.3g} > {tol[name]:g} at level "
@@ -501,6 +520,8 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
         )
     if fails:
         return Step("space", "fail", "; ".join(fails), detail)
+    if unassessable:
+        return Step("space", "not_assessable", "; ".join(unassessable), detail)
     if reviews:
         return Step(
             "space",
@@ -545,17 +566,25 @@ def step_increment(
 ) -> Step:
     """Time (a): the QoIs at another stable-increment scale, and the energy
     rows of those runs."""
-    increments = by_role(specs, "increment")
-    if not increments:
+    key = defn.pilot.increment_key
+    if not defn.pilot.increment_factors:
         return Step(
             "increment",
             "not_applicable",
             "the dataset declares no increment factors",
             {},
         )
+    if production_value(defn) is None:
+        return Step(
+            "increment",
+            "not_assessable",
+            f"{key!r} is not in [fixed]; the increment probe scales the production "
+            "value and needs it declared as a constant",
+            {},
+        )
+    increments = by_role(specs, "increment")
     tol = dict(zip(defn.qoi.names, defn.qoi.tolerance, strict=True))
     production = defn.levels.production
-    key = defn.pilot.increment_key
     base_of = {
         _pilot_key(s): s.case_id
         for s in by_role(specs, "level")
@@ -577,6 +606,9 @@ def step_increment(
             if a is None or b is None:
                 missing.append(f"{s.case_id} ({name})")
                 continue
+            if not (math.isfinite(float(a)) and math.isfinite(float(b))):
+                missing.append(f"{s.case_id} ({name} is not finite)")
+                continue
             rel = abs(float(b) - float(a)) / max(abs(float(a)), 1e-300)
             diffs[name] = rel
             if rel > tol[name]:
@@ -586,10 +618,15 @@ def step_increment(
                 )
         pilots.setdefault(plain, {})[f"{value:g}"] = diffs
     energy = None
+    energy_note = "energy rows not assessed (no verification report)"
     if report is not None:
         rows, _, energy_fails = _energy_rows(report, [s.case_id for s in increments])
         energy = {q: dict(sorted(c.items())) for q, c in rows.items()}
         fails += energy_fails
+        unassessed = _unassessed_rows(rows)
+        energy_note = "no energy row fails" + (
+            f" (not assessed: {', '.join(unassessed)})" if unassessed else ""
+        )
     detail = {
         "pilots": pilots,
         "fields": {cid: dict(v) for cid, v in fields.items()},
@@ -600,7 +637,7 @@ def step_increment(
         return Step(
             "increment",
             "not_assessable",
-            "no quantities of interest for " + ", ".join(missing),
+            "no finite quantities of interest for " + ", ".join(missing),
             detail,
         )
     if fails:
@@ -610,9 +647,19 @@ def step_increment(
         "pass",
         f"every quantity of interest is within tolerance at {key} scaled by "
         + ", ".join(f"{f:g}" for f in defn.pilot.increment_factors)
-        + " and the energy rows hold",
+        + f"; {energy_note}",
         detail,
     )
+
+
+def _unassessed_rows(rows: Mapping[str, Counter[str]]) -> list[str]:
+    """The energy rows no case received a verdict on (absent, or only
+    ``not_assessable`` / ``not_applicable``)."""
+    return [
+        q
+        for q in ENERGY_ROWS
+        if q not in rows or not (set(rows[q]) - {"not_assessable", "not_applicable"})
+    ]
 
 
 def step_frame(
@@ -645,54 +692,71 @@ def step_frame(
             {},
         )
     assert frame_case.response is not None
+    # The stored clock is every stride-th frame of the probe export: the
+    # judged error is that clock's, whatever the factor (review finding 2).
+    stride = round(1.0 / p.frame_factor)
     try:
-        mid = midpoint_interpolation_errors(frame_case)
+        errors = interpolation_errors(frame_case, stride)
     except ValueError as exc:
         return Step("frame", "not_assessable", str(exc), {})
-    judged = sorted(k for k in mid if k.startswith(("node/", "global/")))
-    over = [f"{k} {mid[k]:.3g}" for k in judged if mid[k] > p.frame_tolerance]
+    # Judged: node fields and globals, except acceleration -- the second time
+    # derivative of a frame-sampled explicit response is reported like the
+    # element fields, not what the stored clock is chosen for (review finding
+    # 7, ruled by the implementer; the maintainer may reverse it).
+    judged = sorted(
+        k
+        for k in errors
+        if k.startswith(("node/", "global/")) and k != "node/acceleration"
+    )
+    reported = sorted(k for k in errors if k not in judged)
+    not_finite = [k for k in judged if not math.isfinite(errors[k])]
+    over = [f"{k} {errors[k]:.3g}" for k in judged if errors[k] > p.frame_tolerance]
     common: dict[str, float] | None = None
     note = None
-    stride = round(1.0 / p.frame_factor)
     if production_case is not None and production_case.response is not None:
         try:
             common = common_instant_errors(production_case, frame_case)
-            stride = round(
-                (len(frame_case.response.time) - 1)
-                / (len(production_case.response.time) - 1)
-            )
         except ValueError as exc:
             note = str(exc)
     rise: dict[str, int] = {}
     for name, series in frame_case.response.globals_.items():
-        r = rise_time_frames(np.asarray(series, dtype=np.float64)[:: max(stride, 1)])
+        r = rise_time_frames(np.asarray(series, dtype=np.float64)[::stride])
         if r is not None:
             rise[name] = r
     detail = {
-        "midpoint": mid,
+        "stride": stride,
+        "interpolation": errors,
         "common_instants": common,
         "judged": judged,
+        "reported": reported,
         "rise_frames": rise,
         "shortest_rise_frames": min(rise.values()) if rise else None,
         "tolerance": p.frame_tolerance,
         "factor": p.frame_factor,
         "note": note,
     }
+    if not_finite:
+        return Step(
+            "frame",
+            "not_assessable",
+            "non-finite values in " + ", ".join(not_finite),
+            detail,
+        )
     if over:
         return Step(
             "frame",
             "fail",
             "the stored clock does not resolve "
             + ", ".join(over)
-            + f" (midpoint interpolation error > {p.frame_tolerance:g})",
+            + f" (interpolation error > {p.frame_tolerance:g})",
             detail,
         )
     return Step(
         "frame",
         "pass",
-        f"the stored frame interval resolves every node field and global to "
-        f"{p.frame_tolerance:g} (midpoint interpolation from a {p.frame_factor:g}× "
-        "interval export)",
+        "the stored frame interval resolves every node field (acceleration "
+        f"reported, not judged) and global to {p.frame_tolerance:g} (linear "
+        f"interpolation of a {p.frame_factor:g}× interval export, stride {stride})",
         detail,
     )
 
@@ -723,6 +787,7 @@ def step_duration(
     global_name = defn.pilot.contact_force_global
     pilots: dict[str, dict[str, Any]] = {}
     notes: list[str] = []
+    problems: list[str] = []
     frames: int | None = None
     horizon: float | None = None
     for cid in ids:
@@ -734,7 +799,16 @@ def step_duration(
             frames, horizon = n, float(r.time[-1] - r.time[0])
         elif n != frames:
             notes.append(f"{cid}: {n} frames where the first pilot has {frames}")
-        settle = settling_frame(qoi_history(case, problem.qoi), tol)
+        try:
+            history = qoi_history(case, problem.qoi)
+        except Exception as exc:  # a QoI that cannot take a prefix is a finding
+            problems.append(f"{cid}: qoi() raised {type(exc).__name__}: {exc}")
+            continue
+        bad = [q for q, v in history.items() if not bool(np.all(np.isfinite(v)))]
+        if bad:
+            problems.append(f"{cid}: {', '.join(bad)} not finite")
+            continue
+        settle = settling_frame(history, tol)
         separation: int | None = None
         if global_name is not None:
             series = r.globals_.get(global_name)
@@ -748,6 +822,13 @@ def step_duration(
             "share_after_settling": 1.0 - settle / (n - 1) if n > 1 else 0.0,
         }
     assert frames is not None
+    if problems:
+        return Step(
+            "duration",
+            "not_assessable",
+            "; ".join(problems),
+            {"problems": problems, "pilots": pilots, "frames": frames},
+        )
     slowest = max(p["settling_frame"] for p in pilots.values())
     limit = int(math.floor((1.0 - defn.pilot.settling_margin) * (frames - 1)))
     detail = {
@@ -806,10 +887,12 @@ def step_energy(report: Any, case_ids: Collection[str]) -> Step:
     }
     if fails:
         return Step("energy", "fail", "; ".join(fails), detail)
+    unassessed = _unassessed_rows(rows)
     return Step(
         "energy",
         "pass",
-        f"no energy row fails on the {len(set(case_ids))} preflight cases",
+        f"no energy row fails on the {len(set(case_ids))} preflight cases"
+        + (f"; not assessed: {', '.join(unassessed)}" if unassessed else ""),
         detail,
     )
 
@@ -938,6 +1021,7 @@ def stamp_record(
     specs: Sequence[CaseSpec],
     *,
     created_utc: str,
+    siblings_sha256: str,
 ) -> dict[str, Any]:
     """The stamp: the definition's hashes, the verdicts, the budget, the cases."""
     by_name = {s.name: s for s in steps}
@@ -949,6 +1033,7 @@ def stamp_record(
         "dataset": defn.name,
         "definition_sha256": defn.sha256(),
         "problem_sha256": problem_sha256(dataset_dir),
+        "siblings_sha256": siblings_sha256,
         "structbench": {"version": state["version"], "commit": state["commit"]},
         "created_utc": created_utc,
         "passed": passed(steps),
@@ -1029,6 +1114,22 @@ def _line(step: Step) -> str:
     return f"  {step.name}: {step.verdict} - {step.summary}"
 
 
+def _stale_cases(pre: Path, hashes: Mapping[str, str]) -> list[str]:
+    """Cases in the preflight folder generated under other definition hashes.
+
+    A changed ``dataset.toml``, ``problem.py`` or imported sibling invalidates
+    every run there, whether or not the decks changed (review finding 1).
+    """
+    stale: list[str] = []
+    if not pre.is_dir():
+        return stale
+    for prov_path in sorted(pre.glob("*/provenance.json")):
+        prov = json.loads(prov_path.read_text(encoding="utf-8"))
+        if any(prov.get(k) != v for k, v in hashes.items()):
+            stale.append(prov_path.parent.name)
+    return stale
+
+
 def _states(pre: Path, ids: Sequence[str]) -> dict[str, str]:
     return {
         cid: case_state(pre / cid) if (pre / cid).is_dir() else "missing" for cid in ids
@@ -1096,6 +1197,48 @@ def preflight(
         )
         return 2
     pre = work_root / defn.name / PREFLIGHT_DIR
+    hashes = {
+        "definition_sha256": defn.sha256(),
+        "problem_sha256": problem_sha256(dataset_dir),
+        "siblings_sha256": siblings_sha256(dataset_dir, problem),
+    }
+    stale = _stale_cases(pre, hashes)
+    if stale:
+        print(
+            f"{pre} holds runs of another definition ({len(stale)} case(s), e.g. "
+            f"{stale[0]}); move it aside (nothing is deleted)",
+            file=sys.stderr,
+        )
+        return 2
+    created = datetime.now(UTC).isoformat(timespec="seconds")
+    steps: list[Step] = []
+
+    def add(step: Step) -> None:
+        steps.append(step)
+        echo(_line(step))
+
+    def finish() -> int:
+        done = {s.name for s in steps}
+        full = list(steps) + [
+            not_run(n, "an earlier step did not pass") for n in STEPS if n not in done
+        ]
+        stamp = stamp_record(
+            defn,
+            dataset_dir,
+            full,
+            specs,
+            created_utc=created,
+            siblings_sha256=hashes["siblings_sha256"],
+        )
+        write_outputs(pre, stamp)
+        echo(("passed" if stamp["passed"] else "not passed") + f" -> {pre}")
+        return 0 if stamp["passed"] else 1
+
+    # Before any deck is written: a failed regression leaves nothing behind
+    # that a corrected problem.py would then be refused against.
+    add(step_deck_regression(dataset_dir, specs, problem, defn))
+    if steps[-1].verdict == "fail":
+        return finish()
     try:
         counts, problems = materialise(
             pre, specs, defn=defn, problem=problem, dataset_dir=dataset_dir, decks=decks
@@ -1117,26 +1260,6 @@ def preflight(
         + " ".join(f"{k}={v}" for k, v in sorted(counts.items()))
         + ")"
     )
-    created = datetime.now(UTC).isoformat(timespec="seconds")
-    steps: list[Step] = []
-
-    def add(step: Step) -> None:
-        steps.append(step)
-        echo(_line(step))
-
-    def finish() -> int:
-        done = {s.name for s in steps}
-        full = list(steps) + [
-            not_run(n, "an earlier step failed") for n in STEPS if n not in done
-        ]
-        stamp = stamp_record(defn, dataset_dir, full, specs, created_utc=created)
-        write_outputs(pre, stamp)
-        echo(("passed" if stamp["passed"] else "not passed") + f" -> {pre}")
-        return 0 if stamp["passed"] else 1
-
-    add(step_deck_regression(dataset_dir, specs, problem, defn))
-    if steps[-1].verdict == "fail":
-        return finish()
     exe = shutil.which(abaqus)
     if exe is None:
         print(f"abaqus executable {abaqus!r} not found", file=sys.stderr)
@@ -1183,8 +1306,8 @@ def preflight(
     (conformance,) = by_role(specs, "conformance")
     npz = pre / conformance.case_id / f"{conformance.case_id}.npz"
     add(step_conformance(npz if npz.is_file() else None, defn.units))
-    if any(s.verdict == "fail" for s in steps):
-        return finish()
+    if any(s.verdict not in PASSING for s in steps):
+        return finish()  # nothing more is launched on a step that did not pass
     stop = launch(rest)
     if stop is not None:
         return stop

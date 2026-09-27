@@ -109,6 +109,7 @@ def _stamp(work, ds, *, passed=True, definition_sha=None, problem_sha=None):
         "created_utc": "2026-09-27T00:00:00+00:00",
         "definition_sha256": definition_sha or definition.load_definition(ds).sha256(),
         "problem_sha256": problem_sha or definition.problem_sha256(ds),
+        "siblings_sha256": definition.NO_SIBLINGS_SHA256,  # the toy imports none
     }
     (sweep / "preflight" / "stamp.json").write_text(json.dumps(stamp), encoding="utf-8")
 

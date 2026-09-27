@@ -44,6 +44,7 @@ from structbench.datagen.definition import (
     load_definition,
     load_problem,
     problem_sha256,
+    siblings_sha256,
 )
 
 #: The checkout this module runs from, when it is one (src/structbench/datagen
@@ -196,7 +197,10 @@ def read_stamp(sweep_dir: Path) -> dict[str, Any] | None:
 
 
 def stamp_refusal(
-    stamp: dict[str, Any] | None, definition_sha: str, problem_sha: str
+    stamp: dict[str, Any] | None,
+    definition_sha: str,
+    problem_sha: str,
+    siblings_sha: str,
 ) -> str | None:
     """Why the stamp does not open the gate for this definition, or None."""
     if stamp is None:
@@ -207,6 +211,8 @@ def stamp_refusal(
         return "the preflight stamp is for another dataset.toml"
     if stamp.get("problem_sha256") != problem_sha:
         return "the preflight stamp is for another problem.py"
+    if stamp.get("siblings_sha256") != siblings_sha:
+        return "the preflight stamp is for other sibling modules of problem.py"
     return None
 
 
@@ -232,6 +238,7 @@ def materialise(
     probe_of = {s.name: s.probe for s in defn.splits}
     dataset_repo = git_state(dataset_dir)
     definition_sha, problem_sha = defn.sha256(), problem_sha256(dataset_dir)
+    siblings_sha = siblings_sha256(dataset_dir, problem)
     repo = package_state()
     counts: Counter[str] = Counter()
     problems: list[str] = []
@@ -254,6 +261,7 @@ def materialise(
             "preflight": None if probe_of.get(spec.split, True) else preflight,
             "definition_sha256": definition_sha,
             "problem_sha256": problem_sha,
+            "siblings_sha256": siblings_sha,
             "inp_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
             "repository": repo,
             "dataset_repository": dataset_repo,
@@ -327,7 +335,12 @@ def main(argv: list[str] | None = None) -> int:
             preflight = {"skipped": True}
         else:
             stamp = read_stamp(sweep_dir)
-            why = stamp_refusal(stamp, defn.sha256(), problem_sha256(dataset_dir))
+            why = stamp_refusal(
+                stamp,
+                defn.sha256(),
+                problem_sha256(dataset_dir),
+                siblings_sha256(dataset_dir, problem),
+            )
             if why or stamp is None:
                 print(
                     f"{', '.join(guarded)}: {why}; run `structbench-datagen preflight "

@@ -53,7 +53,8 @@ probe = true
 [levels]                        # required: the mesh-level convention problem.mesh follows
 refine_key = "refine"           # the reserved parameter the pipeline sets
 production = "1"                # the level production runs at
-pilot = ["1", "2"]              # the levels the preflight runs the pilots at
+pilot = ["1", "2", "4"]         # the levels the preflight runs the pilots at; three, so a
+                                # quantity of interest can be extrapolated (fine_cases run the finest)
 symmetry = "axisymmetric"       # volume weights for converge: axisymmetric (r dA) or planar (dA)
 
 [pilot]                         # required: the preflight's targets

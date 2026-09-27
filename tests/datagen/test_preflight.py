@@ -169,11 +169,16 @@ def test_frame_probe_disabled_is_not_applicable(tmp_path):
     assert preflight.step_frame(None, None, defn).verdict == "not_applicable"
 
 
-def test_production_value_defaults_to_one(tmp_path):
+def test_without_the_increment_key_in_fixed_the_probe_is_not_assessable(tmp_path):
+    """Review finding 3: no assumed production value; the key must be a
+    constant in [fixed] for the probe to mean anything."""
     _, defn, _ = _load(tmp_path, PF_TOML.replace("\ndt_scale = 0.5", ""))
-    assert preflight.production_value(defn) == 1.0
-    (t, _) = preflight.by_role(preflight.preflight_cases(defn), "increment")
-    assert t.case_id == "TOY-pilot-0000-T0p5" and t.params["dt_scale"] == 0.5
+    assert preflight.production_value(defn) is None
+    specs = preflight.preflight_cases(defn)
+    assert not preflight.by_role(specs, "increment")
+    step = preflight.step_increment({}, {}, specs, defn, None)
+    assert step.verdict == "not_assessable"
+    assert "dt_scale" in step.summary and "[fixed]" in step.summary
 
 
 def test_no_increment_factors_means_no_increment_cases(tmp_path):
@@ -334,7 +339,8 @@ def test_step_frame_passes_a_smooth_response_and_fails_a_jagged_one(tmp_path):
     )
     step = preflight.step_frame(smooth, production, defn)
     assert step.verdict == "pass", step.summary
-    assert step.detail["midpoint"]["node/displacement"] < 0.05
+    assert step.detail["stride"] == 2
+    assert step.detail["interpolation"]["node/displacement"] < 0.05
     assert step.detail["common_instants"]["node/displacement"] == pytest.approx(
         0.0, abs=1e-6
     )
@@ -344,6 +350,50 @@ def test_step_frame_passes_a_smooth_response_and_fails_a_jagged_one(tmp_path):
     jagged = _toy_case(lambda t: np.sin(2 * np.pi * 10 * t), 41)
     bad = preflight.step_frame(jagged, None, defn)
     assert bad.verdict == "fail" and bad.detail["common_instants"] is None
+
+
+def test_step_frame_judges_the_clock_the_factor_names(tmp_path):
+    """Review finding 2: at frame_factor 0.25 the stored clock is every fourth
+    frame of the probe export, not every second; the judged error must be the
+    21-frame clock's whichever export measured it."""
+
+    def wave(t):
+        return np.sin(2 * np.pi * 4.0 * t)  # five stored frames per period
+
+    _, quarter, _ = _load(
+        tmp_path, PF_TOML.replace(_GAPS, f"{_GAPS}\nframe_factor = 0.25"), name="q"
+    )
+    _, half, _ = _load(tmp_path, name="h")
+    from_quarter = preflight.step_frame(
+        _toy_case(wave, 81), _toy_case(wave, 21), quarter
+    )
+    from_half = preflight.step_frame(_toy_case(wave, 41), _toy_case(wave, 21), half)
+    assert (from_quarter.detail["stride"], from_half.detail["stride"]) == (4, 2)
+    judged_q = from_quarter.detail["interpolation"]["node/displacement"]
+    judged_h = from_half.detail["interpolation"]["node/displacement"]
+    assert judged_q == pytest.approx(judged_h, rel=0.3)
+    assert from_quarter.verdict == from_half.verdict == "fail"
+    # the mistake the finding names: interpolating across two probe frames
+    from structbench.verification import temporal
+
+    two_frames = temporal.midpoint_interpolation_errors(_toy_case(wave, 81))
+    assert two_frames["node/displacement"] < 0.5 * judged_q
+
+
+def test_step_frame_reports_acceleration_but_judges_it_no_more_than_stress(tmp_path):
+    """Review finding 7 (ruling): the second time derivative of a frame-sampled
+    explicit response is reported, not judged."""
+    _, defn, _ = _load(tmp_path)
+    case = _toy_case(lambda t: 1 - np.exp(-t / 0.3), 41)
+    jag = np.sin(2 * np.pi * 10 * np.linspace(0, 1, 41)).astype(np.float32)
+    case.response.node["acceleration"] = np.repeat(jag[:, None, None], 4, 1).repeat(
+        2, 2
+    )
+    step = preflight.step_frame(case, None, defn)
+    assert step.verdict == "pass", step.summary
+    assert "node/acceleration" in step.detail["reported"]
+    assert "node/acceleration" not in step.detail["judged"]
+    assert step.detail["interpolation"]["node/acceleration"] > 0.5
 
 
 def _history(arrays, **terms):
@@ -461,11 +511,17 @@ def test_stamp_record_and_report_are_deterministic(tmp_path):
     steps = [preflight.Step(name, "pass", "fine", {"n": 1}) for name in preflight.STEPS]
     steps[3] = preflight.Step("space", "review", "order not observed", {})
     stamp = preflight.stamp_record(
-        defn, ds, steps, specs, created_utc="2026-09-27T00:00:00+00:00"
+        defn,
+        ds,
+        steps,
+        specs,
+        created_utc="2026-09-27T00:00:00+00:00",
+        siblings_sha256="0" * 64,
     )
     assert stamp["format"] == "preflight-stamp/1" and stamp["passed"] is False
     assert stamp["definition_sha256"] == defn.sha256()
     assert stamp["problem_sha256"] == definition.problem_sha256(ds)
+    assert stamp["siblings_sha256"] == "0" * 64
     assert stamp["dataset"] == "toy" and stamp["created_utc"].startswith("2026")
     assert set(stamp["cases"]) == set(preflight.ROLES)
     assert stamp["cases"]["conformance"] == ["TOY-pilot-0000-E"]
@@ -494,3 +550,103 @@ def test_judge_sweep_returns_the_report_that_validate_sweep_prints(tmp_path):
     out = sweep / "datacheck"
     assert (out / "measurements.json").is_file() and (out / "report.md").is_file()
     assert verify.validate_sweep(sweep, dataset) == 1
+
+
+# --- the review's findings (plan 2b fix pass) ----------------------------------
+
+
+def _closed_arrays():
+    base = _FIXTURE._arrays()
+    base["history/S/Assembly Assembly-1/ALLPW"] = base[
+        "history/S/Assembly Assembly-1/ALLWK"
+    ].copy()
+    return _history(base, ALLCD=0.0, ALLPW=0.0, ETOTAL=11.0)
+
+
+def test_non_finite_values_never_pass(tmp_path):
+    """Review finding 5: NaN is never inside a tolerance."""
+    _, defn, _ = _load(tmp_path)
+    specs = preflight.preflight_cases(defn)
+    qois = {
+        "TOY-pilot-0000-L2": {"length": 1.0},
+        "TOY-pilot-0000-T0p25": {"length": float("nan")},
+        "TOY-pilot-0001-L2": {"length": 2.0},
+        "TOY-pilot-0001-T0p25": {"length": 2.0},
+    }
+    step = preflight.step_increment(qois, {}, specs, defn, None)
+    assert step.verdict == "not_assessable"
+    assert "TOY-pilot-0000-T0p25" in step.summary and "length" in step.summary
+    cases = {
+        "TOY-pilot-0000-L2": _toy_case(lambda t: t),
+        "TOY-pilot-0001-L2": _toy_case(lambda t: t),
+    }
+    nan_qoi = SimpleNamespace(qoi=lambda c: {"length": float("nan")})
+    step = preflight.step_duration(cases, specs, defn, nan_qoi)
+    assert step.verdict == "not_assessable" and "length" in step.summary
+    record = _record()
+    errors = record["cases"][0]["extrapolation"]["length"]["error_vs_extrapolated"]
+    errors["2"] = float("nan")
+    assert preflight.step_space(record, defn).verdict == "not_assessable"
+    np.savez(tmp_path / "nan.npz", **_history(_closed_arrays(), ALLKE=float("nan")))
+    conformance = preflight.step_conformance(tmp_path / "nan.npz", "t-mm-s")
+    assert conformance.verdict == "fail" and "ALLKE" in conformance.summary
+    force = np.linspace(0.0, 1.0, 41)
+    force[3] = np.nan
+    frame = preflight.step_frame(
+        _toy_case(lambda t: 1 - np.exp(-t / 0.3), 41, force=force), None, defn
+    )
+    assert frame.verdict == "not_assessable" and "reaction_force" in frame.summary
+
+
+def test_a_qoi_that_raises_on_a_short_prefix_is_a_finding_not_a_crash(tmp_path):
+    """Review finding 6."""
+    _, defn, _ = _load(tmp_path)
+    specs = preflight.preflight_cases(defn)
+
+    def qoi(c):
+        if len(c.response.time) < 3:
+            raise ValueError("needs three frames")
+        return {"length": 1.0}
+
+    cases = {
+        "TOY-pilot-0000-L2": _toy_case(lambda t: t),
+        "TOY-pilot-0001-L2": _toy_case(lambda t: t),
+    }
+    step = preflight.step_duration(cases, specs, defn, SimpleNamespace(qoi=qoi))
+    assert step.verdict == "not_assessable"
+    assert "needs three frames" in step.summary and "TOY-pilot-0000-L2" in step.summary
+
+
+def test_energy_and_increment_summaries_say_what_was_not_assessed(tmp_path):
+    """Review finding 8: a pass must not read as if every row were judged."""
+    _, defn, _ = _load(tmp_path)
+    specs = preflight.preflight_cases(defn)
+    report = _report(
+        [
+            ("A", "plastic_dissipation_excess_max", "pass", 0.0),
+            ("A", "energy_gain_max", "not_assessable", None),
+            ("A", "energy_loss_max", "not_assessable", None),
+        ]
+    )
+    step = preflight.step_energy(report, ["A"])
+    assert step.verdict == "pass"
+    assert "not assessed" in step.summary and "energy_gain_max" in step.summary
+    qois = {
+        "TOY-pilot-0000-L2": {"length": 1.0},
+        "TOY-pilot-0000-T0p25": {"length": 1.0},
+        "TOY-pilot-0001-L2": {"length": 2.0},
+        "TOY-pilot-0001-T0p25": {"length": 2.0},
+    }
+    without = preflight.step_increment(qois, {}, specs, defn, None)
+    assert without.verdict == "pass"
+    assert "energy rows hold" not in without.summary
+    assert "not assessed" in without.summary
+
+
+def test_the_stamp_carries_no_absolute_path(tmp_path):
+    """Review finding 14."""
+    garbage = tmp_path / "broken.npz"
+    garbage.write_bytes(b"not an npz")
+    step = preflight.step_conformance(garbage, "t-mm-s")
+    assert step.verdict == "not_assessable"
+    assert str(tmp_path) not in step.summary and "broken.npz" in step.summary

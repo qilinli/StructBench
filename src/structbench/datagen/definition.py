@@ -13,6 +13,7 @@ import hashlib
 import importlib.util
 import sys
 import tomllib
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -171,10 +172,40 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _placements(
+    variables: Mapping[str, Any], splits: Sequence[sampling.Split]
+) -> dict[str, list[tuple[str, str]]]:
+    """Where each parameter name is set outside ``[fixed]``: (how, where)."""
+    out: dict[str, list[tuple[str, str]]] = {}
+    for name in variables:
+        out.setdefault(name, []).append(("sampled", "[variables]"))
+    for s in splits:
+        for name in s.extra:
+            out.setdefault(name, []).append(("sampled", f"splits.{s.name}.extra"))
+        for name in s.categorical:
+            out.setdefault(name, []).append(
+                ("pinned", f"splits.{s.name}'s categorical")
+            )
+        for point in s.points:
+            for name in point:
+                out.setdefault(name, []).append(
+                    ("set", f"the points of splits.{s.name}")
+                )
+    return out
+
+
 def _probe_fields(
-    pt: dict[str, Any], fixed: dict[str, Any], sampled: set[str]
+    pt: dict[str, Any],
+    fixed: dict[str, Any],
+    placements: Mapping[str, list[tuple[str, str]]],
 ) -> dict[str, Any]:
-    """The optional ``[pilot]`` probe fields, checked against the definition."""
+    """The optional ``[pilot]`` probe fields, checked against the definition.
+
+    The increment and frame keys must be constants: the preflight scales the
+    value it finds in ``[fixed]``, so a split that samples, pins or points the
+    key elsewhere -- a probe split included, the pilot split above all --
+    would make the pilots stand for a production that never runs that way.
+    """
     out: dict[str, Any] = {
         "increment_key": _optional(pt, "pilot", "increment_key", str, "dt_scale"),
         "frame_key": _optional(pt, "pilot", "frame_key", str, "frame_interval"),
@@ -197,6 +228,14 @@ def _probe_fields(
             "pilot.frame_factor: a fraction of the stored frame interval, "
             "0 <= factor < 1 (0 disables the frame probe)"
         )
+    if factor > 0.0:
+        stride = 1.0 / factor
+        if abs(stride - round(stride)) > 1e-9:
+            raise DefinitionError(
+                f"pilot.frame_factor: 1 / {factor:g} is not a whole number of "
+                "frames, so the stored clock would not be a stride of the probe's; "
+                "use 0.5, 0.25, 0.2, 0.1, ..."
+            )
     out["frame_factor"] = factor
     out["frame_tolerance"] = _optional(pt, "pilot", "frame_tolerance", float, 0.05)
     if out["frame_tolerance"] <= 0.0:
@@ -213,10 +252,14 @@ def _probe_fields(
         name = name.removeprefix("global/")
     out["contact_force_global"] = name
     for key in ("increment_key", "frame_key", "frame_count_key"):
-        if out[key] in sampled:
+        for how, where in placements.get(out[key], []):
+            remedy = {
+                "sampled": "the probe scales the constant in [fixed]",
+                "pinned": "make it a constant in [fixed]",
+                "set": "the pilots must run at the constant in [fixed]",
+            }[how]
             raise DefinitionError(
-                f"pilot.{key}: {out[key]!r} is sampled in production; the probe "
-                "needs a constant in [fixed]"
+                f"pilot.{key}: {out[key]!r} is {how} by {where}; {remedy}"
             )
     count_key = out["frame_count_key"]
     if factor > 0.0 and out["frame_key"] in fixed and count_key in fixed:
@@ -312,19 +355,12 @@ def load_definition(dataset_dir: Path) -> Definition:
     unknown = sorted(set(pt) - PILOT_KEYS)
     if unknown:
         raise DefinitionError(f"pilot.{unknown[0]}: unknown field")
-    # A probe key must be a constant in production: [variables], and the
-    # extras and categoricals of splits that are not probes. Probe splits may
-    # vary it -- that is how an increment or a frame interval is probed.
-    sampled = set(variables)
-    for s in splits:
-        if not s.probe:
-            sampled |= set(s.extra) | set(s.categorical)
     pilot = Pilot(
         _field(pt, "pilot", "split", str),
         _strings(pt, "pilot", "fine_cases"),
         _field(pt, "pilot", "min_free_gb", float),
         _strings(pt, "pilot", "accepted_gaps"),
-        **_probe_fields(pt, fixed, sampled),
+        **_probe_fields(pt, fixed, _placements(variables, splits)),
     )
     names = {s.name: s for s in splits}
     if pilot.split not in names:
@@ -417,15 +453,35 @@ def load_problem(dataset_dir: Path) -> ModuleType:
         if str(dataset_dir) in sys.path:
             sys.path.remove(str(dataset_dir))
         root = dataset_dir.resolve()
+        siblings: list[str] = []
         for name in set(sys.modules) - known - {spec.name}:
             file = getattr(sys.modules.get(name), "__file__", None)
             if file and root in Path(file).resolve().parents:
+                siblings.append(Path(file).resolve().relative_to(root).as_posix())
                 del sys.modules[name]  # a sibling stays with its dataset
     for hook in REQUIRED_HOOKS:
         if not callable(getattr(module, hook, None)):
             raise DefinitionError(f"{PROBLEM_FILE}: defines no {hook}()")
+    #: The dataset's own modules problem.py imported, relative to its directory;
+    #: the stamp and the provenance hash them beside the two definition files.
+    module.__siblings__ = tuple(sorted(siblings))  # type: ignore[attr-defined]
     return module
 
 
 def problem_sha256(dataset_dir: Path) -> str:
     return file_sha256(dataset_dir / PROBLEM_FILE)
+
+
+#: The siblings hash of a problem.py that imports no sibling.
+NO_SIBLINGS_SHA256 = hashlib.sha256(b"").hexdigest()
+
+
+def siblings_sha256(dataset_dir: Path, problem: ModuleType) -> str:
+    """One hash over the sibling modules ``problem.py`` imported: each file's
+    relative path and LF-normalised bytes, in path order."""
+    digest = hashlib.sha256()
+    for relative in getattr(problem, "__siblings__", ()):
+        digest.update(relative.encode("utf-8") + b"\n")
+        digest.update((dataset_dir / relative).read_bytes().replace(b"\r\n", b"\n"))
+        digest.update(b"\n")
+    return digest.hexdigest()

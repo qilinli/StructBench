@@ -102,7 +102,9 @@ def rise_time_frames(series: ArrayLike) -> int | None:
     first crossing of 90 %; None for a flat series or one that does not rise
     from below 10 % (a falling series, or one already up at its first frame)."""
     s = np.abs(np.asarray(series, dtype=np.float64).ravel())
-    peak = float(s.max()) if s.size else 0.0
+    if s.size == 0 or not bool(np.all(np.isfinite(s))):
+        return None
+    peak = float(s.max())
     if peak <= 0.0 or s[0] >= 0.1 * peak:
         return None
     low = np.flatnonzero(s >= 0.1 * peak)
@@ -110,31 +112,44 @@ def rise_time_frames(series: ArrayLike) -> int | None:
     return int(high[0] - low[0])
 
 
-def midpoint_interpolation_errors(case: Case) -> dict[str, float]:
-    """How well the even frames predict the odd ones by linear interpolation.
+def interpolation_errors(case: Case, stride: int) -> dict[str, float]:
+    """How well every ``stride``-th frame predicts the frames between by linear
+    interpolation.
 
-    For a trajectory stored at half the intended frame interval (2n + 1
-    frames), the even frames are the intended clock and the odd frames sit
-    between them: the pooled relative L2 (ADR-0055) of the interpolated odd
-    frames against the stored ones, per field, is the resolution error of the
-    intended clock. Uses the stored times, so a non-uniform clock is exact.
+    For a trajectory exported at ``1 / stride`` of the intended frame
+    interval, the frames at multiples of ``stride`` are the intended clock and
+    the others sit between them: the pooled relative L2 (ADR-0055) of the
+    interpolated in-between frames against the stored ones, per field, is the
+    resolution error of the intended clock. Uses the stored times, so a
+    non-uniform clock is exact. The frame count must be a whole number of
+    strides plus one.
     """
     r = _response(case)
     n = len(r.time)
-    if n < 3 or n % 2 == 0:
+    if stride < 2:
+        raise ValueError("the frame probe needs a stride of at least 2")
+    if n < stride + 1 or (n - 1) % stride != 0:
         raise ValueError(
-            f"the frame probe needs an odd number of frames (2n + 1), not {n}"
+            f"the frame probe's {n} frames are not a whole number of strides of "
+            f"{stride} plus one"
         )
     t = np.asarray(r.time, dtype=np.float64)
-    lo, hi, mid = t[0:-1:2], t[2::2], t[1::2]
-    weight = (mid - lo) / (hi - lo)
+    between = np.array([j for j in range(n) if j % stride], dtype=np.int64)
+    lo = (between // stride) * stride
+    hi = lo + stride
+    weight = (t[between] - t[lo]) / (t[hi] - t[lo])
     out: dict[str, float] = {}
     for key, stored in _arrays(case).items():
         a = np.asarray(stored, dtype=np.float64)
         w = weight.reshape((-1,) + (1,) * (a.ndim - 1))
-        pred = a[0:-1:2] + w * (a[2::2] - a[0:-1:2])
-        out[key] = relative_l2_pooled(pred, a[1::2])
+        pred = a[lo] + w * (a[hi] - a[lo])
+        out[key] = relative_l2_pooled(pred, a[between])
     return out
+
+
+def midpoint_interpolation_errors(case: Case) -> dict[str, float]:
+    """``interpolation_errors`` at stride 2: a half-interval export."""
+    return interpolation_errors(case, 2)
 
 
 def common_instant_errors(coarse: Case, fine: Case) -> dict[str, float]:

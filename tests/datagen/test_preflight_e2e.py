@@ -42,8 +42,7 @@ def _dataset(tmp_path: Path) -> Path:
     _, _, rest = tail.partition("probe = true\n")
     toml = head + "[splits.pilot]\n" + PILOTS + "probe = true\n" + rest
     toml = (
-        toml.replace('pilot = ["1", "2"]', 'pilot = ["1", "2", "4"]')
-        .replace('production = "1"', 'production = "2"')
+        toml.replace('production = "1"', 'production = "2"')
         .replace('fine_cases = ["ACX-pilot-0001"]', 'fine_cases = ["ACX-pilot-0000"]')
         .replace("min_free_gb = 20.0", "min_free_gb = 0.5")
     )
@@ -171,3 +170,52 @@ def test_a_failing_step_writes_the_stamp_as_not_passed_and_the_gate_stays_shut(
         ["--dataset", str(ds), "--work-root", str(work), "--split", "train"]
     )
     assert rc == 2 and "did not pass" in capsys.readouterr().err
+
+
+def test_changed_definition_same_decks_refused_and_sibling_shuts_gate(tmp_path, capsys):
+    """Review findings 1 and 4."""
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    (ds / "helpers.py").write_bytes(b"SCALE = 1.0\n")
+    problem = (ds / "problem.py").read_text(encoding="utf-8")
+    problem = problem.replace(
+        "from structbench.datagen.abaqus import deck",
+        "from structbench.datagen.abaqus import deck\n"
+        "from helpers import SCALE  # noqa: F401",
+    )
+    (ds / "problem.py").write_bytes(problem.encode("utf-8"))
+    _git(ds, "with a sibling")
+    assert _preflight(ds, work) == 0
+    pre = work / "e2e" / "preflight"
+    records = {p.parent.name: p.read_bytes() for p in pre.glob("*/run.json")}
+    toml = (ds / "dataset.toml").read_text(encoding="utf-8")
+    looser = toml.replace("tolerance = [0.01, 0.01]", "tolerance = [0.5, 0.5]")
+    assert looser != toml
+    (ds / "dataset.toml").write_bytes(looser.encode("utf-8"))
+    _git(ds, "looser tolerances, same decks")
+    assert _preflight(ds, work) == 2
+    assert "another definition" in capsys.readouterr().err
+    assert {p.parent.name: p.read_bytes() for p in pre.glob("*/run.json")} == records
+    (ds / "dataset.toml").write_bytes(toml.encode("utf-8"))
+    (ds / "helpers.py").write_bytes(b"SCALE = 2.0\n")
+    _git(ds, "a sibling changed")
+    rc = generate.main(
+        ["--dataset", str(ds), "--work-root", str(work), "--split", "train"]
+    )
+    assert rc == 2 and "sibling" in capsys.readouterr().err
+    assert _preflight(ds, work) == 2
+
+
+def test_when_the_conformance_run_has_no_export_nothing_more_is_launched(
+    tmp_path, monkeypatch
+):
+    """Review finding 11: fail-fast on a step that did not pass, not only on fail."""
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    monkeypatch.setitem(os.environ, "FAKE_SOLVER_NO_EXPORT", "1")
+    assert _preflight(ds, work) == 1
+    pre = work / "e2e" / "preflight"
+    ran = sorted(p.parent.name for p in pre.glob("*/run.json"))
+    assert ran == ["ACX-pilot-0000-E", "ACX-pilot-0000-L2", "ACX-pilot-0001-L2"]
+    stamp = _stamp(work)
+    assert stamp["steps"]["conformance"]["verdict"] == "not_assessable"
+    assert stamp["steps"]["space"]["verdict"] == "not_assessable"
+    assert stamp["passed"] is False

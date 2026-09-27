@@ -196,6 +196,7 @@ def test_pilot_probe_fields_have_defaults(definition_dir):
         ("increment_factors = [1.0]", "increment_factors"),
         ("frame_factor = 1.0", "frame_factor"),
         ("frame_factor = 0.3", "whole number"),  # fixed.n_intervals = 20
+        ("frame_factor = 0.4", "1 / 0.4"),  # 20 / 0.4 is whole, 1 / 0.4 is not
         ('frame_key = "L"', "sampled"),
         ("nonsense = 1", "unknown field"),
         ('contact_force_global = ""', "contact_force_global"),
@@ -210,10 +211,11 @@ def test_bad_pilot_probe_fields_are_refused(tmp_path, extra, message):
         definition.load_definition(write_definition(tmp_path / "d", toml=toml))
 
 
-def test_a_probe_split_may_vary_a_probe_key_but_production_may_not(tmp_path):
-    """A study probes the increment by sampling it in a probe split; only the
-    production sampling ([variables] and the extras of splits that are not
-    probes) must hold the key constant."""
+def test_a_probe_key_may_not_be_sampled_or_pinned_by_any_split(tmp_path):
+    """Review finding 3: the preflight scales the production value it finds in
+    [fixed]; a split that samples, pins or points the key elsewhere -- a probe
+    split included, the pilot split above all -- would make the pilots stand
+    for a production that never runs that way."""
     toml = MINIMAL_TOML.replace(
         "[fixed]\nE = 1000.0", "[fixed]\nE = 1000.0\ndt_scale = 0.5"
     )
@@ -222,26 +224,30 @@ def test_a_probe_split_may_vary_a_probe_key_but_production_may_not(tmp_path):
         "[splits.dt]\nn = 2\nseed = 7\nextra = { dt_scale = [0.25, 1.0] }\n"
         "probe = true\n\n[splits.pilot]",
     )
-    defn = definition.load_definition(
-        write_definition(tmp_path / "ok", toml=probe_varies)
-    )
-    assert defn.pilot.increment_key == "dt_scale"
-    production_varies = probe_varies.replace(
-        "extra = { dt_scale = [0.25, 1.0] }\nprobe = true",
-        "extra = { dt_scale = [0.25, 1.0] }",
-    )
-    with pytest.raises(definition.DefinitionError, match="sampled"):
+    with pytest.raises(definition.DefinitionError, match="dt.*sampled"):
         definition.load_definition(
-            write_definition(tmp_path / "bad", toml=production_varies)
+            write_definition(tmp_path / "probe", toml=probe_varies)
         )
-    # a single-valued categorical pins the key per split: still not [fixed], so the
-    # preflight's production value would not be the sweep's; refused with the remedy
     pinned = toml.replace(
         "[splits.train]\nn = 4\nseed = 1",
         '[splits.train]\nn = 4\nseed = 1\ncategorical = { dt_scale = ["0.5"] }',
     )
-    with pytest.raises(definition.DefinitionError, match=r"\[fixed\]"):
+    with pytest.raises(definition.DefinitionError, match=r"train.*\[fixed\]"):
         definition.load_definition(write_definition(tmp_path / "pinned", toml=pinned))
+    pointed = toml.replace(
+        "points = [{ L = 1.0, v0 = 10.0 }, { L = 2.0, v0 = 20.0 }]",
+        "points = [{ L = 1.0, v0 = 10.0, dt_scale = 0.25 }, { L = 2.0, v0 = 20.0 }]",
+    )
+    with pytest.raises(definition.DefinitionError, match="pilot.*points"):
+        definition.load_definition(write_definition(tmp_path / "pointed", toml=pointed))
+    frame = toml.replace(
+        "[splits.pilot]",
+        "[splits.fr]\nn = 2\nseed = 8\n"
+        'categorical = { frame_interval = ["1.0", "0.5"] }\n'
+        "probe = true\n\n[splits.pilot]",
+    )
+    with pytest.raises(definition.DefinitionError, match="frame_interval"):
+        definition.load_definition(write_definition(tmp_path / "frame", toml=frame))
 
 
 def test_qoi_tolerance_is_one_positive_number_per_name(tmp_path):

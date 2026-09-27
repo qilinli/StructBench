@@ -31,6 +31,7 @@ from structbench.datagen.definition import (
     load_definition,
     load_problem,
 )
+from structbench.verification.temporal import response_until
 
 EXAMPLE_DIR = resources.files("structbench.datagen") / "examples" / "abaqus_conformance"
 SCAFFOLD_FILES = ("dataset.toml", "problem.py", "README.md", "DATA_CARD.md")
@@ -190,8 +191,9 @@ def check_definition(dataset_dir: Path) -> list[str]:
                 f"{defn.levels.pilot[0]}"
             )
 
+    synthetic = _synthetic_case(defn, grids[defn.levels.production])
     try:
-        out = problem.qoi(_synthetic_case(defn, grids[defn.levels.production]))
+        out = problem.qoi(synthetic)
     except Exception as exc:
         return problems + [f"problem.qoi: raised {type(exc).__name__}: {exc}"]
     if tuple(out) != defn.qoi.names:
@@ -199,6 +201,21 @@ def check_definition(dataset_dir: Path) -> list[str]:
             f"problem.qoi: returns {sorted(out)} but qoi.names declares "
             f"{list(defn.qoi.names)}"
         )
+    try:
+        problem.qoi(response_until(synthetic, 0))
+    except Exception as exc:
+        problems.append(
+            f"problem.qoi: raised {type(exc).__name__}: {exc} on a one-frame "
+            "trajectory (the preflight evaluates it frame by frame)"
+        )
+    # The preflight's case ids carry a suffix; the plain ids fitting the job-name
+    # rule does not mean the suffixed ones do.
+    from structbench.datagen import preflight  # at call time: it imports this module
+
+    try:
+        preflight.preflight_cases(defn)
+    except ValueError as exc:
+        problems.append(f"preflight: {exc}")
     return problems
 
 

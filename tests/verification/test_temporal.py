@@ -86,7 +86,7 @@ def test_midpoint_interpolation_error_is_zero_for_linear_and_positive_for_curved
         0.0625 * np.sqrt(2) / np.hypot(0.0625, 0.5625), rel=1e-3
     )
     assert bent["global/reaction_force"] > 0.1
-    with pytest.raises(ValueError, match="odd"):
+    with pytest.raises(ValueError, match="stride"):
         temporal.midpoint_interpolation_errors(
             _case_with_displacement(lambda t: t, frames=4)
         )
@@ -118,3 +118,16 @@ def test_common_instant_errors_skip_fields_one_side_lacks():
         lambda t: t, frames=5, force=[0.0, 0.5, 1.0, 1.5, 2.0]
     )
     assert "global/reaction_force" not in temporal.common_instant_errors(coarse, fine)
+
+
+def test_interpolation_errors_take_a_stride_and_nan_is_never_a_rise():
+    fine = _case_with_displacement(lambda t: t * t, frames=9)  # t = 0, .125, ..., 1
+    by_two = temporal.interpolation_errors(fine, 2)
+    by_four = temporal.interpolation_errors(fine, 4)
+    assert by_four["node/displacement"] > by_two["node/displacement"] > 0.0
+    assert temporal.midpoint_interpolation_errors(fine) == by_two
+    with pytest.raises(ValueError, match="stride"):
+        temporal.interpolation_errors(fine, 3)  # 8 intervals are not strides of 3
+    with pytest.raises(ValueError, match="stride"):
+        temporal.interpolation_errors(fine, 1)
+    assert temporal.rise_time_frames(np.array([0.0, np.nan, 1.0])) is None
