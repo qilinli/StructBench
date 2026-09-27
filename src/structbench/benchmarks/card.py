@@ -10,11 +10,9 @@ when a data root is available.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Literal
 
 from ..core import UnitsAnchor
-
-Discretisation = Literal["SPH", "FEM", "coupled"]
+from ..core.evidence import CardDiscretisation as Discretisation
 
 
 @dataclass(frozen=True)

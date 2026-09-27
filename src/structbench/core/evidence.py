@@ -28,6 +28,7 @@ __all__ = [
     "AbsenceReason",
     "DeclaredFacts",
     "EnergyLedger",
+    "CardDiscretisation",
     "Discretisation",
     "EvidenceItem",
     "InputFacts",
@@ -94,6 +95,9 @@ PLATFORM_REASONS: frozenset[AbsenceReason] = frozenset(
 )
 
 Discretisation = Literal["particle", "solid", "shell", "beam", "unknown"]
+#: A benchmark card's discretisation words (``BenchmarkCard.discretisation``);
+#: the run trait above is what the instrument derives, this is what a card claims.
+CardDiscretisation = Literal["SPH", "FEM", "coupled"]
 
 
 @dataclass(frozen=True)
