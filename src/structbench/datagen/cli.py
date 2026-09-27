@@ -7,6 +7,7 @@
     structbench-datagen generate --dataset <dir> --work-root <runs> [...]
                                  [--no-preflight]
     structbench-datagen run      --sweep <runs>/<name> [...] [--min-free-gb GB]
+    structbench-datagen follow   --sweep <runs>/<name> [--interval S] [--once]
     structbench-datagen export   --sweep <runs>/<name> [--cases ID ...] [--abaqus EXE]
     structbench-datagen convert  --sweep <runs>/<name> [...]
     structbench-datagen verify   --sweep <runs>/<name> --dataset <dir> [...]
@@ -32,6 +33,7 @@ from structbench.datagen import (
     converge,
     convert,
     export,
+    follow,
     generate,
     preflight,
     run,
@@ -47,6 +49,7 @@ STAGES: dict[str, Callable[[list[str] | None], int]] = {
     "preflight": preflight.main,
     "generate": generate.main,
     "run": run.main,
+    "follow": follow.main,
     "export": export.main,
     "convert": convert.main,
     "verify": verify.main,
