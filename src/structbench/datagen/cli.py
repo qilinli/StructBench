@@ -2,8 +2,11 @@
 
     structbench-datagen new      <dir>                       scaffold a definition
     structbench-datagen check    <dir>                       check it, no solver
+    structbench-datagen preflight --dataset <dir> --work-root <runs>
+                                 [--abaqus EXE] [--workers N] [--timeout S]
     structbench-datagen generate --dataset <dir> --work-root <runs> [...]
-    structbench-datagen run      --sweep <runs>/<name> [...]
+                                 [--no-preflight]
+    structbench-datagen run      --sweep <runs>/<name> [...] [--min-free-gb GB]
     structbench-datagen export   --sweep <runs>/<name> [--cases ID ...] [--abaqus EXE]
     structbench-datagen convert  --sweep <runs>/<name> [...]
     structbench-datagen verify   --sweep <runs>/<name> --dataset <dir> [...]
@@ -30,6 +33,7 @@ from structbench.datagen import (
     convert,
     export,
     generate,
+    preflight,
     run,
     template,
     verify,
@@ -40,6 +44,7 @@ from structbench.datagen.export import export_command as export_command
 STAGES: dict[str, Callable[[list[str] | None], int]] = {
     "new": template.main_new,
     "check": template.main_check,
+    "preflight": preflight.main,
     "generate": generate.main,
     "run": run.main,
     "export": export.main,

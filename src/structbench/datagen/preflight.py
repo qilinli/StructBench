@@ -26,13 +26,17 @@ verdict from ADR-0066's vocabulary, so they are tested without a solver.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import math
+import shutil
 import statistics
+import sys
 from collections import Counter
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -40,22 +44,37 @@ from typing import Any
 import numpy as np
 
 from structbench.core import Case
+from structbench.core.io import read_case
 from structbench.core.io.abaqus import (
     LEDGER_CLOSED_TERMS,
     assembly_history,
     read_abaqus_export,
 )
+from structbench.datagen import converge as convergence_stage
 from structbench.datagen import sampling
 from structbench.datagen.abaqus.deck import with_all_energy
 from structbench.datagen.converge import level_order
-from structbench.datagen.definition import Definition, problem_sha256
+from structbench.datagen.convert import convert_sweep
+from structbench.datagen.definition import (
+    Definition,
+    load_definition,
+    load_problem,
+    problem_sha256,
+)
+from structbench.datagen.export import export_cases
 from structbench.datagen.generate import (
     CaseSpec,
     case_id_for,
+    materialise,
     package_state,
     plan_cases,
 )
-from structbench.datagen.template import deck_sha256_in_fresh_interpreter
+from structbench.datagen.run import NOT_LAUNCHED, case_state, free_gb, run_sweep
+from structbench.datagen.template import (
+    check_definition,
+    deck_sha256_in_fresh_interpreter,
+)
+from structbench.datagen.verify import judge_sweep
 from structbench.verification.results import Verdict
 from structbench.verification.temporal import (
     common_instant_errors,
@@ -1001,3 +1020,281 @@ def write_outputs(pre: Path, stamp: Mapping[str, Any]) -> None:
     text = json.dumps(stamp, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     (pre / "stamp.json").write_bytes(text.encode("utf-8"))
     (pre / "report.md").write_bytes(render_report(stamp).encode("utf-8"))
+
+
+# --- the driver ----------------------------------------------------------------
+
+
+def _line(step: Step) -> str:
+    return f"  {step.name}: {step.verdict} - {step.summary}"
+
+
+def _states(pre: Path, ids: Sequence[str]) -> dict[str, str]:
+    return {
+        cid: case_state(pre / cid) if (pre / cid).is_dir() else "missing" for cid in ids
+    }
+
+
+def _run_records(pre: Path, ids: Sequence[str]) -> dict[str, dict[str, Any]]:
+    out = {}
+    for cid in ids:
+        path = pre / cid / "run.json"
+        if path.is_file():
+            out[cid] = json.loads(path.read_text(encoding="utf-8"))
+    return out
+
+
+def _sizes(pre: Path, ids: Sequence[str]) -> dict[str, int]:
+    """Bytes per case: the case folder (ODB, export, side files) and its
+    canonical file."""
+    out = {}
+    for cid in ids:
+        folder = pre / cid
+        if not folder.is_dir():
+            continue
+        total = sum(p.stat().st_size for p in folder.rglob("*") if p.is_file())
+        h5 = pre / "canonical" / f"{cid}.h5"
+        if h5.is_file():
+            total += h5.stat().st_size
+        out[cid] = total
+    return out
+
+
+def preflight(
+    dataset_dir: Path,
+    work_root: Path,
+    *,
+    abaqus: str = "abaqus",
+    workers: int = 2,
+    timeout: float | None = None,
+    solver_args: Sequence[str] | None = None,
+    exporter_args: Sequence[str] | None = None,
+    echo: Callable[[str], None] = print,
+) -> int:
+    """Run the preflight; see the module docstring for the steps and exit codes.
+
+    ``solver_args`` and ``exporter_args`` are inserted after the executable on
+    the solver's and the exporter's command lines (tests: a fake solver
+    script in place of Abaqus and of ``python <exporter>``).
+    """
+    dataset_dir = Path(dataset_dir).resolve()
+    work_root = Path(work_root)
+    findings = check_definition(dataset_dir)
+    if findings:
+        for finding in findings:
+            print(f"{dataset_dir.name}: {finding}", file=sys.stderr)
+        return 2
+    defn = load_definition(dataset_dir)
+    problem = load_problem(dataset_dir)
+    specs = preflight_cases(defn)
+    try:
+        decks = {s.case_id: deck_for(s, problem) for s in specs}
+    except ValueError as exc:
+        print(
+            f"{dataset_dir.name}: the conformance run cannot be built: {exc}",
+            file=sys.stderr,
+        )
+        return 2
+    pre = work_root / defn.name / PREFLIGHT_DIR
+    try:
+        counts, problems = materialise(
+            pre, specs, defn=defn, problem=problem, dataset_dir=dataset_dir, decks=decks
+        )
+    except RuntimeError as exc:
+        print(
+            f"{dataset_dir.name}: {exc}; commit the definition first", file=sys.stderr
+        )
+        return 2
+    if problems:
+        print(
+            f"{pre} holds decks of another definition ({len(problems)} case(s) "
+            f"differ, e.g. {problems[0]}); move it aside (nothing is deleted)",
+            file=sys.stderr,
+        )
+        return 2
+    echo(
+        f"preflight of {defn.name}: {len(specs)} cases in {pre} ("
+        + " ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+        + ")"
+    )
+    created = datetime.now(UTC).isoformat(timespec="seconds")
+    steps: list[Step] = []
+
+    def add(step: Step) -> None:
+        steps.append(step)
+        echo(_line(step))
+
+    def finish() -> int:
+        done = {s.name for s in steps}
+        full = list(steps) + [
+            not_run(n, "an earlier step failed") for n in STEPS if n not in done
+        ]
+        stamp = stamp_record(defn, dataset_dir, full, specs, created_utc=created)
+        write_outputs(pre, stamp)
+        echo(("passed" if stamp["passed"] else "not passed") + f" -> {pre}")
+        return 0 if stamp["passed"] else 1
+
+    add(step_deck_regression(dataset_dir, specs, problem, defn))
+    if steps[-1].verdict == "fail":
+        return finish()
+    exe = shutil.which(abaqus)
+    if exe is None:
+        print(f"abaqus executable {abaqus!r} not found", file=sys.stderr)
+        return 2
+    solver = [exe, *(solver_args or [])]
+    production = defn.levels.production
+    ids = [s.case_id for s in specs]
+    first = batch_a(specs, production)
+    rest = [cid for cid in ids if cid not in first]
+
+    def launch(cases: list[str]) -> int | None:
+        """Run and export ``cases``; an exit code when the preflight must stop."""
+        if not cases:
+            return None
+        try:
+            results = run_sweep(
+                pre,
+                solver,
+                cases=cases,
+                workers=workers,
+                timeout=timeout,
+                min_free_gb=defn.pilot.min_free_gb,
+                echo=echo,
+            )
+        except (RuntimeError, ValueError) as exc:
+            print(exc, file=sys.stderr)
+            return 2
+        if any(r.status == NOT_LAUNCHED for r in results):
+            print(
+                f"free space below {defn.pilot.min_free_gb:g} GB: the preflight "
+                "stopped; free space and run it again (it resumes)",
+                file=sys.stderr,
+            )
+            return 3
+        rc = export_cases(pre, abaqus, cases=cases, exporter_args=exporter_args)
+        if rc != 0:
+            echo(f"  export returned {rc}; cases without an export are reported")
+        return None
+
+    stop = launch(first)
+    if stop is not None:
+        return stop
+    add(step_feasibility(specs, _states(pre, ids), defn, problem))
+    (conformance,) = by_role(specs, "conformance")
+    npz = pre / conformance.case_id / f"{conformance.case_id}.npz"
+    add(step_conformance(npz if npz.is_file() else None, defn.units))
+    if any(s.verdict == "fail" for s in steps):
+        return finish()
+    stop = launch(rest)
+    if stop is not None:
+        return stop
+
+    conversion = convert_sweep(pre, dataset_id=defn.name)
+    for cid, reason in sorted(conversion.failed.items()):
+        echo(f"  convert {cid}: {reason}")
+    _, report = judge_sweep(pre, dataset_dir)
+    level_ids = [s.case_id for s in by_role(specs, "level")]
+    conv = convergence_stage.converge(
+        defn, problem, [pre], anchor=defn.pilot.split, cases=level_ids
+    )
+    out = pre / "converge"
+    out.mkdir(exist_ok=True)
+    (out / "convergence.json").write_bytes(convergence_stage.to_json(conv))
+    (out / "convergence.md").write_bytes(
+        convergence_stage.render_markdown(conv).encode("utf-8")
+    )
+    add(step_space(conv, defn))
+
+    canonical = pre / "canonical"
+
+    def load(cid: str) -> Case | None:
+        path = canonical / f"{cid}.h5"
+        return read_case(path) if path.is_file() else None
+
+    def qoi_of(cid: str, case: Case) -> dict[str, float] | None:
+        try:
+            return {k: float(v) for k, v in problem.qoi(case).items()}
+        except Exception as exc:  # a QoI that raises is a finding, not a crash
+            echo(f"  {cid}: qoi() raised {type(exc).__name__}: {exc}")
+            return None
+
+    prod_specs = [
+        s for s in by_role(specs, "level") if (s.probe or {}).get("level") == production
+    ]
+    base_id = {_pilot_key(s): s.case_id for s in prod_specs}
+    prod_cases: dict[str, Case] = {}
+    for s in prod_specs:
+        loaded = load(s.case_id)
+        if loaded is not None:
+            prod_cases[s.case_id] = loaded
+    qois: dict[str, dict[str, float]] = {}
+    for cid, case in prod_cases.items():
+        values = qoi_of(cid, case)
+        if values is not None:
+            qois[cid] = values
+    inc_fields: dict[str, dict[str, float]] = {}
+    for s in by_role(specs, "increment"):
+        loaded = load(s.case_id)
+        if loaded is None:
+            continue
+        values = qoi_of(s.case_id, loaded)
+        if values is not None:
+            qois[s.case_id] = values
+        base = prod_cases.get(base_id.get(_pilot_key(s), ""))
+        if base is not None:
+            try:
+                inc_fields[s.case_id] = common_instant_errors(base, loaded)
+            except ValueError as exc:
+                echo(f"  {s.case_id}: {exc}")
+    frame_case = production_case = None
+    for s in by_role(specs, "frame"):
+        frame_case = load(s.case_id)
+        production_case = prod_cases.get(base_id.get(_pilot_key(s), ""))
+    add(step_increment(qois, inc_fields, specs, defn, report))
+    add(step_frame(frame_case, production_case, defn))
+    add(step_duration(prod_cases, specs, defn, problem))
+    add(step_energy(report, ids))
+    add(
+        step_budget(
+            defn,
+            problem,
+            specs,
+            _run_records(pre, ids),
+            _sizes(pre, ids),
+            free_gb(work_root),
+        )
+    )
+    add(step_verification(report, defn))
+    return finish()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="structbench-datagen preflight",
+        description="run the pilot split through the preflight and write its stamp",
+    )
+    parser.add_argument("--dataset", type=Path, required=True)
+    parser.add_argument("--work-root", type=Path, required=True)
+    parser.add_argument("--abaqus", default="abaqus")
+    parser.add_argument("--workers", type=int, default=2)
+    parser.add_argument("--timeout", type=float)
+    parser.add_argument(
+        "--solver-args", nargs="*", default=None, help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--exporter-args", nargs="*", default=None, help=argparse.SUPPRESS
+    )
+    args = parser.parse_args(argv)
+    return preflight(
+        args.dataset,
+        args.work_root,
+        abaqus=args.abaqus,
+        workers=args.workers,
+        timeout=args.timeout,
+        solver_args=args.solver_args,
+        exporter_args=args.exporter_args,
+    )
+
+
+if __name__ == "__main__":
+    sys.exit(main())
