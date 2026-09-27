@@ -1,0 +1,1003 @@
+"""The preflight: the pilot split through the three resolutions, the energy
+account, the budget and the verification instrument, ending in a stamp
+(ADR-0071, part two (b)).
+
+    structbench-datagen preflight --dataset <dir> --work-root <runs>
+        [--abaqus EXE] [--workers N] [--timeout S]
+
+The stage plans a case set from the pilot points -- every pilot at every
+``[levels].pilot`` level but the finest (the ``fine_cases`` there too), the
+pilots at production with the solver increment scaled, one pilot exported at
+a finer frame interval, one conformance run with every energy term requested
+-- and drives ``run``, ``export``, ``convert``, ``verify`` and ``converge``
+over it in ``<work-root>/<name>/preflight/``, a sweep of its own. Ten steps
+turn the records into verdicts; ``report.md`` and ``stamp.json`` are written
+beside the cases, and ``generate`` opens splits that are not probes only
+against a passing stamp for the current definition. Re-running resumes:
+every stage skips what is already done, and a preflight folder holding
+another definition's runs is refused, never cleared. Exit codes: 0 passed,
+1 a step failed or needs review (the stamp says so), 2 refused, 3 stopped by
+the environment.
+
+The step functions below are pure: each turns records (a convergence record,
+a verification report, canonical cases, run records) into a ``Step`` with a
+verdict from ADR-0066's vocabulary, so they are tested without a solver.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import statistics
+from collections import Counter
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+import numpy as np
+
+from structbench.core import Case
+from structbench.core.io.abaqus import (
+    LEDGER_CLOSED_TERMS,
+    assembly_history,
+    read_abaqus_export,
+)
+from structbench.datagen import sampling
+from structbench.datagen.abaqus.deck import with_all_energy
+from structbench.datagen.converge import level_order
+from structbench.datagen.definition import Definition, problem_sha256
+from structbench.datagen.generate import (
+    CaseSpec,
+    case_id_for,
+    package_state,
+    plan_cases,
+)
+from structbench.datagen.template import deck_sha256_in_fresh_interpreter
+from structbench.verification.results import Verdict
+from structbench.verification.temporal import (
+    common_instant_errors,
+    midpoint_interpolation_errors,
+    qoi_history,
+    rise_time_frames,
+    separation_frame,
+    settling_frame,
+)
+
+STAMP_FORMAT = "preflight-stamp/1"
+PREFLIGHT_DIR = "preflight"
+ROLES = ("level", "increment", "frame", "conformance")
+#: The steps in the order the report prints them.
+STEPS = (
+    "deck_regression",
+    "feasibility",
+    "conformance",
+    "space",
+    "increment",
+    "frame",
+    "duration",
+    "energy",
+    "budget",
+    "verification",
+)
+ENERGY_ROWS = (
+    "energy_gain_max",
+    "energy_loss_max",
+    "energy_residual_final",
+    "kinetic_energy_closure",
+    "plastic_dissipation_excess_max",
+    "stored_globals_match_ledger",
+)
+#: The terms the ledger identity needs (``abaqus_ledger`` asks for the same).
+REQUIRED_TERMS = frozenset({"ALLKE", "ALLIE", "ALLVD", "ALLWK", "ETOTAL"})
+#: The identity must close to this relative residual: float32 storage of the
+#: history, with margin.
+IDENTITY_TOLERANCE = 1e-5
+#: The verdicts that let the stamp pass.
+PASSING = frozenset({"pass", "not_applicable"})
+
+
+@dataclass(frozen=True)
+class Step:
+    name: str
+    verdict: str  # pass | fail | review | not_applicable | not_assessable
+    summary: str
+    detail: dict[str, Any]
+
+
+def passed(steps: Sequence[Step]) -> bool:
+    return all(s.verdict in PASSING for s in steps)
+
+
+def not_run(name: str, why: str) -> Step:
+    return Step(name, "not_assessable", f"not run: {why}", {})
+
+
+# --- the case set --------------------------------------------------------------
+
+
+def label_suffix(role: str, label: str | float | None) -> str:
+    """The id suffix of a preflight case: -L<level>, -T<value>, -F, -E."""
+    if role == "level":
+        return "-L" + str(label).replace(".", "p")
+    if role == "increment":
+        return "-T" + f"{float(label):g}".replace(".", "p")  # type: ignore[arg-type]
+    if role == "frame":
+        return "-F"
+    if role == "conformance":
+        return "-E"
+    raise ValueError(f"unknown preflight role {role!r}")
+
+
+def production_value(defn: Definition) -> float:
+    """The production value of the increment key: ``[fixed]``'s, or 1.0."""
+    value = defn.fixed.get(defn.pilot.increment_key)
+    return 1.0 if value is None else float(value)
+
+
+def by_role(specs: Sequence[CaseSpec], role: str) -> list[CaseSpec]:
+    return [s for s in specs if (s.probe or {}).get("role") == role]
+
+
+def batch_a(specs: Sequence[CaseSpec], production: str) -> list[str]:
+    """The cases run first: the pilots at the production level, and the
+    conformance run. Their steps decide whether the rest is worth launching."""
+    levels = [
+        s.case_id
+        for s in by_role(specs, "level")
+        if (s.probe or {}).get("level") == production
+    ]
+    return levels + [s.case_id for s in by_role(specs, "conformance")]
+
+
+def preflight_cases(defn: Definition) -> list[CaseSpec]:
+    """The preflight's case set, from the pilot points.
+
+    Role ``level``: every pilot at every ``[levels].pilot`` level except the
+    finest, always at the production level, and at the finest too when its
+    plain id is in ``[pilot].fine_cases``. Role ``increment``: every pilot at
+    the production level with the increment key at the production value times
+    each factor. Role ``frame``: one pilot (the first fine case, else the
+    first pilot) at the production level with the frame interval scaled by
+    ``frame_factor`` and the frame count divided by it, when the probe is
+    enabled and both keys are constants. Role ``conformance``: the first pilot
+    at the production level (its deck is widened by ``deck_for``).
+    """
+    pilot = defn.pilot
+    split = defn.split(pilot.split)
+    key, production = defn.levels.refine_key, defn.levels.production
+    levels = list(defn.levels.pilot)
+    finest = levels[-1]
+    pilots: list[tuple[int, str | None, dict[str, Any], str]] = []
+    for point in sampling.sample_split(defn.variables, defn.regions, split, None):
+        for variant in split.variants or (None,):
+            plain = case_id_for(defn, split.name, point.index, variant)
+            pilots.append((point.index, variant, {**defn.fixed, **point.params}, plain))
+
+    def spec(
+        index: int,
+        variant: str | None,
+        params: dict[str, Any],
+        role: str,
+        level: str,
+        factor: float | None,
+        suffix: str,
+    ) -> CaseSpec:
+        return CaseSpec(
+            case_id_for(defn, split.name, index, variant, suffix),
+            split.name,
+            index,
+            variant,
+            split.seed,
+            params,
+            probe={"role": role, "level": level, "factor": factor},
+        )
+
+    specs: list[CaseSpec] = []
+    for index, variant, base, plain in pilots:
+        own = [
+            lv
+            for lv in levels
+            if lv != finest or lv == production or plain in pilot.fine_cases
+        ]
+        for lv in own:
+            params = {**base, key: lv}
+            specs.append(
+                spec(
+                    index, variant, params, "level", lv, None, label_suffix("level", lv)
+                )
+            )
+    base_value = production_value(defn)
+    for factor in pilot.increment_factors:
+        value = base_value * factor
+        for index, variant, base, _plain in pilots:
+            params = {**base, key: production, pilot.increment_key: value}
+            suffix = label_suffix("increment", value)
+            specs.append(
+                spec(index, variant, params, "increment", production, factor, suffix)
+            )
+    keys_fixed = pilot.frame_key in defn.fixed and pilot.frame_count_key in defn.fixed
+    if pilot.frame_factor > 0.0 and keys_fixed:
+        chosen = next((p for p in pilots if p[3] in pilot.fine_cases), pilots[0])
+        index, variant, base, plain = chosen
+        interval = float(base[pilot.frame_key]) * pilot.frame_factor
+        count = round(float(base[pilot.frame_count_key]) / pilot.frame_factor)
+        params = {
+            **base,
+            key: production,
+            pilot.frame_key: interval,
+            pilot.frame_count_key: count,
+        }
+        specs.append(
+            spec(index, variant, params, "frame", production, pilot.frame_factor, "-F")
+        )
+    index, variant, base, plain = pilots[0]
+    specs.append(
+        spec(
+            index,
+            variant,
+            {**base, key: production},
+            "conformance",
+            production,
+            None,
+            "-E",
+        )
+    )
+    return specs
+
+
+def deck_for(spec: CaseSpec, problem: ModuleType) -> str:
+    """The case's deck; the conformance run's with every energy term requested."""
+    text: str = problem.input_deck(dict(spec.params), spec.variant)
+    if (spec.probe or {}).get("role") == "conformance":
+        return with_all_energy(text)
+    return text
+
+
+def _pilot_key(spec: CaseSpec) -> tuple[int, str | None]:
+    return spec.index, spec.variant
+
+
+# --- the steps -----------------------------------------------------------------
+
+
+def step_deck_regression(
+    dataset_dir: Path, specs: Sequence[CaseSpec], problem: ModuleType, defn: Definition
+) -> Step:
+    """Every preflight deck rebuilds byte for byte in a fresh interpreter, and
+    every probe key changes the deck it is meant to change."""
+    decks: dict[str, str] = {}
+    unstable: list[str] = []
+    failures: list[str] = []
+    for spec in specs:
+        text: str = problem.input_deck(dict(spec.params), spec.variant)
+        decks[spec.case_id] = text
+        try:
+            fresh = deck_sha256_in_fresh_interpreter(
+                dataset_dir, spec.params, spec.variant
+            )
+        except RuntimeError as exc:
+            failures.append(f"{spec.case_id}: {exc}")
+            continue
+        if fresh != hashlib.sha256(text.encode("utf-8")).hexdigest():
+            unstable.append(spec.case_id)
+    production = defn.levels.production
+    production_deck = {
+        _pilot_key(s): decks[s.case_id]
+        for s in by_role(specs, "level")
+        if (s.probe or {}).get("level") == production
+    }
+    unread: set[str] = set()
+    per_pilot: dict[tuple[int, str | None], dict[str, str]] = {}
+    for s in by_role(specs, "level"):
+        per_pilot.setdefault(_pilot_key(s), {})[str((s.probe or {})["level"])] = decks[
+            s.case_id
+        ]
+    for by_level in per_pilot.values():
+        if len(set(by_level.values())) < len(by_level):
+            unread.add(defn.levels.refine_key)
+    for s in by_role(specs, "increment"):
+        if decks[s.case_id] == production_deck.get(_pilot_key(s)):
+            unread.add(defn.pilot.increment_key)
+    for s in by_role(specs, "frame"):
+        if decks[s.case_id] == production_deck.get(_pilot_key(s)):
+            unread.add(defn.pilot.frame_key)
+    detail = {
+        "checked": len(specs),
+        "unstable": unstable,
+        "unread_keys": sorted(unread),
+        "failures": failures,
+    }
+    problems = []
+    for key in sorted(unread):
+        problems.append(
+            f"{key!r} leaves the deck unchanged: problem.input_deck does not read it"
+        )
+    if unstable:
+        problems.append(
+            f"{len(unstable)} deck(s) differ in a fresh interpreter: "
+            + ", ".join(unstable)
+        )
+    problems += failures
+    if problems:
+        return Step("deck_regression", "fail", "; ".join(problems), detail)
+    return Step(
+        "deck_regression",
+        "pass",
+        f"all {len(specs)} decks rebuild byte for byte and every probe key is read",
+        detail,
+    )
+
+
+def step_feasibility(
+    specs: Sequence[CaseSpec],
+    states: Mapping[str, str],
+    defn: Definition,
+    problem: ModuleType,
+) -> Step:
+    """Every pilot completes at the production level (and the conformance run)."""
+    production = defn.levels.production
+    batch = batch_a(specs, production)
+    not_done = [cid for cid in batch if states.get(cid) != "done"]
+    feasible = getattr(problem, "feasible", None)
+    checks: dict[str, bool | None] = {}
+    for s in by_role(specs, "level"):
+        if (s.probe or {}).get("level") == production:
+            checks[s.case_id] = (
+                None
+                if feasible is None
+                else bool(feasible({**defn.fixed, **defn.limits, **s.params}))
+            )
+    detail = {
+        "cases": {cid: states.get(cid, "missing") for cid in batch},
+        "limits": dict(defn.limits),
+        "feasible": checks,
+    }
+    if not_done:
+        return Step(
+            "feasibility",
+            "fail",
+            f"{len(not_done)} of {len(batch)} production-level runs did not "
+            "complete: "
+            + ", ".join(f"{cid} ({states.get(cid, 'missing')})" for cid in not_done),
+            detail,
+        )
+    return Step(
+        "feasibility",
+        "pass",
+        f"all {len(batch)} production-level runs completed",
+        detail,
+    )
+
+
+def step_conformance(npz_path: Path | None, units: str) -> Step:
+    """The conformance run: the ledger identity closes with the standard terms
+    and no term outside it is non-zero."""
+    if npz_path is None or not Path(npz_path).is_file():
+        return Step(
+            "conformance", "not_assessable", "the conformance run has no export", {}
+        )
+    try:
+        history = assembly_history(read_abaqus_export(npz_path))
+    except Exception as exc:  # an unreadable export is a finding about it
+        return Step(
+            "conformance",
+            "not_assessable",
+            f"the conformance export could not be read: {type(exc).__name__}: {exc}",
+            {},
+        )
+    missing = sorted(REQUIRED_TERMS - set(history))
+    extra = sorted(
+        term
+        for term, values in history.items()
+        if term not in LEDGER_CLOSED_TERMS and bool(np.any(values != 0.0))
+    )
+    residual: float | None = None
+    problems: list[str] = []
+    if missing:
+        problems.append("missing " + ", ".join(missing))
+    else:
+        total = history["ETOTAL"] + history["ALLWK"]
+        balance = history["ALLKE"] + history["ALLIE"] + history["ALLVD"]
+        if "ALLFD" in history and "ALLPW" in history:
+            balance = balance + history["ALLFD"] - history["ALLPW"]
+        scale = float(np.max(np.abs(total)))
+        if scale > 0.0:
+            residual = float(np.max(np.abs(balance - total)) / scale)
+            if residual > IDENTITY_TOLERANCE:
+                problems.append(
+                    f"the ledger identity misses by {residual:.3g} "
+                    f"(> {IDENTITY_TOLERANCE:g})"
+                )
+        else:
+            problems.append(
+                "the solver total is zero throughout; the identity cannot be checked"
+            )
+    if extra:
+        problems.append("non-zero outside the identity: " + ", ".join(extra))
+    detail = {
+        "terms": sorted(history),
+        "missing": missing,
+        "extra_nonzero": extra,
+        "identity_residual": residual,
+        "tolerance": IDENTITY_TOLERANCE,
+        "units": units,
+    }
+    if problems:
+        return Step("conformance", "fail", "; ".join(problems), detail)
+    return Step(
+        "conformance",
+        "pass",
+        f"the ledger identity closes to {residual:.2g} with the standard terms "
+        "and no other term is non-zero",
+        detail,
+    )
+
+
+def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
+    """Space: each QoI at the production level against its extrapolated value."""
+    tol = dict(zip(defn.qoi.names, defn.qoi.tolerance, strict=True))
+    production = defn.levels.production
+    cases_detail: dict[str, dict[str, Any]] = {}
+    fails: list[str] = []
+    reviews: list[str] = []
+    assessed = 0
+    for entry in record.get("cases", []):
+        per: dict[str, Any] = {}
+        for name in defn.qoi.names:
+            x = (entry.get("extrapolation") or {}).get(name)
+            if not x:
+                continue
+            assessed += 1
+            errors = x.get("error_vs_extrapolated") or {}
+            err = errors.get(production)
+            per[name] = {
+                "status": x.get("status"),
+                "order": x.get("order"),
+                "error_at_production": err,
+            }
+            if x.get("status") != "monotone" or err is None:
+                reviews.append(f"{entry['case_id']}: {name} {x.get('status')}")
+            elif err > tol[name]:
+                fails.append(
+                    f"{entry['case_id']}: {name} {err:.3g} > {tol[name]:g} at level "
+                    f"{production}"
+                )
+        if per:
+            cases_detail[entry["case_id"]] = per
+    detail = {
+        "cases": cases_detail,
+        "fields": dict(record.get("summary", {}).get("fields", {})),
+        "tolerance": tol,
+    }
+    if assessed == 0:
+        return Step(
+            "space",
+            "not_assessable",
+            "no pilot ran at three levels in constant ratio, so no quantity of "
+            "interest could be extrapolated",
+            detail,
+        )
+    if fails:
+        return Step("space", "fail", "; ".join(fails), detail)
+    if reviews:
+        return Step(
+            "space",
+            "review",
+            "no observed order for " + "; ".join(reviews),
+            detail,
+        )
+    return Step(
+        "space",
+        "pass",
+        f"every quantity of interest at level {production} is within its "
+        f"tolerance of the extrapolated value ({assessed} extrapolations)",
+        detail,
+    )
+
+
+def _energy_rows(report: Any, case_ids: Collection[str]) -> tuple[dict, dict, list]:
+    ids = set(case_ids)
+    rows: dict[str, Counter[str]] = {}
+    values: dict[str, list[float]] = {}
+    fails: list[str] = []
+    for case in report.cases:
+        if case.case_id not in ids:
+            continue
+        for r in case.results:
+            if r.quantity not in ENERGY_ROWS:
+                continue
+            rows.setdefault(r.quantity, Counter())[str(r.verdict)] += 1
+            if r.value is not None:
+                values.setdefault(r.quantity, []).append(float(r.value))
+            if r.verdict is Verdict.FAIL:
+                fails.append(f"{case.case_id}: {r.quantity}")
+    return rows, values, fails
+
+
+def step_increment(
+    qois: Mapping[str, Mapping[str, float]],
+    fields: Mapping[str, Mapping[str, float]],
+    specs: Sequence[CaseSpec],
+    defn: Definition,
+    report: Any,
+) -> Step:
+    """Time (a): the QoIs at another stable-increment scale, and the energy
+    rows of those runs."""
+    increments = by_role(specs, "increment")
+    if not increments:
+        return Step(
+            "increment",
+            "not_applicable",
+            "the dataset declares no increment factors",
+            {},
+        )
+    tol = dict(zip(defn.qoi.names, defn.qoi.tolerance, strict=True))
+    production = defn.levels.production
+    key = defn.pilot.increment_key
+    base_of = {
+        _pilot_key(s): s.case_id
+        for s in by_role(specs, "level")
+        if (s.probe or {}).get("level") == production
+    }
+    pilots: dict[str, dict[str, dict[str, float]]] = {}
+    fails: list[str] = []
+    missing: list[str] = []
+    for s in increments:
+        plain = case_id_for(defn, s.split, s.index, s.variant)
+        base = base_of.get(_pilot_key(s))
+        if base is None or base not in qois or s.case_id not in qois:
+            missing.append(s.case_id)
+            continue
+        value = float(s.params[key])
+        diffs: dict[str, float] = {}
+        for name in defn.qoi.names:
+            a, b = qois[base].get(name), qois[s.case_id].get(name)
+            if a is None or b is None:
+                missing.append(f"{s.case_id} ({name})")
+                continue
+            rel = abs(float(b) - float(a)) / max(abs(float(a)), 1e-300)
+            diffs[name] = rel
+            if rel > tol[name]:
+                fails.append(
+                    f"{plain}: {name} changes by {rel:.3g} at {key}={value:g} "
+                    f"(> {tol[name]:g})"
+                )
+        pilots.setdefault(plain, {})[f"{value:g}"] = diffs
+    energy = None
+    if report is not None:
+        rows, _, energy_fails = _energy_rows(report, [s.case_id for s in increments])
+        energy = {q: dict(sorted(c.items())) for q, c in rows.items()}
+        fails += energy_fails
+    detail = {
+        "pilots": pilots,
+        "fields": {cid: dict(v) for cid, v in fields.items()},
+        "production_value": production_value(defn),
+        "energy_rows": energy,
+    }
+    if missing:
+        return Step(
+            "increment",
+            "not_assessable",
+            "no quantities of interest for " + ", ".join(missing),
+            detail,
+        )
+    if fails:
+        return Step("increment", "fail", "; ".join(fails), detail)
+    return Step(
+        "increment",
+        "pass",
+        f"every quantity of interest is within tolerance at {key} scaled by "
+        + ", ".join(f"{f:g}" for f in defn.pilot.increment_factors)
+        + " and the energy rows hold",
+        detail,
+    )
+
+
+def step_frame(
+    frame_case: Case | None, production_case: Case | None, defn: Definition
+) -> Step:
+    """Time (b): the stored frame interval against a half-interval export."""
+    p = defn.pilot
+    if p.frame_factor <= 0.0:
+        return Step(
+            "frame",
+            "not_applicable",
+            "the frame probe is disabled by the dataset (frame_factor = 0)",
+            {},
+        )
+    if frame_case is None:
+        absent = [k for k in (p.frame_key, p.frame_count_key) if k not in defn.fixed]
+        if absent:
+            return Step(
+                "frame",
+                "not_assessable",
+                "the frame probe needs "
+                + " and ".join(repr(k) for k in absent)
+                + " in [fixed]",
+                {},
+            )
+        return Step(
+            "frame",
+            "not_assessable",
+            "the frame probe's case has no canonical file",
+            {},
+        )
+    assert frame_case.response is not None
+    try:
+        mid = midpoint_interpolation_errors(frame_case)
+    except ValueError as exc:
+        return Step("frame", "not_assessable", str(exc), {})
+    judged = sorted(k for k in mid if k.startswith(("node/", "global/")))
+    over = [f"{k} {mid[k]:.3g}" for k in judged if mid[k] > p.frame_tolerance]
+    common: dict[str, float] | None = None
+    note = None
+    stride = round(1.0 / p.frame_factor)
+    if production_case is not None and production_case.response is not None:
+        try:
+            common = common_instant_errors(production_case, frame_case)
+            stride = round(
+                (len(frame_case.response.time) - 1)
+                / (len(production_case.response.time) - 1)
+            )
+        except ValueError as exc:
+            note = str(exc)
+    rise: dict[str, int] = {}
+    for name, series in frame_case.response.globals_.items():
+        r = rise_time_frames(np.asarray(series, dtype=np.float64)[:: max(stride, 1)])
+        if r is not None:
+            rise[name] = r
+    detail = {
+        "midpoint": mid,
+        "common_instants": common,
+        "judged": judged,
+        "rise_frames": rise,
+        "shortest_rise_frames": min(rise.values()) if rise else None,
+        "tolerance": p.frame_tolerance,
+        "factor": p.frame_factor,
+        "note": note,
+    }
+    if over:
+        return Step(
+            "frame",
+            "fail",
+            "the stored clock does not resolve "
+            + ", ".join(over)
+            + f" (midpoint interpolation error > {p.frame_tolerance:g})",
+            detail,
+        )
+    return Step(
+        "frame",
+        "pass",
+        f"the stored frame interval resolves every node field and global to "
+        f"{p.frame_tolerance:g} (midpoint interpolation from a {p.frame_factor:g}× "
+        "interval export)",
+        detail,
+    )
+
+
+def step_duration(
+    cases: Mapping[str, Case],
+    specs: Sequence[CaseSpec],
+    defn: Definition,
+    problem: ModuleType,
+) -> Step:
+    """Duration: when each pilot settles (and, if named, when contact ends)
+    against the stored horizon and the margin."""
+    production = defn.levels.production
+    ids = [
+        s.case_id
+        for s in by_role(specs, "level")
+        if (s.probe or {}).get("level") == production
+    ]
+    missing = [cid for cid in ids if cid not in cases]
+    if missing:
+        return Step(
+            "duration",
+            "not_assessable",
+            "no canonical file for " + ", ".join(missing),
+            {"missing": missing},
+        )
+    tol = dict(zip(defn.qoi.names, defn.qoi.tolerance, strict=True))
+    global_name = defn.pilot.contact_force_global
+    pilots: dict[str, dict[str, Any]] = {}
+    notes: list[str] = []
+    frames: int | None = None
+    horizon: float | None = None
+    for cid in ids:
+        case = cases[cid]
+        assert case.response is not None
+        r = case.response
+        n = len(r.time)
+        if frames is None:
+            frames, horizon = n, float(r.time[-1] - r.time[0])
+        elif n != frames:
+            notes.append(f"{cid}: {n} frames where the first pilot has {frames}")
+        settle = settling_frame(qoi_history(case, problem.qoi), tol)
+        separation: int | None = None
+        if global_name is not None:
+            series = r.globals_.get(global_name)
+            if series is None:
+                notes.append(f"{cid}: no stored global {global_name!r}")
+            else:
+                separation = separation_frame(series)
+        pilots[cid] = {
+            "settling_frame": settle,
+            "separation_frame": separation,
+            "share_after_settling": 1.0 - settle / (n - 1) if n > 1 else 0.0,
+        }
+    assert frames is not None
+    slowest = max(p["settling_frame"] for p in pilots.values())
+    limit = int(math.floor((1.0 - defn.pilot.settling_margin) * (frames - 1)))
+    detail = {
+        "pilots": pilots,
+        "frames": frames,
+        "horizon": horizon,
+        "slowest_settling_frame": slowest,
+        "settling_limit_frame": limit,
+        "margin": defn.pilot.settling_margin,
+        "contact_force_global": global_name,
+        "notes": notes,
+    }
+    if slowest > limit:
+        who = ", ".join(
+            f"{cid} (frame {p['settling_frame']})"
+            for cid, p in pilots.items()
+            if p["settling_frame"] > limit
+        )
+        return Step(
+            "duration",
+            "fail",
+            f"settles after frame {limit} of {frames - 1} (margin "
+            f"{defn.pilot.settling_margin:g}): {who}",
+            detail,
+        )
+    return Step(
+        "duration",
+        "pass",
+        f"the slowest pilot settles at frame {slowest} of {frames - 1}, within the "
+        f"margin (limit frame {limit})",
+        detail,
+    )
+
+
+def step_energy(report: Any, case_ids: Collection[str]) -> Step:
+    """The energy account over the named cases: no energy row fails."""
+    rows, values, fails = _energy_rows(report, case_ids)
+    if not rows:
+        return Step(
+            "energy",
+            "not_assessable",
+            "no energy row was judged for the preflight cases",
+            {},
+        )
+    detail = {
+        "rows": {q: dict(sorted(c.items())) for q, c in rows.items()},
+        "spread": {
+            q: {
+                "lowest": min(v),
+                "median": float(np.median(v)),
+                "highest": max(v),
+                "n": len(v),
+            }
+            for q, v in values.items()
+        },
+    }
+    if fails:
+        return Step("energy", "fail", "; ".join(fails), detail)
+    return Step(
+        "energy",
+        "pass",
+        f"no energy row fails on the {len(set(case_ids))} preflight cases",
+        detail,
+    )
+
+
+def step_budget(
+    defn: Definition,
+    problem: ModuleType,
+    specs: Sequence[CaseSpec],
+    runs: Mapping[str, Mapping[str, Any]],
+    sizes: Mapping[str, int],
+    free: float,
+) -> Step:
+    """The production sweep's time and disk from the pilots, against the
+    free space and the margin."""
+    production = defn.levels.production
+    per_level: dict[str, list[float]] = {}
+    for s in by_role(specs, "level"):
+        wall = runs.get(s.case_id, {}).get("wall_s")
+        if wall is not None:
+            per_level.setdefault(str((s.probe or {})["level"]), []).append(float(wall))
+    prod_ids = [
+        s.case_id
+        for s in by_role(specs, "level")
+        if (s.probe or {}).get("level") == production
+    ]
+    prod_walls = per_level.get(production, [])
+    prod_sizes = [float(sizes[cid]) for cid in prod_ids if cid in sizes]
+    if not prod_walls or not prod_sizes:
+        return Step(
+            "budget",
+            "not_assessable",
+            "no production-level pilot has both a run record and a size",
+            {"free_gb": free, "min_free_gb": defn.pilot.min_free_gb},
+        )
+    probe_of = {s.name: s.probe for s in defn.splits}
+    production_cases = sum(
+        1
+        for s in plan_cases(defn, getattr(problem, "feasible", None))
+        if not probe_of[s.split]
+    )
+    wall_median = float(statistics.median(prod_walls))
+    bytes_per_case = float(statistics.median(prod_sizes))
+    estimated_gb = production_cases * bytes_per_case / 1e9
+    detail = {
+        "production_cases": production_cases,
+        "wall_s_median": wall_median,
+        "wall_s_max": max(prod_walls),
+        "bytes_per_case": bytes_per_case,
+        "estimated_wall_h": production_cases * wall_median / 3600.0,
+        "estimated_gb": estimated_gb,
+        "free_gb": free,
+        "min_free_gb": defn.pilot.min_free_gb,
+        "per_level": {
+            lv: {
+                "n": len(per_level[lv]),
+                "wall_s_median": float(statistics.median(per_level[lv])),
+                "wall_s_max": max(per_level[lv]),
+            }
+            for lv in level_order(defn, set(per_level))
+        },
+    }
+    needed = estimated_gb + defn.pilot.min_free_gb
+    if free < needed:
+        return Step(
+            "budget",
+            "fail",
+            f"{free:.1f} GB free, {estimated_gb:.1f} GB estimated for "
+            f"{production_cases} cases plus the {defn.pilot.min_free_gb:g} GB margin",
+            detail,
+        )
+    return Step(
+        "budget",
+        "pass",
+        f"{production_cases} cases estimated at {estimated_gb:.1f} GB and "
+        f"{detail['estimated_wall_h']:.1f} core-hours; {free:.1f} GB free",
+        detail,
+    )
+
+
+def step_verification(report: Any, defn: Definition) -> Step:
+    """The instrument over the preflight cases: no fail outside the accepted gaps."""
+    accepted = set(defn.pilot.accepted_gaps)
+    failing: list[str] = []
+    gaps: dict[str, Counter[str]] = {}
+    for case in report.cases:
+        for r in case.results:
+            if r.quantity in accepted:
+                gaps.setdefault(r.quantity, Counter())[str(r.verdict)] += 1
+            elif r.verdict is Verdict.FAIL:
+                failing.append(f"{case.case_id}: {r.quantity}")
+    detail = {
+        "failing": failing,
+        "accepted_gaps": {q: dict(sorted(c.items())) for q, c in gaps.items()},
+    }
+    if failing:
+        return Step("verification", "fail", "; ".join(failing), detail)
+    listed = ", ".join(sorted(gaps)) or "none seen"
+    return Step(
+        "verification",
+        "pass",
+        f"no verification row fails outside the accepted gaps ({listed})",
+        detail,
+    )
+
+
+# --- the stamp and the report --------------------------------------------------
+
+
+def _json_safe(value: Any) -> Any:
+    """Plain JSON: tuples to lists, numpy scalars to Python, non-finite to null."""
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
+
+
+def stamp_record(
+    defn: Definition,
+    dataset_dir: Path,
+    steps: Sequence[Step],
+    specs: Sequence[CaseSpec],
+    *,
+    created_utc: str,
+) -> dict[str, Any]:
+    """The stamp: the definition's hashes, the verdicts, the budget, the cases."""
+    by_name = {s.name: s for s in steps}
+    ordered = [by_name[n] for n in STEPS if n in by_name]
+    ordered += [s for s in steps if s.name not in STEPS]
+    state = package_state()
+    record = {
+        "format": STAMP_FORMAT,
+        "dataset": defn.name,
+        "definition_sha256": defn.sha256(),
+        "problem_sha256": problem_sha256(dataset_dir),
+        "structbench": {"version": state["version"], "commit": state["commit"]},
+        "created_utc": created_utc,
+        "passed": passed(steps),
+        "steps": {
+            s.name: {"verdict": s.verdict, "summary": s.summary, "detail": s.detail}
+            for s in ordered
+        },
+        "budget": by_name["budget"].detail if "budget" in by_name else {},
+        "cases": {role: [s.case_id for s in by_role(specs, role)] for role in ROLES},
+    }
+    return _json_safe(record)
+
+
+def render_report(stamp: Mapping[str, Any]) -> str:
+    """The reader's document, from the stamp alone."""
+    sb = stamp.get("structbench", {})
+    commit = sb.get("commit") or "no commit"
+    out = [f"# Preflight of {stamp['dataset']}", ""]
+    out.append(
+        f"*Stamp `{stamp['format']}`, {stamp['created_utc']}; StructBench "
+        f"{sb.get('version', '?')} ({commit}); `dataset.toml` "
+        f"{stamp['definition_sha256'][:12]}…, `problem.py` "
+        f"{stamp['problem_sha256'][:12]}….*"
+    )
+    out.append("")
+    if stamp.get("passed"):
+        out.append(
+            "**Passed.** Every step passed or does not apply; `generate` opens "
+            "the production splits against this stamp."
+        )
+    else:
+        blocking = [
+            name for name, s in stamp["steps"].items() if s["verdict"] not in PASSING
+        ]
+        out.append(
+            "**Not passed.** Blocking: "
+            + ", ".join(f"{n} ({stamp['steps'][n]['verdict']})" for n in blocking)
+            + "."
+        )
+    out += ["", "## Verdicts", "", "| Step | Verdict | Summary |", "|---|---|---|"]
+    for name, s in stamp["steps"].items():
+        summary = str(s["summary"]).replace("|", "\\|")
+        out.append(f"| {name} | {s['verdict']} | {summary} |")
+    out += ["", "## Cases", ""]
+    for role in ROLES:
+        ids = stamp.get("cases", {}).get(role, [])
+        out.append(f"- {role}: " + (", ".join(ids) if ids else "none"))
+    budget = stamp.get("budget") or {}
+    if budget:
+        out += ["", "## Budget", ""]
+        for key in sorted(budget):
+            if key == "per_level":
+                continue
+            out.append(f"- {key}: {budget[key]}")
+        for lv, row in (budget.get("per_level") or {}).items():
+            out.append(f"- level {lv}: {row}")
+    out += ["", "## Details", ""]
+    for name, s in stamp["steps"].items():
+        out += [f"### {name}", "", str(s["summary"]), ""]
+        if s.get("detail"):
+            text = json.dumps(s["detail"], indent=2, sort_keys=True, ensure_ascii=False)
+            out += ["```json", text, "```", ""]
+    return "\n".join(out).rstrip("\n") + "\n"
+
+
+def write_outputs(pre: Path, stamp: Mapping[str, Any]) -> None:
+    """``stamp.json`` (sorted keys, LF) and ``report.md`` beside the cases."""
+    pre.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(stamp, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    (pre / "stamp.json").write_bytes(text.encode("utf-8"))
+    (pre / "report.md").write_bytes(render_report(stamp).encode("utf-8"))

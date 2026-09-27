@@ -32,7 +32,7 @@ from structbench.core.io import dump_run_evidence
 from structbench.core.io.abaqus_run import read_abaqus_input_facts
 from structbench.datagen.collect import collect_sweep
 from structbench.verification import CaseMeasurements, Verdict
-from structbench.verification.criteria import judge
+from structbench.verification.criteria import DatasetReport, judge
 from structbench.verification.dataset import declared_from_toml, measure_cases
 from structbench.verification.measures import measure_case
 from structbench.verification.quantities import CATALOGUE
@@ -57,16 +57,23 @@ def _without_case(
     return measure_case(None, facts, declared, case_id=case_id, run=run)
 
 
-def validate_sweep(
+def judge_sweep(
     sweep: Path,
     dataset: Path,
     *,
     splits: list[str] | None = None,
     data_root: Path | None = None,
-) -> int:
-    """Run the pass described in the module docstring; returns the exit code."""
+    out: Path | None = None,
+) -> tuple[DatasetMeasurements, DatasetReport]:
+    """Collect, measure and judge the sweep (steps 1-3 of the module docstring).
+
+    Writes ``run_evidence.json``, ``measurements.json`` and ``report.md`` into
+    ``out`` (default ``<sweep>/datacheck``) and returns the measurements and
+    the judged report, for callers that read verdicts rather than print them
+    (the preflight).
+    """
     data_root = data_root or sweep / "canonical"
-    out = sweep / "datacheck"
+    out = out or sweep / "datacheck"
     out.mkdir(parents=True, exist_ok=True)
     runs = collect_sweep(sweep, splits=splits)
     (out / "run_evidence.json").write_text(dump_run_evidence(runs), encoding="utf-8")
@@ -87,6 +94,25 @@ def validate_sweep(
     (out / "measurements.json").write_text(to_json(record), encoding="utf-8")
     report = judge(record)
     (out / "report.md").write_text(render_markdown(report), encoding="utf-8")
+    return record, report
+
+
+def validate_sweep(
+    sweep: Path,
+    dataset: Path,
+    *,
+    splits: list[str] | None = None,
+    data_root: Path | None = None,
+) -> int:
+    """Run the pass described in the module docstring; returns the exit code."""
+    data_root = data_root or sweep / "canonical"
+    out = sweep / "datacheck"
+    record, report = judge_sweep(
+        sweep, dataset, splits=splits, data_root=data_root, out=out
+    )
+    missing = sorted(
+        c.case_id for c in record.cases if not (data_root / f"{c.case_id}.h5").is_file()
+    )
 
     failing = [
         (case.case_id, r)
@@ -95,7 +121,6 @@ def validate_sweep(
         if r.verdict is Verdict.FAIL
     ]
     print(f"cases={len(record.cases)} fail_rows={len(failing)} -> {out}")
-    missing = sorted(set(runs) - set(stored))
     if missing:
         # Measured on the deck and run record alone: their response rows read
         # as absences, which a summary of fails would never show.

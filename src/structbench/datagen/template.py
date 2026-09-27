@@ -42,7 +42,8 @@ import hashlib, json, sys
 from pathlib import Path
 from structbench.datagen.definition import load_problem
 problem = load_problem(Path(sys.argv[1]))
-text = problem.input_deck(json.loads(sys.argv[2]), None)
+variant = json.loads(sys.argv[3]) if len(sys.argv) > 3 else None
+text = problem.input_deck(json.loads(sys.argv[2]), variant)
 sys.stdout.write(hashlib.sha256(text.encode("utf-8")).hexdigest())
 """
 
@@ -105,7 +106,9 @@ def _synthetic_case(defn: Definition, grid: Any) -> Case:
     )
 
 
-def deck_sha256_in_fresh_interpreter(dataset_dir: Path, params: dict[str, Any]) -> str:
+def deck_sha256_in_fresh_interpreter(
+    dataset_dir: Path, params: dict[str, Any], variant: str | None = None
+) -> str:
     """The deck's sha256 from a new interpreter whose hash seed differs from ours.
 
     Python randomises ``str`` hashes per process, so a deck that walks a set
@@ -113,7 +116,14 @@ def deck_sha256_in_fresh_interpreter(dataset_dir: Path, params: dict[str, Any]) 
     the next; only a second process with another seed can show it.
     """
     seed = "2" if os.environ.get("PYTHONHASHSEED") == "1" else "1"
-    command = [sys.executable, "-c", _FRESH_DECK, str(dataset_dir), json.dumps(params)]
+    command = [
+        sys.executable,
+        "-c",
+        _FRESH_DECK,
+        str(dataset_dir),
+        json.dumps(params),
+        json.dumps(variant),
+    ]
     env = {**os.environ, "PYTHONHASHSEED": seed}
     proc = subprocess.run(command, capture_output=True, text=True, env=env)
     if proc.returncode != 0:

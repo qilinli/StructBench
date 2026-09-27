@@ -1,0 +1,496 @@
+"""The preflight (plan 2b): its case set, its steps on records, the stamp, the report."""  # noqa: E501
+
+import importlib.util
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
+import pytest
+from conftest import MINIMAL_PROBLEM, MINIMAL_TOML, write_definition
+
+pytest.importorskip("scipy")
+
+from structbench.core import (  # noqa: E402
+    Case,
+    ElementBlock,
+    Material,
+    Metadata,
+    Nodes,
+    Response,
+)
+from structbench.datagen import definition, preflight, verify  # noqa: E402
+from structbench.verification.criteria import CheckResult  # noqa: E402
+from structbench.verification.results import Verdict  # noqa: E402
+
+_HERE = Path(__file__).resolve().parent
+_SPEC = importlib.util.spec_from_file_location(
+    "abaqus_adapter_fixture", _HERE.parent / "core" / "test_abaqus_adapter.py"
+)
+assert _SPEC is not None and _SPEC.loader is not None
+_FIXTURE = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(_FIXTURE)
+
+_GAPS = 'accepted_gaps = ["solver_identity_complete"]'
+#: Three levels, production in the middle, the probe keys as constants.
+PF_TOML = (
+    MINIMAL_TOML.replace(
+        "[fixed]\nE = 1000.0",
+        "[fixed]\nE = 1000.0\ndt_scale = 0.5\nframe_interval = 1.0\nn_intervals = 20",
+    )
+    .replace('production = "1"', 'production = "2"')
+    .replace('pilot = ["1", "2"]', 'pilot = ["1", "2", "4"]')
+)
+#: A problem whose deck reads every probe key (the minimal one ignores them).
+READS_PROBES = MINIMAL_PROBLEM.replace(
+    '    return deck.heading("toy") + deck.node_block(mesh.node_labels, mesh.coords)',
+    '    tag = "toy %s %s %s" % (\n'
+    '        params.get("dt_scale"), params.get("frame_interval"), '
+    'params.get("n_intervals")\n    )\n'
+    "    return deck.heading(tag) + deck.node_block(mesh.node_labels, mesh.coords)",
+)
+
+
+def _load(tmp_path, toml=PF_TOML, problem=None, name="d"):
+    ds = write_definition(tmp_path / name, toml=toml, problem=problem)
+    return ds, definition.load_definition(ds), definition.load_problem(ds)
+
+
+def _toy_case(fn, frames=21, *, force=None, case_id="x"):
+    xy = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+    t = np.linspace(0.0, 1.0, frames)
+    u = np.zeros((frames, 4, 2), np.float32)
+    u[:, :, 0] = fn(t)[:, None]
+    globals_ = {} if force is None else {"reaction_force": np.asarray(force, float)}
+    return Case(
+        metadata=Metadata(case_id=case_id, dimension=2, source_units="t-mm-s"),
+        nodes=Nodes(coords=xy, node_id=np.arange(1, 5)),
+        elements={
+            "solid": ElementBlock(
+                connectivity=np.array([[0, 1, 3, 2]]),
+                element_id=np.array([1]),
+                part_id=np.array([1]),
+            )
+        },
+        materials=[Material(material_id=1, source_model="toy", source_params={})],
+        response=Response(
+            time=t,
+            node={"displacement": u},
+            element={"solid": {"stress": np.zeros((frames, 1, 6), np.float32)}},
+            globals_=globals_,
+        ),
+    )
+
+
+# --- the case set --------------------------------------------------------------
+
+
+def test_preflight_cases_cover_levels_factors_frame_and_conformance(tmp_path):
+    _, defn, _ = _load(tmp_path)
+    specs = preflight.preflight_cases(defn)
+    assert [s.case_id for s in specs] == [
+        "TOY-pilot-0000-L1",
+        "TOY-pilot-0000-L2",
+        "TOY-pilot-0000-L4",
+        "TOY-pilot-0001-L1",
+        "TOY-pilot-0001-L2",
+        "TOY-pilot-0000-T0p25",
+        "TOY-pilot-0001-T0p25",
+        "TOY-pilot-0000-F",
+        "TOY-pilot-0000-E",
+    ]
+    by = {s.case_id: s for s in specs}
+    assert by["TOY-pilot-0000-L4"].params["refine"] == "4"
+    production = by["TOY-pilot-0000-L2"].params
+    assert production["refine"] == "2" and production["dt_scale"] == 0.5
+    assert by["TOY-pilot-0000-T0p25"].params == {**production, "dt_scale": 0.25}
+    frame = by["TOY-pilot-0000-F"].params
+    assert frame == {**production, "frame_interval": 0.5, "n_intervals": 40}
+    assert by["TOY-pilot-0000-E"].params == production
+    assert by["TOY-pilot-0000-E"].probe == {
+        "role": "conformance",
+        "level": "2",
+        "factor": None,
+    }
+    assert by["TOY-pilot-0000-T0p25"].probe == {
+        "role": "increment",
+        "level": "2",
+        "factor": 0.5,
+    }
+    assert by["TOY-pilot-0000-F"].probe == {
+        "role": "frame",
+        "level": "2",
+        "factor": 0.5,
+    }
+    assert by["TOY-pilot-0001-L1"].probe == {
+        "role": "level",
+        "level": "1",
+        "factor": None,
+    }
+    assert all(s.split == "pilot" and s.index in (0, 1) for s in specs)
+    assert preflight.batch_a(specs, "2") == [
+        "TOY-pilot-0000-L2",
+        "TOY-pilot-0001-L2",
+        "TOY-pilot-0000-E",
+    ]
+    assert [s.case_id for s in preflight.by_role(specs, "frame")] == [
+        "TOY-pilot-0000-F"
+    ]
+
+
+def test_when_production_is_the_finest_level_every_pilot_runs_it(tmp_path):
+    _, defn, _ = _load(
+        tmp_path, PF_TOML.replace('production = "2"', 'production = "4"')
+    )
+    ids = [
+        s.case_id for s in preflight.by_role(preflight.preflight_cases(defn), "level")
+    ]
+    assert ids == [
+        "TOY-pilot-0000-L1",
+        "TOY-pilot-0000-L2",
+        "TOY-pilot-0000-L4",
+        "TOY-pilot-0001-L1",
+        "TOY-pilot-0001-L2",
+        "TOY-pilot-0001-L4",
+    ]
+
+
+def test_preflight_cases_without_frame_keys_skip_the_frame_probe(tmp_path):
+    toml = PF_TOML.replace("\nframe_interval = 1.0\nn_intervals = 20", "")
+    _, defn, _ = _load(tmp_path, toml)
+    assert not preflight.by_role(preflight.preflight_cases(defn), "frame")
+    step = preflight.step_frame(None, None, defn)
+    assert step.verdict == "not_assessable" and "frame_interval" in step.summary
+
+
+def test_frame_probe_disabled_is_not_applicable(tmp_path):
+    _, defn, _ = _load(tmp_path, PF_TOML.replace(_GAPS, f"{_GAPS}\nframe_factor = 0"))
+    assert not preflight.by_role(preflight.preflight_cases(defn), "frame")
+    assert preflight.step_frame(None, None, defn).verdict == "not_applicable"
+
+
+def test_production_value_defaults_to_one(tmp_path):
+    _, defn, _ = _load(tmp_path, PF_TOML.replace("\ndt_scale = 0.5", ""))
+    assert preflight.production_value(defn) == 1.0
+    (t, _) = preflight.by_role(preflight.preflight_cases(defn), "increment")
+    assert t.case_id == "TOY-pilot-0000-T0p5" and t.params["dt_scale"] == 0.5
+
+
+def test_no_increment_factors_means_no_increment_cases(tmp_path):
+    _, defn, _ = _load(
+        tmp_path, PF_TOML.replace(_GAPS, f"{_GAPS}\nincrement_factors = []")
+    )
+    specs = preflight.preflight_cases(defn)
+    assert not preflight.by_role(specs, "increment")
+    assert (
+        preflight.step_increment({}, {}, specs, defn, None).verdict == "not_applicable"
+    )
+
+
+def test_label_suffix_and_not_run():
+    assert preflight.label_suffix("level", "2") == "-L2"
+    assert preflight.label_suffix("level", "1.5") == "-L1p5"
+    assert preflight.label_suffix("increment", 0.25) == "-T0p25"
+    assert preflight.label_suffix("frame", None) == "-F"
+    assert preflight.label_suffix("conformance", None) == "-E"
+    s = preflight.not_run("space", "an earlier step failed")
+    assert (s.name, s.verdict) == ("space", "not_assessable")
+    assert "earlier" in s.summary
+
+
+# --- the steps on records ------------------------------------------------------
+
+
+def test_deck_for_widens_the_conformance_deck_or_says_why_not(tmp_path):
+    _, defn, problem = _load(tmp_path)
+    (e,) = preflight.by_role(preflight.preflight_cases(defn), "conformance")
+    with pytest.raises(ValueError, match="ENERGY OUTPUT"):
+        preflight.deck_for(e, problem)  # the minimal problem writes no step
+    (lv, *_) = preflight.by_role(preflight.preflight_cases(defn), "level")
+    assert preflight.deck_for(lv, problem) == problem.input_deck(dict(lv.params), None)
+
+
+def test_deck_regression_fails_when_a_probe_key_is_ignored(tmp_path):
+    ds, defn, problem = _load(tmp_path, name="ignores")
+    specs = preflight.preflight_cases(defn)
+    step = preflight.step_deck_regression(ds, specs, problem, defn)
+    assert step.verdict == "fail"
+    assert "'dt_scale' leaves the deck unchanged" in step.summary
+    assert step.detail["unread_keys"] == ["dt_scale", "frame_interval"]
+    ds2, defn2, problem2 = _load(tmp_path, problem=READS_PROBES, name="reads")
+    specs2 = preflight.preflight_cases(defn2)
+    step2 = preflight.step_deck_regression(ds2, specs2, problem2, defn2)
+    assert step2.verdict == "pass", step2.summary
+    assert step2.detail["checked"] == len(specs2) and step2.detail["unstable"] == []
+
+
+def _record(status="monotone", error=0.004):
+    x = {
+        "status": status,
+        "order": 2.0 if status == "monotone" else None,
+        "extrapolated": 1.0 if status == "monotone" else None,
+        "gci_fine": 0.001 if status == "monotone" else None,
+        "error_vs_extrapolated": (
+            {"1": 0.02, "2": error, "4": 0.00125} if status == "monotone" else None
+        ),
+        "coarsest_vs_finest": 0.019,
+        "levels": ["1", "2", "4"],
+        "ratio": 2.0,
+    }
+    entry = {
+        "case_id": "TOY-pilot-0000-L2",
+        "levels": {"1": "a", "2": "TOY-pilot-0000-L2", "4": "c"},
+        "production_level": "2",
+        "qoi": {"length": {"1": 1.02, "2": 1.005, "4": 1.00125}},
+        "extrapolation": {"length": x},
+        "fields": {"displacement": {"1": 0.02, "2": 0.005}},
+        "notes": [],
+    }
+    fields = {"displacement": {"1": {"lowest": 0.02, "median": 0.02, "highest": 0.02}}}
+    return {"cases": [entry], "summary": {"qoi": {}, "fields": fields}}
+
+
+def test_step_space_reads_the_convergence_record(tmp_path):
+    _, defn, _ = _load(tmp_path)  # tolerance 0.01 per QoI
+    step = preflight.step_space(_record(), defn)
+    assert step.verdict == "pass", step.summary
+    detail = step.detail["cases"]["TOY-pilot-0000-L2"]["length"]
+    assert detail == {"status": "monotone", "order": 2.0, "error_at_production": 0.004}
+    assert step.detail["fields"] == _record()["summary"]["fields"]
+    assert preflight.step_space(_record(error=0.02), defn).verdict == "fail"
+    assert preflight.step_space(_record(status="oscillatory"), defn).verdict == "review"
+    empty = {"cases": [], "summary": {"qoi": {}, "fields": {}}}
+    none = preflight.step_space(empty, defn)
+    assert none.verdict == "not_assessable" and "three levels" in none.summary
+    two = _record()
+    two["cases"][0]["extrapolation"]["length"] = None
+    assert preflight.step_space(two, defn).verdict == "not_assessable"
+
+
+def test_step_increment_compares_qois_within_tolerance(tmp_path):
+    _, defn, _ = _load(tmp_path)
+    specs = preflight.preflight_cases(defn)
+    qois = {
+        "TOY-pilot-0000-L2": {"length": 1.0},
+        "TOY-pilot-0000-T0p25": {"length": 1.004},
+        "TOY-pilot-0001-L2": {"length": 2.0},
+        "TOY-pilot-0001-T0p25": {"length": 2.0},
+    }
+    fields = {"TOY-pilot-0000-T0p25": {"node/displacement": 0.001}}
+    step = preflight.step_increment(qois, fields, specs, defn, None)
+    assert step.verdict == "pass", step.summary
+    assert step.detail["pilots"]["TOY-pilot-0000"]["0.25"]["length"] == pytest.approx(
+        0.004
+    )
+    assert step.detail["fields"] == fields and step.detail["production_value"] == 0.5
+    qois["TOY-pilot-0000-T0p25"] = {"length": 1.02}
+    bad = preflight.step_increment(qois, fields, specs, defn, None)
+    assert bad.verdict == "fail" and "TOY-pilot-0000" in bad.summary
+    del qois["TOY-pilot-0001-T0p25"]
+    missing = preflight.step_increment(qois, fields, specs, defn, None)
+    assert (
+        missing.verdict == "not_assessable"
+        and "TOY-pilot-0001-T0p25" in missing.summary
+    )
+
+
+def test_step_duration_measures_settling_and_separation(tmp_path):
+    toml = PF_TOML.replace(_GAPS, f'{_GAPS}\ncontact_force_global = "reaction_force"')
+    _, defn, _ = _load(tmp_path, toml)
+    specs = preflight.preflight_cases(defn)
+    t = np.linspace(0.0, 1.0, 21)
+    force = np.where(t < 0.3, np.sin(np.pi * t / 0.3), 0.0)
+    cases = {
+        "TOY-pilot-0000-L2": _toy_case(lambda t: 1 - np.exp(-t / 0.1), force=force),
+        "TOY-pilot-0001-L2": _toy_case(lambda t: 1 - np.exp(-t / 0.05), force=force),
+    }
+    problem = SimpleNamespace(
+        qoi=lambda c: {"length": float(c.response.node["displacement"][-1, 0, 0])}
+    )
+    step = preflight.step_duration(cases, specs, defn, problem)
+    assert step.verdict == "pass", step.summary
+    d = step.detail["pilots"]["TOY-pilot-0000-L2"]
+    # |u - u_final| = exp(-t/0.1) > 1 % up to t = 0.45 (frame 9); the pulse ends at 0.3
+    assert d["settling_frame"] == 9 and d["separation_frame"] == 5
+    assert d["share_after_settling"] == pytest.approx(0.55)
+    assert step.detail["pilots"]["TOY-pilot-0001-L2"]["settling_frame"] == 4
+    assert step.detail["frames"] == 21 and step.detail["slowest_settling_frame"] == 9
+    assert step.detail["settling_limit_frame"] == 15  # (1 - 0.25) * 20
+    strict = definition.load_definition(
+        write_definition(
+            tmp_path / "strict",
+            toml=PF_TOML.replace(_GAPS, f"{_GAPS}\nsettling_margin = 0.6"),
+        )
+    )
+    assert preflight.step_duration(cases, specs, strict, problem).verdict == "fail"
+    assert preflight.step_duration({}, specs, defn, problem).verdict == "not_assessable"
+
+
+def test_step_frame_passes_a_smooth_response_and_fails_a_jagged_one(tmp_path):
+    _, defn, _ = _load(tmp_path)  # frame_tolerance 0.05
+    smooth = _toy_case(lambda t: 1 - np.exp(-t / 0.3), 41, force=np.linspace(0, 1, 41))
+    production = _toy_case(
+        lambda t: 1 - np.exp(-t / 0.3), 21, force=np.linspace(0, 1, 21)
+    )
+    step = preflight.step_frame(smooth, production, defn)
+    assert step.verdict == "pass", step.summary
+    assert step.detail["midpoint"]["node/displacement"] < 0.05
+    assert step.detail["common_instants"]["node/displacement"] == pytest.approx(
+        0.0, abs=1e-6
+    )
+    # the force rises linearly over 21 production frames: 10 % at frame 2, 90 % at 18
+    assert step.detail["shortest_rise_frames"] == 16
+    assert step.detail["judged"] == ["global/reaction_force", "node/displacement"]
+    jagged = _toy_case(lambda t: np.sin(2 * np.pi * 10 * t), 41)
+    bad = preflight.step_frame(jagged, None, defn)
+    assert bad.verdict == "fail" and bad.detail["common_instants"] is None
+
+
+def _history(arrays, **terms):
+    out = dict(arrays)
+    for term, value in terms.items():
+        key = f"history/S/Assembly Assembly-1/{term}"
+        series = out[key].copy()
+        series[1:, 1] = value
+        out[key] = series
+    return out
+
+
+def test_step_conformance_names_missing_and_extra_terms(tmp_path):
+    # the fixture: AE=1 CD=2 FD=3 IE=4 KE=5 PD=6 SE=7 VD=8 WK=9 ETOTAL=10, no PW.
+    # closing: CD (outside the identity) to 0, PW to 0, ETOTAL to KE+IE+VD+FD-WK = 11
+    base = _FIXTURE._arrays()
+    base["history/S/Assembly Assembly-1/ALLPW"] = base[
+        "history/S/Assembly Assembly-1/ALLWK"
+    ].copy()
+    passing = _history(base, ALLCD=0.0, ALLPW=0.0, ETOTAL=11.0)
+    np.savez(tmp_path / "ok.npz", **passing)
+    step = preflight.step_conformance(tmp_path / "ok.npz", "t-mm-s")
+    assert step.verdict == "pass", step.summary
+    assert step.detail["identity_residual"] == pytest.approx(0.0, abs=1e-12)
+    assert step.detail["missing"] == [] and step.detail["extra_nonzero"] == []
+    np.savez(tmp_path / "extra.npz", **_FIXTURE._arrays())
+    extra = preflight.step_conformance(tmp_path / "extra.npz", "t-mm-s")
+    assert extra.verdict == "fail" and "ALLCD" in extra.summary
+    missing = {k: v for k, v in passing.items() if not k.endswith("/ALLVD")}
+    np.savez(tmp_path / "missing.npz", **missing)
+    gone = preflight.step_conformance(tmp_path / "missing.npz", "t-mm-s")
+    assert gone.verdict == "fail" and "ALLVD" in gone.summary
+    off = _history(passing, ETOTAL=12.0)
+    np.savez(tmp_path / "off.npz", **off)
+    unbalanced = preflight.step_conformance(tmp_path / "off.npz", "t-mm-s")
+    assert unbalanced.verdict == "fail" and "identity" in unbalanced.summary
+    assert preflight.step_conformance(None, "t-mm-s").verdict == "not_assessable"
+
+
+def _report(rows):
+    by: dict[str, list[CheckResult]] = {}
+    for case_id, quantity, verdict, value in rows:
+        by.setdefault(case_id, []).append(
+            CheckResult(quantity, Verdict(verdict), value, "1")
+        )
+    cases = [SimpleNamespace(case_id=c, results=tuple(r)) for c, r in by.items()]
+    return SimpleNamespace(cases=cases)
+
+
+def test_step_energy_and_verification_read_the_report(tmp_path):
+    _, defn, _ = _load(tmp_path)  # accepts solver_identity_complete
+    ok = _report(
+        [
+            ("A", "plastic_dissipation_excess_max", "pass", 0.0),
+            ("A", "energy_gain_max", "not_assessable", None),
+            ("A", "solver_identity_complete", "fail", 0.0),
+        ]
+    )
+    assert preflight.step_energy(ok, ["A"]).verdict == "pass"
+    v = preflight.step_verification(ok, defn)
+    assert v.verdict == "pass" and v.detail["accepted_gaps"] == {
+        "solver_identity_complete": {"fail": 1}
+    }
+    bad = _report(
+        [
+            ("A", "plastic_dissipation_excess_max", "fail", 0.1),
+            ("B", "plastic_dissipation_excess_max", "pass", 0.0),
+        ]
+    )
+    e = preflight.step_energy(bad, ["A", "B"])
+    assert e.verdict == "fail" and "A" in e.summary
+    assert e.detail["rows"]["plastic_dissipation_excess_max"] == {"fail": 1, "pass": 1}
+    assert preflight.step_energy(bad, ["B"]).verdict == "pass"
+    w = preflight.step_verification(bad, defn)
+    assert w.verdict == "fail" and w.detail["failing"] == [
+        "A: plastic_dissipation_excess_max"
+    ]
+    assert preflight.step_energy(_report([]), ["A"]).verdict == "not_assessable"
+
+
+def test_step_budget_estimates_from_the_pilots(tmp_path):
+    _, defn, problem = _load(tmp_path)
+    specs = preflight.preflight_cases(defn)
+    runs = {
+        "TOY-pilot-0000-L1": {"wall_s": 10.0},
+        "TOY-pilot-0000-L2": {"wall_s": 30.0},
+        "TOY-pilot-0001-L2": {"wall_s": 50.0},
+        "TOY-pilot-0000-L4": {"wall_s": 200.0},
+        "TOY-pilot-0000-E": {"wall_s": 40.0},
+    }
+    sizes = {"TOY-pilot-0000-L2": 100_000_000, "TOY-pilot-0001-L2": 100_000_000}
+    step = preflight.step_budget(defn, problem, specs, runs, sizes, free=100.0)
+    assert step.verdict == "pass", step.summary
+    b = step.detail
+    assert b["production_cases"] == 4  # [splits.train] n = 4
+    assert (b["wall_s_median"], b["wall_s_max"]) == (40.0, 50.0)
+    assert b["bytes_per_case"] == 100_000_000
+    assert b["estimated_gb"] == pytest.approx(0.4)
+    assert b["estimated_wall_h"] == pytest.approx(4 * 40 / 3600)
+    assert b["per_level"]["1"] == {"n": 1, "wall_s_median": 10.0, "wall_s_max": 10.0}
+    assert b["per_level"]["4"]["wall_s_median"] == 200.0
+    assert (b["min_free_gb"], b["free_gb"]) == (5.0, 100.0)
+    tight = preflight.step_budget(defn, problem, specs, runs, sizes, free=5.2)
+    assert tight.verdict == "fail"  # 0.4 + 5 = 5.4 > 5.2
+    none = preflight.step_budget(defn, problem, specs, {}, {}, free=100.0)
+    assert none.verdict == "not_assessable"
+
+
+# --- the stamp and the report --------------------------------------------------
+
+
+def test_stamp_record_and_report_are_deterministic(tmp_path):
+    ds, defn, _ = _load(tmp_path)
+    specs = preflight.preflight_cases(defn)
+    steps = [preflight.Step(name, "pass", "fine", {"n": 1}) for name in preflight.STEPS]
+    steps[3] = preflight.Step("space", "review", "order not observed", {})
+    stamp = preflight.stamp_record(
+        defn, ds, steps, specs, created_utc="2026-09-27T00:00:00+00:00"
+    )
+    assert stamp["format"] == "preflight-stamp/1" and stamp["passed"] is False
+    assert stamp["definition_sha256"] == defn.sha256()
+    assert stamp["problem_sha256"] == definition.problem_sha256(ds)
+    assert stamp["dataset"] == "toy" and stamp["created_utc"].startswith("2026")
+    assert set(stamp["cases"]) == set(preflight.ROLES)
+    assert stamp["cases"]["conformance"] == ["TOY-pilot-0000-E"]
+    assert list(stamp["steps"]) == list(preflight.STEPS)
+    assert stamp["steps"]["space"]["verdict"] == "review"
+    assert set(stamp["structbench"]) == {"version", "commit"}
+    assert stamp["budget"] == {"n": 1}
+    text = preflight.render_report(stamp)
+    assert text == preflight.render_report(json.loads(json.dumps(stamp)))
+    assert "review" in text and "space" in text and "TOY-pilot-0000-E" in text
+    preflight.write_outputs(tmp_path / "out", stamp)
+    raw = (tmp_path / "out" / "stamp.json").read_bytes()
+    assert raw.endswith(b"\n") and b"\r\n" not in raw and json.loads(raw) == stamp
+    assert (tmp_path / "out" / "report.md").read_bytes() == text.encode("utf-8")
+    assert preflight.passed([preflight.Step("x", "not_applicable", "", {})]) is True
+    assert preflight.passed([preflight.Step("x", "not_assessable", "", {})]) is False
+
+
+def test_judge_sweep_returns_the_report_that_validate_sweep_prints(tmp_path):
+    from test_verify import _sweep
+
+    sweep, dataset = _sweep(tmp_path)
+    record, report = verify.judge_sweep(sweep, dataset)
+    assert [c.case_id for c in report.cases] == ["T-0000", "T-0001"]
+    assert [c.case_id for c in record.cases] == ["T-0000", "T-0001"]
+    out = sweep / "datacheck"
+    assert (out / "measurements.json").is_file() and (out / "report.md").is_file()
+    assert verify.validate_sweep(sweep, dataset) == 1
