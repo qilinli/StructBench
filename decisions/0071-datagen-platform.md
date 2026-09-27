@@ -136,3 +136,10 @@ production:
 The mechanism — which `[pilot]` fields name the increment scales, the
 frame-interval probe and the settling rule — is part two's to design; the
 design document's `preflight` step 4 carries the sketch and its open points.
+
+## Note 2026-09-27 — the `validate` stage is `verify`
+
+ADR-0072 gives validation its meaning (comparison with experiment) and
+renames this pipeline's `validate` stage, which runs the ADR-0066
+verification instrument, to `verify`; the old name is refused with a
+pointer. Clause 1's stage list reads accordingly.

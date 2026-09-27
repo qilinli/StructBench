@@ -1,17 +1,19 @@
 """``structbench-datagen``: the data-generation stages behind one command (ADR-0071).
 
     structbench-datagen new      <dir>                       scaffold a definition
-    structbench-datagen check    <dir>                       validate it, no solver
+    structbench-datagen check    <dir>                       check it, no solver
     structbench-datagen generate --dataset <dir> --work-root <runs> [...]
     structbench-datagen run      --sweep <runs>/<name> [...]
     structbench-datagen export   --sweep <runs>/<name> [--cases ID ...] [--abaqus EXE]
     structbench-datagen convert  --sweep <runs>/<name> [...]
-    structbench-datagen validate --sweep <runs>/<name> --dataset <dir> [...]
+    structbench-datagen verify   --sweep <runs>/<name> --dataset <dir> [...]
     structbench-datagen archive  --sweep <runs>/<name> --dataset <dir>
                                  --data-root <tree> [...]
 
 Each stage's own options are its module's; ``export`` hands the packaged
 exporter to ``abaqus python`` because it must run under the solver's Python.
+``verify`` runs the ADR-0066 instrument; validation against experiments is
+``structbench-validate`` (ADR-0072), and the old stage name is refused.
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ from collections.abc import Callable, Sequence
 from importlib import resources
 from pathlib import Path
 
-from structbench.datagen import archive, convert, generate, run, template, validate
+from structbench.datagen import archive, convert, generate, run, template, verify
 
 EXPORTER = resources.files("structbench.datagen.abaqus") / "odb_export.py"
 
@@ -34,9 +36,12 @@ STAGES: dict[str, Callable[[list[str] | None], int]] = {
     "generate": generate.main,
     "run": run.main,
     "convert": convert.main,
-    "validate": validate.main,
+    "verify": verify.main,
     "archive": archive.main,
 }
+#: Old names, refused with a pointer (ADR-0072: validate now means
+#: comparison with experiment).
+RENAMED = {"validate": "verify"}
 
 
 def export_command(abaqus: str, sweep: Path, cases: Sequence[str] | None) -> list[str]:
@@ -75,9 +80,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="structbench-datagen", description=(__doc__ or "").splitlines()[0]
     )
-    parser.add_argument("stage", choices=[*STAGES, "export"])
+    parser.add_argument("stage", choices=[*STAGES, "export", *RENAMED])
     parser.add_argument("rest", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
+    if args.stage in RENAMED:
+        new = RENAMED[args.stage]
+        print(
+            f'the stage is now "{new}" (ADR-0072): structbench-datagen {new} ...',
+            file=sys.stderr,
+        )
+        return 2
     if args.stage == "export":
         return _export(args.rest)
     return STAGES[args.stage](args.rest)

@@ -4,7 +4,7 @@
         --dataset <dataset-dir> --data-root <data tree>
         [--split NAME ...] [--prune-odb] [--yes]
 
-The cases are those ``validate.py`` recorded in ``<sweep>/datacheck/
+The cases are those ``verify.py`` recorded in ``<sweep>/datacheck/
 measurements.json``. For each, the run record and the export go to
 ``<data-root>/raw/<name>/abaqus/<id>/`` -- ``<id>.inp``, ``provenance.json``,
 ``run.json``, ``<id>.sta/.msg/.dat``, ``<id>.npz``, and ``<id>.odb`` when

@@ -1,6 +1,6 @@
-"""Validate a sweep: run evidence, measurements and verdicts in one pass.
+"""Verify a sweep with the ADR-0066 instrument: run evidence, measurements and verdicts.
 
-    structbench-datagen validate --sweep <work-root>/<name>
+    structbench-datagen verify --sweep <work-root>/<name>
         --dataset <dataset-dir> [--split NAME ...] [--data-root DIR]
 
 1. Collects the run evidence of every case that ran (``collect_run_evidence``).
@@ -124,7 +124,7 @@ def validate_sweep(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="structbench-datagen validate", description=(__doc__ or "").splitlines()[0]
+        prog="structbench-datagen verify", description=(__doc__ or "").splitlines()[0]
     )
     parser.add_argument("--sweep", type=Path, required=True)
     parser.add_argument("--dataset", type=Path, required=True)

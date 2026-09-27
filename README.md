@@ -136,6 +136,10 @@ src/structbench/
   datasets/        # canonical readers, windowing, normalization
   verification/    # reference-data verification: quantity catalogue, measures,
                    #   criteria, generated report (ADR-0066)
+  validation/      # validation against experiments: reference sets, shared
+                   #   measures, the deviation record; structbench-validate (ADR-0072)
+  datagen/         # data generation from a dataset definition; structbench-datagen
+                   #   (ADR-0071; the abaqus/ subpackage holds the deck writers and exporter)
   benchmarks/      # one module per benchmark: split + protocol + QoIs
   models/          # model families: cgn, mgn, transolver, geoflare (+ shared common/)
   eval/            # rollout driver, metrics

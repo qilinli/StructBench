@@ -9,7 +9,7 @@ directory as the template a new dataset starts from.
     structbench-datagen run      --sweep <runs>/abaqus_conformance
     structbench-datagen export   --sweep <runs>/abaqus_conformance
     structbench-datagen convert  --sweep <runs>/abaqus_conformance
-    structbench-datagen validate --sweep <runs>/abaqus_conformance --dataset <this dir>
+    structbench-datagen verify   --sweep <runs>/abaqus_conformance --dataset <this dir>
     structbench-datagen archive  --sweep <runs>/abaqus_conformance --dataset <this dir> --data-root <tree>
 
 `preflight`, `converge` and `card` arrive with parts two and three of ADR-0071.

@@ -1,4 +1,4 @@
-"""Tests for validate.py: evidence, measurement and verdicts for a sweep (Task 8)."""
+"""Tests for verify.py: evidence, measurement and verdicts for a sweep (Task 8)."""
 
 import importlib.util
 import json
@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from conftest import MINIMAL_TOML
 
-from structbench.datagen import convert, validate
+from structbench.datagen import convert, verify
 
 _HERE = Path(__file__).resolve().parent
 
@@ -52,9 +52,9 @@ def _sweep(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def test_an_aborted_run_is_reported_as_a_failure(tmp_path, capsys):
-    """Review Focus 1: convert.py skips it, validate.py must not lose it."""
+    """Review Focus 1: convert.py skips it, verify.py must not lose it."""
     sweep, dataset = _sweep(tmp_path)
-    assert validate.main(["--sweep", str(sweep), "--dataset", str(dataset)]) == 1
+    assert verify.main(["--sweep", str(sweep), "--dataset", str(dataset)]) == 1
     out = sweep / "datacheck"
     record = json.loads((out / "measurements.json").read_text(encoding="utf-8"))
     assert [c["case_id"] for c in record["cases"]] == ["T-0000", "T-0001"]
@@ -77,7 +77,7 @@ def test_splits_narrow_the_cases(tmp_path):
         data = json.loads(prov.read_text(encoding="utf-8"))
         data["split"] = "keep" if case == "T-0000" else "other"
         prov.write_text(json.dumps(data), encoding="utf-8")
-    validate.main(["--sweep", str(sweep), "--dataset", str(dataset), "--split", "keep"])
+    verify.main(["--sweep", str(sweep), "--dataset", str(dataset), "--split", "keep"])
     record = json.loads(
         (sweep / "datacheck" / "measurements.json").read_text(encoding="utf-8")
     )
