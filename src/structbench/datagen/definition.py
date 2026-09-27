@@ -78,7 +78,12 @@ class Definition:
         raise KeyError(name)
 
     def sha256(self) -> str:
-        return hashlib.sha256(self.path.read_bytes()).hexdigest()
+        return file_sha256(self.path)
+
+
+def file_sha256(path: Path) -> str:
+    """The file's sha256 with LF line endings, whatever a checkout wrote."""
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def _table(raw: dict[str, Any], name: str) -> dict[str, Any]:
@@ -111,7 +116,10 @@ def load_definition(dataset_dir: Path) -> Definition:
     path = dataset_dir / DEFINITION_FILE
     if not path.is_file():
         raise DefinitionError(f"{DEFINITION_FILE}: not found in {dataset_dir}")
-    raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    try:
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as exc:
+        raise DefinitionError(f"{DEFINITION_FILE}: {exc}") from exc
 
     dataset = _table(raw, "dataset")
     name = _field(dataset, "dataset", "name", str)
@@ -128,17 +136,20 @@ def load_definition(dataset_dir: Path) -> Definition:
 
     fixed = dict(_table(raw, "fixed")) if "fixed" in raw else {}
     limits = dict(raw.get("limits", {}))
-    variables = sampling.parse_bounds(_table(raw, "variables"), "variables")
-    regions = {
-        r: sampling.parse_bounds(box, f"regions.{r}")
-        for r, box in raw.get("regions", {}).items()
-    }
+    try:
+        variables = sampling.parse_bounds(_table(raw, "variables"), "variables")
+        regions = {
+            r: sampling.parse_bounds(box, f"regions.{r}")
+            for r, box in raw.get("regions", {}).items()
+        }
+    except ValueError as exc:
+        raise DefinitionError(str(exc)) from exc
     if "splits" not in raw:
         raise DefinitionError("splits: at least one [splits.<name>] table is required")
     try:
         splits = tuple(sampling.parse_splits(raw))
-    except (ValueError, KeyError) as exc:
-        raise DefinitionError(f"splits: {exc}") from exc
+    except ValueError as exc:
+        raise DefinitionError(str(exc)) from exc
 
     lv = _table(raw, "levels")
     levels = Levels(
@@ -226,6 +237,9 @@ def load_problem(dataset_dir: Path) -> ModuleType:
     sys.modules[spec.name] = module
     try:
         spec.loader.exec_module(module)
+    except Exception as exc:  # a broken problem.py is a definition problem
+        sys.modules.pop(spec.name, None)
+        raise DefinitionError(f"{PROBLEM_FILE}: {type(exc).__name__}: {exc}") from exc
     except BaseException:
         sys.modules.pop(spec.name, None)
         raise
@@ -238,4 +252,4 @@ def load_problem(dataset_dir: Path) -> ModuleType:
 
 
 def problem_sha256(dataset_dir: Path) -> str:
-    return hashlib.sha256((dataset_dir / PROBLEM_FILE).read_bytes()).hexdigest()
+    return file_sha256(dataset_dir / PROBLEM_FILE)

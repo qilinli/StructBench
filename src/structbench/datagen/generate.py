@@ -29,6 +29,7 @@ from typing import Any, Literal
 import numpy as np
 import scipy
 
+from structbench import __version__
 from structbench.core.io import unit_factors
 from structbench.datagen import sampling
 from structbench.datagen.definition import (
@@ -38,7 +39,9 @@ from structbench.datagen.definition import (
     problem_sha256,
 )
 
-_REPO = Path(__file__).resolve().parents[3]  # src/structbench/datagen -> repo root
+#: The checkout this module runs from, when it is one (src/structbench/datagen
+#: -> repo root); an installed package has no commit to record, only a version.
+_REPO = Path(__file__).resolve().parents[3]
 PROVENANCE_FORMAT = "abaqus-provenance/2"
 #: A conservative Abaqus job-name rule; the conformance run confirms or relaxes it.
 _CASE_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,37}$")
@@ -63,7 +66,9 @@ def plan_cases(
 
     ``feasible`` is the problem's optional hook, its declared feasibility or
     severity limit; it sees the fixed values and the ``[limits]`` too, and it
-    filters sampled points only (explicit points are deliberate).
+    filters sampled points only (explicit points are deliberate). A split that
+    is not a probe runs at ``[levels].production``: its cases carry the refine
+    key at that level, and a split naming another level is refused.
     """
     unit_factors(defn.units)
     seeds = Counter(s.seed for s in defn.splits if s.seed is not None)
@@ -93,6 +98,15 @@ def plan_cases(
                         f"case id {case_id!r} is not a safe Abaqus job name"
                     )
                 params = {**defn.fixed, **point.params}
+                if not split.probe:
+                    key, production = defn.levels.refine_key, defn.levels.production
+                    named = params.get(key)
+                    if named is not None and str(named) != production:
+                        raise ValueError(
+                            f"splits.{split.name}: {key}={named!r}, but a split that "
+                            f"is not a probe runs at levels.production={production!r}"
+                        )
+                    params[key] = production
                 specs.append(
                     CaseSpec(
                         case_id, split.name, point.index, variant, split.seed, params
@@ -116,6 +130,15 @@ def git_state(path: Path) -> dict[str, Any]:
         raise RuntimeError(
             f"{path.name} is not a git repository with a commit"
         ) from exc
+
+
+def package_state() -> dict[str, Any]:
+    """StructBench's identity for the provenance: the version, and the commit
+    when the package runs from a checkout (an installed copy records none)."""
+    state: dict[str, Any] = {"version": __version__, "commit": None, "dirty": None}
+    if (_REPO / ".git").exists():
+        state.update(git_state(_REPO))
+    return state
 
 
 def write_case(
@@ -160,19 +183,32 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     dataset_dir = args.dataset.resolve()
-    defn = load_definition(dataset_dir)
-    problem = load_problem(dataset_dir)
-    specs = plan_cases(defn, getattr(problem, "feasible", None))
+    try:
+        defn = load_definition(dataset_dir)
+        problem = load_problem(dataset_dir)
+        specs = plan_cases(defn, getattr(problem, "feasible", None))
+    except (ValueError, KeyError) as exc:  # DefinitionError is a ValueError
+        print(
+            f"{dataset_dir.name}: {exc.args[0] if exc.args else exc}", file=sys.stderr
+        )
+        return 2
     selected = [s for s in specs if not args.split or s.split in args.split]
     if args.dry_run:
         for split, count in Counter(s.split for s in selected).items():
             print(f"{split}: {count} cases")
         return 0
 
+    try:
+        dataset_repo = git_state(dataset_dir)
+    except RuntimeError as exc:
+        print(
+            f"{dataset_dir.name}: {exc}; commit the definition first", file=sys.stderr
+        )
+        return 2
     sweep_dir = args.work_root / defn.name
     sweep_dir.mkdir(parents=True, exist_ok=True)
     definition_sha, problem_sha = defn.sha256(), problem_sha256(dataset_dir)
-    repo, dataset_repo = git_state(_REPO), git_state(dataset_dir)
+    repo = package_state()
     if dataset_repo["dirty"]:
         print(
             "warning: the dataset repository has uncommitted changes", file=sys.stderr

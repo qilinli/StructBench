@@ -2,13 +2,19 @@
 
 ``scaffold`` copies the shipped example and renames it; ``check_definition``
 runs every contract check that needs no solver: the tables, the problem's
-hooks, a byte-stable deck, nesting mesh levels, and QoI names that match the
+hooks, everything ``generate`` would refuse, a byte-stable deck (also in a
+fresh interpreter with another hash seed, so a deck built from set or dict
+order is caught), nesting mesh levels, and QoI names that match the
 declaration. Problems come back as plain sentences, one per line.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import os
+import subprocess
 import sys
 from importlib import resources
 from pathlib import Path
@@ -18,7 +24,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from structbench.core import Case, ElementBlock, Metadata, Nodes, Response
-from structbench.datagen import sampling
+from structbench.datagen import generate
 from structbench.datagen.definition import (
     Definition,
     DefinitionError,
@@ -29,6 +35,16 @@ from structbench.datagen.definition import (
 EXAMPLE_DIR = resources.files("structbench.datagen") / "examples" / "abaqus_conformance"
 SCAFFOLD_FILES = ("dataset.toml", "problem.py", "README.md", "DATA_CARD.md")
 EXAMPLE_NAME = "abaqus_conformance"
+
+#: Run under another hash seed: prints the sha256 of one deck.
+_FRESH_DECK = """\
+import hashlib, json, sys
+from pathlib import Path
+from structbench.datagen.definition import load_problem
+problem = load_problem(Path(sys.argv[1]))
+text = problem.input_deck(json.loads(sys.argv[2]), None)
+sys.stdout.write(hashlib.sha256(text.encode("utf-8")).hexdigest())
+"""
 
 
 def scaffold(target: Path, name: str, *, solver: str = "abaqus") -> list[Path]:
@@ -89,20 +105,38 @@ def _synthetic_case(defn: Definition, grid: Any) -> Case:
     )
 
 
+def deck_sha256_in_fresh_interpreter(dataset_dir: Path, params: dict[str, Any]) -> str:
+    """The deck's sha256 from a new interpreter whose hash seed differs from ours.
+
+    Python randomises ``str`` hashes per process, so a deck that walks a set
+    or an unordered dict is identical within one interpreter and different in
+    the next; only a second process with another seed can show it.
+    """
+    seed = "2" if os.environ.get("PYTHONHASHSEED") == "1" else "1"
+    command = [sys.executable, "-c", _FRESH_DECK, str(dataset_dir), json.dumps(params)]
+    env = {**os.environ, "PYTHONHASHSEED": seed}
+    proc = subprocess.run(command, capture_output=True, text=True, env=env)
+    if proc.returncode != 0:
+        detail = proc.stderr.strip().splitlines() or ["no output"]
+        raise RuntimeError(detail[-1])
+    return proc.stdout.strip()
+
+
 def check_definition(dataset_dir: Path) -> list[str]:
     """Every contract problem in plain words; an empty list means it passes."""
     try:
         defn = load_definition(dataset_dir)
-    except DefinitionError as exc:
-        return [str(exc)]
-    try:
         problem = load_problem(dataset_dir)
     except DefinitionError as exc:
         return [str(exc)]
+    try:
+        specs = generate.plan_cases(defn, getattr(problem, "feasible", None))
+    except (ValueError, KeyError) as exc:  # what generate would refuse
+        return [str(exc.args[0] if exc.args else exc)]
+    except Exception as exc:
+        return [f"problem.feasible: raised {type(exc).__name__}: {exc}"]
     problems: list[str] = []
-    pilot = defn.split(defn.pilot.split)
-    points = sampling.sample_split(defn.variables, defn.regions, pilot)
-    base = {**defn.fixed, **points[0].params}
+    base = next(dict(s.params) for s in specs if s.split == defn.pilot.split)
     key = defn.levels.refine_key
 
     params = {**base, key: defn.levels.production}
@@ -116,10 +150,28 @@ def check_definition(dataset_dir: Path) -> list[str]:
             "problem.input_deck: not byte-stable "
             "(two calls with the same parameters differ)"
         )
+    else:
+        try:
+            fresh = deck_sha256_in_fresh_interpreter(dataset_dir, params)
+        except RuntimeError as exc:
+            return problems + [
+                f"problem.input_deck: failed in a fresh interpreter: {exc}"
+            ]
+        if fresh != hashlib.sha256(first.encode("utf-8")).hexdigest():
+            problems.append(
+                "problem.input_deck: not byte-stable (a fresh interpreter with "
+                "another hash seed gives a different deck: it depends on set or "
+                "dict order)"
+            )
 
+    grids: dict[str, Any] = {}
     coarsest: NDArray[np.float64] | None = None
     for level in defn.levels.pilot:
-        coords = np.asarray(problem.mesh({**base, key: level}).coords, float)
+        try:
+            grids[level] = problem.mesh({**base, key: level})
+            coords = np.asarray(grids[level].coords, float)
+        except Exception as exc:
+            return problems + [f"problem.mesh: raised {type(exc).__name__}: {exc}"]
         if coarsest is None:
             coarsest = coords
         elif not mesh_nests(coarsest, coords):
@@ -128,9 +180,8 @@ def check_definition(dataset_dir: Path) -> list[str]:
                 f"{defn.levels.pilot[0]}"
             )
 
-    grid = problem.mesh(params)
     try:
-        out = problem.qoi(_synthetic_case(defn, grid))
+        out = problem.qoi(_synthetic_case(defn, grids[defn.levels.production]))
     except Exception as exc:
         return problems + [f"problem.qoi: raised {type(exc).__name__}: {exc}"]
     if tuple(out) != defn.qoi.names:

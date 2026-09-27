@@ -48,6 +48,82 @@ def test_check_reports_an_unstable_deck(tmp_path):
     assert any("byte-stable" in p for p in template.check_definition(ds))
 
 
+HASH_ORDERED = MINIMAL_PROBLEM.replace(
+    'return deck.heading("toy")',
+    'return deck.heading(" ".join({"alpha", "bravo", "charlie", "delta", "echo", '
+    '"foxtrot", "golf", "hotel", "india", "juliet", "kilo", "lima"}))',
+)
+
+
+def test_check_reports_a_deck_that_depends_on_hash_order(tmp_path):
+    # identical within one interpreter, different in the next: the review's gap
+    ds = write_definition(tmp_path / "d", problem=HASH_ORDERED)
+    problems = template.check_definition(ds)
+    assert any("byte-stable" in p and "hash seed" in p for p in problems)
+
+
+@pytest.mark.parametrize(
+    "toml, expected",
+    [
+        ("[dataset\nname = 'x'\n", "dataset.toml"),
+        (MINIMAL_TOML.replace("L = [1.0, 2.0]", "L = [2.0, 1.0]"), "variables.L"),
+        (MINIMAL_TOML.replace("L = [1.0, 2.0]", "L = 1.0"), "variables.L"),
+        (
+            MINIMAL_TOML.replace("[splits.train]\nn = 4", "[splits.train]"),
+            "splits.train",
+        ),
+    ],
+)
+def test_check_reports_a_malformed_definition_in_a_sentence(tmp_path, toml, expected):
+    problems = template.check_definition(write_definition(tmp_path / "d", toml=toml))
+    assert len(problems) == 1 and expected in problems[0]
+
+
+def test_check_reports_a_problem_that_does_not_import(tmp_path):
+    broken = "import no_such_module_xyz\n" + MINIMAL_PROBLEM
+    problems = template.check_definition(
+        write_definition(tmp_path / "d", problem=broken)
+    )
+    assert len(problems) == 1
+    assert "problem.py" in problems[0] and "no_such_module_xyz" in problems[0]
+    unparsable = MINIMAL_PROBLEM.replace("def mesh(params):", "def mesh(params:")
+    problems = template.check_definition(
+        write_definition(tmp_path / "e", problem=unparsable)
+    )
+    assert len(problems) == 1 and "SyntaxError" in problems[0]
+
+
+def test_check_reports_a_mesh_hook_that_raises(tmp_path):
+    raising = MINIMAL_PROBLEM.replace(
+        "def mesh(params):\n", 'def mesh(params):\n    raise RuntimeError("no grid")\n'
+    )
+    problems = template.check_definition(
+        write_definition(tmp_path / "d", problem=raising)
+    )
+    assert problems == ["problem.mesh: raised RuntimeError: no grid"]
+
+
+@pytest.mark.parametrize(
+    "toml, expected",
+    [
+        (
+            MINIMAL_TOML.replace(
+                'case_prefix = "TOY"', 'case_prefix = "' + "X" * 40 + '"'
+            ),
+            "job name",
+        ),
+        (MINIMAL_TOML.replace("n = 4\n", 'n = 4\nwithin = "hot"\n'), "region"),
+        (
+            MINIMAL_TOML.replace("E = 1000.0", "E = 1000.0\nL = 1.0"),
+            "both fixed and sampled",
+        ),
+    ],
+)
+def test_check_reports_what_generate_would_refuse(tmp_path, toml, expected):
+    problems = template.check_definition(write_definition(tmp_path / "d", toml=toml))
+    assert any(expected in p for p in problems), problems
+
+
 def test_check_names_the_level_that_does_not_nest(tmp_path):
     skewed = MINIMAL_PROBLEM.replace(
         "mesh = deck.structured_quad_mesh(k, k,",

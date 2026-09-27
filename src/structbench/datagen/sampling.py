@@ -50,7 +50,12 @@ def parse_bounds(raw: Mapping[str, Any], where: str) -> dict[str, Bounds]:
     """``{"a": [0, 1]}`` -> ``{"a": (0.0, 1.0)}``; each range must increase."""
     out: dict[str, Bounds] = {}
     for name, pair in raw.items():
-        low, high = (float(v) for v in pair)
+        try:
+            low, high = (float(v) for v in pair)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"{where}.{name}: need [low, high], got {pair!r}"
+            ) from None
         if not low < high:
             raise ValueError(f"{where}.{name}: need low < high, got {pair!r}")
         out[name] = (low, high)
@@ -61,16 +66,28 @@ def parse_splits(sweep: Mapping[str, Any]) -> list[Split]:
     """The ``[splits.*]`` tables of a parsed sweep.toml, in file order."""
     splits = []
     for name, raw in sweep["splits"].items():
-        points = tuple(
-            {k: float(v) for k, v in p.items()} for p in raw.get("points", ())
-        )
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"splits.{name}: must be a table")
+        try:
+            points = tuple(
+                {k: float(v) for k, v in p.items()} for p in raw.get("points", ())
+            )
+        except (AttributeError, TypeError, ValueError):
+            raise ValueError(
+                f"splits.{name}: points must be tables of numbers"
+            ) from None
         if points and "seed" in raw:
             raise ValueError(f"splits.{name}: explicit points take no seed")
         if not points and "seed" not in raw:
             raise ValueError(f"splits.{name}: a sampled split needs a seed")
+        if not points and "n" not in raw:
+            raise ValueError(f"splits.{name}: a sampled split needs n")
         if raw.get("exclude") and raw.get("within"):
             raise ValueError(f"splits.{name}: set exclude or within, not both")
-        n = len(points) if points else int(raw["n"])
+        try:
+            n = len(points) if points else int(raw["n"])
+        except (TypeError, ValueError):
+            raise ValueError(f"splits.{name}: n must be an integer") from None
         if not 0 < n <= 2**N_DRAW_LOG2:
             raise ValueError(f"splits.{name}: n must be in 1..{2**N_DRAW_LOG2}")
         splits.append(

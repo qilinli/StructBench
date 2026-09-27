@@ -94,6 +94,35 @@ def test_problem_hash_is_of_the_file_bytes(definition_dir):
     assert definition.problem_sha256(definition_dir) == expected
 
 
+def test_definition_hashes_do_not_change_with_line_endings(tmp_path):
+    # a checkout's CRLF conversion must not make a definition read as another
+    lf = write_definition(tmp_path / "lf")
+    crlf = tmp_path / "crlf"
+    crlf.mkdir()
+    for name in ("dataset.toml", "problem.py"):
+        (crlf / name).write_bytes((lf / name).read_bytes().replace(b"\n", b"\r\n"))
+    assert (
+        definition.load_definition(lf).sha256()
+        == definition.load_definition(crlf).sha256()
+    )
+    assert definition.problem_sha256(lf) == definition.problem_sha256(crlf)
+
+
+def test_malformed_toml_is_a_definition_error(tmp_path):
+    ds = write_definition(tmp_path / "d", toml="[dataset\nname = 'x'\n")
+    with pytest.raises(definition.DefinitionError, match="dataset.toml"):
+        definition.load_definition(ds)
+
+
+def test_a_problem_that_fails_to_import_is_a_definition_error(definition_dir):
+    broken = "import no_such_module_xyz\n" + MINIMAL_PROBLEM
+    (definition_dir / "problem.py").write_bytes(broken.encode())
+    with pytest.raises(
+        definition.DefinitionError, match="problem.py.*no_such_module_xyz"
+    ):
+        definition.load_problem(definition_dir)
+
+
 DATACLASS_HEADER = (
     '"""A toy problem with a dataclass."""\n'
     "from __future__ import annotations\n"

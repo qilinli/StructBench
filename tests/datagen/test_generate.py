@@ -111,7 +111,7 @@ def test_writes_cases_provenance_and_manifest(tmp_path):
     prov = json.loads((work / "toy/TOY-listed-0000-y/provenance.json").read_text())
     assert prov["variant"] == "y" and prov["split"] == "listed"
     assert prov["units"] == "t-mm-s"
-    assert prov["params"] == {"a": 1.5, "k": 2.0}
+    assert prov["params"] == {"a": 1.5, "k": 2.0, "refine": "1"}  # production level
     assert set(prov["dataset_repository"]) == {"commit", "dirty"}
     rows = list(csv.DictReader((work / "toy/manifest.csv").open(encoding="utf-8")))
     assert [r["case_id"] for r in rows][:3] == ids[2:5] and set(rows[0]) >= {"a", "k"}
@@ -216,6 +216,51 @@ def test_fixed_and_sampled_names_must_not_collide(tmp_path):
     toml = MINIMAL_TOML.replace("E = 1000.0", "E = 1000.0\nL = 1.0")
     with pytest.raises(ValueError, match="both fixed and sampled"):
         generate.plan_cases(_definition(tmp_path, toml))
+
+
+def test_non_probe_splits_run_at_the_production_level(tmp_path):
+    specs = generate.plan_cases(_definition(tmp_path, MINIMAL_TOML))
+    by_split = {}
+    for s in specs:
+        by_split.setdefault(s.split, set()).add(s.params.get("refine"))
+    assert by_split["train"] == {"1"}  # levels.production, not left to the deck
+    assert by_split["pilot"] == {None}  # a probe split chooses its own levels
+
+
+def test_a_production_split_may_not_name_another_level(tmp_path):
+    other = MINIMAL_TOML.replace("n = 4\n", 'n = 4\ncategorical = { refine = ["2"] }\n')
+    with pytest.raises(ValueError, match="splits.train.*levels.production"):
+        generate.plan_cases(_definition(tmp_path, other))
+    same = MINIMAL_TOML.replace("n = 4\n", 'n = 4\ncategorical = { refine = ["1"] }\n')
+    specs = generate.plan_cases(_definition(tmp_path, same))
+    assert {s.params["refine"] for s in specs if s.split == "train"} == {"1"}
+
+
+def test_generate_exits_two_with_one_line_on_a_refused_definition(tmp_path, capsys):
+    long_prefix = 'case_prefix = "' + "X" * 40 + '"'
+    toml = MINIMAL_TOML.replace('case_prefix = "TOY"', long_prefix)
+    ds = _dataset(tmp_path, problem=MINIMAL_PROBLEM, toml=toml)
+    assert _run(ds, tmp_path / "work") == 2
+    err = capsys.readouterr().err
+    assert "job name" in err and "Traceback" not in err and err.count("\n") == 1
+    assert not (tmp_path / "work").exists()
+
+
+def test_generate_records_the_package_version_outside_a_checkout(tmp_path, monkeypatch):
+    import structbench
+
+    monkeypatch.setattr(generate, "_REPO", tmp_path / "site-packages")
+    ds, work = (
+        _dataset(tmp_path, problem=MINIMAL_PROBLEM, toml=MINIMAL_TOML),
+        tmp_path / "w",
+    )
+    assert _run(ds, work) == 0
+    prov = json.loads((work / "toy/TOY-train-0000/provenance.json").read_text())
+    assert prov["repository"] == {
+        "version": structbench.__version__,
+        "commit": None,
+        "dirty": None,
+    }
 
 
 def test_the_minimal_definition_generates(tmp_path):
