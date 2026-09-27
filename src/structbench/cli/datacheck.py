@@ -12,7 +12,7 @@ Two verbs, kept apart::
 run-evidence record a dataset's glue wrote, never a run directory — and
 writes the measurements record; ``judge`` reads only that record. A sweep
 not yet in the registry (a private dataset before publication) states what a
-benchmark card would in the ``[declaration]`` table of its ``sweep.toml``,
+benchmark card would in the ``[declaration]`` table of its ``dataset.toml``,
 and is measured with ``--declaration``: every ``*.h5`` under ``--data-root``
 unless ``--case`` names some. No flag
 alters a criterion. The exit code is 0 when the command completed — failed
@@ -90,7 +90,7 @@ _DECLARATION_KEYS = frozenset(
 
 
 def declared_from_toml(path: Path) -> tuple[str, DeclaredFacts]:
-    """``([dataset].name, DeclaredFacts from [declaration])`` of a ``sweep.toml``.
+    """``([dataset].name, DeclaredFacts from [declaration])`` of a ``dataset.toml``.
 
     No yield table is declared: a sweep that varies the hardening has none,
     and the yield rows then read each case's own input table.
@@ -352,7 +352,7 @@ def main(argv: list[str] | None = None) -> int:
     measure = verbs.add_parser("measure", help="measure canonical case files")
     source = measure.add_mutually_exclusive_group(required=True)
     source.add_argument("--benchmark")
-    source.add_argument("--declaration", type=Path, help="a sweep.toml")
+    source.add_argument("--declaration", type=Path, help="a dataset.toml")
     measure.add_argument("--data-root", required=True, type=Path)
     measure.add_argument("--case", action="append", help="case id; repeatable")
     measure.add_argument("--dataset-revision", default=None)

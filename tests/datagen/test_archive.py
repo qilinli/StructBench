@@ -9,18 +9,19 @@ import json
 from pathlib import Path
 
 import numpy as np
+from conftest import MINIMAL_TOML
 
 from structbench.datagen import archive
 
-_TOML = """
-[dataset]
-name = "toy"
-
+_TOML = (
+    MINIMAL_TOML
+    + """
 [retention]
 odb_fraction = 0.5
 odb_seed = 7
 odb_cases = ["T-0003"]
 """
+)
 
 
 def _sha(path: Path) -> str:
@@ -31,7 +32,7 @@ def _sweep(tmp_path: Path, n: int = 4) -> tuple[Path, Path, Path]:
     sweep, dataset, data = tmp_path / "toy", tmp_path / "dataset", tmp_path / "data"
     dataset.mkdir()
     data.mkdir()
-    (dataset / "sweep.toml").write_text(_TOML, encoding="utf-8")
+    (dataset / "dataset.toml").write_text(_TOML, encoding="utf-8")
     ids = [f"T-{i:04d}" for i in range(n)]
     for cid in ids:
         folder = sweep / cid
@@ -110,8 +111,8 @@ def test_retention_is_decided_per_case():
 
 def test_named_cases_that_are_not_there_are_reported(tmp_path, capsys):
     sweep, dataset, data = _sweep(tmp_path)
-    toml = (dataset / "sweep.toml").read_text(encoding="utf-8")
-    (dataset / "sweep.toml").write_text(
+    toml = (dataset / "dataset.toml").read_text(encoding="utf-8")
+    (dataset / "dataset.toml").write_text(
         toml.replace('["T-0003"]', '["T-0003", "T-9999"]'), encoding="utf-8"
     )
     archive.main(_argv(sweep, dataset, data))

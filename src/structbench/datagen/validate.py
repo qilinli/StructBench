@@ -6,7 +6,7 @@
 1. Collects the run evidence of every case that ran (``collect_run_evidence``).
 2. Measures the canonical cases under ``--data-root`` (default
    ``<sweep>/canonical``, what ``convert.py`` writes) against the
-   ``[declaration]`` of ``<dataset-dir>/sweep.toml``. A case that ran but has
+   ``[declaration]`` of ``<dataset-dir>/dataset.toml``. A case that ran but has
    no canonical file -- an aborted run, or one that failed to convert -- is
    measured from its deck and run record alone, so it is reported, not lost.
 3. Judges the record and writes ``run_evidence.json``, ``measurements.json``
@@ -70,7 +70,7 @@ def validate_sweep(
     out.mkdir(parents=True, exist_ok=True)
     runs = collect_sweep(sweep, splits=splits)
     (out / "run_evidence.json").write_text(dump_run_evidence(runs), encoding="utf-8")
-    _, declared = declared_from_toml(dataset / "sweep.toml")
+    _, declared = declared_from_toml(dataset / "dataset.toml")
     stored = sorted(cid for cid in runs if (data_root / f"{cid}.h5").is_file())
     record = measure_cases(declared, None, data_root, stored, run_evidence=runs)
     extra = [
