@@ -9,7 +9,7 @@ pytest.importorskip("scipy")
 
 from structbench.datagen import cli  # noqa: E402
 
-STAGES = ["new", "check", "generate", "run", "export", "convert", "validate", "archive"]
+STAGES = ["new", "check", "generate", "run", "export", "convert", "verify", "archive"]
 
 
 @pytest.mark.parametrize("stage", STAGES)
@@ -18,6 +18,13 @@ def test_every_stage_answers_help(stage, capsys):
         cli.main([stage, "--help"])
     assert stop.value.code == 0
     assert stage in capsys.readouterr().out
+
+
+def test_the_old_stage_name_points_to_verify(capsys):
+    # ADR-0072: validate means comparison with experiment; the stage is verify
+    assert cli.main(["validate", "--help"]) == 2
+    err = capsys.readouterr().err
+    assert "verify" in err and "ADR-0072" in err
 
 
 def test_an_unknown_stage_is_refused(capsys):

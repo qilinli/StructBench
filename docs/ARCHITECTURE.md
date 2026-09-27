@@ -100,7 +100,7 @@ The `viz/` plotting core (`fringe.py`) depends on `core/` (reading canonical cas
 
 ### `datagen/`
 
-The data-generation pipeline, `structbench-datagen` (ADR-0071). Solver-agnostic stages (`sampling`, `generate`, `run`, `convert`, `validate`, `archive`, `definition`, `template`, `cli`) and per-solver subpackages (`abaqus`: `deck`, `odb_export`). It depends on `core` (readers, adapter, schema) and `verification` (through `validate`), and nothing depends on it. One exception stands today: `datagen/validate` takes the dataset-level helpers `declared_from_toml` and `measure_cases` from `cli/datacheck`, which imports `benchmarks` (and so `torch`); part two of ADR-0071 moves those helpers into `verification` and removes the edge. `odb_export.py` is package data as much as code: Python 3.10, no imports from `structbench`, handed to `abaqus python` by the CLI.
+The data-generation pipeline, `structbench-datagen` (ADR-0071). Solver-agnostic stages (`sampling`, `generate`, `run`, `convert`, `verify`, `archive`, `definition`, `template`, `cli`) and per-solver subpackages (`abaqus`: `deck`, `odb_export`). It depends on `core` (readers, adapter, schema) and `verification` (through `verify`, the stage that runs the ADR-0066 instrument; it was called `validate` until ADR-0072 gave that word to comparison with experiment), and nothing depends on it. One exception stands today: `datagen/verify` takes the dataset-level helpers `declared_from_toml` and `measure_cases` from `cli/datacheck`, which imports `benchmarks` (and so `torch`); part two of ADR-0071 moves those helpers into `verification` and removes the edge. `odb_export.py` is package data as much as code: Python 3.10, no imports from `structbench`, handed to `abaqus python` by the CLI.
 
 ### `cli/`
 

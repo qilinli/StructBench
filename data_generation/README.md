@@ -40,7 +40,7 @@ Abaqus data-generation pipeline lives in the package as `structbench.datagen`
 
 Nothing here any more: the Abaqus pipeline is `structbench.datagen` (ADR-0071),
 run as `structbench-datagen new | check | generate | run | export | convert |
-validate | archive`. Its conformance record is `docs/datagen/abaqus-conformance.md`,
+verify | archive`. Its conformance record is `docs/datagen/abaqus-conformance.md`,
 its guide `docs/DATA_GENERATION.md`, and the example definition ships in the
 package (`structbench/datagen/examples/abaqus_conformance`).
 

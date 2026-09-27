@@ -16,8 +16,8 @@ Start from the template and check it before anything runs:
     structbench-datagen new my_dataset
     structbench-datagen check my_dataset
 
-Then the stages, in order: `generate`, `run`, `export`, `convert`, `validate`,
-`archive`. The shipped example (`structbench/datagen/examples/abaqus_conformance`)
+Then the stages, in order: `generate`, `run`, `export`, `convert`, `verify`
+(the ADR-0066 instrument over the sweep), `archive`. The shipped example (`structbench/datagen/examples/abaqus_conformance`)
 is the single-rod conformance case described in `docs/datagen/abaqus-conformance.md`.
 The design is `docs/plans/2026-09-27-abaqus-datagen-platform-design.md`.
 

@@ -34,6 +34,31 @@ def test_architecture_names_datagen_in_the_layering():
     assert "datagen" in text.split("`cli/` depends on most other modules")[0]
 
 
+def test_no_living_document_or_code_still_says_datagen_validate():
+    # ADR-0072: the stage is verify. Historical plans under docs/plans keep
+    # their text; living docs, the snapshot, the example and the code may not.
+    import re
+
+    files = [
+        *ROOT.glob("docs/*.md"),
+        *ROOT.glob("docs/datagen/*.md"),
+        ROOT / "CLAUDE.md",
+        ROOT / "data_generation" / "README.md",
+        *ROOT.glob("src/structbench/datagen/**/*.py"),
+        *ROOT.glob("src/structbench/datagen/**/*.md"),
+    ]
+    stale = re.compile(
+        r"structbench-datagen (\|\s*)?validate\b|datagen[./]validate\b"
+        r"|\bvalidate \| archive"
+    )
+    hits = [
+        str(p.relative_to(ROOT))
+        for p in files
+        if stale.search(p.read_text(encoding="utf-8", errors="replace"))
+    ]
+    assert hits == [], hits
+
+
 def test_the_guide_stub_exists():
     text = (ROOT / "docs" / "DATA_GENERATION.md").read_text(encoding="utf-8")
     assert "structbench-datagen" in text and "dataset.toml" in text

@@ -122,7 +122,7 @@ environment (disk, solver missing).
 | `follow` | export and convert finished cases while a run proceeds | new (today a scratch loop) |
 | `export` | ODB to `abaqus-npz/1` under Abaqus's Python | unchanged; ships inside the package as a data file the CLI locates and hands to `abaqus python` |
 | `convert` | npz to canonical cases | unchanged |
-| `validate` | the ADR-0066 instrument over the sweep | unchanged |
+| `verify` | the ADR-0066 instrument over the sweep | renamed from `validate` (ADR-0072, 2026-09-27) |
 | `converge` | mesh-level comparison of QoIs and fields | new, generic |
 | `archive` | copy to the data tree, retain ODBs, redact | unchanged |
 | `card` | render the generated sections of `DATA_CARD.md` | new |
@@ -175,7 +175,7 @@ to `preflight/report.md`; the stage fails at the first failing step.
 6. **Budget.** Median and maximum wall time per level from the pilots; the
    production sweep's core-hours and disk (ODB, npz, h5, side files) estimated
    from them; free space compared with the estimate plus `min_free_gb`.
-7. **Verification.** `validate` over the pilots: no `fail` except rows named
+7. **Verification.** `verify` over the pilots: no `fail` except rows named
    in `[pilot].accepted_gaps`, each of which the report lists with the
    dataset's stated reason.
 
