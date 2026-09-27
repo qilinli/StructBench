@@ -8,6 +8,24 @@ pytest.importorskip("scipy")
 from structbench.datagen import template  # noqa: E402
 
 
+def test_the_example_declares_its_probes_and_the_documented_defaults():
+    """The scaffold is the example: what a new dataset starts from must be the
+    documented contract (plan 2b)."""
+    from structbench.datagen import definition
+
+    defn = definition.load_definition(template.EXAMPLE_DIR)
+    p = defn.pilot
+    assert p.contact_force_global == "reaction_force_2_reference_node"
+    assert (p.increment_key, p.increment_factors) == ("dt_scale", (0.5,))
+    assert (p.frame_key, p.frame_count_key, p.frame_factor) == (
+        "frame_interval",
+        "n_intervals",
+        0.5,
+    )
+    assert (p.frame_tolerance, p.settling_margin) == (0.05, 0.25)
+    assert defn.qoi.tolerance == (0.01, 0.01)
+
+
 def test_scaffold_writes_the_four_files_and_renames_the_dataset(tmp_path):
     written = template.scaffold(tmp_path / "my_set", "my_set")
     names = sorted(p.name for p in written)

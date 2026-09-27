@@ -46,12 +46,9 @@ def _dataset(tmp_path: Path) -> Path:
         .replace('production = "1"', 'production = "2"')
         .replace('fine_cases = ["ACX-pilot-0001"]', 'fine_cases = ["ACX-pilot-0000"]')
         .replace("min_free_gb = 20.0", "min_free_gb = 0.5")
-        .replace(
-            'accepted_gaps = ["solver_identity_complete"]',
-            'accepted_gaps = ["solver_identity_complete"]\n'
-            'contact_force_global = "reaction_force_2_reference_node"',
-        )
     )
+    # the example itself names contact_force_global and the probe defaults
+    assert 'contact_force_global = "reaction_force_2_reference_node"' in toml
     (ds / "dataset.toml").write_bytes(toml.encode("utf-8"))
     _git(ds, "e2e")
     return ds
