@@ -26,8 +26,8 @@ import json
 import statistics
 import sys
 from collections import Counter
-from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from collections.abc import Collection, Sequence
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -84,9 +84,20 @@ def level_order(defn: Definition, labels: set[str]) -> list[str]:
 
 
 def pair_levels(
-    defn: Definition, roots: Sequence[Path]
+    defn: Definition,
+    roots: Sequence[Path],
+    *,
+    anchor: str | None = None,
+    cases: Collection[str] | None = None,
 ) -> tuple[dict[str, dict[str, LevelRun]], list[str]]:
-    """Production case id -> level label -> the run that stands for it, plus notes."""
+    """Production case id -> level label -> the run that stands for it, plus notes.
+
+    ``anchor`` names a probe split whose run at the production level stands
+    for production in a group that has no production run (the preflight's
+    pilots; a true production run still wins). ``cases`` keeps only the listed
+    case ids. Groups with runs but no production run and no anchor are
+    counted in one note, never compared silently.
+    """
     probe = {s.name: s.probe for s in defn.splits}
     key_of = defn.levels.refine_key
     candidates: dict[str, list[LevelRun]] = {}
@@ -98,6 +109,8 @@ def pair_levels(
         for prov_path in found:
             prov = json.loads(prov_path.read_text(encoding="utf-8"))
             case_id = str(prov.get("case_id", prov_path.parent.name))
+            if cases is not None and case_id not in cases:
+                continue
             split = str(prov.get("split", ""))
             if split not in probe:
                 unknown_splits.add(split)
@@ -129,11 +142,26 @@ def pair_levels(
     for split in sorted(unknown_splits):
         notes.append(f"split {split!r} is not in the definition; its runs were skipped")
     paired: dict[str, dict[str, LevelRun]] = {}
+    skipped = 0
     for runs in candidates.values():
         production = sorted(
             (r for r in runs if r.production), key=lambda r: (r.root_index, r.case_id)
         )
+        if not production and anchor is not None:
+            stand_ins = sorted(
+                (
+                    r
+                    for r in runs
+                    if r.split == anchor and r.level == defn.levels.production
+                ),
+                key=lambda r: (r.root_index, r.case_id),
+            )
+            if stand_ins:
+                anchored = replace(stand_ins[0], production=True)
+                runs = [anchored if r is stand_ins[0] else r for r in runs]
+                production = [anchored]
         if not production:
+            skipped += 1
             continue
         case_id = production[0].case_id
         by_level: dict[str, LevelRun] = {}
@@ -156,6 +184,12 @@ def pair_levels(
             by_level[level] = same[0]
         if len(by_level) >= 2:
             paired[case_id] = by_level
+    if skipped:
+        notes.append(
+            f"{skipped} group{'s' if skipped != 1 else ''} of runs from probe splits "
+            "only, with no production run; name a probe split with --anchor to "
+            "compare them"
+        )
     return dict(sorted(paired.items())), notes
 
 
@@ -293,25 +327,30 @@ def _one_case(
 
 
 def converge(
-    defn: Definition, problem: ModuleType, roots: Sequence[Path]
+    defn: Definition,
+    problem: ModuleType,
+    roots: Sequence[Path],
+    *,
+    anchor: str | None = None,
+    cases: Collection[str] | None = None,
 ) -> dict[str, Any]:
     """The record of every production case that has runs at two or more levels."""
-    paired, notes = pair_levels(defn, roots)
-    cases = [
+    paired, notes = pair_levels(defn, roots, anchor=anchor, cases=cases)
+    entries = [
         _one_case(defn, problem, case_id, by_level)
         for case_id, by_level in paired.items()
     ]
-    level_counts = Counter(label for c in cases for label in c["levels"])
+    level_counts = Counter(label for c in entries for label in c["levels"])
     order = level_order(defn, set(level_counts))
     summary: dict[str, Any] = {"qoi": {}, "fields": {}}
     for name in defn.qoi.names:
         statuses = Counter(
             c["extrapolation"][name]["status"]
-            for c in cases
+            for c in entries
             if c["extrapolation"].get(name)
         )
         at_production = []
-        for c in cases:
+        for c in entries:
             x = c["extrapolation"].get(name)
             errors = (x or {}).get("error_vs_extrapolated") or {}
             if c["production_level"] in errors:
@@ -320,13 +359,13 @@ def converge(
             "statuses": dict(sorted(statuses.items())),
             "error_at_production_level": _spread(at_production),
         }
-    fields = sorted({f for c in cases for f in c["fields"]})
+    fields = sorted({f for c in entries for f in c["fields"]})
     for field in fields:
         summary["fields"][field] = {}
         for label in order:
             values = [
                 c["fields"][field][label]
-                for c in cases
+                for c in entries
                 if label in c["fields"].get(field, {})
             ]
             if values:
@@ -337,9 +376,10 @@ def converge(
         "refine_key": defn.levels.refine_key,
         "symmetry": defn.levels.symmetry,
         "production_level": defn.levels.production,
+        "anchor": anchor,
         "level_order": order,
         "levels": {label: level_counts[label] for label in order},
-        "cases": cases,
+        "cases": entries,
         "summary": summary,
         "notes": notes,
         "structbench_version": __version__,
@@ -375,6 +415,12 @@ def render_markdown(record: dict[str, Any]) -> str:
         + ", ".join(f"{lv} ({record['levels'][lv]} cases)" for lv in levels)
         + ".*"
     )
+    if record.get("anchor"):
+        out += [
+            "",
+            f"Anchor split `{record['anchor']}`: its run at the production level "
+            "stands for production in groups that have no production run.",
+        ]
     cases = record["cases"]
     qoi_names = sorted({name for c in cases for name in c["qoi"]})
     for name in qoi_names:
@@ -456,6 +502,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sweep", type=Path, required=True)
     parser.add_argument("--root", type=Path, action="append", default=[])
     parser.add_argument("--out", type=Path, help="default: <sweep>/converge")
+    parser.add_argument(
+        "--anchor",
+        help="a probe split whose production-level run anchors probe-only groups",
+    )
+    parser.add_argument("--cases", nargs="+", help="only these case ids")
     args = parser.parse_args(argv)
     try:
         defn = load_definition(args.dataset)
@@ -463,12 +514,24 @@ def main(argv: list[str] | None = None) -> int:
     except DefinitionError as exc:
         print(exc, file=sys.stderr)
         return 2
+    if args.anchor is not None and args.anchor not in {s.name for s in defn.splits}:
+        print(
+            f"--anchor {args.anchor!r}: no such split in the definition",
+            file=sys.stderr,
+        )
+        return 2
     roots = [args.sweep, *args.root]
     for root in roots:
         if not root.is_dir():
             print(f"{root} is not a directory", file=sys.stderr)
             return 2
-    record = converge(defn, problem, roots)
+    record = converge(
+        defn,
+        problem,
+        roots,
+        anchor=args.anchor,
+        cases=set(args.cases) if args.cases else None,
+    )
     out = args.out or args.sweep / "converge"
     out.mkdir(parents=True, exist_ok=True)
     (out / "convergence.json").write_bytes(to_json(record))
