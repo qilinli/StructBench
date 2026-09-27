@@ -42,7 +42,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-structbench = ["py.typed"]
+structbench = ["py.typed", "datagen/examples/abaqus_conformance/*"]
 
 [tool.ruff]
 line-length = 88
