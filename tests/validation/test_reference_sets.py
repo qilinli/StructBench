@@ -65,3 +65,12 @@ def test_an_unknown_set_and_a_wrong_format_are_refused(tmp_path):
     bad.write_bytes(b'{"format": "something/9", "name": "bad"}')
     with pytest.raises(reference.ReferenceError, match="something/9"):
         reference.load_reference_file(bad)
+
+
+def test_architecture_names_the_validation_layer():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
+    assert "### `validation/`" in text and "structbench-validate" in text
+    assert "{verification, validation}" in text

@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from conftest import rod_case, two_body_case
+from rods import rod_case, two_body_case
 
 from structbench.core.io import write_case
 from structbench.validation import compare, reference

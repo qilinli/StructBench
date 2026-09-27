@@ -86,6 +86,12 @@ What varies has one home each: solver vocabulary stays in `core/io/`; material-c
 
 `verification/` depends on `core/` and `datasets/` only, and sits below `eval/` and `benchmarks/` so both can import its result types and kernels without a cycle. It is distinct from `core/validation.py`, which checks that a case is a *valid schema instance*; this module asks whether the run behind it is *trustworthy*. The entry point is `python -m structbench.cli.datacheck measure|judge`.
 
+### `validation/`
+
+Validation against experiments (ADR-0072): whether a benchmark's reference *setup* reproduces what was measured in a physical test — the other half of ADR-0065's V&V identity, kept apart from `verification/`, which asks whether a run is internally sound. It holds reference-experiment sets as package data (`references/`: sources with DOIs and whether each was consulted directly, the licence the curves travel under, the extraction tool and its checks, the tests' conditions and measured outlines, caveats); measure families that apply the same function to a measured outline and to a canonical case's deformed boundary (`measures/taylor.py`: final length, largest radius, lateral radii at the source's fractions); `compare`, which takes pairs of (test, canonical case) per variant and reports each deviation and their spread, naming `aborted`, `missing` and `unmeasurable` pairs rather than skipping them; and `report`, a byte-stable `validation-record/1` JSON with a Markdown rendering. The command is `structbench-validate`. It reports and never judges: no acceptance level is ratified, for the reason ADR-0066 gives for reference levels. A dataset's record stays with the dataset until admission.
+
+`validation/` depends on `core/` only (a test holds that boundary, like `verification/`'s), so a surrogate's predicted case goes through the same comparison as a reference case.
+
 ### `eval/`
 
 Metrics and evaluation protocols. Each benchmark declares its own evaluation metrics; this module implements them in a model-agnostic way. A leaderboard submission validator and cross-benchmark evaluation utilities are planned here (see the Roadmap section of README.md) but do not exist yet.
@@ -106,7 +112,7 @@ The data-generation pipeline, `structbench-datagen` (ADR-0071). Solver-agnostic 
 
 Command-line entry points. Thin wrappers around functionality in the other modules. The CLI exposes `structbench-train` with `train`/`valid`/`rollout` modes — training a baseline on a benchmark and evaluating it on the benchmark's splits. (Dataset/model listing operations are part of the intended scope but are not yet implemented.)
 
-`cli/` depends on most other modules but is depended on by none. It is the outermost layer. `datagen/` sits beside `eval/` and `benchmarks/`, above `verification/`; `cli/` and `datagen/cli` are both entry-point layers. (`viz/` additionally carries its own `__main__` so `python -m structbench.viz` can regenerate a run's standard figures without a console-script entry.)
+`cli/` depends on most other modules but is depended on by none. It is the outermost layer. `datagen/` sits beside `eval/` and `benchmarks/`, above `verification/` and `validation/` — the layering reads `core ← datasets ← {verification, validation} ← {eval, benchmarks, datagen} ← cli`; `cli/` and `datagen/cli` are both entry-point layers. (`viz/` additionally carries its own `__main__` so `python -m structbench.viz` can regenerate a run's standard figures without a console-script entry.)
 
 ### `config.py`
 
@@ -174,6 +180,7 @@ StructBench treats the FEM solver as an external data source rather than as a pa
 Solver-related code is split across two locations:
 
 - **`datagen/`** inside the package holds the data-generation pipeline (ADR-0069, ADR-0071): sampling, deck generation with provenance, the job runner, conversion, verification, archive, the dataset-definition contract with its scaffold and check, and per-solver subpackages (`datagen/abaqus/`: the deck writers and the ODB exporter, which runs under the solver's own Python). A dataset is a definition (`dataset.toml`, `problem.py`) that the pipeline consumes; definitions may live outside the repository. The package still depends on no solver: `datagen` shells out to one.
+- **`validation/`** holds validation against experiments (ADR-0072): reference-experiment sets with provenance, the shared measures, the comparison and its record, behind `structbench-validate`. Depends on `core/` only.
 - **`data_generation/`** at repo root keeps only glue that is not importable: the LS-DYNA per-dataset collectors and converters that predate `datagen`.
 - **`core/io/`** inside the package holds the readers and writers for the canonical HDF5 format, and (when needed) adapters that convert raw solver outputs into the canonical format. These adapters are the bridge: they let data produced by any solver be consumed by the rest of the package uniformly.
 

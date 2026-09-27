@@ -21,6 +21,14 @@ Then the stages, in order: `generate`, `run`, `export`, `convert`, `verify`
 is the single-rod conformance case described in `docs/datagen/abaqus-conformance.md`.
 The design is `docs/plans/2026-09-27-abaqus-datagen-platform-design.md`.
 
+`verify` asks whether each run is internally sound (the ADR-0066 instrument).
+Whether the *setup* reproduces a physical experiment is a different question,
+answered by `structbench-validate` (ADR-0072): it measures canonical cases and
+a shipped reference-experiment set with the same functions and writes a record
+of the deviations — no threshold, no verdict. `structbench-validate --list`
+names the sets; `src/structbench/validation/references/taylor_copper.md` is
+the first one's provenance.
+
 ## What the preparation stage establishes
 
 Before a production sweep, the preflight (part two of ADR-0071) probes the

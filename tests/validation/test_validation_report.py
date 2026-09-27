@@ -1,6 +1,6 @@
 """The record: byte-stable JSON, Markdown regenerated from it."""
 
-from conftest import rod_case
+from rods import rod_case
 from test_validation_compare import toy_reference
 
 from structbench.core.io import write_case

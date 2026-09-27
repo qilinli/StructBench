@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from conftest import rod_case, two_body_case
+from rods import rod_case, two_body_case
 
 from structbench.validation.measures import taylor
 
