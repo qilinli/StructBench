@@ -36,6 +36,7 @@ class Split:
     categorical: dict[str, tuple[str, ...]] = field(default_factory=dict)
     variants: tuple[str, ...] = ()
     points: tuple[dict[str, float], ...] = ()
+    probe: bool = False  # a pilot or probe split: the preflight gate does not guard it
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ def parse_splits(sweep: Mapping[str, Any]) -> list[Split]:
                 },
                 variants=tuple(raw.get("variants", ())),
                 points=points,
+                probe=bool(raw.get("probe", False)),
             )
         )
     return splits

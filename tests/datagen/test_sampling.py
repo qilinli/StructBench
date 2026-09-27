@@ -96,3 +96,9 @@ def test_region_naming_unknown_variable_raises():
 def test_bounds_must_be_increasing():
     with pytest.raises(ValueError, match="low < high"):
         sampling.parse_bounds({"a": [1.0, 1.0]}, "variables")
+
+
+def test_a_split_may_be_marked_as_a_probe():
+    raw = {"p": {"points": [{"a": 1.0}], "probe": True}, "s": {"n": 2, "seed": 3}}
+    splits = sampling.parse_splits({"splits": raw})
+    assert [s.probe for s in splits] == [True, False]
