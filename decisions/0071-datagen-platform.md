@@ -34,9 +34,12 @@ design is `docs/plans/2026-09-27-abaqus-datagen-platform-design.md`.
    nothing under `data_generation/` is importable is amended: that directory
    keeps only non-importable glue, and the layering gains `datagen` beside
    `eval` and `benchmarks`.
-2. **A dataset is a definition with a stated contract**: `sweep.toml` with the
-   tables the design lists (adding `[levels]`, `[pilot]`, `[qoi]`, `[limits]`
-   to today's) and `model.py` with `build`, `feasible`, `mesh` and `qoi`.
+2. **A dataset is a definition with a stated contract**: `dataset.toml` with
+   the tables the design lists (today's `sweep.toml` plus `[levels]`,
+   `[pilot]`, `[qoi]`, `[limits]`) and `problem.py` (today's `model.py`) with
+   `input_deck`, `feasible`, `mesh` and `qoi`. The files are named for what a
+   user opens them for: what the dataset is, and how one case is built and
+   read.
    `structbench-datagen new` scaffolds it with every field explained;
    `structbench-datagen check` validates it without a solver. Every solver
    keyword goes through the writer library; a dataset never edits deck text.

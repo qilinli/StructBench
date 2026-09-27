@@ -33,8 +33,8 @@ hard way have been checked.
 ## Principles
 
 1. **A dataset is a definition, not code that owns the pipeline.** Everything
-   generic lives in StructBench; the dataset supplies a `sweep.toml` and a
-   `model.py` that satisfy a stated contract, plus the prose only its author
+   generic lives in StructBench; the dataset supplies a `dataset.toml` and a
+   `problem.py` that satisfy a stated contract, plus the prose only its author
    can write.
 2. **Every solver keyword goes through the writer library.** No dataset edits
    deck text by string replacement (two options of dataset A were set that
@@ -55,7 +55,7 @@ fills in. Every field carries a comment saying what it means, whether it is
 required, and an example. `structbench-datagen check <dir>` validates it
 against the contract before anything runs.
 
-### `sweep.toml`
+### `dataset.toml` (what the dataset is)
 
 | Table | Fields | Required | Meaning |
 |---|---|---|---|
@@ -76,18 +76,18 @@ may add categoricals for solver options only if a writer takes them
 (`contact`, `dt_scale` become `contact_pair(mechanical_constraint=)` and
 `explicit_step(scale_factor=)`).
 
-### `model.py`
+### `problem.py` (how one case is built and read)
 
 ```python
-def build(params: dict, variant: str | None) -> str      # required
+def input_deck(params: dict, variant: str | None) -> str # required
 def feasible(params: dict) -> bool                       # optional, default True
 def mesh(params: dict) -> deck.QuadMesh                  # required for preflight
 def qoi(case: structbench.core.Case) -> dict[str, float] # required for converge and card
 ```
 
-`build` writes the deck through `structbench.datagen.abaqus.deck` only and
+`input_deck` writes the deck through `structbench.datagen.abaqus.deck` only and
 must be a pure function of its arguments (byte-identical output for identical
-input). `mesh` returns the mesh `build` uses, so that `preflight` and
+input). `mesh` returns the mesh `input_deck` uses, so that `preflight` and
 `converge` can verify that level *k* nests level 1. `qoi` reads only a
 canonical `Case`, so the same function scores a surrogate's prediction.
 
@@ -97,12 +97,12 @@ Required tables and fields present and typed; the unit label known; every
 split well-formed (a sampled split has a seed, an explicit one has points that
 cover the box); `[levels].production` among the pilot levels; `[pilot].split`
 exists and is a `probe`; `[qoi].names` equal the keys `qoi()` returns on a
-synthetic case; `build` is byte-stable; `mesh` nests across the pilot levels;
+synthetic case; `input_deck` is byte-stable; `mesh` nests across the pilot levels;
 the declaration's field names are canonical names. It runs no solver.
 
 ### The scaffold also writes
 
-`README.md` with the stage sequence and the exact commands; `CARD.md` with the
+`README.md` with the stage sequence and the exact commands; `DATA_CARD.md` with the
 sections the generator fills marked as such and the author's sections left as
 placeholders; a `pilot` split of three explicit points to be replaced.
 
@@ -125,12 +125,12 @@ environment (disk, solver missing).
 | `validate` | the ADR-0066 instrument over the sweep | unchanged |
 | `converge` | mesh-level comparison of QoIs and fields | new, generic |
 | `archive` | copy to the data tree, retain ODBs, redact | unchanged |
-| `card` | render the generated sections of `CARD.md` | new |
+| `card` | render the generated sections of `DATA_CARD.md` | new |
 
 ### `preflight`
 
 Runs on `[pilot].split`, in order; each step writes a verdict and its numbers
-to `preflight.md`; the stage fails at the first failing step.
+to `preflight/report.md`; the stage fails at the first failing step.
 
 1. **Conformance.** One pilot at the production level with the solver's
    complete energy output requested (`*ENERGY OUTPUT, VARIABLE=ALL`): the
@@ -151,7 +151,7 @@ to `preflight.md`; the stage fails at the first failing step.
 5. **Energy account.** On every pilot at every level: `plastic_dissipation_excess_max`
    passes, and `energy_gain_max` is below its reference level (below). A
    change to any solver setting re-arms the whole preflight because the stamp
-   covers `model.py`.
+   covers `problem.py`.
 6. **Budget.** Median and maximum wall time per level from the pilots; the
    production sweep's core-hours and disk (ODB, npz, h5, side files) estimated
    from them; free space compared with the estimate plus `min_free_gb`.
@@ -159,8 +159,8 @@ to `preflight.md`; the stage fails at the first failing step.
    in `[pilot].accepted_gaps`, each of which the report lists with the
    dataset's stated reason.
 
-The stamp (`.preflight.json`) records the sha256 of `sweep.toml` and
-`model.py`, the StructBench commit, the date, and the per-step verdicts.
+The stamp (`preflight/stamp.json`) records the sha256 of `dataset.toml` and
+`problem.py`, the StructBench commit, the date, and the per-step verdicts.
 `generate` compares the hashes: a production split is generated only against
 a passing stamp for the current definition.
 
@@ -254,8 +254,9 @@ carries none of any private dataset's box, splits or constants.
 
 ## Migration of dataset A (no re-run)
 
-Its `sweep.toml` gains `[levels]`, `[pilot]`, `[qoi]` and `[limits]`; its
-`model.py` renames `rod_mesh` to `mesh`, gains `qoi` from the private
+Its `sweep.toml` becomes `dataset.toml` and gains `[levels]`, `[pilot]`,
+`[qoi]` and `[limits]`; its `model.py` becomes `problem.py`, renames `build`
+to `input_deck` and `rod_mesh` to `mesh`, gains `qoi` from the private
 `qoi.py`, and replaces its two string edits with writer arguments. The 500
 production decks and the 20 convergence decks must rebuild byte for byte
 against the sha256 in their provenance; that regression is the acceptance
