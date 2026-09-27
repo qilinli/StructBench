@@ -1,16 +1,10 @@
 # data_generation/
 
-Solver-specific scripts that turn raw FEM-solver output into canonical
-StructBench cases. **Not importable** as part of `structbench` (ADR-0010): these
-are standalone scripts, run with the project environment, that import the
-installed `structbench` package.
-
-Layout is `<solver>/<dataset>/`. Each per-dataset folder holds thin *glue*
-(ADR-0016 §6): it knows where that dataset's files live, its source unit
-convention, its dimensionality, and its case-id naming — and delegates **all**
-extraction to `structbench.core.io`. Glue must not manipulate response data;
-doing so would bypass the canonical extraction and reintroduce the ad-hoc
-per-paper post-processing the substrate layer exists to end (ADR-0014, ADR-0016).
+Solver-specific **glue that is not importable**: per-dataset collectors and
+converters for LS-DYNA archives that predate the package's pipeline. The
+Abaqus data-generation pipeline lives in the package as `structbench.datagen`
+(`structbench-datagen`, ADR-0071); its conformance record is
+`docs/datagen/abaqus-conformance.md` and its guide `docs/DATA_GENERATION.md`.
 
 ## LS-DYNA
 
@@ -44,37 +38,11 @@ per-paper post-processing the substrate layer exists to end (ADR-0014, ADR-0016)
 
 ## Abaqus
 
-- `abaqus/STANDARD_INPUT_BLOCK.md` — what an Abaqus job must switch on and keep
-  so a run supplies the run evidence E1–E10 of ADR-0066. **Partial by design**:
-  its LS-DYNA sibling cites a sourced claim id for every setting, while this one
-  states only what was established by reading a real job's own output and lists
-  the rest as open points, because the Keywords Reference has not been read
-  (ADR-0068 clause 8). Nothing in it is recommended on recall.
-- **Shared scripts, dataset-blind** (ADR-0069): `sampling.py` (Sobol splits),
-  `deck.py` (keyword writers), `generate.py` (sweep -> case folders +
-  provenance), `run_jobs.py` (runs decks, `run.json` + `run_log.csv`),
-  `odb_export.py` (runs under `abaqus python`; `.odb` -> `abaqus-npz/1`). A
-  dataset is a `sweep.toml` plus a `model.py`, passed with `--dataset <dir>`
-  (`model.py` defines `build(params, variant)`, and may define
-  `feasible(params)`: a limit of the solver setup, declared before production,
-  that sampled points must meet; listed points bypass it);
-  it may live in a private repository until admission, then moves to
-  `abaqus/<name>/`. State lives in each case folder, so every stage can be
-  re-run. Runs execute in a local work root outside OneDrive.
-
-Abaqus is the platform's second solver (ADR-0068). Two properties of the path
-differ from LS-DYNA's and shape everything under this folder:
-
-- **An `.odb` is readable only through Abaqus's own interpreter** (Python
-  3.10.5), whereas `lasso-python` reads a d3plot with no LS-DYNA installed. The
-  package requires Python >= 3.12, so extraction is necessarily a second
-  process: an Abaqus-side exporter writes a neutral intermediate and the package
-  reads only that. `odbAccess` must stay unreachable from `import structbench`,
-  or ADR-0004's promise that a consumer needs no solver is broken.
-- **Abaqus names its parts and materials where LS-DYNA numbers them.** Integer
-  ids are therefore minted by `structbench.core.io.abaqus_run.mint_ids`, which
-  is the single authority: conversion glue maps stored entities onto those ids
-  **by name** with the same function, and the exporter emits names, never ids.
+Nothing here any more: the Abaqus pipeline is `structbench.datagen` (ADR-0071),
+run as `structbench-datagen new | check | generate | run | export | convert |
+validate | archive`. Its conformance record is `docs/datagen/abaqus-conformance.md`,
+its guide `docs/DATA_GENERATION.md`, and the example definition ships in the
+package (`structbench/datagen/examples/abaqus_conformance`).
 
 ## MeshGraphNets
 

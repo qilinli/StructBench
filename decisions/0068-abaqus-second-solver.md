@@ -95,7 +95,7 @@ positive claim, used to fail a contributor.
    nothing the `.h5` does not already give them.
 
 7. **The Abaqus deck requirement is written before any Abaqus data is
-   generated.** `data_generation/abaqus/STANDARD_INPUT_BLOCK.md` states what
+   generated.** `docs/datagen/abaqus-conformance.md` (moved 2026-09-27; was `data_generation/abaqus/STANDARD_INPUT_BLOCK.md`) states what
    a job must request for a run to supply E1–E10. It states only what a real
    job's own output established and lists the rest as open points, because
    the Keywords Reference has not been read — see clause 8. Every current benchmark is retrofitted, and notch

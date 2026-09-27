@@ -3,7 +3,7 @@
 Every writer returns text ending in a newline. Numbers are written with
 ``repr(float)``, the shortest string that round-trips, so a deck is
 byte-identical for identical parameters. Each keyword is a hypothesis until the
-conformance run confirms it (``STANDARD_INPUT_BLOCK.md``, ADR-0068 clause 8).
+conformance run confirms it (``docs/datagen/abaqus-conformance.md``, ADR-0068 clause 8).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from numpy.typing import ArrayLike, NDArray
 #: Whole-model energy terms requested on the history clock (the E5 ledger).
 #: ALLPW (contact penalty work) is non-zero even with kinematic contact against
 #: an analytical rigid surface, and ETOTAL closes only with it
-#: (STANDARD_INPUT_BLOCK.md, "The energy identity").
+#: (docs/datagen/abaqus-conformance.md, "The energy identity").
 ENERGY_TERMS = (
     "ALLAE",
     "ALLCD",
