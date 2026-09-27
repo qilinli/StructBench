@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from structbench.core import Case, ElementBlock, Metadata, Nodes, Response
+from structbench.core import Case, ElementBlock, Material, Metadata, Nodes, Response
 
 pytest.importorskip("h5py")
 
@@ -32,7 +32,7 @@ def _case(coords, conn, u):
                 part_id=np.ones(e, np.int64),
             )
         },
-        materials=[],
+        materials=[Material(material_id=1, source_model="toy", source_params={})],
         response=Response(
             time=np.linspace(0.0, 1.0, len(u)),
             node={"displacement": u.astype(np.float32)},
