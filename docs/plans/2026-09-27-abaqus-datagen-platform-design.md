@@ -141,13 +141,33 @@ to `preflight/report.md`; the stage fails at the first failing step.
    key is set outside the writers.
 3. **Feasibility.** Every pilot completes at the production level; the limit
    `feasible()` applies is printed with the pilots' values of it.
-4. **Mesh.** Every pilot runs at each `[levels].pilot` level except the finest,
-   and `[pilot].fine_cases` at the finest; `converge` reports the QoIs'
-   observed order and extrapolated error and the fields' pooled relative L2
-   against the finest level. The step passes when the production level's QoIs
-   are within the dataset's stated target of the extrapolated value; the
-   field numbers are reported for the maintainer to weigh and go into the
-   card.
+4. **Resolution — space, time, duration.** Three probes, each a measured
+   number the card declares (ADR-0071 note 2026-09-27):
+   - *Space.* Every pilot runs at each `[levels].pilot` level except the
+     finest, and `[pilot].fine_cases` at the finest; `converge` reports the
+     QoIs' observed order and extrapolated error and the fields' pooled
+     relative L2 against the finest level. Passes when the production level's
+     QoIs are within the dataset's stated target of the extrapolated value;
+     the field numbers are reported for the maintainer to weigh and go into
+     the card.
+   - *Time.* (a) The solver increment: the pilots at the production level run
+     again at a second stable-increment scale (proposed `[pilot].increment_scales`,
+     default `[1.0, 0.5]`), and step 5's energy account must pass at both; a
+     QoI that depends on the scale beyond its stated tolerance fails the step.
+     (b) The frame interval: one pilot is exported at half the stored frame
+     interval (proposed `[pilot].frame_probe`), and the stored fields, globals
+     and QoIs at the common instants must agree to a stated tolerance; the
+     fastest feature of the response (the shortest rise time among the
+     globals) is reported in frames.
+   - *Duration.* On every pilot the settling time is measured — the last frame
+     at which any QoI changes by more than its stated tolerance, and, where the
+     problem names a contact-force global, the frame it drops below 10⁻³ of
+     its peak — and the share of the horizon after settling is reported.
+     Passes when the slowest pilot settles within the horizon with the stated
+     margin; the card declares the stored horizon, the settling range and the
+     scored horizon (fixed, or per case from the named global). A tail kept
+     beyond settling is the bed for post-settling property tests, not for
+     accuracy scoring.
 5. **Energy account.** On every pilot at every level: `plastic_dissipation_excess_max`
    passes, and `energy_gain_max` is below its reference level (below). A
    change to any solver setting re-arms the whole preflight because the stamp
@@ -289,3 +309,10 @@ cluster submission; any change to dataset A's data.
   test does.
 - The finest pilot level's cost for slow datasets (B's runs are minutes to an
   hour each); `[pilot].fine_cases` exists so that only a few pay it.
+- The `[pilot]` fields for the time and duration probes (`increment_scales`,
+  `frame_probe`, the QoI settling tolerance, the name of the contact-force
+  global, the horizon margin) are proposed in step 4 and not yet in
+  `load_definition`; part two settles their names and defaults. Whether the
+  scored horizon is a card field per benchmark (ADR-0039) or per case is an
+  admission question the card format must answer before the first Abaqus
+  dataset is admitted.

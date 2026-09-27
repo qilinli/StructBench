@@ -104,3 +104,35 @@ design is `docs/plans/2026-09-27-abaqus-datagen-platform-design.md`.
   separate ADRs against a stable pipeline rather than changes to it.
 - ADR-0069 remains the record of the stage designs; this ADR changes their
   home, their entry point, and adds the gate, the engine and the template.
+
+## Note 2026-09-27 — the preflight examines three resolutions, not one
+
+Clause 3 names the mesh levels. The maintainer's instruction of 2026-09-27
+widens the preparation stage to the three resolutions a stored trajectory has;
+each is probed on the pilots, measured, and declared in the data card before
+production:
+
+- **Space** — the mesh levels of `[levels]`, as clause 3 says: QoI
+  extrapolation and field metrics across nested levels, the production level
+  chosen against them.
+- **Time** — two settings. The solver's increment: the energy account is
+  checked at more than one stable-increment scale, because a contact
+  enforcement that creates energy at the full increment and not at half of it
+  is a resolution defect the pilots can show (dataset A found it after
+  production). The output sampling: one pilot is exported at a finer frame
+  interval and the stored fields, globals and QoIs are compared at the common
+  instants, so the frame interval is a measured choice rather than an inherited
+  one.
+- **Duration** — the stored horizon against the response's settling: on every
+  pilot the preflight measures when the quantities of interest stop changing
+  (and, where the problem has one, when contact ends), reports the share of the
+  horizon that lies after it, and requires the slowest pilot to settle inside
+  the horizon with margin. The card declares the horizon and the scored
+  horizon (fixed, or per case from a stored global); a tail kept beyond
+  settling is for property tests, not accuracy. Dataset A's horizon was
+  inherited from an early probe, and most of its trajectory turned out to be
+  elastic ringing after the rod had left the wall.
+
+The mechanism — which `[pilot]` fields name the increment scales, the
+frame-interval probe and the settling rule — is part two's to design; the
+design document's `preflight` step 4 carries the sketch and its open points.
