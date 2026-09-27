@@ -96,3 +96,21 @@ def test_signed_distance_uses_as_many_components_as_the_positions_have() -> None
     positions = np.array([[[0.5, 9.0], [-0.25, 9.0]]])  # (T=1, P=2, dim=2)
     got = signed_distance_to_plane(positions, (0.0, 0.0, 0.0), (1.0, 0.0, 0.0))
     np.testing.assert_allclose(got, [[0.5, -0.25]])
+
+
+def test_relative_l2_pooled_pools_frames_points_and_components():
+    # the headline metric (ADR-0055) lives here: (3, 4, 0) against (0, 0, 12) -> 5/13
+    from structbench.verification.kernels import relative_l2_pooled
+
+    gt = np.zeros((2, 3, 2))
+    gt[1, 2, 1], gt[0, 2, 0] = 12.0, 5.0  # |gt| = 13
+    pred = gt.copy()
+    pred[0, 0, 0], pred[0, 1, 1] = 3.0, 4.0
+    assert relative_l2_pooled(pred, gt) == pytest.approx(5.0 / 13.0)
+
+
+def test_eval_metrics_re_exports_the_kernel():
+    from structbench.eval import metrics
+    from structbench.verification import kernels
+
+    assert metrics.relative_l2_pooled is kernels.relative_l2_pooled
