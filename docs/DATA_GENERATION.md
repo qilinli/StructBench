@@ -57,27 +57,39 @@ records into verdicts, in ADR-0066's vocabulary:
 | `deck_regression` | every preflight deck rebuilds byte for byte in a fresh interpreter, and each probe key (`refine`, `increment_key`, `frame_key`) changes the deck it is meant to change |
 | `feasibility` | every pilot completes at the production level (the `[limits]` and `feasible()` values are listed) |
 | `conformance` | on the run with `*ENERGY OUTPUT, VARIABLE=ALL`, the ledger identity closes with the standard terms to 1e-5 and no other term is non-zero (the design's check that every pilot deck requests the required evidence, `input_requests_required_evidence` for Abaqus, is part three's and is not yet made) |
-| `space` | each quantity of interest at the production level is within its `[qoi].tolerance` of the value extrapolated from three levels (`review` when no order is observed; the field errors are reported for the maintainer to weigh) |
+| `space` | each quantity of interest at the production level is within its `[qoi].tolerance` of the value extrapolated from three levels (with no observed order: `review` when the quantity moves across the levels by no more than its tolerance, which a person may accept in `[pilot].accepted_reviews` as `space.<name>` with a reason, and `fail` when it moves more; the field errors are reported for the maintainer to weigh) |
 | `increment` | each quantity of interest changes by less than its tolerance between the production increment and the scaled ones, and no energy row of those runs fails (the summary names the rows the instrument could not assess) |
-| `frame` | every `1 / frame_factor`-th frame of the finer export predicts the frames between by linear interpolation to `frame_tolerance`, for every node field except acceleration and every global (acceleration, the element fields, the common-instant agreement with the stored clock and the shortest rise time among the globals are reported, not judged) |
+| `frame` | every `1 / frame_factor`-th frame of the finer export predicts the frames between by linear interpolation to `frame_tolerance`, for every stored field except those `[pilot].frame_reported` names, each reported with its error and the dataset's reason (the common-instant agreement with the stored clock and the shortest rise time among the globals are reported too); at least one node field must be judged, or the step is `not_assessable` |
 | `duration` | the slowest pilot settles — every quantity of interest within its tolerance of its final value — by `(1 − settling_margin)` of the horizon; where `contact_force_global` is named, the frame at which it drops below 10⁻³ of its peak is reported per pilot |
 | `energy` | no energy row of the instrument fails on any preflight case |
-| `budget` | the free space covers the production sweep's estimated disk (median bytes per production-level pilot × production cases) plus `min_free_gb`; wall time per level is reported |
+| `budget` | the free space covers what production still has to generate — the production cases not yet completed in the sweep, sized by their own meshes at the pilots' median bytes per node — plus `min_free_gb`; nothing left passes. The wall estimate (the pilots' seconds per element × the remaining elements) ignores increments and severity; wall time per level is reported |
 | `verification` | no row of the instrument fails on any preflight case, except the rows named in `accepted_gaps`, which are listed with their verdicts |
 
 `report.md` and `stamp.json` are written beside the cases. The stamp
 (`preflight-stamp/1`) records the sha256 of both definition files and of the
 sibling modules `problem.py` imported, the StructBench version and commit,
 the date, every verdict with its numbers, the budget and the case ids. It
-passes when every step is `pass` or `not_applicable`; a value that is not
-finite never passes, it makes the step `not_assessable` (or, in the solver's
-energy history, `fail`). **`generate` refuses a split that is not a probe
+passes when every step is `pass` or `not_applicable`, or is a `review` whose
+every key the dataset accepts in `[pilot].accepted_reviews`; an acceptance
+never rescues a `fail` or a `not_assessable`, and the stamp lists the accepted
+reviews with their reasons, the unaccepted ones, and the acceptances that
+never occurred. A value that is not finite never passes: it makes the step
+`not_assessable` (or, in the solver's energy history, `fail`). **`generate` refuses a split that is not a probe
 unless a passing stamp exists for the current `dataset.toml`, `problem.py`
 and siblings**; `--no-preflight` generates anyway and writes
 `"preflight": {"skipped": true}` into every such case's provenance, where a
 stamp is otherwise recorded by its hash and date. Probe splits are never
 gated. Because the preflight evaluates `qoi()` on every prefix of a
 trajectory, `qoi()` must accept a one-frame case; `check` exercises that.
+
+When only the judging changed — a tolerance, `frame_reported`,
+`accepted_reviews`, `qoi()`, the declaration — `preflight --rejudge`
+re-evaluates every step on the runs already made, with no solver. It accepts
+them as the same evidence only if the case set is the planned one, every case
+has run, every deck on disk equals the current definition's byte for byte and
+every case's units are the current units; otherwise it names the first case
+that is not and exits 2. The stamp then carries the current hashes, which the
+gate reads, and `runs_generated_under`, the hashes the runs were made under.
 
 Running the preflight again resumes: `run` skips finished cases, `export`
 exported ones, `convert` converted ones. A preflight folder that holds runs of
@@ -99,9 +111,11 @@ Exit codes: 0 passed, 1 a step failed or needs review (the stamp says which),
 | `increment_factors` | `[0.5]` | the production value in `[fixed]` times each factor; `[]` disables the probe |
 | `frame_key`, `frame_count_key` | `"frame_interval"`, `"n_intervals"` | the stored clock's keys in `[fixed]`, constants like the increment key; the count divided by `frame_factor` must be whole |
 | `frame_factor` | `0.5` | the frame probe's interval as a fraction of the stored one; `1 / frame_factor` must be whole (0.5, 0.25, 0.2, …) so the stored clock is a stride of the probe's; `0` disables the probe (`not_applicable`) |
-| `frame_tolerance` | `0.05` | the midpoint-interpolation error the stored clock may leave in node fields and globals |
+| `frame_tolerance` | `0.05` | the interpolation error the stored clock may leave in any judged field |
 | `settling_margin` | `0.25` | the share of the horizon that must lie after the slowest pilot's settling |
 | `contact_force_global` | none | a stored global (the `global/` prefix may be dropped) whose separation frame the duration step reports |
+| `frame_reported` | `{}` | stored fields the frame step reports rather than judges, `key = "reason"` (keys `node/<f>`, `<block>/<f>`, `global/<g>`); empty judges every stored field, and the example declares acceleration |
+| `accepted_reviews` | `{}` | reviews a person accepts, `"<step>.<name>" = "reason"` (e.g. `space.final_length`); they rescue a review, never a fail or a missing measurement |
 
 `[qoi].tolerance` is one relative number per quantity of interest (default
 0.01 each): the target for space, the increment step and the settling rule.

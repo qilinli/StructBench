@@ -274,3 +274,55 @@ def test_contact_force_global_drops_the_global_prefix(tmp_path):
     )
     p = definition.load_definition(write_definition(tmp_path / "d", toml=toml)).pilot
     assert p.contact_force_global == "reaction_force_2_reference_node"
+
+
+# --- the dataset's declarations with their reasons (plan 3a) ----------------------
+
+
+def _pilot_with(tmp_path, extra, name="d"):
+    toml = MINIMAL_TOML.replace(_GAPS, f"{_GAPS}\n{extra}")
+    return definition.load_definition(
+        write_definition(tmp_path / name, toml=toml)
+    ).pilot
+
+
+def test_frame_reported_and_accepted_reviews_default_to_empty(definition_dir):
+    p = definition.load_definition(definition_dir).pilot
+    assert dict(p.frame_reported) == {} and dict(p.accepted_reviews) == {}
+
+
+def test_frame_reported_and_accepted_reviews_carry_their_reasons(tmp_path):
+    p = _pilot_with(
+        tmp_path,
+        'frame_reported = { "global/reaction_force" = "contact chatter", '
+        '"solid/stress" = "ringing" }\n'
+        'accepted_reviews = { "space.final_length" = "moves under 0.1 %" }',
+    )
+    assert dict(p.frame_reported) == {
+        "global/reaction_force": "contact chatter",
+        "solid/stress": "ringing",
+    }
+    assert dict(p.accepted_reviews) == {"space.final_length": "moves under 0.1 %"}
+
+
+@pytest.mark.parametrize(
+    "extra, message",
+    [
+        ('frame_reported = { "global/x" = "" }', "reason"),
+        ('frame_reported = { "stress" = "why" }', "frame_reported"),
+        ('frame_reported = { "global/x" = 3 }', "reason"),
+        ('frame_reported = ["global/x"]', "table"),
+        ('accepted_reviews = { "spaces.final_length" = "why" }', "spaces"),
+        ('accepted_reviews = { "space" = "why" }', "accepted_reviews"),
+        ('accepted_reviews = { "space.final_length" = " " }', "reason"),
+    ],
+)
+def test_bad_declarations_are_refused(tmp_path, extra, message):
+    with pytest.raises(definition.DefinitionError, match=message):
+        _pilot_with(tmp_path, extra)
+
+
+def test_the_reviewable_steps_are_the_preflights_steps():
+    from structbench.datagen import preflight
+
+    assert set(definition.REVIEWABLE_STEPS) == set(preflight.STEPS)

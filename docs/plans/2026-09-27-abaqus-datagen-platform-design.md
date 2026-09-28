@@ -67,7 +67,7 @@ against the contract before anything runs.
 | `[splits.<s>]` | `n` + `seed`, or `points`; `exclude` / `within`; `extra`; `categorical`; `variants`; `probe = true` | yes, at least one | as today; `probe` marks a split the preflight gate does not guard |
 | `[limits]` | parameters `feasible()` reads | no | the declared feasibility or severity limit, stated where it is applied |
 | `[levels]` | `refine_key = "refine"`, `production = "2"`, `pilot = ["1", "2", "4"]`, `symmetry = "axisymmetric"` (or `planar`; plan 2a) | yes | the mesh-level convention the preflight uses; `mesh()` must nest across them |
-| `[pilot]` | `split`, `fine_cases`, `min_free_gb`, `accepted_gaps`; with defaults (plan 2b): `increment_key = "dt_scale"`, `increment_factors = [0.5]`, `frame_key = "frame_interval"`, `frame_count_key = "n_intervals"`, `frame_factor = 0.5`, `frame_tolerance = 0.05`, `settling_margin = 0.25`, optional `contact_force_global` | yes | the preflight's targets: the pilot split, which pilots also run at the finest level, the disk margin, the verification rows the dataset accepts as known gaps, and the time and duration probes |
+| `[pilot]` | `split`, `fine_cases`, `min_free_gb`, `accepted_gaps`; with defaults (plan 2b): `increment_key = "dt_scale"`, `increment_factors = [0.5]`, `frame_key = "frame_interval"`, `frame_count_key = "n_intervals"`, `frame_factor = 0.5`, `frame_tolerance = 0.05`, `settling_margin = 0.25`, optional `contact_force_global`; and (plan 3a) `frame_reported` (field key → reason) and `accepted_reviews` (`<step>.<name>` → reason), both empty by default | yes | the preflight's targets: the pilot split, which pilots also run at the finest level, the disk margin, the verification rows the dataset accepts as known gaps, and the time and duration probes |
 | `[qoi]` | `names`, `units`, `tolerance` (one relative number per name, default 0.01; plan 2b) | yes | the keys `qoi()` returns, for `converge`, the preflight's targets and the card |
 | `[retention]` | `odb_fraction`, `odb_seed`, `odb_cases` | no | as today |
 
@@ -302,6 +302,14 @@ LS-DYNA generation (only readers exist and no generation is planned);
 cluster submission; any change to dataset A's data.
 
 ## Open points
+
+- *Settled 2026-09-28 by plan 3a, after the first real preflight:* a person's
+  call on a `review` is recorded as `[pilot].accepted_reviews` with its reason,
+  and the fields a stored clock is not meant to resolve are declared in
+  `[pilot].frame_reported` with theirs; the budget sizes only the production
+  left to generate, from the production meshes; `preflight --rejudge`
+  re-evaluates the steps on runs whose decks and units the current definition
+  reproduces.
 
 - Whether `generate`'s gate should also cover `probe` splits above a size
   (say 50 cases). Proposed: no; probes are how the pilots are found.

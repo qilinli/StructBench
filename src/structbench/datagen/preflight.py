@@ -125,10 +125,30 @@ class Step:
     verdict: str  # pass | fail | review | not_applicable | not_assessable
     summary: str
     detail: dict[str, Any]
+    #: The "<step>.<name>" keys behind a review verdict, which a dataset may
+    #: accept with a reason ([pilot].accepted_reviews; plan 3a).
+    reviews: tuple[str, ...] = ()
 
 
-def passed(steps: Sequence[Step]) -> bool:
-    return all(s.verdict in PASSING for s in steps)
+def _rescued(step: Step, acceptances: Mapping[str, str]) -> bool:
+    """A review whose every key a person accepted; never a fail or an absence."""
+    return (
+        step.verdict == "review"
+        and bool(step.reviews)
+        and all(k in acceptances for k in step.reviews)
+    )
+
+
+def passed(steps: Sequence[Step], acceptances: Mapping[str, str] | None = None) -> bool:
+    """Every step passes or does not apply, or is a review the dataset accepted."""
+    acc = acceptances or {}
+    return all(s.verdict in PASSING or _rescued(s, acc) for s in steps)
+
+
+def accepted(steps: Sequence[Step], acceptances: Mapping[str, str]) -> dict[str, str]:
+    """The review keys that occurred and are accepted, with their reasons."""
+    keys = sorted({k for s in steps for k in s.reviews})
+    return {k: acceptances[k] for k in keys if k in acceptances}
 
 
 def not_run(name: str, why: str) -> Step:
@@ -478,6 +498,7 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
     cases_detail: dict[str, dict[str, Any]] = {}
     fails: list[str] = []
     reviews: list[str] = []
+    review_keys: set[str] = set()
     unassessable: list[str] = []
     assessed = 0
     for entry in record.get("cases", []):
@@ -489,13 +510,35 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
             assessed += 1
             errors = x.get("error_vs_extrapolated") or {}
             err = errors.get(production)
+            spread = x.get("coarsest_vs_finest")
             per[name] = {
                 "status": x.get("status"),
                 "order": x.get("order"),
                 "error_at_production": err,
+                "coarsest_vs_finest": spread,
             }
             if x.get("status") != "monotone" or err is None:
-                reviews.append(f"{entry['case_id']}: {name} {x.get('status')}")
+                # No observed order. A person may accept that only when the
+                # quantity barely moves across the levels -- within its own
+                # tolerance; beyond it, it does not converge (plan 3a review,
+                # finding 3).
+                moves = (
+                    "an unknown amount"
+                    if spread is None or not math.isfinite(spread)
+                    else f"{100 * spread:.3g} %"
+                )
+                said = (
+                    f"{entry['case_id']}: {name} {x.get('status')} "
+                    f"({moves} across levels)"
+                )
+                if spread is None or not math.isfinite(spread) or spread > tol[name]:
+                    fails.append(
+                        f"{said}, beyond its {tol[name]:g} tolerance with no "
+                        "observed order"
+                    )
+                else:
+                    reviews.append(said)
+                    review_keys.add(f"space.{name}")
             elif not math.isfinite(err):
                 unassessable.append(f"{entry['case_id']}: {name} is not finite")
             elif err > tol[name]:
@@ -518,16 +561,20 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
             "interest could be extrapolated",
             detail,
         )
+    # The review keys go with every verdict, so an acceptance whose review
+    # occurred beside a failure is never reported unused (review finding 4).
+    keys = tuple(sorted(review_keys))
     if fails:
-        return Step("space", "fail", "; ".join(fails), detail)
+        return Step("space", "fail", "; ".join(fails), detail, keys)
     if unassessable:
-        return Step("space", "not_assessable", "; ".join(unassessable), detail)
+        return Step("space", "not_assessable", "; ".join(unassessable), detail, keys)
     if reviews:
         return Step(
             "space",
             "review",
             "no observed order for " + "; ".join(reviews),
             detail,
+            tuple(sorted(review_keys)),
         )
     return Step(
         "space",
@@ -699,16 +746,17 @@ def step_frame(
         errors = interpolation_errors(frame_case, stride)
     except ValueError as exc:
         return Step("frame", "not_assessable", str(exc), {})
-    # Judged: node fields and globals, except acceleration -- the second time
-    # derivative of a frame-sampled explicit response is reported like the
-    # element fields, not what the stored clock is chosen for (review finding
-    # 7, ruled by the implementer; the maintainer may reverse it).
-    judged = sorted(
-        k
-        for k in errors
-        if k.startswith(("node/", "global/")) and k != "node/acceleration"
-    )
-    reported = sorted(k for k in errors if k not in judged)
+    # Judged: every stored field but those the dataset reports, each with its
+    # reason (plan 3a); a declared key the case does not store is noted, not
+    # silently accepted.
+    declared = dict(p.frame_reported)
+    judged = sorted(k for k in errors if k not in declared)
+    reported = {
+        k: {"error": errors[k], "reason": declared[k]}
+        for k in sorted(errors)
+        if k in declared
+    }
+    reported_absent = sorted(k for k in declared if k not in errors)
     not_finite = [k for k in judged if not math.isfinite(errors[k])]
     over = [f"{k} {errors[k]:.3g}" for k in judged if errors[k] > p.frame_tolerance]
     common: dict[str, float] | None = None
@@ -729,12 +777,23 @@ def step_frame(
         "common_instants": common,
         "judged": judged,
         "reported": reported,
+        "reported_absent": reported_absent,
         "rise_frames": rise,
         "shortest_rise_frames": min(rise.values()) if rise else None,
         "tolerance": p.frame_tolerance,
         "factor": p.frame_factor,
         "note": note,
     }
+    if not any(k.startswith("node/") for k in judged):
+        # The clock exists to resolve the motion: a frame step that judges no
+        # node field has judged nothing it is for (plan 3a review, finding 1).
+        return Step(
+            "frame",
+            "not_assessable",
+            "the frame step judges no node field: every stored node field is "
+            "declared in frame_reported",
+            detail,
+        )
     if not_finite:
         return Step(
             "frame",
@@ -754,9 +813,10 @@ def step_frame(
     return Step(
         "frame",
         "pass",
-        "the stored frame interval resolves every node field (acceleration "
-        f"reported, not judged) and global to {p.frame_tolerance:g} (linear "
-        f"interpolation of a {p.frame_factor:g}× interval export, stride {stride})",
+        f"the stored frame interval resolves all {len(judged)} judged fields to "
+        f"{p.frame_tolerance:g} (linear interpolation of a {p.frame_factor:g}× "
+        f"interval export, stride {stride}); reported, not judged: "
+        + (", ".join(reported) or "none"),
         detail,
     )
 
@@ -904,47 +964,102 @@ def step_budget(
     runs: Mapping[str, Mapping[str, Any]],
     sizes: Mapping[str, int],
     free: float,
+    *,
+    completed: Mapping[str, str | None] | None = None,
 ) -> Step:
-    """The production sweep's time and disk from the pilots, against the
-    free space and the margin."""
+    """What production still has to generate, against the free space and the
+    margin (plan 3a).
+
+    The pilots give a rate, not a size: bytes per mesh node and wall time per
+    element, each the median over the production-level pilots; the rate is
+    applied to the meshes of the production cases not yet ``completed``, so
+    pilots placed at the corners of the box do not set the size, and a sweep
+    already generated is not budgeted again. The wall estimate ignores the
+    increment count and the case's severity, and says so.
+    """
     production = defn.levels.production
     per_level: dict[str, list[float]] = {}
     for s in by_role(specs, "level"):
         wall = runs.get(s.case_id, {}).get("wall_s")
         if wall is not None:
             per_level.setdefault(str((s.probe or {})["level"]), []).append(float(wall))
-    prod_ids = [
-        s.case_id
-        for s in by_role(specs, "level")
-        if (s.probe or {}).get("level") == production
+    prod_specs = [
+        s for s in by_role(specs, "level") if (s.probe or {}).get("level") == production
     ]
-    prod_walls = per_level.get(production, [])
-    prod_sizes = [float(sizes[cid]) for cid in prod_ids if cid in sizes]
-    if not prod_walls or not prod_sizes:
+    base = {"free_gb": free, "min_free_gb": defn.pilot.min_free_gb}
+    per_node: list[float] = []
+    per_element: list[float] = []
+    walls: list[float] = []
+    pilot_sizes: list[float] = []
+    for s in prod_specs:
+        wall = runs.get(s.case_id, {}).get("wall_s")
+        if wall is None or s.case_id not in sizes:
+            continue
+        try:
+            nodes, elements = _mesh_counts(problem, s.params)
+        except Exception as exc:  # a hook that raises is a finding, not a crash
+            return _hook_raised(s.case_id, "mesh", exc, base)
+        if nodes == 0 or elements == 0:
+            return Step(
+                "budget",
+                "not_assessable",
+                f"the mesh of {s.case_id} has no nodes or no elements",
+                base,
+            )
+        per_node.append(float(sizes[s.case_id]) / nodes)
+        per_element.append(float(wall) / elements)
+        walls.append(float(wall))
+        pilot_sizes.append(float(sizes[s.case_id]))
+    if not per_node:
         return Step(
             "budget",
             "not_assessable",
             "no production-level pilot has both a run record and a size",
-            {"free_gb": free, "min_free_gb": defn.pilot.min_free_gb},
+            base,
         )
     probe_of = {s.name: s.probe for s in defn.splits}
-    production_cases = sum(
-        1
+    planned = [
+        s
         for s in plan_cases(defn, getattr(problem, "feasible", None))
         if not probe_of[s.split]
-    )
-    wall_median = float(statistics.median(prod_walls))
-    bytes_per_case = float(statistics.median(prod_sizes))
-    estimated_gb = production_cases * bytes_per_case / 1e9
+    ]
+    # A completed run counts only if it ran the deck the current definition
+    # writes; a run of another definition's deck must be made again, and
+    # generate would find it locked (plan 3a review, finding 2).
+    ran_decks = dict(completed or {})
+    remaining: list[CaseSpec] = []
+    for s in planned:
+        ran = ran_decks.get(s.case_id)
+        if ran is not None:
+            try:
+                deck = problem.input_deck(dict(s.params), s.variant)
+            except Exception as exc:
+                return _hook_raised(s.case_id, "input_deck", exc, base)
+            if ran == hashlib.sha256(deck.encode("utf-8")).hexdigest():
+                continue
+        remaining.append(s)
+    counts: list[tuple[int, int]] = []
+    for s in remaining:
+        try:
+            counts.append(_mesh_counts(problem, s.params))
+        except Exception as exc:
+            return _hook_raised(s.case_id, "mesh", exc, base)
+    bytes_per_node = float(statistics.median(per_node))
+    wall_per_element = float(statistics.median(per_element))
+    estimated_gb = sum(n for n, _ in counts) * bytes_per_node / 1e9
     detail = {
-        "production_cases": production_cases,
-        "wall_s_median": wall_median,
-        "wall_s_max": max(prod_walls),
-        "bytes_per_case": bytes_per_case,
-        "estimated_wall_h": production_cases * wall_median / 3600.0,
+        **base,
+        "production_cases": len(planned),
+        "completed_cases": len(planned) - len(remaining),
+        "remaining_cases": len(remaining),
+        "bytes_per_node": bytes_per_node,
+        "wall_s_per_element": wall_per_element,
         "estimated_gb": estimated_gb,
-        "free_gb": free,
-        "min_free_gb": defn.pilot.min_free_gb,
+        "estimated_wall_h": sum(e for _, e in counts) * wall_per_element / 3600.0,
+        # per pilot, for run's estimate line
+        "wall_s_median": float(statistics.median(walls)),
+        "wall_s_max": max(walls),
+        "bytes_per_case": float(statistics.median(pilot_sizes)),
         "per_level": {
             lv: {
                 "n": len(per_level[lv]),
@@ -954,22 +1069,46 @@ def step_budget(
             for lv in level_order(defn, set(per_level))
         },
     }
+    if not remaining:
+        return Step(
+            "budget",
+            "pass",
+            f"nothing left to generate: all {len(planned)} production cases completed",
+            detail,
+        )
     needed = estimated_gb + defn.pilot.min_free_gb
     if free < needed:
         return Step(
             "budget",
             "fail",
-            f"{free:.1f} GB free, {estimated_gb:.1f} GB estimated for "
-            f"{production_cases} cases plus the {defn.pilot.min_free_gb:g} GB margin",
+            f"{free:.1f} GB free, {estimated_gb:.1f} GB estimated for the "
+            f"{len(remaining)} production cases left plus the "
+            f"{defn.pilot.min_free_gb:g} GB margin",
             detail,
         )
     return Step(
         "budget",
         "pass",
-        f"{production_cases} cases estimated at {estimated_gb:.1f} GB and "
-        f"{detail['estimated_wall_h']:.1f} core-hours; {free:.1f} GB free",
+        f"the {len(remaining)} production cases left are estimated at "
+        f"{estimated_gb:.1f} GB and {detail['estimated_wall_h']:.1f} core-hours "
+        f"(sized by their meshes; the wall ignores increments and severity); "
+        f"{free:.1f} GB free",
         detail,
     )
+
+
+def _hook_raised(case_id: str, hook: str, exc: Exception, base: dict) -> Step:
+    return Step(
+        "budget",
+        "not_assessable",
+        f"{case_id}: {hook}() raised {type(exc).__name__}: {exc}",
+        base,
+    )
+
+
+def _mesh_counts(problem: ModuleType, params: Mapping[str, Any]) -> tuple[int, int]:
+    grid = problem.mesh(dict(params))
+    return len(grid.node_labels), len(grid.connectivity)
 
 
 def step_verification(report: Any, defn: Definition) -> Step:
@@ -1022,12 +1161,17 @@ def stamp_record(
     *,
     created_utc: str,
     siblings_sha256: str,
+    runs_generated_under: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
-    """The stamp: the definition's hashes, the verdicts, the budget, the cases."""
+    """The stamp: the definition's hashes, the verdicts, the budget, the cases,
+    and the hashes the runs were generated under (different from the stamp's
+    own only after ``--rejudge``)."""
     by_name = {s.name: s for s in steps}
     ordered = [by_name[n] for n in STEPS if n in by_name]
     ordered += [s for s in steps if s.name not in STEPS]
     state = package_state()
+    acceptances = dict(defn.pilot.accepted_reviews)
+    occurred = sorted({k for s in steps for k in s.reviews})
     record = {
         "format": STAMP_FORMAT,
         "dataset": defn.name,
@@ -1036,13 +1180,22 @@ def stamp_record(
         "siblings_sha256": siblings_sha256,
         "structbench": {"version": state["version"], "commit": state["commit"]},
         "created_utc": created_utc,
-        "passed": passed(steps),
+        "passed": passed(steps, acceptances),
+        "accepted_reviews": accepted(steps, acceptances),
+        "unaccepted_reviews": [k for k in occurred if k not in acceptances],
+        "unused_acceptances": sorted(k for k in acceptances if k not in occurred),
         "steps": {
-            s.name: {"verdict": s.verdict, "summary": s.summary, "detail": s.detail}
+            s.name: {
+                "verdict": s.verdict,
+                "summary": s.summary,
+                "detail": s.detail,
+                "reviews": list(s.reviews),
+            }
             for s in ordered
         },
         "budget": by_name["budget"].detail if "budget" in by_name else {},
         "cases": {role: [s.case_id for s in by_role(specs, role)] for role in ROLES},
+        "runs_generated_under": [dict(h) for h in runs_generated_under],
     }
     return _json_safe(record)
 
@@ -1059,14 +1212,27 @@ def render_report(stamp: Mapping[str, Any]) -> str:
         f"{stamp['problem_sha256'][:12]}….*"
     )
     out.append("")
+    acceptances = stamp.get("accepted_reviews") or {}
+
+    def rescued(s: Mapping[str, Any]) -> bool:
+        keys = s.get("reviews") or []
+        return (
+            s["verdict"] == "review"
+            and bool(keys)
+            and all(k in acceptances for k in keys)
+        )
+
     if stamp.get("passed"):
         out.append(
-            "**Passed.** Every step passed or does not apply; `generate` opens "
-            "the production splits against this stamp."
+            "**Passed.** Every step passed, does not apply, or is a review the "
+            "dataset accepted (below); `generate` opens the production splits "
+            "against this stamp."
         )
     else:
         blocking = [
-            name for name, s in stamp["steps"].items() if s["verdict"] not in PASSING
+            name
+            for name, s in stamp["steps"].items()
+            if s["verdict"] not in PASSING and not rescued(s)
         ]
         out.append(
             "**Not passed.** Blocking: "
@@ -1076,7 +1242,24 @@ def render_report(stamp: Mapping[str, Any]) -> str:
     out += ["", "## Verdicts", "", "| Step | Verdict | Summary |", "|---|---|---|"]
     for name, s in stamp["steps"].items():
         summary = str(s["summary"]).replace("|", "\\|")
-        out.append(f"| {name} | {s['verdict']} | {summary} |")
+        verdict = f"{s['verdict']} (accepted)" if rescued(s) else s["verdict"]
+        out.append(f"| {name} | {verdict} | {summary} |")
+    reported = ((stamp["steps"].get("frame") or {}).get("detail") or {}).get(
+        "reported"
+    ) or {}
+    unaccepted = stamp.get("unaccepted_reviews") or []
+    unused = stamp.get("unused_acceptances") or []
+    if acceptances or reported or unaccepted or unused:
+        out += ["", "## Accepted by the dataset", ""]
+        for key, reason in acceptances.items():
+            out.append(f"- review `{key}` accepted: {reason}")
+        for key, row in reported.items():
+            reason = row.get("reason", "") if isinstance(row, Mapping) else ""
+            out.append(f"- `{key}` reported, not judged by the frame step: {reason}")
+        for key in unaccepted:
+            out.append(f"- review `{key}` not accepted: it blocks the stamp")
+        for key in unused:
+            out.append(f"- acceptance `{key}` declared but no such review occurred")
     out += ["", "## Cases", ""]
     for role in ROLES:
         ids = stamp.get("cases", {}).get(role, [])
@@ -1145,6 +1328,73 @@ def _run_records(pre: Path, ids: Sequence[str]) -> dict[str, dict[str, Any]]:
     return out
 
 
+#: The definition hashes a run's provenance records, and the stamp compares.
+HASH_KEYS = ("definition_sha256", "problem_sha256", "siblings_sha256")
+
+
+def _generated_under(pre: Path, specs: Sequence[CaseSpec]) -> list[dict[str, Any]]:
+    """The distinct definition hashes the preflight's runs were generated under."""
+    seen: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for s in specs:
+        path = pre / s.case_id / "provenance.json"
+        if path.is_file():
+            prov = json.loads(path.read_text(encoding="utf-8"))
+            key = tuple(prov.get(k) for k in HASH_KEYS)
+            seen[key] = dict(zip(HASH_KEYS, key, strict=True))
+    return [seen[k] for k in sorted(seen, key=str)]
+
+
+def _rejudge_refusal(
+    pre: Path, specs: Sequence[CaseSpec], decks: Mapping[str, str], defn: Definition
+) -> str | None:
+    """Why the runs in ``pre`` are not the same evidence under the current
+    definition, or None: the case set must be the planned one, every case must
+    have run, its deck must be the current deck byte for byte, and its units
+    the current units."""
+    present = (
+        {p.name for p in pre.iterdir() if (p / "provenance.json").is_file()}
+        if pre.is_dir()
+        else set()
+    )
+    planned = {s.case_id for s in specs}
+    new = sorted(planned - present)
+    if new:
+        return f"new case {new[0]} (re-judging runs nothing; run without --rejudge)"
+    gone = sorted(present - planned)
+    if gone:
+        return f"case {gone[0]} is no longer planned; move it aside"
+    for s in specs:
+        folder = pre / s.case_id
+        prov = json.loads((folder / "provenance.json").read_text(encoding="utf-8"))
+        if prov.get("units") != defn.units:
+            return (
+                f"{s.case_id} ran in units {prov.get('units')!r}, the definition "
+                f"now says {defn.units!r}"
+            )
+        deck = folder / f"{s.case_id}.inp"
+        if not deck.is_file() or deck.read_bytes() != decks[s.case_id].encode("utf-8"):
+            return f"the deck of {s.case_id} differs from the current definition's"
+        if not (folder / "run.json").is_file():
+            return f"{s.case_id} has not run (run the preflight without --rejudge)"
+    return None
+
+
+def _completed(sweep: Path) -> dict[str, str | None]:
+    """Case id -> the sha256 of the deck it ran, for every run that completed in
+    the sweep (the production already made)."""
+    done: dict[str, str | None] = {}
+    for run in sweep.glob("*/run.json"):
+        try:
+            if json.loads(run.read_text(encoding="utf-8")).get("status") != "completed":
+                continue
+            prov_path = run.parent / "provenance.json"
+            prov = json.loads(prov_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue  # a record being written is not yet a completed run
+        done[run.parent.name] = prov.get("inp_sha256")
+    return done
+
+
 def _sizes(pre: Path, ids: Sequence[str]) -> dict[str, int]:
     """Bytes per case: the case folder (ODB, export, side files) and its
     canonical file."""
@@ -1170,13 +1420,18 @@ def preflight(
     timeout: float | None = None,
     solver_args: Sequence[str] | None = None,
     exporter_args: Sequence[str] | None = None,
+    rejudge: bool = False,
     echo: Callable[[str], None] = print,
 ) -> int:
     """Run the preflight; see the module docstring for the steps and exit codes.
 
     ``solver_args`` and ``exporter_args`` are inserted after the executable on
     the solver's and the exporter's command lines (tests: a fake solver
-    script in place of Abaqus and of ``python <exporter>``).
+    script in place of Abaqus and of ``python <exporter>``). ``rejudge``
+    re-evaluates the steps on the runs already in the preflight folder, with
+    no solver, when the current definition reproduces every deck byte for byte
+    and the units are unchanged (plan 3a); the stamp records the definition
+    hashes the runs were generated under.
     """
     dataset_dir = Path(dataset_dir).resolve()
     work_root = Path(work_root)
@@ -1203,13 +1458,19 @@ def preflight(
         "siblings_sha256": siblings_sha256(dataset_dir, problem),
     }
     stale = _stale_cases(pre, hashes)
-    if stale:
+    if stale and not rejudge:
         print(
             f"{pre} holds runs of another definition ({len(stale)} case(s), e.g. "
-            f"{stale[0]}); move it aside (nothing is deleted)",
+            f"{stale[0]}); move it aside (nothing is deleted), or pass --rejudge "
+            "if only the judging changed and the decks are the same",
             file=sys.stderr,
         )
         return 2
+    if rejudge:
+        why = _rejudge_refusal(pre, specs, decks, defn)
+        if why:
+            print(f"{pre}: cannot re-judge: {why}", file=sys.stderr)
+            return 2
     created = datetime.now(UTC).isoformat(timespec="seconds")
     steps: list[Step] = []
 
@@ -1229,6 +1490,7 @@ def preflight(
             specs,
             created_utc=created,
             siblings_sha256=hashes["siblings_sha256"],
+            runs_generated_under=_generated_under(pre, specs),
         )
         write_outputs(pre, stamp)
         echo(("passed" if stamp["passed"] else "not passed") + f" -> {pre}")
@@ -1260,11 +1522,11 @@ def preflight(
         + " ".join(f"{k}={v}" for k, v in sorted(counts.items()))
         + ")"
     )
-    exe = shutil.which(abaqus)
-    if exe is None:
+    exe = None if rejudge else shutil.which(abaqus)
+    if exe is None and not rejudge:
         print(f"abaqus executable {abaqus!r} not found", file=sys.stderr)
         return 2
-    solver = [exe, *(solver_args or [])]
+    solver = [exe or abaqus, *(solver_args or [])]
     production = defn.levels.production
     ids = [s.case_id for s in specs]
     first = batch_a(specs, production)
@@ -1272,7 +1534,7 @@ def preflight(
 
     def launch(cases: list[str]) -> int | None:
         """Run and export ``cases``; an exit code when the preflight must stop."""
-        if not cases:
+        if not cases or rejudge:  # re-judging runs nothing
             return None
         try:
             results = run_sweep(
@@ -1385,6 +1647,7 @@ def preflight(
             _run_records(pre, ids),
             _sizes(pre, ids),
             free_gb(work_root),
+            completed=_completed(work_root / defn.name),
         )
     )
     add(step_verification(report, defn))
@@ -1407,6 +1670,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--exporter-args", nargs="*", default=None, help=argparse.SUPPRESS
     )
+    parser.add_argument(
+        "--rejudge",
+        action="store_true",
+        help="re-evaluate the steps on the runs already made, with no solver, "
+        "when the current definition reproduces every deck and the units",
+    )
     args = parser.parse_args(argv)
     return preflight(
         args.dataset,
@@ -1416,6 +1685,7 @@ def main(argv: list[str] | None = None) -> int:
         timeout=args.timeout,
         solver_args=args.solver_args,
         exporter_args=args.exporter_args,
+        rejudge=args.rejudge,
     )
 
 

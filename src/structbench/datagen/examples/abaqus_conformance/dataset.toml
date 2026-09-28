@@ -68,9 +68,13 @@ increment_factors = [0.5]       # the production value times each factor; [] dis
 frame_key = "frame_interval"    # the stored clock's keys in [fixed] ...
 frame_count_key = "n_intervals" # ... n_intervals / frame_factor must be a whole number
 frame_factor = 0.5              # the frame probe's interval as a fraction of the stored one; 0 disables it
-frame_tolerance = 0.05          # midpoint-interpolation error the stored clock may leave in node fields and globals
+frame_tolerance = 0.05          # interpolation error the stored clock may leave in any judged field
 settling_margin = 0.25          # share of the horizon that must lie after the slowest pilot's settling
 contact_force_global = "reaction_force_2_reference_node"  # a stored global whose separation frame is reported
+# Stored fields the frame step reports rather than judges, each with its reason
+# (empty judges every stored field); and reviews a person accepts, with theirs.
+frame_reported = { "node/acceleration" = "the second time derivative of a frame-sampled explicit response; reported, not scored" }
+# accepted_reviews = { "space.final_length" = "why a person accepts this review" }
 
 [qoi]                           # required: the keys problem.qoi returns, their units and tolerances
 names = ["final_length", "face_radius"]

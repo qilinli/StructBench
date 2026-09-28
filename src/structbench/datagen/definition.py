@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import re
 import sys
 import tomllib
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -58,9 +59,29 @@ PILOT_KEYS = frozenset(
         "frame_tolerance",
         "settling_margin",
         "contact_force_global",
+        "frame_reported",
+        "accepted_reviews",
     }
 )
 QOI_KEYS = frozenset({"names", "units", "tolerance"})
+#: The preflight's step names, which an accepted review may name. Kept equal to
+#: ``preflight.STEPS`` by a test: the definition does not import the preflight.
+REVIEWABLE_STEPS = (
+    "deck_regression",
+    "feasibility",
+    "conformance",
+    "space",
+    "increment",
+    "frame",
+    "duration",
+    "energy",
+    "budget",
+    "verification",
+)
+#: A stored field as the temporal measures name it: node/<f>, <block>/<f>, global/<g>.
+FIELD_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*/[A-Za-z_][A-Za-z0-9_]*$")
+#: A review as a step reports it: <step>.<name>, e.g. space.final_length.
+REVIEW_KEY = re.compile(r"^[a-z_]+\.[A-Za-z_][A-Za-z0-9_]*$")
 
 
 @dataclass(frozen=True)
@@ -87,6 +108,12 @@ class Pilot:
     frame_tolerance: float = 0.05
     settling_margin: float = 0.25
     contact_force_global: str | None = None
+    #: Stored fields the frame step reports rather than judges, each with the
+    #: reason (plan 3a); empty means every stored field is judged.
+    frame_reported: Mapping[str, str] = field(default_factory=dict)
+    #: Reviews a person accepts, "<step>.<name>" -> reason; they rescue a
+    #: review, never a fail or a missing measurement.
+    accepted_reviews: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -275,6 +302,37 @@ def _probe_fields(
     return out
 
 
+def _reasons(
+    pt: dict[str, Any],
+    key: str,
+    pattern: re.Pattern[str],
+    steps: Sequence[str] | None = None,
+) -> dict[str, str]:
+    """A ``[pilot]`` table of name = reason, every name checked, every reason
+    non-empty: the dataset's declarations travel with why they were made."""
+    value = pt.get(key, {})
+    if not isinstance(value, dict):
+        raise DefinitionError(f"pilot.{key}: expected a table of name = reason")
+    kind = (
+        "a field key such as node/displacement or global/kinetic_energy"
+        if steps is None
+        else "a review key such as space.final_length"
+    )
+    out: dict[str, str] = {}
+    for name, reason in value.items():
+        if not pattern.fullmatch(name):
+            raise DefinitionError(f"pilot.{key}: {name!r} is not {kind}")
+        if steps is not None and name.split(".", 1)[0] not in steps:
+            raise DefinitionError(
+                f"pilot.{key}: {name!r} names no preflight step "
+                f"(one of {', '.join(steps)})"
+            )
+        if not isinstance(reason, str) or not reason.strip():
+            raise DefinitionError(f"pilot.{key}: {name!r} needs a reason")
+        out[name] = reason
+    return out
+
+
 def load_definition(dataset_dir: Path) -> Definition:
     """Parse and validate ``<dataset_dir>/dataset.toml``."""
     path = dataset_dir / DEFINITION_FILE
@@ -361,6 +419,8 @@ def load_definition(dataset_dir: Path) -> Definition:
         _field(pt, "pilot", "min_free_gb", float),
         _strings(pt, "pilot", "accepted_gaps"),
         **_probe_fields(pt, fixed, _placements(variables, splits)),
+        frame_reported=_reasons(pt, "frame_reported", FIELD_KEY),
+        accepted_reviews=_reasons(pt, "accepted_reviews", REVIEW_KEY, REVIEWABLE_STEPS),
     )
     names = {s.name: s for s in splits}
     if pilot.split not in names:
