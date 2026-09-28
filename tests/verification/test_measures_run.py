@@ -462,3 +462,111 @@ def test_a_stored_channel_the_ledger_does_not_carry_is_skipped() -> None:
     row = _globals_row(case, run)
     assert row.value == pytest.approx(0.0)
     assert row.detail["channel"] == "kinetic_energy"
+
+
+# --- zero-energy modes (hourglass energy) ---------------------------------------
+
+#: An under-integrated solid part, so the zero-energy-mode rows apply.
+_HOURGLASSING = {"parts": (PartTraits(1, 2, "solid", True),)}
+#: Kinetic 2 J at the start; internal peaks at 1.6 J and ends at 1.5 J; the
+#: zero-energy modes peak at 0.12 J and end at 0.1 J.
+_BESIDE = {
+    "kinetic": (2.0, 0.5, 0.1),
+    "internal": (0.0, 1.6, 1.5),
+    "zero_energy_mode": (0.0, 0.12, 0.1),
+    "rigid_surface": (0.0, 0.01, 0.04),
+    "external_work": (0.0, 0.0, 0.0),
+}
+_ZEM_ROWS = (
+    "zero_energy_mode_final_over_initial_total",
+    "zero_energy_mode_final_over_internal_final",
+    "zero_energy_mode_peak_over_internal_peak",
+)
+
+
+def _zem(ledger: EnergyLedger, **facts: object) -> CaseMeasurements:
+    return _measure(_run(ledger=ledger), _facts(**{**_HOURGLASSING, **facts}))
+
+
+def _beside() -> EnergyLedger:
+    """The LS-DYNA shape: the modes' energy is an addend beside internal energy."""
+    identity = {k: 1 for k in _BESIDE if k != "external_work"}
+    return EnergyLedger((0.0, 2.0e-6, 4.0e-6), _BESIDE, identity)
+
+
+def _inside() -> EnergyLedger:
+    """The Abaqus shape: ALLIE contains ALLAE, so the identity leaves it out."""
+    terms = dict(_BESIDE)
+    terms["internal"] = tuple(
+        i + z
+        for i, z in zip(_BESIDE["internal"], _BESIDE["zero_energy_mode"], strict=True)
+    )
+    identity = {"kinetic": 1, "internal": 1, "rigid_surface": 1}
+    return EnergyLedger((0.0, 2.0e-6, 4.0e-6), terms, identity)
+
+
+def test_the_zero_energy_mode_rows_are_ratios_on_the_ledger() -> None:
+    result = _zem(_beside())
+    final_total = _get(result, "zero_energy_mode_final_over_initial_total")
+    assert final_total.value == pytest.approx(0.1 / 2.0)
+    final = _get(result, "zero_energy_mode_final_over_internal_final")
+    assert final.value == pytest.approx(0.1 / 1.5)
+    peak = _get(result, "zero_energy_mode_peak_over_internal_peak")
+    assert peak.value == pytest.approx(0.12 / 1.6)
+
+
+def test_the_modes_energy_is_not_counted_twice_where_internal_energy_holds_it() -> None:
+    """One run, booked beside internal energy or inside it, gives one ratio.
+
+    The published levels come from practice where the two are separate
+    addends; a ledger whose internal energy contains the modes' energy is
+    compared on the internal energy without it.
+    """
+    beside, inside = _zem(_beside()), _zem(_inside())
+    for name in _ZEM_ROWS:
+        got = _get(inside, name).value
+        assert got is not None and got == pytest.approx(_get(beside, name).value)
+
+
+def test_a_ledger_without_the_modes_energy_names_the_ledger_as_missing() -> None:
+    terms = {k: v for k, v in _BESIDE.items() if k != "zero_energy_mode"}
+    identity = {k: 1 for k in terms if k != "external_work"}
+    result = _zem(EnergyLedger((0.0, 2.0e-6, 4.0e-6), terms, identity))
+    for name in _ZEM_ROWS:
+        absence = _get(result, name).absence
+        assert absence is not None and absence.missing == {E.E5}, name
+        assert absence.reason is AbsenceReason.SOURCE_MISSING
+
+
+def test_the_initial_total_needs_every_term_the_run_can_produce() -> None:
+    """A contact term missing from the ledger leaves the start's total unknown."""
+    result = _zem(_beside(), contact_defined=True)
+    absence = _get(result, "zero_energy_mode_final_over_initial_total").absence
+    assert absence is not None and absence.missing == {E.E5}
+    # the internal-energy ratios need only the two terms they divide
+    final = _get(result, "zero_energy_mode_final_over_internal_final")
+    assert final.value == pytest.approx(0.1 / 1.5)
+
+
+def test_no_internal_energy_to_compare_with_is_no_ratio() -> None:
+    terms = dict(_BESIDE)
+    terms["internal"] = (0.0, 1.6, 0.0)
+    terms["zero_energy_mode"] = (0.0, 0.0, 0.0)
+    identity = {k: 1 for k in terms if k != "external_work"}
+    result = _zem(EnergyLedger((0.0, 2.0e-6, 4.0e-6), terms, identity))
+    assert _get(result, "zero_energy_mode_final_over_internal_final").not_applicable
+    peak = _get(result, "zero_energy_mode_peak_over_internal_peak")
+    assert peak.value == 0.0
+
+
+def test_a_run_with_no_under_integrated_part_has_no_zero_energy_modes() -> None:
+    result = _measure(_run(ledger=_beside()), _facts())  # particles only
+    for name in _ZEM_ROWS:
+        assert _get(result, name).not_applicable, name
+
+
+def test_the_per_part_row_still_waits_for_a_per_part_account() -> None:
+    absence = _get(
+        _zem(_beside()), "zero_energy_mode_top_part_final_over_internal_final"
+    ).absence
+    assert absence is not None and E.E6 in absence.missing

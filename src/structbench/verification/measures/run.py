@@ -148,6 +148,70 @@ def _total_energy_change_final(
     return value(name, float(total[-1] / total[0] - 1.0), RUN, INPUT, n=total.size)
 
 
+def _zero_energy_mode(
+    name: str, run: RunEvidence
+) -> tuple[np.ndarray, np.ndarray] | Measurement:
+    """``(modes, internal)``: the modes' energy and the internal energy without it.
+
+    The published levels come from practice where the two are separate
+    addends of the total. A ledger whose identity leaves the modes' energy
+    out holds it inside internal energy (Abaqus's ALLIE contains ALLAE), so
+    it is subtracted there, and one run reads the same whichever way it was
+    booked.
+    """
+    assert run.ledger is not None
+    ledger = run.ledger
+    if not {"zero_energy_mode", "internal"} <= set(ledger.terms):
+        return absent(name, AbsenceReason.SOURCE_MISSING, EvidenceItem.E5)
+    modes = np.asarray(ledger.terms["zero_energy_mode"], dtype=np.float64)
+    internal = np.asarray(ledger.terms["internal"], dtype=np.float64)
+    if "zero_energy_mode" not in ledger.identity:
+        internal = internal - modes
+    return modes, internal
+
+
+def _ratio(name: str, numerator: float, denominator: float, n: int) -> Measurement:
+    if denominator == 0.0:
+        return not_applicable(name)  # nothing to compare the modes' energy with
+    return value(name, numerator / denominator, RUN, INPUT, n=n)
+
+
+def _zero_energy_mode_final_over_initial_total(
+    run: RunEvidence, facts: InputFacts | None
+) -> Measurement:
+    name = "zero_energy_mode_final_over_initial_total"
+    got = _zero_energy_mode(name, run)
+    if isinstance(got, Measurement):
+        return got
+    balance = _residual(name, run, facts)  # the start's total needs every term
+    if isinstance(balance, Measurement):
+        return balance
+    total = balance[1]
+    return _ratio(name, float(got[0][-1]), float(total[0]), total.size)
+
+
+def _zero_energy_mode_final_over_internal_final(
+    run: RunEvidence, facts: InputFacts | None
+) -> Measurement:
+    name = "zero_energy_mode_final_over_internal_final"
+    got = _zero_energy_mode(name, run)
+    if isinstance(got, Measurement):
+        return got
+    modes, internal = got
+    return _ratio(name, float(modes[-1]), float(internal[-1]), modes.size)
+
+
+def _zero_energy_mode_peak_over_internal_peak(
+    run: RunEvidence, facts: InputFacts | None
+) -> Measurement:
+    name = "zero_energy_mode_peak_over_internal_peak"
+    got = _zero_energy_mode(name, run)
+    if isinstance(got, Measurement):
+        return got
+    modes, internal = got
+    return _ratio(name, float(modes.max()), float(internal.max()), modes.size)
+
+
 RUN_MEASURES: dict[str, RunMeasureFn] = {
     "terminated_normally": _terminated_normally,
     "solver_error_count": _solver_error_count,
@@ -158,4 +222,13 @@ RUN_MEASURES: dict[str, RunMeasureFn] = {
     "energy_loss_max": _extreme("energy_loss_max", -1.0),
     "energy_residual_final": _energy_residual_final,
     "total_energy_change_final": _total_energy_change_final,
+    "zero_energy_mode_final_over_initial_total": (
+        _zero_energy_mode_final_over_initial_total
+    ),
+    "zero_energy_mode_final_over_internal_final": (
+        _zero_energy_mode_final_over_internal_final
+    ),
+    "zero_energy_mode_peak_over_internal_peak": (
+        _zero_energy_mode_peak_over_internal_peak
+    ),
 }
