@@ -510,14 +510,35 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
             assessed += 1
             errors = x.get("error_vs_extrapolated") or {}
             err = errors.get(production)
+            spread = x.get("coarsest_vs_finest")
             per[name] = {
                 "status": x.get("status"),
                 "order": x.get("order"),
                 "error_at_production": err,
+                "coarsest_vs_finest": spread,
             }
             if x.get("status") != "monotone" or err is None:
-                reviews.append(f"{entry['case_id']}: {name} {x.get('status')}")
-                review_keys.add(f"space.{name}")
+                # No observed order. A person may accept that only when the
+                # quantity barely moves across the levels -- within its own
+                # tolerance; beyond it, it does not converge (plan 3a review,
+                # finding 3).
+                moves = (
+                    "an unknown amount"
+                    if spread is None or not math.isfinite(spread)
+                    else f"{100 * spread:.3g} %"
+                )
+                said = (
+                    f"{entry['case_id']}: {name} {x.get('status')} "
+                    f"({moves} across levels)"
+                )
+                if spread is None or not math.isfinite(spread) or spread > tol[name]:
+                    fails.append(
+                        f"{said}, beyond its {tol[name]:g} tolerance with no "
+                        "observed order"
+                    )
+                else:
+                    reviews.append(said)
+                    review_keys.add(f"space.{name}")
             elif not math.isfinite(err):
                 unassessable.append(f"{entry['case_id']}: {name} is not finite")
             elif err > tol[name]:
@@ -540,10 +561,13 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
             "interest could be extrapolated",
             detail,
         )
+    # The review keys go with every verdict, so an acceptance whose review
+    # occurred beside a failure is never reported unused (review finding 4).
+    keys = tuple(sorted(review_keys))
     if fails:
-        return Step("space", "fail", "; ".join(fails), detail)
+        return Step("space", "fail", "; ".join(fails), detail, keys)
     if unassessable:
-        return Step("space", "not_assessable", "; ".join(unassessable), detail)
+        return Step("space", "not_assessable", "; ".join(unassessable), detail, keys)
     if reviews:
         return Step(
             "space",
@@ -760,6 +784,16 @@ def step_frame(
         "factor": p.frame_factor,
         "note": note,
     }
+    if not any(k.startswith("node/") for k in judged):
+        # The clock exists to resolve the motion: a frame step that judges no
+        # node field has judged nothing it is for (plan 3a review, finding 1).
+        return Step(
+            "frame",
+            "not_assessable",
+            "the frame step judges no node field: every stored node field is "
+            "declared in frame_reported",
+            detail,
+        )
     if not_finite:
         return Step(
             "frame",
@@ -931,7 +965,7 @@ def step_budget(
     sizes: Mapping[str, int],
     free: float,
     *,
-    completed: Collection[str] = (),
+    completed: Mapping[str, str | None] | None = None,
 ) -> Step:
     """What production still has to generate, against the free space and the
     margin (plan 3a).
@@ -961,7 +995,10 @@ def step_budget(
         wall = runs.get(s.case_id, {}).get("wall_s")
         if wall is None or s.case_id not in sizes:
             continue
-        nodes, elements = _mesh_counts(problem, s.params)
+        try:
+            nodes, elements = _mesh_counts(problem, s.params)
+        except Exception as exc:  # a hook that raises is a finding, not a crash
+            return _hook_raised(s.case_id, "mesh", exc, base)
         if nodes == 0 or elements == 0:
             return Step(
                 "budget",
@@ -986,9 +1023,27 @@ def step_budget(
         for s in plan_cases(defn, getattr(problem, "feasible", None))
         if not probe_of[s.split]
     ]
-    done = set(completed)
-    remaining = [s for s in planned if s.case_id not in done]
-    counts = [_mesh_counts(problem, s.params) for s in remaining]
+    # A completed run counts only if it ran the deck the current definition
+    # writes; a run of another definition's deck must be made again, and
+    # generate would find it locked (plan 3a review, finding 2).
+    ran_decks = dict(completed or {})
+    remaining: list[CaseSpec] = []
+    for s in planned:
+        ran = ran_decks.get(s.case_id)
+        if ran is not None:
+            try:
+                deck = problem.input_deck(dict(s.params), s.variant)
+            except Exception as exc:
+                return _hook_raised(s.case_id, "input_deck", exc, base)
+            if ran == hashlib.sha256(deck.encode("utf-8")).hexdigest():
+                continue
+        remaining.append(s)
+    counts: list[tuple[int, int]] = []
+    for s in remaining:
+        try:
+            counts.append(_mesh_counts(problem, s.params))
+        except Exception as exc:
+            return _hook_raised(s.case_id, "mesh", exc, base)
     bytes_per_node = float(statistics.median(per_node))
     wall_per_element = float(statistics.median(per_element))
     estimated_gb = sum(n for n, _ in counts) * bytes_per_node / 1e9
@@ -1039,6 +1094,15 @@ def step_budget(
         f"(sized by their meshes; the wall ignores increments and severity); "
         f"{free:.1f} GB free",
         detail,
+    )
+
+
+def _hook_raised(case_id: str, hook: str, exc: Exception, base: dict) -> Step:
+    return Step(
+        "budget",
+        "not_assessable",
+        f"{case_id}: {hook}() raised {type(exc).__name__}: {exc}",
+        base,
     )
 
 
@@ -1315,15 +1379,19 @@ def _rejudge_refusal(
     return None
 
 
-def _completed(sweep: Path) -> set[str]:
-    """Case ids whose run completed in the sweep (the production already made)."""
-    done = set()
+def _completed(sweep: Path) -> dict[str, str | None]:
+    """Case id -> the sha256 of the deck it ran, for every run that completed in
+    the sweep (the production already made)."""
+    done: dict[str, str | None] = {}
     for run in sweep.glob("*/run.json"):
         try:
-            if json.loads(run.read_text(encoding="utf-8")).get("status") == "completed":
-                done.add(run.parent.name)
+            if json.loads(run.read_text(encoding="utf-8")).get("status") != "completed":
+                continue
+            prov_path = run.parent / "provenance.json"
+            prov = json.loads(prov_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue  # a record being written is not yet a completed run
+        done[run.parent.name] = prov.get("inp_sha256")
     return done
 
 

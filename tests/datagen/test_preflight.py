@@ -1,5 +1,6 @@
 """The preflight (plan 2b): its case set, its steps on records, the stamp, the report."""  # noqa: E501
 
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -229,7 +230,7 @@ def test_deck_regression_fails_when_a_probe_key_is_ignored(tmp_path):
     assert step2.detail["checked"] == len(specs2) and step2.detail["unstable"] == []
 
 
-def _record(status="monotone", error=0.004):
+def _record(status="monotone", error=0.004, coarsest=0.005):
     x = {
         "status": status,
         "order": 2.0 if status == "monotone" else None,
@@ -238,7 +239,7 @@ def _record(status="monotone", error=0.004):
         "error_vs_extrapolated": (
             {"1": 0.02, "2": error, "4": 0.00125} if status == "monotone" else None
         ),
-        "coarsest_vs_finest": 0.019,
+        "coarsest_vs_finest": coarsest,
         "levels": ["1", "2", "4"],
         "ratio": 2.0,
     }
@@ -260,7 +261,12 @@ def test_step_space_reads_the_convergence_record(tmp_path):
     step = preflight.step_space(_record(), defn)
     assert step.verdict == "pass", step.summary
     detail = step.detail["cases"]["TOY-pilot-0000-L2"]["length"]
-    assert detail == {"status": "monotone", "order": 2.0, "error_at_production": 0.004}
+    assert detail == {
+        "status": "monotone",
+        "order": 2.0,
+        "error_at_production": 0.004,
+        "coarsest_vs_finest": 0.005,
+    }
     assert step.detail["fields"] == _record()["summary"]["fields"]
     assert preflight.step_space(_record(error=0.02), defn).verdict == "fail"
     assert preflight.step_space(_record(status="oscillatory"), defn).verdict == "review"
@@ -576,18 +582,33 @@ def test_the_budget_sizes_production_by_its_own_meshes(tmp_path):
 
 def test_the_budget_counts_only_what_production_has_left(tmp_path):
     defn, problem, specs, runs, sizes, train = _budget_inputs(tmp_path)
-    ids = [s.case_id for s in train]
+    # completed production: case id -> the sha256 of the deck that ran
+    current = {
+        s.case_id: hashlib.sha256(
+            problem.input_deck(dict(s.params), s.variant).encode("utf-8")
+        ).hexdigest()
+        for s in train
+    }
     done = preflight.step_budget(
-        defn, problem, specs, runs, sizes, free=1.0, completed=ids
+        defn, problem, specs, runs, sizes, free=1.0, completed=current
     )
     assert done.verdict == "pass" and "nothing left" in done.summary
     assert done.detail["remaining_cases"] == 0 and done.detail["estimated_gb"] == 0.0
+    first_two = {cid: current[cid] for cid in list(current)[:2]}
     half = preflight.step_budget(
-        defn, problem, specs, runs, sizes, free=100.0, completed=ids[:2]
+        defn, problem, specs, runs, sizes, free=100.0, completed=first_two
     )
     nodes_left = sum(_mesh_size(problem, s)[0] for s in train[2:])
     assert half.detail["remaining_cases"] == 2
     assert half.detail["estimated_gb"] == pytest.approx(nodes_left * 1e6 / 1e9)
+    # review finding 2: runs of another definition's decks must be made again
+    stale = dict.fromkeys(current, "0" * 64)
+    other = preflight.step_budget(
+        defn, problem, specs, runs, sizes, free=100.0, completed=stale
+    )
+    assert other.detail["remaining_cases"] == 4
+    assert other.detail["completed_cases"] == 0
+    assert "nothing left" not in other.summary
 
 
 def test_a_pilot_mesh_without_nodes_is_not_assessable(tmp_path):
@@ -839,3 +860,79 @@ def test_the_stamp_lists_accepted_unaccepted_and_unused_reviews(tmp_path):
         for n, s in stamp["steps"].items()
     ]
     assert preflight.passed(again, stamp["accepted_reviews"]) is stamp["passed"]
+
+
+# --- the plan 3a review's findings -------------------------------------------------
+
+
+def test_the_frame_step_needs_a_judged_node_field(tmp_path):
+    """Review finding 1: reporting every node field judges nothing the clock is for."""
+    declared = 'frame_reported = { "node/displacement" = "why" }'
+    _, defn, _ = _load(tmp_path, PF_TOML.replace(_GAPS, f"{_GAPS}\n{declared}"))
+    case = _toy_case(lambda t: 1 - np.exp(-t / 0.3), 41, force=np.linspace(0, 1, 41))
+    step = preflight.step_frame(case, None, defn)
+    assert step.verdict == "not_assessable" and "node field" in step.summary
+    everything = (
+        'frame_reported = { "node/displacement" = "why", "solid/stress" = "why", '
+        '"global/reaction_force" = "why" }'
+    )
+    _, all_out, _ = _load(
+        tmp_path, PF_TOML.replace(_GAPS, f"{_GAPS}\n{everything}"), name="all"
+    )
+    assert preflight.step_frame(case, None, all_out).verdict == "not_assessable"
+
+
+def test_a_review_beyond_tolerance_is_a_failure(tmp_path):
+    """Review finding 3 (ruling): a quantity with no observed order whose levels
+    differ by more than its tolerance does not converge; only 'barely moves'
+    is left to a person."""
+    _, defn, _ = _load(tmp_path)  # tolerance 0.01
+    for status in ("diverging", "oscillatory", "flat"):
+        far = preflight.step_space(_record(status=status, coarsest=0.3), defn)
+        assert far.verdict == "fail", (status, far.summary)
+        assert "30 %" in far.summary and "across levels" in far.summary
+    near = preflight.step_space(_record(status="oscillatory", coarsest=0.005), defn)
+    assert near.verdict == "review" and near.reviews == ("space.length",)
+    assert "0.5 % across levels" in near.summary
+    unknown = preflight.step_space(_record(status="diverging", coarsest=None), defn)
+    assert unknown.verdict == "fail"
+
+
+def test_a_failing_space_step_still_names_its_reviews(tmp_path):
+    """Review finding 4: an acceptance is not 'unused' when its review occurred
+    beside a failure."""
+    _, defn, _ = _load(tmp_path)
+    record = _record(error=0.02)  # a monotone case outside its tolerance: fail
+    other = _record(status="oscillatory")["cases"][0]
+    record["cases"].append({**other, "case_id": "TOY-pilot-0001-L2"})
+    step = preflight.step_space(record, defn)
+    assert step.verdict == "fail" and step.reviews == ("space.length",)
+    acc = {"space.length": "why"}
+    assert preflight.passed([step], acc) is False
+    assert preflight.accepted([step], acc) == acc
+
+
+def test_a_mesh_hook_that_raises_in_the_budget_is_a_finding(tmp_path):
+    """Review finding 5."""
+    defn, problem, specs, runs, sizes, _ = _budget_inputs(tmp_path)
+
+    def mesh(params):
+        if 1.0 < float(params["L"]) < 2.0:
+            raise ValueError("no mesh for this length")
+        return problem.mesh(params)
+
+    step = preflight.step_budget(
+        defn, SimpleNamespace(mesh=mesh), specs, runs, sizes, free=100.0
+    )
+    assert step.verdict == "not_assessable"
+    assert "mesh() raised" in step.summary and "no mesh for this length" in step.summary
+
+
+def test_completed_reads_each_run_and_the_deck_it_ran(tmp_path):
+    sweep = tmp_path / "sweep"
+    for cid, status, sha in (("A", "completed", "abc"), ("B", "error", "def")):
+        (sweep / cid).mkdir(parents=True)
+        (sweep / cid / "run.json").write_text(json.dumps({"status": status}))
+        (sweep / cid / "provenance.json").write_text(json.dumps({"inp_sha256": sha}))
+    (sweep / "preflight").mkdir()
+    assert preflight._completed(sweep) == {"A": "abc"}
