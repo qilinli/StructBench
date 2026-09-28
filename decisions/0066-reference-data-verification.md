@@ -955,3 +955,66 @@ keeps its last increment however small.
 The two published LS-DYNA records were re-measured and change only in the new
 row. It reads `source_missing` on every case, because the LS-DYNA adapter
 stores no plastic-dissipation series.
+
+## Abaqus rows note (2026-09-28, agent; draft for the maintainer to finalise)
+
+ADR-0071 part three owed two Abaqus rows. Both are built. Neither changes a
+published record, and no level is ratified by either.
+
+**`input_requests_required_evidence` now reads Abaqus decks.** It used to
+report `unsupported` for any non-LS-DYNA input (Abaqus note above). The
+Abaqus requirement is only what `docs/datagen/abaqus-conformance.md`
+established from the solver's own output, and nothing recalled:
+- the five energy outputs `abaqus_ledger` cannot build a ledger without
+  (`ALLKE`, `ALLIE`, `ALLVD`, `ALLWK`, `ETOTAL`);
+- `ALLAE` when a part is under-integrated;
+- `ALLFD` and `ALLPW` when contact is defined;
+- `time marks=YES` on every field request;
+- a history request on a field request's interval.
+
+The reader records the requests in `InputFacts.databases_requested`. Its
+docstring now covers both solvers' names, with no type change. For Abaqus
+that means the energy outputs `*Energy Output` names, plus two tokens for the
+clock properties. A deck with no `*Energy Output` card names none. A deck
+whose history request is `variable=PRESELECT` or `ALL` is not assessed,
+because what those write is not established. The requirement's constants are
+the adapter's own (`LEDGER_REQUIRED_OUTPUTS`, `CONTACT_OUTPUTS`), so the
+requirement cannot drift from what the ledger needs.
+
+Not required:
+- per-part and per-interface output (E6, E7), since how an Abaqus input asks
+  for it is not established;
+- the rigid body's reaction resultant, which the design listed. Its request
+  is established, but the input reader records no rigid body, so the
+  requirement cannot be conditioned on one. That would take a new
+  `InputFacts` field, which is flag-first.
+
+**The preflight enforces it before any run.** The conformance step now
+judges every preflight deck against the row, after the deck regression and
+before anything is written. A deck that could never supply its evidence
+fails the step and launches nothing, which is the design's step 1. The row
+is a zero requirement, so `verify` fails such a deck too.
+
+**Three of the four zero-energy-mode rows are measured.** The three
+whole-model rows were specified and read `unsupported` on every run. They
+are now ratios on the run's ledger (E5). The design's wording was "from the
+stored hourglass global"; the catalogue requires E5, and `collect` attaches
+the same ALLAE series as the ledger, so the ledger is what they read.
+- The internal energy they divide by excludes the modes' own energy. The
+  published levels come from practice where the two are separate addends. A
+  ledger whose identity leaves the modes out holds them inside internal
+  energy (Abaqus's ALLIE contains ALLAE), so they are subtracted there, and
+  one run reads the same however it was booked.
+- The initial-total row needs every term the run can produce, like the
+  balance rows. The internal-energy ratios need only the two terms they
+  divide.
+- A zero denominator is `not_applicable`.
+
+The per-part row still reads `source_missing` (E6). The rows keep their
+sourced levels as context. Under the 2026-09-21 decision they are reported,
+not judged.
+
+**The published records.** Both LS-DYNA records read the zero-energy-mode
+rows `not_applicable` by their trait gate. The LS-DYNA branch of the
+input-request row is unchanged. So neither record moves, and a re-measure
+would add only the three rows' definition versions.
