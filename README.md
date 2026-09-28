@@ -166,7 +166,7 @@ assets/            # figures embedded in the docs + landing pages
      crossed-out block may be compressed to one line. Reasoning lives in
      decisions/, not here. Substrate-layer work only (ADR-0014). -->
 
-*Last revised: 2026-09-21.*
+*Last revised: 2026-09-29.*
 
 ### Shipped
 
@@ -205,6 +205,48 @@ assets/            # figures embedded in the docs + landing pages
         ([`docs/datagen/lsdyna-conformance.md`](docs/datagen/lsdyna-conformance.md)).
         Still open: one conformance run with it, and the two-grid difference
         on the convergence case.
+  - [x] ~~Second benchmark (2026-09-23) — notch-impact's record,
+        [`docs/datachecks/notch_beam_2d_impact.md`](docs/datachecks/notch_beam_2d_impact.md);
+        material classes for its two materials (ADR-0067).~~
+  - [ ] The kinetic-energy closure's tolerance; E6, E7 and the remaining E9
+        rows, which wait on a run that writes their files; what to do about
+        Taylor's stored `global/total_energy` (maintainer's call).
+  - [ ] Ratifying any sourced reference level (maintainer's call; until then
+        indicators judge nothing).
+- **Data generation platform** (ADR-0068/0069/0071, Proposed) —
+  `structbench-datagen`: the Abaqus pipeline as a package capability, with a
+  preflight gate before production. Guide:
+  [`docs/DATA_GENERATION.md`](docs/DATA_GENERATION.md).
+  - [x] ~~Part one (2026-09-27) — the package, the dataset contract,
+        `new`/`check`, provenance.~~
+  - [x] ~~Part two (2026-09-27/28) — `converge`; `preflight` and the stamp
+        `generate` requires.~~
+  - [x] ~~Part three (a) (2026-09-28) — a gate a real dataset can pass; the
+        Abaqus input-request and zero-energy-mode verification rows.~~
+  - [ ] Part three, still owed: ratifying the energy-gain indicator, the card
+        generator, the full guide.
+  - [ ] Minors deferred from part one's whole-branch review (moved here from
+        CLAUDE.md 2026-09-29, not re-checked): `check` nests each level
+        against the first only · the QoI-name check is order-sensitive ·
+        `[pilot].fine_cases` and `accepted_gaps` are not checked against
+        planned case ids or catalogue rows · `new .` derives an empty name ·
+        `[declaration]` is validated only by `verify`, not by `check` ·
+        `provenance.json` is written CRLF on Windows · a stale module path in
+        `core/io/abaqus.py` · an old collect command in the conformance
+        document, and `sampling.py`'s docstring still says `sweep.toml` · a
+        missing scipy raises an ImportError instead of an install hint, and
+        exit codes 2 and 3 are used inconsistently across stages · the
+        private dataset's `problem.py` still carries literal keyword text for
+        probe splits.
+- **Validation against experiments** (ADR-0072, Proposed) — built
+  2026-09-27: `structbench.validation`, `structbench-validate`, and the first
+  reference set, `taylor_copper`. Reports deviations, never a verdict.
+  - [ ] A `BenchmarkCard` field and landing-page link, with the first public
+        record.
+  - [ ] An LS-DYNA Taylor record, which needs runs at the experiments'
+        conditions (maintainer's call).
+  - [ ] A figure in the reference companion.
+  - [ ] A `/2` record format for time-resolved measurements.
 
 ### Inbox — untriaged, add freely
 
