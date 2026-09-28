@@ -684,8 +684,9 @@ touches the schema and every archive, and is the maintainer's call. Until
 then the row reads `fail` on all 33 Taylor cases, truthfully.
 
 **`input_requests_required_evidence` is new** (E1 only, `bears_on` input).
-`STANDARD_INPUT_BLOCK.md` stated what a run must ask the solver to write, and
-nothing read it back: the instrument could say the runs did not supply the
+`docs/datagen/lsdyna-conformance.md` (moved 2026-09-29; was
+`data_generation/lsdyna/STANDARD_INPUT_BLOCK.md`) stated what a run must ask
+the solver to write, and nothing read it back: the instrument could say the runs did not supply the
 ledger, never that the input never asked for one. Those are different
 failures with different owners, and only the second is fixable — before the
 run, for free. The row counts the omitted requests, gated on the features the

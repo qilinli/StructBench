@@ -202,7 +202,7 @@ assets/            # figures embedded in the docs + landing pages
         [`docs/datachecks/taylor_impact_2d.md`](docs/datachecks/taylor_impact_2d.md);
         sourced reference levels are shown for context and judge nothing
         until ratified.~~ The standard LS-DYNA input block is drafted
-        ([`data_generation/lsdyna/STANDARD_INPUT_BLOCK.md`](data_generation/lsdyna/STANDARD_INPUT_BLOCK.md)).
+        ([`docs/datagen/lsdyna-conformance.md`](docs/datagen/lsdyna-conformance.md)).
         Still open: one conformance run with it, and the two-grid difference
         on the convergence case.
 
@@ -230,7 +230,7 @@ assets/            # figures embedded in the docs + landing pages
   canonical schema. The point is data generation the platform can audit and
   a contributor can repeat, rather than archives whose provenance is a
   folder someone still has; the standard input block
-  ([`data_generation/lsdyna/STANDARD_INPUT_BLOCK.md`](data_generation/lsdyna/STANDARD_INPUT_BLOCK.md))
+  ([`docs/datagen/lsdyna-conformance.md`](docs/datagen/lsdyna-conformance.md))
   is the LS-DYNA statement of what such a pipeline must switch on
 - Training: resume support · part-id→embedding remap · ADR-0028 Phase-2
   ablations

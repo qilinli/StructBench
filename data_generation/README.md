@@ -1,22 +1,41 @@
 # data_generation/
 
-Solver-specific **glue that is not importable**: per-dataset collectors and
-converters for LS-DYNA archives that predate the package's pipeline. The
-Abaqus data-generation pipeline lives in the package as `structbench.datagen`
-(`structbench-datagen`, ADR-0071); its conformance record is
-`docs/datagen/abaqus-conformance.md` and its guide `docs/DATA_GENERATION.md`.
+Per-dataset scripts that turn **existing** solver output into canonical
+StructBench cases: the three LS-DYNA sweeps and the MeshGraphNets
+`deforming_plate` dataset, none of which was produced by the package's
+pipeline. **Not importable** as part of `structbench` (ADR-0010): these are
+standalone scripts, run with the project environment, that import the
+installed `structbench` package.
+
+Layout is `<solver>/<dataset>/`. Each per-dataset folder holds thin *glue*
+(ADR-0016 §6): it knows where that dataset's files live, its source unit
+convention, its dimensionality, and its case-id naming — and delegates **all**
+extraction to `structbench.core.io`. Glue must not manipulate response data;
+doing so would bypass the canonical extraction and reintroduce the ad-hoc
+per-paper post-processing the substrate layer exists to end (ADR-0014, ADR-0016).
+
+*Generating new data* is not done here. It is `structbench.datagen`
+(`structbench-datagen`, ADR-0071), where a dataset is a definition the
+pipeline consumes rather than code in the repository; its guide is
+`docs/DATA_GENERATION.md` and the solvers' conformance documents are under
+`docs/datagen/`. A dataset the pipeline produces never gains a folder here.
 
 ## LS-DYNA
 
-- `lsdyna/STANDARD_INPUT_BLOCK.md` — what every generated LS-DYNA input switches
-  on so that a run supplies the run evidence E1–E10 of ADR-0066 (energy ledger
-  with every term, per-part and reaction output, integration-point fields, one
-  sampling clock), and what to keep from the run folder. Draft until one
-  conformance run has exercised it.
+What a new LS-DYNA input must switch on so that its run supplies the run
+evidence of ADR-0066 is `docs/datagen/lsdyna-conformance.md` (moved there
+2026-09-29 beside its Abaqus sibling; a draft until one conformance run has
+exercised it). The sweeps below predate it, and both that the instrument has
+measured fail its input-request row.
+
 - `lsdyna/2D-Copper-Bar-Taylor-Impact/collect_run_evidence.py` — read each
   Taylor run's message file and global statistics into one whitelisted
   run-evidence record for `structbench.cli.datacheck measure --run-evidence`.
   Paths are built from case ids; nothing of the raw text is kept.
+- `lsdyna/2DNotchBeam/collect_run_evidence.py` — the same for the notch-impact
+  runs (the descoped bend family is not mapped). They kept no global
+  statistics, so every record has no energy ledger and the rows resting on it
+  read `not_assessable`.
 - `lsdyna/2D-Copper-Bar-Taylor-Impact/convert.py` — batch-convert the Taylor 2D
   copper-bar SPH impact sweep to canonical HDF5 via
   `structbench.core.io.lsdyna.lsdyna_to_case`. Start with
@@ -39,8 +58,9 @@ Abaqus data-generation pipeline lives in the package as `structbench.datagen`
 ## Abaqus
 
 Nothing here any more: the Abaqus pipeline is `structbench.datagen` (ADR-0071),
-run as `structbench-datagen new | check | generate | run | export | convert |
-verify | archive`. Its conformance record is `docs/datagen/abaqus-conformance.md`,
+run as `structbench-datagen new | check | preflight | generate | run | follow |
+export | convert | verify | converge | archive`. Its conformance record is
+`docs/datagen/abaqus-conformance.md`,
 its guide `docs/DATA_GENERATION.md`, and the example definition ships in the
 package (`structbench/datagen/examples/abaqus_conformance`).
 
