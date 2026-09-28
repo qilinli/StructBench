@@ -699,16 +699,17 @@ def step_frame(
         errors = interpolation_errors(frame_case, stride)
     except ValueError as exc:
         return Step("frame", "not_assessable", str(exc), {})
-    # Judged: node fields and globals, except acceleration -- the second time
-    # derivative of a frame-sampled explicit response is reported like the
-    # element fields, not what the stored clock is chosen for (review finding
-    # 7, ruled by the implementer; the maintainer may reverse it).
-    judged = sorted(
-        k
-        for k in errors
-        if k.startswith(("node/", "global/")) and k != "node/acceleration"
-    )
-    reported = sorted(k for k in errors if k not in judged)
+    # Judged: every stored field but those the dataset reports, each with its
+    # reason (plan 3a); a declared key the case does not store is noted, not
+    # silently accepted.
+    declared = dict(p.frame_reported)
+    judged = sorted(k for k in errors if k not in declared)
+    reported = {
+        k: {"error": errors[k], "reason": declared[k]}
+        for k in sorted(errors)
+        if k in declared
+    }
+    reported_absent = sorted(k for k in declared if k not in errors)
     not_finite = [k for k in judged if not math.isfinite(errors[k])]
     over = [f"{k} {errors[k]:.3g}" for k in judged if errors[k] > p.frame_tolerance]
     common: dict[str, float] | None = None
@@ -729,6 +730,7 @@ def step_frame(
         "common_instants": common,
         "judged": judged,
         "reported": reported,
+        "reported_absent": reported_absent,
         "rise_frames": rise,
         "shortest_rise_frames": min(rise.values()) if rise else None,
         "tolerance": p.frame_tolerance,
@@ -754,9 +756,10 @@ def step_frame(
     return Step(
         "frame",
         "pass",
-        "the stored frame interval resolves every node field (acceleration "
-        f"reported, not judged) and global to {p.frame_tolerance:g} (linear "
-        f"interpolation of a {p.frame_factor:g}× interval export, stride {stride})",
+        f"the stored frame interval resolves all {len(judged)} judged fields to "
+        f"{p.frame_tolerance:g} (linear interpolation of a {p.frame_factor:g}× "
+        f"interval export, stride {stride}); reported, not judged: "
+        + (", ".join(reported) or "none"),
         detail,
     )
 

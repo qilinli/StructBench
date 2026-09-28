@@ -346,7 +346,11 @@ def test_step_frame_passes_a_smooth_response_and_fails_a_jagged_one(tmp_path):
     )
     # the force rises linearly over 21 production frames: 10 % at frame 2, 90 % at 18
     assert step.detail["shortest_rise_frames"] == 16
-    assert step.detail["judged"] == ["global/reaction_force", "node/displacement"]
+    assert step.detail["judged"] == [
+        "global/reaction_force",
+        "node/displacement",
+        "solid/stress",
+    ]
     jagged = _toy_case(lambda t: np.sin(2 * np.pi * 10 * t), 41)
     bad = preflight.step_frame(jagged, None, defn)
     assert bad.verdict == "fail" and bad.detail["common_instants"] is None
@@ -380,20 +384,60 @@ def test_step_frame_judges_the_clock_the_factor_names(tmp_path):
     assert two_frames["node/displacement"] < 0.5 * judged_q
 
 
-def test_step_frame_reports_acceleration_but_judges_it_no_more_than_stress(tmp_path):
-    """Review finding 7 (ruling): the second time derivative of a frame-sampled
-    explicit response is reported, not judged."""
+def _jagged(frames=41):
+    return np.sin(2 * np.pi * 10 * np.linspace(0, 1, frames)).astype(np.float32)
+
+
+def test_with_nothing_reported_acceleration_and_stress_are_judged(tmp_path):
+    """Plan 3a: an empty frame_reported judges every stored field."""
     _, defn, _ = _load(tmp_path)
     case = _toy_case(lambda t: 1 - np.exp(-t / 0.3), 41)
-    jag = np.sin(2 * np.pi * 10 * np.linspace(0, 1, 41)).astype(np.float32)
-    case.response.node["acceleration"] = np.repeat(jag[:, None, None], 4, 1).repeat(
-        2, 2
+    case.response.node["acceleration"] = np.repeat(
+        _jagged()[:, None, None], 4, 1
+    ).repeat(2, 2)
+    step = preflight.step_frame(case, None, defn)
+    assert step.verdict == "fail" and "node/acceleration" in step.summary
+    stressed = _toy_case(lambda t: 1 - np.exp(-t / 0.3), 41)
+    stressed.response.element["solid"]["stress"] = np.repeat(
+        _jagged()[:, None, None], 6, 2
     )
+    step = preflight.step_frame(stressed, None, defn)
+    assert step.verdict == "fail" and "solid/stress" in step.summary
+
+
+def test_reported_fields_carry_their_reason_and_everything_else_is_judged(tmp_path):
+    declared = (
+        'frame_reported = { "node/acceleration" = "second derivative", '
+        '"global/absent" = "not stored in this case" }'
+    )
+    _, defn, _ = _load(tmp_path, PF_TOML.replace(_GAPS, f"{_GAPS}\n{declared}"))
+    case = _toy_case(lambda t: 1 - np.exp(-t / 0.3), 41, force=np.linspace(0, 1, 41))
+    case.response.node["acceleration"] = np.repeat(
+        _jagged()[:, None, None], 4, 1
+    ).repeat(2, 2)
     step = preflight.step_frame(case, None, defn)
     assert step.verdict == "pass", step.summary
-    assert "node/acceleration" in step.detail["reported"]
-    assert "node/acceleration" not in step.detail["judged"]
-    assert step.detail["interpolation"]["node/acceleration"] > 0.5
+    reported = step.detail["reported"]
+    assert set(reported) == {"node/acceleration"}
+    assert reported["node/acceleration"]["reason"] == "second derivative"
+    assert reported["node/acceleration"]["error"] > 0.5
+    assert step.detail["reported_absent"] == ["global/absent"]
+    assert step.detail["judged"] == [
+        "global/reaction_force",
+        "node/displacement",
+        "solid/stress",
+    ]
+    assert "node/acceleration" in step.summary  # the report says what was not judged
+
+
+def test_a_non_finite_reported_field_does_not_block(tmp_path):
+    declared = 'frame_reported = { "global/reaction_force" = "contact chatter" }'
+    _, defn, _ = _load(tmp_path, PF_TOML.replace(_GAPS, f"{_GAPS}\n{declared}"))
+    force = np.linspace(0.0, 1.0, 41)
+    force[3] = np.nan
+    case = _toy_case(lambda t: 1 - np.exp(-t / 0.3), 41, force=force)
+    step = preflight.step_frame(case, None, defn)
+    assert step.verdict == "pass", step.summary
 
 
 def _history(arrays, **terms):
