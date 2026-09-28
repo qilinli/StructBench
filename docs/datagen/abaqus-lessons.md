@@ -222,7 +222,9 @@ redacts what the solver wrote about its licence.
     and the horizon settled from the pilots (ADR-0071, note of 2026-09-27) —
     `structbench-datagen preflight` runs all three and writes the stamp
     `generate` needs; `[qoi].tolerance`, `[pilot].settling_margin` and
-    `contact_force_global` are the dataset's part of it.
+    `contact_force_global` are the dataset's part of it, and so are the fields
+    its clock is not meant to resolve (`frame_reported`) and the reviews a
+    person accepts (`accepted_reviews`), each with its reason.
 11. **After any solver-setting change**: the h / h/2 pair again.
 12. **Disk**: budgeted per version.
 13. **Before every push or share**: the private-detail and licence scans.

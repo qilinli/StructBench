@@ -188,3 +188,26 @@ tested end to end against a fake solver script; the first Abaqus run of the
 stage on a real dataset is the maintainer's to schedule. Part three owes the
 Abaqus `input_requests_required_evidence` and hourglass rows, the
 energy-gain indicator's ratification, the card generator and the full guide.
+
+## Note 2026-09-28 — part three (a) built: a gate a real dataset can pass
+
+The first real preflight, on the maintainer's first Abaqus dataset, could not
+pass whatever the data's quality. The frame step judged every stored global,
+and a rigid-wall reaction force or a strain energy is never resolved at a
+practical clock; the space step's `review` on a quantity that barely moves
+between levels had no way to be accepted; and the budget estimated, from pilots
+at the box's corners, a production sweep that already existed. Plan 3a
+answers each with a declaration that travels with its reason. `[pilot].
+frame_reported` names the stored fields the frame step reports rather than
+judges; an empty table judges every stored field, including stress and
+acceleration, which is stricter than plan 2b's built-in acceleration exception,
+now removed (the shipped example declares acceleration). `[pilot].
+accepted_reviews` records a person's acceptance of a review, keyed
+`<step>.<name>`; it rescues a review only, never a fail or a missing
+measurement, and the stamp lists accepted, unaccepted and unused acceptances
+so its verdict is recomputable from the stamp alone. The budget sizes only the
+production cases not yet completed, from their own meshes at the pilots' rates.
+`preflight --rejudge` re-evaluates every step on the runs already made, with no
+solver, when the case set is the planned one and every deck and every unit
+label is reproduced by the current definition; the stamp records the hashes
+the runs were generated under beside its own.
