@@ -483,6 +483,42 @@ def test_step_conformance_names_missing_and_extra_terms(tmp_path):
     assert preflight.step_conformance(None, "t-mm-s").verdict == "not_assessable"
 
 
+def test_the_conformance_step_fails_a_deck_that_omits_required_evidence(tmp_path):
+    """The decks alone decide it: a deck that asks for too little fails even
+    before any run exists, so nothing is launched on it."""
+    findings = ["X-L2: misses output:time_marks"]
+    step = preflight.step_conformance(None, "t-mm-s", deck_findings=findings)
+    assert step.verdict == "fail" and "time_marks" in step.summary
+    assert step.detail["deck_findings"] == findings
+    base = _FIXTURE._arrays()
+    base["history/S/Assembly Assembly-1/ALLPW"] = base[
+        "history/S/Assembly Assembly-1/ALLWK"
+    ].copy()
+    np.savez(tmp_path / "ok.npz", **_history(base, ALLCD=0.0, ALLPW=0.0, ETOTAL=11.0))
+    ok = preflight.step_conformance(tmp_path / "ok.npz", "t-mm-s", decks_checked=29)
+    assert ok.verdict == "pass" and "all 29 decks ask for" in ok.summary
+    assert ok.detail["deck_findings"] == []
+
+
+def test_deck_request_findings_name_each_deck_and_what_it_misses():
+    from importlib import resources
+
+    root = resources.files("structbench.datagen") / "examples" / "abaqus_conformance"
+    with resources.as_file(root) as ds:
+        defn, problem = definition.load_definition(ds), definition.load_problem(ds)
+    specs = preflight.preflight_cases(defn)
+    decks = {s.case_id: preflight.deck_for(s, problem) for s in specs}
+    assert preflight.deck_request_findings(decks, defn.units) == []
+    first = sorted(decks)[0]
+    broken = {**decks, first: decks[first].replace(", TIME MARKS=YES", "")}
+    assert preflight.deck_request_findings(broken, defn.units) == [
+        f"{first}: misses output:time_marks"
+    ]
+    hidden = {first: decks[first] + "*INCLUDE, INPUT=more.inp\n"}
+    (finding,) = preflight.deck_request_findings(hidden, defn.units)
+    assert finding.startswith(f"{first}: its output requests cannot be read")
+
+
 def _report(rows):
     by: dict[str, list[CheckResult]] = {}
     for case_id, quantity, verdict, value in rows:

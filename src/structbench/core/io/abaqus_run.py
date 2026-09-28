@@ -23,6 +23,7 @@ guess about a run is what ADR-0068 exists to prevent.
 
 from __future__ import annotations
 
+import math
 import re
 
 from ..evidence import (
@@ -327,7 +328,7 @@ _DATA_BEARING = frozenset({"NODE", "ELEMENT", "NSET", "ELSET", "SURFACE"})
 #: ETOTAL = ALLKE + ALLIE + ALLVD + ALLFD + ALLCD - ALLWK - ALLPW closed to
 #: 6.6e-8 of the initial kinetic energy (docs/datagen/abaqus-conformance.md). ALLAE is
 #: part of ALLIE, not an addend. The contact term is ALLFD - ALLPW, so it
-#: exists only when both are output: see ``_CONTACT_OUTPUTS``.
+#: exists only when both are output: see ``CONTACT_OUTPUTS``.
 ENERGY_LEDGER_TERMS: dict[str, str] = {
     "ALLKE": "kinetic",
     "ALLIE": "internal",
@@ -335,7 +336,20 @@ ENERGY_LEDGER_TERMS: dict[str, str] = {
     "ALLWK": "external_work",
     "ALLAE": "zero_energy_mode",
 }
-_CONTACT_OUTPUTS = frozenset({"ALLFD", "ALLPW"})
+CONTACT_OUTPUTS = frozenset({"ALLFD", "ALLPW"})
+#: The outputs without which ``abaqus_ledger`` builds no ledger at all: three
+#: addends of the identity, the input side, and the solver's own total.
+LEDGER_REQUIRED_OUTPUTS = frozenset({"ALLKE", "ALLIE", "ALLVD", "ALLWK", "ETOTAL"})
+#: What `*Energy Output, variable=ALL` wrote on the diagnostic run: the ten the
+#: production request names and four more (docs/datagen/abaqus-conformance.md,
+#: "The energy identity"). That it writes nothing else is not established.
+_ALL_ENERGY_OUTPUTS = frozenset(
+    {"ALLAE", "ALLCD", "ALLFD", "ALLIE", "ALLKE", "ALLPD", "ALLSE"}
+    | {"ALLVD", "ALLWK", "ETOTAL", "ALLCW", "ALLDMD", "ALLMW", "ALLPW"}
+)
+#: History requests whose variables are the solver's choice, not the input's:
+#: what they write is not established (conformance, open point 2).
+_CHOSEN_BY_SOLVER = frozenset({"PRESELECT", "ALL"})
 #: Cards that give a material a way to fail, the only way an Explicit element
 #: is deleted; `*Section Controls, element deletion=YES` states it outright.
 #: Read, like `*Mass Scaling` and `*Damping`, by the card's presence.
@@ -466,6 +480,38 @@ def _plastic_table(
     return tuple(strains), tuple(stresses)
 
 
+def _number(text: str | None) -> float | None:
+    try:
+        return None if text is None else float(text)
+    except ValueError:
+        return None
+
+
+def _clock_requests(
+    field_clocks: list[tuple[float | None, bool]], history_clocks: list[float | None]
+) -> frozenset[str]:
+    """The two properties of the output requests the stored frames rest on.
+
+    ``TIME_MARKS``: every field request has ``time marks=YES``, which put the
+    conformance run's frames at exactly ``kΔ``. ``HISTORY_ON_FIELD_CLOCK``: a
+    history request shares a field request's time interval, so the ledger is
+    sampled at the stored frames (docs/datagen/abaqus-conformance.md, "Output
+    requests and what they produce").
+    """
+    tokens = set()
+    if field_clocks and all(marked for _, marked in field_clocks):
+        tokens.add("TIME_MARKS")
+    fields = [dt for dt, _ in field_clocks if dt is not None]
+    if any(
+        math.isclose(h, f, rel_tol=1e-9)
+        for h in history_clocks
+        if h is not None
+        for f in fields
+    ):
+        tokens.add("HISTORY_ON_FIELD_CLOCK")
+    return frozenset(tokens)
+
+
 def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     """Read what an Abaqus input establishes about a run (evidence item E1).
 
@@ -532,6 +578,10 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     # asks in a way this reader does not resolve (a preselected set, a region).
     energy_outputs: set[str] | None = set()
     energy_cards = 0
+    chosen_by_solver = False  # a history request that may add unnamed energies
+    # `*Output` requests' time intervals, and whether a field one has time marks.
+    field_clocks: list[tuple[float | None, bool]] = []
+    history_clocks: list[float | None] = []
 
     for index, line in enumerate(lines):
         if not line.startswith("*"):
@@ -665,10 +715,19 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
                 energy_outputs = None
             elif energy_outputs is not None:
                 if variable == "ALL":
-                    energy_outputs |= set(ENERGY_LEDGER_TERMS) | _CONTACT_OUTPUTS
+                    energy_outputs |= _ALL_ENERGY_OUTPUTS
                 else:
                     rows = _data_rows(lines, index)
                     energy_outputs |= {c.upper() for r in rows for c in r if c}
+        elif word == "OUTPUT":
+            interval = _number(options.get("TIME INTERVAL"))
+            if "HISTORY" in _flags(line):
+                variable = options.get("VARIABLE", "").upper()
+                chosen_by_solver = chosen_by_solver or variable in _CHOSEN_BY_SOLVER
+                history_clocks.append(interval)
+            elif "FIELD" in _flags(line):
+                marked = options.get("TIME MARKS", "").upper() == "YES"
+                field_clocks.append((interval, marked))
         elif word == "STATIC":
             time_integration = "implicit"
         elif word == "DYNAMIC":
@@ -807,15 +866,18 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
         particle_pairwise_conservative=None,
         smoothing_length_scale_bounds=None,
         # Abaqus computes every term whatever is asked; what a ledger can hold
-        # is what `*Energy Output` writes. The database vocabulary stays
-        # deferred (ADR-0068 clause 8).
+        # is what `*Energy Output` writes.
         energy_terms_computed=None
         if hidden or not energy_cards or energy_outputs is None
         else frozenset(
             {ENERGY_LEDGER_TERMS[n] for n in energy_outputs if n in ENERGY_LEDGER_TERMS}
-            | ({"contact"} if _CONTACT_OUTPUTS <= energy_outputs else set())
+            | ({"contact"} if CONTACT_OUTPUTS <= energy_outputs else set())
         ),
-        databases_requested=None,
+        # The whole-model energy outputs the input names. No card names none,
+        # but a preselected history request may write what no card names.
+        databases_requested=None
+        if hidden or energy_outputs is None or chosen_by_solver
+        else frozenset(energy_outputs) | _clock_requests(field_clocks, history_clocks),
         unparsable=frozenset(tokens),
         solver="abaqus",
         initial_velocity=None if hidden or not velocity_read else tuple(velocity),

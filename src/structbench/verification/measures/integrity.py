@@ -11,6 +11,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ...core import AbsenceReason, Case, DeclaredFacts, EvidenceItem, InputFacts
+from ...core.io.abaqus_run import CONTACT_OUTPUTS, LEDGER_REQUIRED_OUTPUTS
 from ...datasets import n_valid_frames
 from ..kernels import nonfinite_count
 from ..materials import material_class
@@ -171,11 +172,11 @@ def _input_requests_required_evidence(
     """
     name = "input_requests_required_evidence"
     assert facts is not None
-    if facts.solver != "lsdyna":
-        # `_REQUIRED_DATABASES` holds LS-DYNA keyword names, so conformance
-        # cannot be checked for another solver until its output-request
-        # vocabulary is defined (ADR-0068 clause 8). That is the platform's
-        # gap; `input_gap` here would blame a complete deck for it.
+    if facts.solver not in ("lsdyna", "abaqus"):
+        # The requirement is written in each solver's own output names, so
+        # it cannot be checked for a solver whose vocabulary is not defined
+        # (ADR-0068 clause 8). That is the platform's gap; `input_gap` here
+        # would blame a complete deck for it.
         return absent(name, AbsenceReason.UNSUPPORTED)
     if facts.databases_requested is None:
         return input_gap(name, facts)  # the deck hides what it asks for
@@ -186,6 +187,8 @@ def _input_requests_required_evidence(
         "damping": bool(facts.damping_defined),
         "under_integrated": any(p.under_integrated for p in facts.parts),
     }
+    if facts.solver == "abaqus":
+        return _abaqus_requests(name, facts.databases_requested, features)
     required = set(_REQUIRED_DATABASES)
     for feature, databases in _REQUIRED_WITH_FEATURE:
         if features[feature]:
@@ -208,6 +211,43 @@ def _input_requests_required_evidence(
         n=len(required) + n_energy,
         detail=detail,
     )
+
+
+#: Abaqus outputs a run must name when it has the feature whose ledger term
+#: they carry: the modes' energy, and contact, which is ALLFD - ALLPW.
+_ABAQUS_WITH_FEATURE: tuple[tuple[str, frozenset[str]], ...] = (
+    ("under_integrated", frozenset({"ALLAE"})),
+    ("contact", CONTACT_OUTPUTS),
+)
+
+
+#: Properties of the Abaqus output requests the stored frames rest on: field
+#: frames at exactly ``kΔ``, and the ledger sampled at them.
+_ABAQUS_CLOCKS = frozenset({"TIME_MARKS", "HISTORY_ON_FIELD_CLOCK"})
+
+
+def _abaqus_requests(
+    name: str, requested: frozenset[str], features: dict[str, bool]
+) -> Measurement:
+    """The Abaqus requirement: the energy outputs and the clock (E5, E9).
+
+    ``abaqus_ledger`` builds no ledger without all of
+    ``LEDGER_REQUIRED_OUTPUTS``, each feature adds the outputs its term needs,
+    and the field and history requests must share the clock the conformance
+    run established. Per-part (E6) and per-interface (E7) requests are not
+    part of it: how an Abaqus input asks for them is not established
+    (docs/datagen/abaqus-conformance.md, open point 4), so no request can be
+    required, and the rows that need them say what is missing.
+    """
+    outputs = set(LEDGER_REQUIRED_OUTPUTS)
+    for feature, needed in _ABAQUS_WITH_FEATURE:
+        if features[feature]:
+            outputs |= needed
+    missing = {f"energy_output:{o.lower()}" for o in outputs - requested}
+    missing |= {f"output:{c.lower()}" for c in _ABAQUS_CLOCKS - requested}
+    detail = {"first_missing": min(missing)} if missing else {}
+    n = len(outputs) + len(_ABAQUS_CLOCKS)
+    return value(name, len(missing), INPUT, n=n, detail=detail)
 
 
 #: Readers that parse the input's initial conditions into ``InputFacts``.

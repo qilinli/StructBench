@@ -42,7 +42,12 @@ from numpy.typing import NDArray
 from ..evidence import EnergyLedger
 from ..schema import Case, ElementBlock, Material, Metadata, Nodes, Provenance, Response
 from ..validation import validate
-from .abaqus_run import ENERGY_LEDGER_TERMS, read_abaqus_input_facts
+from .abaqus_run import (
+    CONTACT_OUTPUTS,
+    ENERGY_LEDGER_TERMS,
+    LEDGER_REQUIRED_OUTPUTS,
+    read_abaqus_input_facts,
+)
 from .lsdyna import unit_factors
 
 __all__ = [
@@ -435,7 +440,7 @@ def abaqus_ledger(npz_path: str | Path, *, source_units: str) -> EnergyLedger | 
     f = unit_factors(source_units)
     export = read_abaqus_export(npz_path)
     history = assembly_history(export)
-    if not {"ALLKE", "ALLIE", "ALLVD", "ALLWK", "ETOTAL"} <= set(history):
+    if not LEDGER_REQUIRED_OUTPUTS <= set(history):
         return None
     if any(
         name not in _LEDGER_CLOSED and np.any(series != 0.0)
@@ -449,7 +454,7 @@ def abaqus_ledger(npz_path: str | Path, *, source_units: str) -> EnergyLedger | 
         if name in joules
     }
     identity = {"kinetic": 1, "internal": 1, "damping": 1}
-    if {"ALLFD", "ALLPW"} <= set(joules):
+    if CONTACT_OUTPUTS <= set(joules):
         terms["contact"] = joules["ALLFD"] - joules["ALLPW"]
         identity["contact"] = 1
     return EnergyLedger(

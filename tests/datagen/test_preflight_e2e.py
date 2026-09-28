@@ -279,3 +279,31 @@ def test_when_the_conformance_run_has_no_export_nothing_more_is_launched(
     assert stamp["steps"]["conformance"]["verdict"] == "not_assessable"
     assert stamp["steps"]["space"]["verdict"] == "not_assessable"
     assert stamp["passed"] is False
+
+
+#: The example's deck, rewritten to leave its field frames off the clock.
+_NO_TIME_MARKS = """
+
+_written = input_deck
+
+
+def input_deck(params, variant):
+    return _written(params, variant).replace(", TIME MARKS=YES", "")
+"""
+
+
+def test_a_deck_that_does_not_ask_for_its_evidence_launches_nothing(tmp_path):
+    """The decks are judged before any run: nothing is written or launched."""
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    problem = ds / "problem.py"
+    problem.write_bytes(problem.read_bytes() + _NO_TIME_MARKS.encode("utf-8"))
+    _git(ds, "no time marks")
+    assert _preflight(ds, work) == 1
+    pre = work / "e2e" / "preflight"
+    assert not list(pre.glob("*/run.json")) and not list(pre.glob("*/*.inp"))
+    stamp = _stamp(work)
+    assert stamp["steps"]["deck_regression"]["verdict"] == "pass"
+    assert stamp["steps"]["conformance"]["verdict"] == "fail"
+    assert stamp["passed"] is False
+    report = (pre / "report.md").read_text(encoding="utf-8")
+    assert "output:time_marks" in report

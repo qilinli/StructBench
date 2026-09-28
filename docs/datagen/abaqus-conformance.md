@@ -215,6 +215,36 @@ verification row `plastic_dissipation_excess_max` (ADR-0066, energy-account
 note) fails a run whose plastic dissipation exceeds its internal energy.
 `deck.contact_pair` takes the constraint as `mechanical_constraint`.
 
+### What the instrument requires of an Abaqus input
+
+`input_requests_required_evidence` (ADR-0066) reads this block back off the
+deck and counts the requests it omits; it must read zero. For Abaqus the
+requirement is exactly what the observations above established, and nothing
+recalled:
+
+| Request | Required when | Why |
+|---|---|---|
+| `ALLKE`, `ALLIE`, `ALLVD`, `ALLWK`, `ETOTAL` on `*Energy Output` | always | without all five no ledger is built (`abaqus_ledger`) |
+| `ALLAE` | a part is under-integrated (CAX4R) | the zero-energy-mode term |
+| `ALLFD` and `ALLPW` | contact is defined | contact = `ALLFD − ALLPW`; without `ALLPW` the identity does not close |
+| `time marks=YES` on every `*Output, field` | always | frames at exactly `kΔ` |
+| an `*Output, history` on a field request's time interval | always | the ledger sampled at the stored frames |
+
+`variable=ALL` on `*Energy Output` counts as naming the fourteen outputs the
+diagnostic run wrote. A deck whose `*Output, history` uses
+`variable=PRESELECT` or `ALL` is not assessed, because what those write is not
+established (open point 2). A deck with no `*Energy Output` card names none
+and misses them all. The deck writer's `standard_output` meets the
+requirement, and so does the preflight's widened conformance request.
+
+Not required, and why:
+- **Per-part and per-interface output (E6, E7).** How an Abaqus input asks
+  for it is not established (open point 4). The rows that need it read
+  `source_missing` and name the item.
+- **The rigid body's reaction resultant.** Its request is established
+  (above), but the input reader does not yet record that a model has a rigid
+  body, so the requirement cannot be conditioned on it.
+
 ## After the run
 
 Keep, per run folder: the resolved `.inp` and everything it references, the

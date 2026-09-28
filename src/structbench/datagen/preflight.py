@@ -13,7 +13,10 @@ a finer frame interval, one conformance run with every energy term requested
 over it in ``<work-root>/<name>/preflight/``, a sweep of its own. Ten steps
 turn the records into verdicts; ``report.md`` and ``stamp.json`` are written
 beside the cases, and ``generate`` opens splits that are not probes only
-against a passing stamp for the current definition. Re-running resumes:
+against a passing stamp for the current definition. Every deck is judged
+against the instrument's input-request requirement before anything is
+written: a deck that could never supply its evidence fails the conformance
+step and launches nothing. Re-running resumes:
 every stage skips what is already done, and a preflight folder holding
 another definition's runs is refused, never cleared. Exit codes: 0 passed,
 1 a step failed or needs review (the stamp says so), 2 refused, 3 stopped by
@@ -50,6 +53,7 @@ from structbench.core.io.abaqus import (
     assembly_history,
     read_abaqus_export,
 )
+from structbench.core.io.abaqus_run import read_abaqus_input_facts
 from structbench.datagen import converge as convergence_stage
 from structbench.datagen import sampling
 from structbench.datagen.abaqus.deck import with_all_energy
@@ -76,6 +80,7 @@ from structbench.datagen.template import (
     deck_sha256_in_fresh_interpreter,
 )
 from structbench.datagen.verify import judge_sweep
+from structbench.verification.measures import measure_case
 from structbench.verification.results import Verdict
 from structbench.verification.temporal import (
     common_instant_errors,
@@ -417,9 +422,51 @@ def step_feasibility(
     )
 
 
-def step_conformance(npz_path: Path | None, units: str) -> Step:
+def deck_request_findings(decks: Mapping[str, str], units: str) -> list[str]:
+    """Every deck that does not ask the solver for the evidence the instrument
+    requires (``input_requests_required_evidence``), one sentence each."""
+    findings = []
+    for case_id, text in sorted(decks.items()):
+        facts = read_abaqus_input_facts(text, source_units=units)
+        (row,) = [
+            m
+            for m in measure_case(None, facts, None, case_id=case_id).measurements
+            if m.quantity == "input_requests_required_evidence"
+        ]
+        if row.absence is not None:
+            findings.append(
+                f"{case_id}: its output requests cannot be read "
+                f"({row.absence.reason.value})"
+            )
+        elif row.value:
+            more = int(row.value) - 1
+            findings.append(
+                f"{case_id}: misses {row.detail['first_missing']}"
+                + (f" and {more} more" if more else "")
+            )
+    return findings
+
+
+def step_conformance(
+    npz_path: Path | None,
+    units: str,
+    *,
+    deck_findings: Sequence[str] = (),
+    decks_checked: int = 0,
+) -> Step:
     """The conformance run: the ledger identity closes with the standard terms
-    and no term outside it is non-zero."""
+    and no term outside it is non-zero; and every preflight deck asks for the
+    evidence the instrument requires (``deck_findings`` lists those that do
+    not, and decides the step on its own)."""
+    if deck_findings:
+        return Step(
+            "conformance",
+            "fail",
+            f"{len(deck_findings)} deck(s) do not ask for the required evidence: "
+            + "; ".join(deck_findings[:3])
+            + ("; …" if len(deck_findings) > 3 else ""),
+            {"deck_findings": list(deck_findings)},
+        )
     if npz_path is None or not Path(npz_path).is_file():
         return Step(
             "conformance", "not_assessable", "the conformance run has no export", {}
@@ -479,14 +526,21 @@ def step_conformance(npz_path: Path | None, units: str) -> Step:
         "identity_residual": residual,
         "tolerance": IDENTITY_TOLERANCE,
         "units": units,
+        "deck_findings": [],
+        "decks_checked": decks_checked,
     }
     if problems:
         return Step("conformance", "fail", "; ".join(problems), detail)
+    decks = (
+        f"; all {decks_checked} decks ask for the evidence the instrument requires"
+        if decks_checked
+        else ""
+    )
     return Step(
         "conformance",
         "pass",
         f"the ledger identity closes to {residual:.2g} with the standard terms "
-        "and no other term is non-zero",
+        "and no other term is non-zero" + decks,
         detail,
     )
 
@@ -1501,6 +1555,12 @@ def preflight(
     add(step_deck_regression(dataset_dir, specs, problem, defn))
     if steps[-1].verdict == "fail":
         return finish()
+    # A deck that does not ask for its evidence could never supply it: judged
+    # on the decks alone, so no solver time is spent on one.
+    deck_findings = deck_request_findings(decks, defn.units)
+    if deck_findings:
+        add(step_conformance(None, defn.units, deck_findings=deck_findings))
+        return finish()
     try:
         counts, problems = materialise(
             pre, specs, defn=defn, problem=problem, dataset_dir=dataset_dir, decks=decks
@@ -1567,7 +1627,11 @@ def preflight(
     add(step_feasibility(specs, _states(pre, ids), defn, problem))
     (conformance,) = by_role(specs, "conformance")
     npz = pre / conformance.case_id / f"{conformance.case_id}.npz"
-    add(step_conformance(npz if npz.is_file() else None, defn.units))
+    add(
+        step_conformance(
+            npz if npz.is_file() else None, defn.units, decks_checked=len(decks)
+        )
+    )
     if any(s.verdict not in PASSING for s in steps):
         return finish()  # nothing more is launched on a step that did not pass
     stop = launch(rest)

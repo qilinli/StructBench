@@ -64,3 +64,24 @@ def test_the_example_qoi_returns_the_declared_names():
     out = problem.qoi(case)
     assert tuple(out) == d.qoi.names
     assert all(isinstance(v, float) for v in out.values())
+
+
+def test_the_example_deck_asks_for_every_output_the_instrument_requires():
+    """The writer's own output block meets the Abaqus input-request requirement,
+    and so does the conformance run's widened energy request."""
+    from structbench.core.io.abaqus_run import read_abaqus_input_facts
+    from structbench.datagen.abaqus.deck import with_all_energy
+    from structbench.verification.measures import measure_case
+
+    d, problem = definition.load_definition(_dir()), definition.load_problem(_dir())
+    deck = problem.input_deck(_production_params(d, problem), None)
+    for text in (deck, with_all_energy(deck)):
+        facts = read_abaqus_input_facts(text, source_units=d.units)
+        result = measure_case(None, facts, None, case_id="x")
+        (row,) = [
+            m
+            for m in result.measurements
+            if m.quantity == "input_requests_required_evidence"
+        ]
+        assert row.value == 0.0, row
+        assert row.n_samples == 10  # rigid wall contact, CAX4R: every addition
