@@ -125,10 +125,30 @@ class Step:
     verdict: str  # pass | fail | review | not_applicable | not_assessable
     summary: str
     detail: dict[str, Any]
+    #: The "<step>.<name>" keys behind a review verdict, which a dataset may
+    #: accept with a reason ([pilot].accepted_reviews; plan 3a).
+    reviews: tuple[str, ...] = ()
 
 
-def passed(steps: Sequence[Step]) -> bool:
-    return all(s.verdict in PASSING for s in steps)
+def _rescued(step: Step, acceptances: Mapping[str, str]) -> bool:
+    """A review whose every key a person accepted; never a fail or an absence."""
+    return (
+        step.verdict == "review"
+        and bool(step.reviews)
+        and all(k in acceptances for k in step.reviews)
+    )
+
+
+def passed(steps: Sequence[Step], acceptances: Mapping[str, str] | None = None) -> bool:
+    """Every step passes or does not apply, or is a review the dataset accepted."""
+    acc = acceptances or {}
+    return all(s.verdict in PASSING or _rescued(s, acc) for s in steps)
+
+
+def accepted(steps: Sequence[Step], acceptances: Mapping[str, str]) -> dict[str, str]:
+    """The review keys that occurred and are accepted, with their reasons."""
+    keys = sorted({k for s in steps for k in s.reviews})
+    return {k: acceptances[k] for k in keys if k in acceptances}
 
 
 def not_run(name: str, why: str) -> Step:
@@ -478,6 +498,7 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
     cases_detail: dict[str, dict[str, Any]] = {}
     fails: list[str] = []
     reviews: list[str] = []
+    review_keys: set[str] = set()
     unassessable: list[str] = []
     assessed = 0
     for entry in record.get("cases", []):
@@ -496,6 +517,7 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
             }
             if x.get("status") != "monotone" or err is None:
                 reviews.append(f"{entry['case_id']}: {name} {x.get('status')}")
+                review_keys.add(f"space.{name}")
             elif not math.isfinite(err):
                 unassessable.append(f"{entry['case_id']}: {name} is not finite")
             elif err > tol[name]:
@@ -528,6 +550,7 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
             "review",
             "no observed order for " + "; ".join(reviews),
             detail,
+            tuple(sorted(review_keys)),
         )
     return Step(
         "space",
@@ -1031,6 +1054,8 @@ def stamp_record(
     ordered = [by_name[n] for n in STEPS if n in by_name]
     ordered += [s for s in steps if s.name not in STEPS]
     state = package_state()
+    acceptances = dict(defn.pilot.accepted_reviews)
+    occurred = sorted({k for s in steps for k in s.reviews})
     record = {
         "format": STAMP_FORMAT,
         "dataset": defn.name,
@@ -1039,9 +1064,17 @@ def stamp_record(
         "siblings_sha256": siblings_sha256,
         "structbench": {"version": state["version"], "commit": state["commit"]},
         "created_utc": created_utc,
-        "passed": passed(steps),
+        "passed": passed(steps, acceptances),
+        "accepted_reviews": accepted(steps, acceptances),
+        "unaccepted_reviews": [k for k in occurred if k not in acceptances],
+        "unused_acceptances": sorted(k for k in acceptances if k not in occurred),
         "steps": {
-            s.name: {"verdict": s.verdict, "summary": s.summary, "detail": s.detail}
+            s.name: {
+                "verdict": s.verdict,
+                "summary": s.summary,
+                "detail": s.detail,
+                "reviews": list(s.reviews),
+            }
             for s in ordered
         },
         "budget": by_name["budget"].detail if "budget" in by_name else {},
@@ -1062,14 +1095,27 @@ def render_report(stamp: Mapping[str, Any]) -> str:
         f"{stamp['problem_sha256'][:12]}….*"
     )
     out.append("")
+    acceptances = stamp.get("accepted_reviews") or {}
+
+    def rescued(s: Mapping[str, Any]) -> bool:
+        keys = s.get("reviews") or []
+        return (
+            s["verdict"] == "review"
+            and bool(keys)
+            and all(k in acceptances for k in keys)
+        )
+
     if stamp.get("passed"):
         out.append(
-            "**Passed.** Every step passed or does not apply; `generate` opens "
-            "the production splits against this stamp."
+            "**Passed.** Every step passed, does not apply, or is a review the "
+            "dataset accepted (below); `generate` opens the production splits "
+            "against this stamp."
         )
     else:
         blocking = [
-            name for name, s in stamp["steps"].items() if s["verdict"] not in PASSING
+            name
+            for name, s in stamp["steps"].items()
+            if s["verdict"] not in PASSING and not rescued(s)
         ]
         out.append(
             "**Not passed.** Blocking: "
@@ -1079,7 +1125,24 @@ def render_report(stamp: Mapping[str, Any]) -> str:
     out += ["", "## Verdicts", "", "| Step | Verdict | Summary |", "|---|---|---|"]
     for name, s in stamp["steps"].items():
         summary = str(s["summary"]).replace("|", "\\|")
-        out.append(f"| {name} | {s['verdict']} | {summary} |")
+        verdict = f"{s['verdict']} (accepted)" if rescued(s) else s["verdict"]
+        out.append(f"| {name} | {verdict} | {summary} |")
+    reported = ((stamp["steps"].get("frame") or {}).get("detail") or {}).get(
+        "reported"
+    ) or {}
+    unaccepted = stamp.get("unaccepted_reviews") or []
+    unused = stamp.get("unused_acceptances") or []
+    if acceptances or reported or unaccepted or unused:
+        out += ["", "## Accepted by the dataset", ""]
+        for key, reason in acceptances.items():
+            out.append(f"- review `{key}` accepted: {reason}")
+        for key, row in reported.items():
+            reason = row.get("reason", "") if isinstance(row, Mapping) else ""
+            out.append(f"- `{key}` reported, not judged by the frame step: {reason}")
+        for key in unaccepted:
+            out.append(f"- review `{key}` not accepted: it blocks the stamp")
+        for key in unused:
+            out.append(f"- acceptance `{key}` declared but no such review occurred")
     out += ["", "## Cases", ""]
     for role in ROLES:
         ids = stamp.get("cases", {}).get(role, [])

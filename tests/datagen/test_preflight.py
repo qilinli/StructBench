@@ -694,3 +694,93 @@ def test_the_stamp_carries_no_absolute_path(tmp_path):
     step = preflight.step_conformance(garbage, "t-mm-s")
     assert step.verdict == "not_assessable"
     assert str(tmp_path) not in step.summary and "broken.npz" in step.summary
+
+
+# --- accepted reviews (plan 3a, Task 3) -------------------------------------------
+
+
+def test_step_space_names_its_reviews(tmp_path):
+    _, defn, _ = _load(tmp_path)
+    step = preflight.step_space(_record(status="oscillatory"), defn)
+    assert step.verdict == "review" and step.reviews == ("space.length",)
+    assert preflight.step_space(_record(), defn).reviews == ()
+
+
+def _steps(**override):
+    steps = {n: preflight.Step(n, "pass", "fine", {}) for n in preflight.STEPS}
+    steps.update(override)
+    return list(steps.values())
+
+
+def test_accepted_reviews_rescue_a_review_and_nothing_else():
+    review = preflight.Step("space", "review", "no order", {}, ("space.length",))
+    ok = {"space.length": "moves under 0.1 %"}
+    assert preflight.passed(_steps(space=review), ok) is True
+    assert preflight.passed(_steps(space=review), {}) is False
+    two = preflight.Step("space", "review", "", {}, ("space.length", "space.width"))
+    assert preflight.passed(_steps(space=two), ok) is False
+    failing = preflight.Step("frame", "fail", "unresolved", {})
+    assert preflight.passed(_steps(space=review, frame=failing), ok) is False
+    missing = preflight.Step("budget", "not_assessable", "no pilot", {})
+    assert preflight.passed(_steps(space=review, budget=missing), ok) is False
+    keyless = preflight.Step("space", "review", "", {})
+    assert preflight.passed(_steps(space=keyless), ok) is False
+    assert preflight.accepted(_steps(space=review), ok) == ok
+    assert preflight.accepted(_steps(space=two), ok) == ok
+
+
+def test_the_stamp_lists_accepted_unaccepted_and_unused_reviews(tmp_path):
+    acceptances = (
+        'accepted_reviews = { "space.length" = "moves under 0.1 % between levels", '
+        '"increment.length" = "never needed" }'
+    )
+    ds, defn, _ = _load(tmp_path, PF_TOML.replace(_GAPS, f"{_GAPS}\n{acceptances}"))
+    specs = preflight.preflight_cases(defn)
+    frame = preflight.Step(
+        "frame",
+        "pass",
+        "resolved",
+        {
+            "reported": {
+                "node/acceleration": {"error": 0.9, "reason": "second derivative"}
+            }
+        },
+    )
+    two = preflight.Step("space", "review", "", {}, ("space.length", "space.width"))
+    stamp = preflight.stamp_record(
+        defn,
+        ds,
+        _steps(space=two, frame=frame),
+        specs,
+        created_utc="2026-09-28T00:00:00+00:00",
+        siblings_sha256="0" * 64,
+    )
+    assert stamp["accepted_reviews"] == {
+        "space.length": "moves under 0.1 % between levels"
+    }
+    assert stamp["unaccepted_reviews"] == ["space.width"]
+    assert stamp["unused_acceptances"] == ["increment.length"]
+    assert stamp["steps"]["space"]["reviews"] == ["space.length", "space.width"]
+    assert stamp["passed"] is False
+    report = preflight.render_report(stamp)
+    assert "moves under 0.1 % between levels" in report
+    assert "second derivative" in report and "space.width" in report
+    assert "**Not passed.** Blocking: space (review)" in report
+    one = preflight.Step("space", "review", "", {}, ("space.length",))
+    stamp = preflight.stamp_record(
+        defn,
+        ds,
+        _steps(space=one, frame=frame),
+        specs,
+        created_utc="2026-09-28T00:00:00+00:00",
+        siblings_sha256="0" * 64,
+    )
+    assert stamp["passed"] is True and stamp["unaccepted_reviews"] == []
+    report = preflight.render_report(stamp)
+    assert "**Passed.**" in report and "moves under 0.1 % between levels" in report
+    # the verdict is recomputable from the stamp alone
+    again = [
+        preflight.Step(n, s["verdict"], s["summary"], s["detail"], tuple(s["reviews"]))
+        for n, s in stamp["steps"].items()
+    ]
+    assert preflight.passed(again, stamp["accepted_reviews"]) is stamp["passed"]
