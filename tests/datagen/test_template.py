@@ -26,6 +26,12 @@ def test_the_example_declares_its_probes_and_the_documented_defaults():
     assert defn.qoi.tolerance == (0.01, 0.01)
     # three pilot levels, so the space step can extrapolate (review finding 12)
     assert defn.levels.pilot == ("1", "2", "4") and defn.levels.production == "1"
+    # acceleration is reported, not judged, and says why (plan 3a)
+    assert dict(p.frame_reported) == {
+        "node/acceleration": "the second time derivative of a frame-sampled "
+        "explicit response; reported, not scored"
+    }
+    assert dict(p.accepted_reviews) == {}
 
 
 def test_scaffold_writes_the_four_files_and_renames_the_dataset(tmp_path):

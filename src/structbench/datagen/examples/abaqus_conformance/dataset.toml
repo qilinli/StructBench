@@ -71,6 +71,10 @@ frame_factor = 0.5              # the frame probe's interval as a fraction of th
 frame_tolerance = 0.05          # midpoint-interpolation error the stored clock may leave in node fields and globals
 settling_margin = 0.25          # share of the horizon that must lie after the slowest pilot's settling
 contact_force_global = "reaction_force_2_reference_node"  # a stored global whose separation frame is reported
+# Stored fields the frame step reports rather than judges, each with its reason
+# (empty judges every stored field); and reviews a person accepts, with theirs.
+frame_reported = { "node/acceleration" = "the second time derivative of a frame-sampled explicit response; reported, not scored" }
+# accepted_reviews = { "space.final_length" = "why a person accepts this review" }
 
 [qoi]                           # required: the keys problem.qoi returns, their units and tolerances
 names = ["final_length", "face_radius"]
