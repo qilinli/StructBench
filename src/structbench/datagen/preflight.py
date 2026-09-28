@@ -422,10 +422,13 @@ def step_feasibility(
     )
 
 
-def deck_request_findings(decks: Mapping[str, str], units: str) -> list[str]:
-    """Every deck that does not ask the solver for the evidence the instrument
-    requires (``input_requests_required_evidence``), one sentence each."""
-    findings = []
+def deck_request_findings(
+    decks: Mapping[str, str], units: str
+) -> tuple[list[str], list[str]]:
+    """The decks that do not ask the solver for the evidence the instrument
+    requires (``input_requests_required_evidence``), and those of which the
+    platform cannot tell; one sentence each."""
+    misses, unassessed = [], []
     for case_id, text in sorted(decks.items()):
         facts = read_abaqus_input_facts(text, source_units=units)
         (row,) = [
@@ -434,17 +437,21 @@ def deck_request_findings(decks: Mapping[str, str], units: str) -> list[str]:
             if m.quantity == "input_requests_required_evidence"
         ]
         if row.absence is not None:
-            findings.append(
-                f"{case_id}: its output requests cannot be read "
-                f"({row.absence.reason.value})"
+            unassessed.append(
+                f"{case_id}: cannot tell whether it asks for the required "
+                f"evidence ({row.absence.reason.value})"
             )
         elif row.value:
             more = int(row.value) - 1
-            findings.append(
+            misses.append(
                 f"{case_id}: misses {row.detail['first_missing']}"
                 + (f" and {more} more" if more else "")
             )
-    return findings
+    return misses, unassessed
+
+
+def _listed(items: Sequence[str]) -> str:
+    return "; ".join(items[:3]) + ("; …" if len(items) > 3 else "")
 
 
 def step_conformance(
@@ -452,20 +459,33 @@ def step_conformance(
     units: str,
     *,
     deck_findings: Sequence[str] = (),
+    deck_unassessed: Sequence[str] = (),
     decks_checked: int = 0,
 ) -> Step:
     """The conformance run: the ledger identity closes with the standard terms
     and no term outside it is non-zero; and every preflight deck asks for the
-    evidence the instrument requires (``deck_findings`` lists those that do
-    not, and decides the step on its own)."""
+    evidence the instrument requires. ``deck_findings`` (decks that do not)
+    fails the step on its own; ``deck_unassessed`` (decks the platform cannot
+    tell about) leaves it not assessable."""
+    decks = {
+        "deck_findings": list(deck_findings),
+        "deck_unassessed": list(deck_unassessed),
+        "decks_checked": decks_checked,
+    }
     if deck_findings:
         return Step(
             "conformance",
             "fail",
             f"{len(deck_findings)} deck(s) do not ask for the required evidence: "
-            + "; ".join(deck_findings[:3])
-            + ("; …" if len(deck_findings) > 3 else ""),
-            {"deck_findings": list(deck_findings)},
+            + _listed(deck_findings),
+            decks,
+        )
+    if deck_unassessed:
+        return Step(
+            "conformance",
+            "not_assessable",
+            f"{len(deck_unassessed)} deck(s): " + _listed(deck_unassessed),
+            decks,
         )
     if npz_path is None or not Path(npz_path).is_file():
         return Step(
@@ -526,12 +546,11 @@ def step_conformance(
         "identity_residual": residual,
         "tolerance": IDENTITY_TOLERANCE,
         "units": units,
-        "deck_findings": [],
-        "decks_checked": decks_checked,
+        **decks,
     }
     if problems:
         return Step("conformance", "fail", "; ".join(problems), detail)
-    decks = (
+    asked = (
         f"; all {decks_checked} decks ask for the evidence the instrument requires"
         if decks_checked
         else ""
@@ -540,7 +559,7 @@ def step_conformance(
         "conformance",
         "pass",
         f"the ledger identity closes to {residual:.2g} with the standard terms "
-        "and no other term is non-zero" + decks,
+        "and no other term is non-zero" + asked,
         detail,
     )
 
@@ -1557,9 +1576,17 @@ def preflight(
         return finish()
     # A deck that does not ask for its evidence could never supply it: judged
     # on the decks alone, so no solver time is spent on one.
-    deck_findings = deck_request_findings(decks, defn.units)
-    if deck_findings:
-        add(step_conformance(None, defn.units, deck_findings=deck_findings))
+    deck_misses, deck_unassessed = deck_request_findings(decks, defn.units)
+    if deck_misses or deck_unassessed:
+        add(
+            step_conformance(
+                None,
+                defn.units,
+                deck_findings=deck_misses,
+                deck_unassessed=deck_unassessed,
+                decks_checked=len(decks),
+            )
+        )
         return finish()
     try:
         counts, problems = materialise(

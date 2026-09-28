@@ -487,28 +487,65 @@ def _number(text: str | None) -> float | None:
         return None
 
 
+#: Ways of writing an output clock other than ``time interval=``: none was
+#: observed, so a clock written with one of them cannot be placed.
+_OTHER_CLOCKS = frozenset({"NUMBER INTERVAL", "FREQUENCY", "TIME POINTS"})
+
+
+def _clock(options: dict[str, str]) -> float | None:
+    """An ``*Output`` request's ``time interval``; ``None`` if written another way."""
+    if set(options) & _OTHER_CLOCKS:
+        return None
+    return _number(options.get("TIME INTERVAL"))
+
+
+def _divides(fine: float, coarse: float) -> bool:
+    """Whether ``coarse`` is a whole multiple, above one, of ``fine``."""
+    ratio = coarse / fine
+    return ratio > 1.5 and abs(ratio - round(ratio)) < 1e-6 * ratio
+
+
 def _clock_requests(
-    field_clocks: list[tuple[float | None, bool]], history_clocks: list[float | None]
+    field_marks: list[bool],
+    field_intervals: dict[int, list[float | None]],
+    energy_under: list[tuple[int, str | None, float | None]],
 ) -> frozenset[str]:
-    """The two properties of the output requests the stored frames rest on.
+    """The properties of the output requests the stored frames rest on.
 
     ``TIME_MARKS``: every field request has ``time marks=YES``, which put the
-    conformance run's frames at exactly ``kΔ``. ``HISTORY_ON_FIELD_CLOCK``: a
-    history request shares a field request's time interval, so the ledger is
+    conformance run's frames at exactly ``kΔ``. ``HISTORY_ON_FIELD_CLOCK``:
+    every ``*Energy Output`` sits under a history request whose ``time
+    interval`` equals that of every field request of its step, so the ledger is
     sampled at the stored frames (docs/datagen/abaqus-conformance.md, "Output
-    requests and what they produce").
+    requests and what they produce"). ``CLOCK_UNESTABLISHED``: no energy
+    request is off its step's field clock, but one sits on a clock no
+    observation places -- written another way than ``time interval=``, or a
+    history interval that divides the field one.
     """
     tokens = set()
-    if field_clocks and all(marked for _, marked in field_clocks):
+    if field_marks and all(field_marks):
         tokens.add("TIME_MARKS")
-    fields = [dt for dt, _ in field_clocks if dt is not None]
-    if any(
-        math.isclose(h, f, rel_tol=1e-9)
-        for h in history_clocks
-        if h is not None
-        for f in fields
-    ):
+    placed = []
+    for step, kind, interval in energy_under:
+        fields = field_intervals.get(step, [])
+        known = [f for f in fields if f is not None]
+        if kind != "history" or not fields:
+            placed.append("off")
+        elif interval is None or len(known) < len(fields):
+            placed.append("unplaced")
+        elif all(math.isclose(interval, f, rel_tol=1e-9) for f in known):
+            placed.append("on")
+        elif all(
+            math.isclose(interval, f, rel_tol=1e-9) or _divides(interval, f)
+            for f in known
+        ):
+            placed.append("unplaced")
+        else:
+            placed.append("off")
+    if placed and all(p == "on" for p in placed):
         tokens.add("HISTORY_ON_FIELD_CLOCK")
+    elif placed and "off" not in placed:
+        tokens.add("CLOCK_UNESTABLISHED")
     return frozenset(tokens)
 
 
@@ -579,9 +616,12 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     energy_outputs: set[str] | None = set()
     energy_cards = 0
     chosen_by_solver = False  # a history request that may add unnamed energies
-    # `*Output` requests' time intervals, and whether a field one has time marks.
-    field_clocks: list[tuple[float | None, bool]] = []
-    history_clocks: list[float | None] = []
+    # Whether each field request has time marks; per step, the field requests'
+    # intervals; the request each `*Energy Output` sits under, and its step.
+    field_marks: list[bool] = []
+    field_intervals: dict[int, list[float | None]] = {}
+    energy_under: list[tuple[int, str | None, float | None]] = []
+    request: tuple[str | None, float | None] = (None, None)
 
     for index, line in enumerate(lines):
         if not line.startswith("*"):
@@ -701,10 +741,13 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
                     if _TOKENLIKE.fullmatch(label)
                     else "unread_card:INITIAL_CONDITIONS"
                 )
-        elif word == "STEP":
-            n_steps += 1
+        elif word in ("STEP", "END STEP"):
+            if word == "STEP":
+                n_steps += 1
+            request = (None, None)  # a request belongs to its own step
         elif word == "ENERGY OUTPUT":
             energy_cards += 1
+            energy_under.append((n_steps, *request))
             variable = options.get("VARIABLE", "").upper()
             if (
                 set(options) - {"VARIABLE"}
@@ -720,14 +763,14 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
                     rows = _data_rows(lines, index)
                     energy_outputs |= {c.upper() for r in rows for c in r if c}
         elif word == "OUTPUT":
-            interval = _number(options.get("TIME INTERVAL"))
-            if "HISTORY" in _flags(line):
+            kind = next((k for k in ("HISTORY", "FIELD") if k in _flags(line)), None)
+            request = (kind and kind.lower(), _clock(options))
+            if kind == "HISTORY":
                 variable = options.get("VARIABLE", "").upper()
                 chosen_by_solver = chosen_by_solver or variable in _CHOSEN_BY_SOLVER
-                history_clocks.append(interval)
-            elif "FIELD" in _flags(line):
-                marked = options.get("TIME MARKS", "").upper() == "YES"
-                field_clocks.append((interval, marked))
+            elif kind == "FIELD":
+                field_marks.append(options.get("TIME MARKS", "").upper() == "YES")
+                field_intervals.setdefault(n_steps, []).append(request[1])
         elif word == "STATIC":
             time_integration = "implicit"
         elif word == "DYNAMIC":
@@ -873,11 +916,14 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
             {ENERGY_LEDGER_TERMS[n] for n in energy_outputs if n in ENERGY_LEDGER_TERMS}
             | ({"contact"} if CONTACT_OUTPUTS <= energy_outputs else set())
         ),
-        # The whole-model energy outputs the input names. No card names none,
-        # but a preselected history request may write what no card names.
+        # The whole-model energy outputs the input names, and tokens for the
+        # clock and for a history request whose variables the solver chooses
+        # (it may write what no card names). No card names none.
         databases_requested=None
-        if hidden or energy_outputs is None or chosen_by_solver
-        else frozenset(energy_outputs) | _clock_requests(field_clocks, history_clocks),
+        if hidden or energy_outputs is None
+        else frozenset(energy_outputs)
+        | _clock_requests(field_marks, field_intervals, energy_under)
+        | ({"SOLVER_CHOSEN_HISTORY"} if chosen_by_solver else set()),
         unparsable=frozenset(tokens),
         solver="abaqus",
         initial_velocity=None if hidden or not velocity_read else tuple(velocity),

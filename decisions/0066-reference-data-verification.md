@@ -961,25 +961,44 @@ stores no plastic-dissipation series.
 ADR-0071 part three owed two Abaqus rows. Both are built. Neither changes a
 published record, and no level is ratified by either.
 
-**`input_requests_required_evidence` now reads Abaqus decks.** It used to
-report `unsupported` for any non-LS-DYNA input (Abaqus note above). The
-Abaqus requirement is only what `docs/datagen/abaqus-conformance.md`
-established from the solver's own output, and nothing recalled:
+**`input_requests_required_evidence` now reads Abaqus/Explicit decks.** It
+used to report `unsupported` for any non-LS-DYNA input (Abaqus note above).
+It still does for any Abaqus deck that is not explicit, since only explicit
+runs established the requirement. The requirement is only what
+`docs/datagen/abaqus-conformance.md` established from the solver's own
+output, and nothing recalled:
 - the five energy outputs `abaqus_ledger` cannot build a ledger without
   (`ALLKE`, `ALLIE`, `ALLVD`, `ALLWK`, `ETOTAL`);
-- `ALLAE` when a part is under-integrated;
+- `ALLAE` when a meshed part is under-integrated or its integration is
+  unknown, as the balance rows require the term;
 - `ALLFD` and `ALLPW` when contact is defined;
 - `time marks=YES` on every field request;
-- a history request on a field request's interval.
+- every `*Energy Output` under a history request on the time interval of
+  every field request of its step.
 
 The reader records the requests in `InputFacts.databases_requested`. Its
 docstring now covers both solvers' names, with no type change. For Abaqus
-that means the energy outputs `*Energy Output` names, plus two tokens for the
-clock properties. A deck with no `*Energy Output` card names none. A deck
-whose history request is `variable=PRESELECT` or `ALL` is not assessed,
-because what those write is not established. The requirement's constants are
-the adapter's own (`LEDGER_REQUIRED_OUTPUTS`, `CONTACT_OUTPUTS`), so the
+that means the energy outputs `*Energy Output` names plus four tokens:
+- two for the clock properties;
+- `CLOCK_UNESTABLISHED`, for a clock no observation places: `number
+  interval`, `frequency` or `time points`, or a history interval dividing
+  the field one;
+- `SOLVER_CHOSEN_HISTORY`, for a `variable=PRESELECT` or `ALL` history
+  request, which may write what no card names.
+
+A miss the platform cannot confirm for either of the last two reasons is not
+counted. When it is the only obstacle, the row is `unsupported`. A deck with
+no `*Energy Output` card names none. The requirement's constants are the
+adapter's own (`LEDGER_REQUIRED_OUTPUTS`, `CONTACT_OUTPUTS`), so the
 requirement cannot drift from what the ledger needs.
+
+**ADR-0068 clause 8.** That clause defers the output-request vocabulary this
+row checks until a sourced claim dossier exists. This note proposes
+discharging it for this row on observation alone. Every item required above
+was seen in the solver's own output, and none rests on the Keywords
+Reference. Anything the observations do not settle is not counted as
+missing. Accepting that is the maintainer's call, as is recording it as a
+dated amendment to ADR-0068.
 
 Not required:
 - per-part and per-interface output (E6, E7), since how an Abaqus input asks
@@ -991,12 +1010,15 @@ Not required:
 
 **The preflight enforces it before any run.** The conformance step now
 judges every preflight deck against the row, after the deck regression and
-before anything is written. A deck that could never supply its evidence
-fails the step and launches nothing, which is the design's step 1. The row
-is a zero requirement, so `verify` fails such a deck too.
+before anything is written, which is the design's step 1. A deck that could
+never supply its evidence fails the step and launches nothing. A deck the
+platform cannot tell about leaves the step `not_assessable`, which launches
+nothing either. The row is a zero requirement, so `verify` fails such a deck
+too.
 
 **Three of the four zero-energy-mode rows are measured.** The three
-whole-model rows were specified and read `unsupported` on every run. They
+whole-model rows were specified, and read `unsupported` wherever their trait
+gate applied. They
 are now ratios on the run's ledger (E5). The design's wording was "from the
 stored hourglass global"; the catalogue requires E5, and `collect` attaches
 the same ALLAE series as the ledger, so the ledger is what they read.
@@ -1018,3 +1040,14 @@ not judged.
 rows `not_applicable` by their trait gate. The LS-DYNA branch of the
 input-request row is unchanged. So neither record moves, and a re-measure
 would add only the three rows' definition versions.
+
+**Review (2026-09-28).** A fresh whole-branch review found four defects in
+the first cut, each fixed with a test that failed first:
+- a preselected history request was blamed on the contributor as
+  `source_missing`;
+- the clock token passed on any history request on the field clock, even
+  when the energy request sat on another;
+- clocks written another way were counted missing;
+- a part of unknown integration was not asked for ALLAE.
+
+The explicit-only scope came out of the same pass.

@@ -500,6 +500,22 @@ def test_the_conformance_step_fails_a_deck_that_omits_required_evidence(tmp_path
     assert ok.detail["deck_findings"] == []
 
 
+def test_a_deck_the_platform_cannot_assess_is_not_called_deficient():
+    """Cannot tell is not a fail: the step is not assessable, and since that
+    does not pass, nothing is launched either."""
+    unknown = ["X-L2: cannot tell whether it asks for the required evidence"]
+    step = preflight.step_conformance(None, "t-mm-s", deck_unassessed=unknown)
+    assert step.verdict == "not_assessable" and "cannot tell" in step.summary
+    assert step.detail["deck_unassessed"] == unknown
+    both = preflight.step_conformance(
+        None,
+        "t-mm-s",
+        deck_findings=["Y-L2: misses output:time_marks"],
+        deck_unassessed=unknown,
+    )
+    assert both.verdict == "fail"
+
+
 def test_deck_request_findings_name_each_deck_and_what_it_misses():
     from importlib import resources
 
@@ -508,15 +524,17 @@ def test_deck_request_findings_name_each_deck_and_what_it_misses():
         defn, problem = definition.load_definition(ds), definition.load_problem(ds)
     specs = preflight.preflight_cases(defn)
     decks = {s.case_id: preflight.deck_for(s, problem) for s in specs}
-    assert preflight.deck_request_findings(decks, defn.units) == []
+    assert preflight.deck_request_findings(decks, defn.units) == ([], [])
     first = sorted(decks)[0]
     broken = {**decks, first: decks[first].replace(", TIME MARKS=YES", "")}
-    assert preflight.deck_request_findings(broken, defn.units) == [
-        f"{first}: misses output:time_marks"
-    ]
+    assert preflight.deck_request_findings(broken, defn.units) == (
+        [f"{first}: misses output:time_marks"],
+        [],
+    )
     hidden = {first: decks[first] + "*INCLUDE, INPUT=more.inp\n"}
-    (finding,) = preflight.deck_request_findings(hidden, defn.units)
-    assert finding.startswith(f"{first}: its output requests cannot be read")
+    misses, (unknown,) = preflight.deck_request_findings(hidden, defn.units)
+    assert misses == [] and unknown.startswith(f"{first}: cannot tell")
+    assert "unparsable" in unknown
 
 
 def _report(rows):

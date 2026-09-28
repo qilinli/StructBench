@@ -9,7 +9,12 @@ against the same requirement; this file tells a contributor what to switch on.*
 [`data_generation/lsdyna/STANDARD_INPUT_BLOCK.md`](data_generation/lsdyna/STANDARD_INPUT_BLOCK.md) cites
 a claim id from a sourced dossier for every setting. This one cannot yet: the
 Abaqus Keywords Reference has not been read, and ADR-0068 clause 8 defers
-every keyword-level question until a sourced dossier exists.
+every keyword-level question until a sourced dossier exists. The one
+exception is the output-request requirement in
+[What the instrument requires of an Abaqus input](#what-the-instrument-requires-of-an-abaqus-input),
+which rests on observed solver output alone; discharging clause 8 for it on
+that basis is proposed in ADR-0066's Abaqus rows note and is the maintainer's
+to accept.
 
 So the file is split. **What is established** was derived by reading a real
 Abaqus/Standard 2025 job's own output — a successful run, the same job
@@ -218,24 +223,36 @@ note) fails a run whose plastic dissipation exceeds its internal energy.
 ### What the instrument requires of an Abaqus input
 
 `input_requests_required_evidence` (ADR-0066) reads this block back off the
-deck and counts the requests it omits; it must read zero. For Abaqus the
-requirement is exactly what the observations above established, and nothing
-recalled:
+deck and counts the requests it omits; it must read zero. It applies to
+Abaqus/Explicit decks only, the runs that established it; any other deck
+reads `unsupported`. The requirement is exactly what the observations above
+established, and nothing recalled:
 
 | Request | Required when | Why |
 |---|---|---|
 | `ALLKE`, `ALLIE`, `ALLVD`, `ALLWK`, `ETOTAL` on `*Energy Output` | always | without all five no ledger is built (`abaqus_ledger`) |
-| `ALLAE` | a part is under-integrated (CAX4R) | the zero-energy-mode term |
+| `ALLAE` | a meshed part is under-integrated (CAX4R), or its integration is unknown | the zero-energy-mode term, which the balance rows then require |
 | `ALLFD` and `ALLPW` | contact is defined | contact = `ALLFD − ALLPW`; without `ALLPW` the identity does not close |
 | `time marks=YES` on every `*Output, field` | always | frames at exactly `kΔ` |
-| an `*Output, history` on a field request's time interval | always | the ledger sampled at the stored frames |
+| every `*Energy Output` under an `*Output, history` whose `time interval` equals that of every field request of its step | always | the ledger sampled at the stored frames |
 
 `variable=ALL` on `*Energy Output` counts as naming the fourteen outputs the
-diagnostic run wrote. A deck whose `*Output, history` uses
-`variable=PRESELECT` or `ALL` is not assessed, because what those write is not
-established (open point 2). A deck with no `*Energy Output` card names none
-and misses them all. The deck writer's `standard_output` meets the
-requirement, and so does the preflight's widened conformance request.
+diagnostic run wrote. A deck with no `*Energy Output` card names none and
+misses them all. The deck writer's `standard_output` meets the requirement,
+and so does the preflight's widened conformance request.
+
+What the platform cannot confirm is not counted as missing. When it is the
+only obstacle, the row reads `unsupported`, and the preflight's conformance
+step reads `not_assessable`. That covers two cases:
+- An energy output that is not named, beside an `*Output, history` with
+  `variable=PRESELECT` or `ALL`. What those write is not established (open
+  point 2).
+- A clock no observation places: a request written with `number interval`,
+  `frequency` or `time points`, or a history interval that divides the field
+  one.
+
+A deck that hides content (`*Include`), or asks for energy in a way the
+reader does not resolve (a region, a preselected set), is not assessed.
 
 Not required, and why:
 - **Per-part and per-interface output (E6, E7).** How an Abaqus input asks

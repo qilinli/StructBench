@@ -178,8 +178,14 @@ def _input_requests_required_evidence(
         # (ADR-0068 clause 8). That is the platform's gap; `input_gap` here
         # would blame a complete deck for it.
         return absent(name, AbsenceReason.UNSUPPORTED)
+    if facts.solver == "abaqus" and facts.time_integration != "explicit":
+        # Only Abaqus/Explicit runs established the requirement; a `*Static`
+        # deck is not blamed for outputs it never needed (ADR-0068).
+        return absent(name, AbsenceReason.UNSUPPORTED)
     if facts.databases_requested is None:
         return input_gap(name, facts)  # the deck hides what it asks for
+    if facts.solver == "abaqus":
+        return _abaqus_requests(name, facts, facts.databases_requested)
     features = {
         "contact": bool(facts.contact_defined),
         "rigid_plane": bool(facts.rigid_planes),
@@ -187,8 +193,6 @@ def _input_requests_required_evidence(
         "damping": bool(facts.damping_defined),
         "under_integrated": any(p.under_integrated for p in facts.parts),
     }
-    if facts.solver == "abaqus":
-        return _abaqus_requests(name, facts.databases_requested, features)
     required = set(_REQUIRED_DATABASES)
     for feature, databases in _REQUIRED_WITH_FEATURE:
         if features[feature]:
@@ -219,33 +223,59 @@ _ABAQUS_WITH_FEATURE: tuple[tuple[str, frozenset[str]], ...] = (
     ("under_integrated", frozenset({"ALLAE"})),
     ("contact", CONTACT_OUTPUTS),
 )
-
-
 #: Properties of the Abaqus output requests the stored frames rest on: field
 #: frames at exactly ``kΔ``, and the ledger sampled at them.
 _ABAQUS_CLOCKS = frozenset({"TIME_MARKS", "HISTORY_ON_FIELD_CLOCK"})
+_MESHED = frozenset({"solid", "shell", "beam"})
 
 
 def _abaqus_requests(
-    name: str, requested: frozenset[str], features: dict[str, bool]
+    name: str, facts: InputFacts, requested: frozenset[str]
 ) -> Measurement:
     """The Abaqus requirement: the energy outputs and the clock (E5, E9).
 
     ``abaqus_ledger`` builds no ledger without all of
-    ``LEDGER_REQUIRED_OUTPUTS``, each feature adds the outputs its term needs,
-    and the field and history requests must share the clock the conformance
-    run established. Per-part (E6) and per-interface (E7) requests are not
-    part of it: how an Abaqus input asks for them is not established
-    (docs/datagen/abaqus-conformance.md, open point 4), so no request can be
-    required, and the rows that need them say what is missing.
+    ``LEDGER_REQUIRED_OUTPUTS``, each feature adds the outputs its term needs
+    (the modes' energy for any meshed part not known to be fully integrated,
+    as the balance rows require it), and the field and history requests must
+    share the clock the conformance runs established. Per-part (E6) and
+    per-interface (E7) requests are not part of it: how an Abaqus input asks
+    for them is not established (docs/datagen/abaqus-conformance.md, open
+    point 4), so no request can be required, and the rows that need them say
+    what is missing.
+
+    A miss the platform cannot confirm is not counted: an energy output a
+    preselected history request may write (``SOLVER_CHOSEN_HISTORY``), or a
+    clock no observation places (``CLOCK_UNESTABLISHED``). When those are the
+    only misses the row is the platform's gap, ``unsupported``.
     """
+    meshed = [p for p in facts.parts if p.discretisation in _MESHED]
+    features = {
+        "under_integrated": any(p.under_integrated is not False for p in meshed),
+        "contact": facts.contact_defined is not False,
+    }
     outputs = set(LEDGER_REQUIRED_OUTPUTS)
     for feature, needed in _ABAQUS_WITH_FEATURE:
         if features[feature]:
             outputs |= needed
-    missing = {f"energy_output:{o.lower()}" for o in outputs - requested}
-    missing |= {f"output:{c.lower()}" for c in _ABAQUS_CLOCKS - requested}
-    detail = {"first_missing": min(missing)} if missing else {}
+    energy = outputs - requested
+    clocks = _ABAQUS_CLOCKS - requested
+    unconfirmed = set()
+    if energy and "SOLVER_CHOSEN_HISTORY" in requested:
+        unconfirmed |= energy
+        energy = set()
+    if "HISTORY_ON_FIELD_CLOCK" in clocks and "CLOCK_UNESTABLISHED" in requested:
+        unconfirmed.add("HISTORY_ON_FIELD_CLOCK")
+        clocks = clocks - {"HISTORY_ON_FIELD_CLOCK"}
+    missing = {f"energy_output:{o.lower()}" for o in energy}
+    missing |= {f"output:{c.lower()}" for c in clocks}
+    if not missing and unconfirmed:
+        return absent(name, AbsenceReason.UNSUPPORTED)
+    detail: dict[str, float | int | str] = {}
+    if missing:
+        detail["first_missing"] = min(missing)
+    if unconfirmed:
+        detail["unconfirmed"] = len(unconfirmed)
     n = len(outputs) + len(_ABAQUS_CLOCKS)
     return value(name, len(missing), INPUT, n=n, detail=detail)
 

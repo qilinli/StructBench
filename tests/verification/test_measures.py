@@ -824,6 +824,50 @@ def test_frames_off_the_clock_or_a_ledger_off_it_are_unmet_requirements() -> Non
         assert row.detail["first_missing"] == f"output:{token.lower()}"
 
 
+def test_an_energy_the_solver_may_have_chosen_is_not_counted_missing() -> None:
+    """A preselected history request may write ALLPW; the platform cannot tell."""
+    chosen = _ABAQUS_STANDARD | {"SOLVER_CHOSEN_HISTORY"}
+    row = _abaqus(databases_requested=chosen - {"ALLPW"})
+    assert row.absence is not None
+    assert row.absence.reason is AbsenceReason.UNSUPPORTED
+    assert _abaqus(databases_requested=chosen).value == 0.0
+
+
+def test_a_certain_miss_still_counts_beside_one_the_solver_may_cover() -> None:
+    chosen = _ABAQUS_STANDARD | {"SOLVER_CHOSEN_HISTORY"}
+    row = _abaqus(databases_requested=chosen - {"ALLPW", "TIME_MARKS"})
+    assert row.value == 1.0
+    assert row.detail["first_missing"] == "output:time_marks"
+
+
+def test_a_clock_no_observation_places_is_the_platforms_gap() -> None:
+    written_otherwise = (_ABAQUS_STANDARD - {"HISTORY_ON_FIELD_CLOCK"}) | {
+        "CLOCK_UNESTABLISHED"
+    }
+    row = _abaqus(databases_requested=written_otherwise)
+    assert row.absence is not None
+    assert row.absence.reason is AbsenceReason.UNSUPPORTED
+
+
+def test_a_part_of_unknown_integration_is_asked_for_its_zero_energy_modes() -> None:
+    """As the balance rows require it (`_required_terms`): fail closed."""
+    row = _abaqus(
+        parts=(PartTraits(1, 2, "solid", None),),
+        databases_requested=_ABAQUS_STANDARD - {"ALLAE"},
+    )
+    assert row.value == 1.0
+    assert row.detail["first_missing"] == "energy_output:allae"
+
+
+def test_an_abaqus_requirement_is_established_for_explicit_runs_only() -> None:
+    """The conformance runs were Abaqus/Explicit; a `*Static` deck asked for
+    nothing it never needed is not blamed (ADR-0068's misreport)."""
+    for integration in ("implicit", None):
+        row = _abaqus(time_integration=integration, databases_requested=frozenset())
+        assert row.absence is not None, integration
+        assert row.absence.reason is AbsenceReason.UNSUPPORTED
+
+
 def test_an_abaqus_deck_whose_requests_are_not_established_is_not_assessed() -> None:
     row = _abaqus(databases_requested=None)
     assert row.absence is not None
