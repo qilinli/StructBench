@@ -6,7 +6,7 @@ input in this repository carries this block. A contributed dataset is measured
 against the same requirement; this file tells a contributor what to switch on.*
 
 **Status: partial, and deliberately so.** Its sibling
-[`data_generation/lsdyna/STANDARD_INPUT_BLOCK.md`](data_generation/lsdyna/STANDARD_INPUT_BLOCK.md) cites
+[`lsdyna-conformance.md`](lsdyna-conformance.md) cites
 a claim id from a sourced dossier for every setting. This one cannot yet: the
 Abaqus Keywords Reference has not been read, and ADR-0068 clause 8 defers
 every keyword-level question until a sourced dossier exists. The one

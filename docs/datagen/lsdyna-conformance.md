@@ -12,7 +12,7 @@ what was observed in one legacy run folder. Since 2026-09-23 the instrument
 counts the requests below that an input omits, for the features the model
 actually has, so a deck that could never have supplied the evidence is
 distinguished from a run whose files were lost. Both legacy sweeps fail it. Each setting cites its claim in
-[`docs/plans/2026-09-21-reference-data-verification-sources.md`](../../docs/plans/2026-09-21-reference-data-verification-sources.md)
+[`docs/plans/2026-09-21-reference-data-verification-sources.md`](../plans/2026-09-21-reference-data-verification-sources.md)
 (`L-…` energy ledger and time integration, `F-…` fields, echo and
 diagnostics). One unpublished *conformance run* with this block is what turns
 the draft into a tested realisation; the [open points](#open-points) are what
