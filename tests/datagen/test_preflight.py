@@ -19,7 +19,7 @@ from structbench.core import (  # noqa: E402
     Nodes,
     Response,
 )
-from structbench.datagen import definition, preflight, verify  # noqa: E402
+from structbench.datagen import definition, generate, preflight, verify  # noqa: E402
 from structbench.verification.criteria import CheckResult  # noqa: E402
 from structbench.verification.results import Verdict  # noqa: E402
 
@@ -518,32 +518,87 @@ def test_step_energy_and_verification_read_the_report(tmp_path):
     assert preflight.step_energy(_report([]), ["A"]).verdict == "not_assessable"
 
 
-def test_step_budget_estimates_from_the_pilots(tmp_path):
-    _, defn, problem = _load(tmp_path)
+#: A toy problem whose mesh grows with the rod: 2 L refine elements along, refine
+#: across, so production cases of different lengths cost different amounts.
+SIZED_PROBLEM = MINIMAL_PROBLEM.replace(
+    '    return deck.structured_quad_mesh(k, k, 0.0, float(params["L"]), 0.0, 1.0)\n'
+    "\n\ndef qoi",
+    '    n = int(round(2 * float(params["L"]))) * k\n'
+    '    return deck.structured_quad_mesh(n, k, 0.0, float(params["L"]), 0.0, 1.0)\n'
+    "\n\ndef qoi",
+)
+
+
+def _budget_inputs(tmp_path):
+    assert SIZED_PROBLEM != MINIMAL_PROBLEM
+    _, defn, problem = _load(tmp_path, problem=SIZED_PROBLEM)
     specs = preflight.preflight_cases(defn)
+    # pilot 0 (L 1) at level 2: 15 nodes, 8 elements; pilot 1 (L 2): 27 and 16
     runs = {
         "TOY-pilot-0000-L1": {"wall_s": 10.0},
-        "TOY-pilot-0000-L2": {"wall_s": 30.0},
-        "TOY-pilot-0001-L2": {"wall_s": 50.0},
-        "TOY-pilot-0000-L4": {"wall_s": 200.0},
-        "TOY-pilot-0000-E": {"wall_s": 40.0},
+        "TOY-pilot-0000-L2": {"wall_s": 80.0},
+        "TOY-pilot-0001-L2": {"wall_s": 160.0},
+        "TOY-pilot-0000-L4": {"wall_s": 900.0},
     }
-    sizes = {"TOY-pilot-0000-L2": 100_000_000, "TOY-pilot-0001-L2": 100_000_000}
+    sizes = {"TOY-pilot-0000-L2": 15_000_000, "TOY-pilot-0001-L2": 27_000_000}
+    train = [s for s in generate.plan_cases(defn) if s.split == "train"]
+    return defn, problem, specs, runs, sizes, train
+
+
+def _mesh_size(problem, spec):
+    grid = problem.mesh(dict(spec.params))
+    return len(grid.node_labels), len(grid.connectivity)
+
+
+def test_the_budget_sizes_production_by_its_own_meshes(tmp_path):
+    """Plan 3a: pilots at the box's corners no longer set the estimate."""
+    defn, problem, specs, runs, sizes, train = _budget_inputs(tmp_path)
     step = preflight.step_budget(defn, problem, specs, runs, sizes, free=100.0)
     assert step.verdict == "pass", step.summary
     b = step.detail
-    assert b["production_cases"] == 4  # [splits.train] n = 4
-    assert (b["wall_s_median"], b["wall_s_max"]) == (40.0, 50.0)
-    assert b["bytes_per_case"] == 100_000_000
-    assert b["estimated_gb"] == pytest.approx(0.4)
-    assert b["estimated_wall_h"] == pytest.approx(4 * 40 / 3600)
+    nodes = sum(_mesh_size(problem, s)[0] for s in train)
+    elements = sum(_mesh_size(problem, s)[1] for s in train)
+    counts = (b["production_cases"], b["completed_cases"], b["remaining_cases"])
+    assert counts == (4, 0, 4)
+    assert b["bytes_per_node"] == pytest.approx(1e6)
+    assert b["wall_s_per_element"] == pytest.approx(10.0)
+    assert b["estimated_gb"] == pytest.approx(nodes * 1e6 / 1e9)
+    assert b["estimated_wall_h"] == pytest.approx(elements * 10.0 / 3600)
+    assert (b["wall_s_median"], b["wall_s_max"]) == (120.0, 160.0)
+    assert b["bytes_per_case"] == 21_000_000  # kept for run's estimate line
     assert b["per_level"]["1"] == {"n": 1, "wall_s_median": 10.0, "wall_s_max": 10.0}
-    assert b["per_level"]["4"]["wall_s_median"] == 200.0
     assert (b["min_free_gb"], b["free_gb"]) == (5.0, 100.0)
-    tight = preflight.step_budget(defn, problem, specs, runs, sizes, free=5.2)
-    assert tight.verdict == "fail"  # 0.4 + 5 = 5.4 > 5.2
+    tight = preflight.step_budget(defn, problem, specs, runs, sizes, free=5.0)
+    assert tight.verdict == "fail"
     none = preflight.step_budget(defn, problem, specs, {}, {}, free=100.0)
     assert none.verdict == "not_assessable"
+
+
+def test_the_budget_counts_only_what_production_has_left(tmp_path):
+    defn, problem, specs, runs, sizes, train = _budget_inputs(tmp_path)
+    ids = [s.case_id for s in train]
+    done = preflight.step_budget(
+        defn, problem, specs, runs, sizes, free=1.0, completed=ids
+    )
+    assert done.verdict == "pass" and "nothing left" in done.summary
+    assert done.detail["remaining_cases"] == 0 and done.detail["estimated_gb"] == 0.0
+    half = preflight.step_budget(
+        defn, problem, specs, runs, sizes, free=100.0, completed=ids[:2]
+    )
+    nodes_left = sum(_mesh_size(problem, s)[0] for s in train[2:])
+    assert half.detail["remaining_cases"] == 2
+    assert half.detail["estimated_gb"] == pytest.approx(nodes_left * 1e6 / 1e9)
+
+
+def test_a_pilot_mesh_without_nodes_is_not_assessable(tmp_path):
+    defn, _, specs, runs, sizes, _ = _budget_inputs(tmp_path)
+    empty = SimpleNamespace(
+        mesh=lambda p: SimpleNamespace(
+            node_labels=np.zeros(0), connectivity=np.zeros((0, 4))
+        )
+    )
+    step = preflight.step_budget(defn, empty, specs, runs, sizes, free=100.0)
+    assert step.verdict == "not_assessable" and "no nodes" in step.summary
 
 
 # --- the stamp and the report --------------------------------------------------

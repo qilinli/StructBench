@@ -930,47 +930,81 @@ def step_budget(
     runs: Mapping[str, Mapping[str, Any]],
     sizes: Mapping[str, int],
     free: float,
+    *,
+    completed: Collection[str] = (),
 ) -> Step:
-    """The production sweep's time and disk from the pilots, against the
-    free space and the margin."""
+    """What production still has to generate, against the free space and the
+    margin (plan 3a).
+
+    The pilots give a rate, not a size: bytes per mesh node and wall time per
+    element, each the median over the production-level pilots; the rate is
+    applied to the meshes of the production cases not yet ``completed``, so
+    pilots placed at the corners of the box do not set the size, and a sweep
+    already generated is not budgeted again. The wall estimate ignores the
+    increment count and the case's severity, and says so.
+    """
     production = defn.levels.production
     per_level: dict[str, list[float]] = {}
     for s in by_role(specs, "level"):
         wall = runs.get(s.case_id, {}).get("wall_s")
         if wall is not None:
             per_level.setdefault(str((s.probe or {})["level"]), []).append(float(wall))
-    prod_ids = [
-        s.case_id
-        for s in by_role(specs, "level")
-        if (s.probe or {}).get("level") == production
+    prod_specs = [
+        s for s in by_role(specs, "level") if (s.probe or {}).get("level") == production
     ]
-    prod_walls = per_level.get(production, [])
-    prod_sizes = [float(sizes[cid]) for cid in prod_ids if cid in sizes]
-    if not prod_walls or not prod_sizes:
+    base = {"free_gb": free, "min_free_gb": defn.pilot.min_free_gb}
+    per_node: list[float] = []
+    per_element: list[float] = []
+    walls: list[float] = []
+    pilot_sizes: list[float] = []
+    for s in prod_specs:
+        wall = runs.get(s.case_id, {}).get("wall_s")
+        if wall is None or s.case_id not in sizes:
+            continue
+        nodes, elements = _mesh_counts(problem, s.params)
+        if nodes == 0 or elements == 0:
+            return Step(
+                "budget",
+                "not_assessable",
+                f"the mesh of {s.case_id} has no nodes or no elements",
+                base,
+            )
+        per_node.append(float(sizes[s.case_id]) / nodes)
+        per_element.append(float(wall) / elements)
+        walls.append(float(wall))
+        pilot_sizes.append(float(sizes[s.case_id]))
+    if not per_node:
         return Step(
             "budget",
             "not_assessable",
             "no production-level pilot has both a run record and a size",
-            {"free_gb": free, "min_free_gb": defn.pilot.min_free_gb},
+            base,
         )
     probe_of = {s.name: s.probe for s in defn.splits}
-    production_cases = sum(
-        1
+    planned = [
+        s
         for s in plan_cases(defn, getattr(problem, "feasible", None))
         if not probe_of[s.split]
-    )
-    wall_median = float(statistics.median(prod_walls))
-    bytes_per_case = float(statistics.median(prod_sizes))
-    estimated_gb = production_cases * bytes_per_case / 1e9
+    ]
+    done = set(completed)
+    remaining = [s for s in planned if s.case_id not in done]
+    counts = [_mesh_counts(problem, s.params) for s in remaining]
+    bytes_per_node = float(statistics.median(per_node))
+    wall_per_element = float(statistics.median(per_element))
+    estimated_gb = sum(n for n, _ in counts) * bytes_per_node / 1e9
     detail = {
-        "production_cases": production_cases,
-        "wall_s_median": wall_median,
-        "wall_s_max": max(prod_walls),
-        "bytes_per_case": bytes_per_case,
-        "estimated_wall_h": production_cases * wall_median / 3600.0,
+        **base,
+        "production_cases": len(planned),
+        "completed_cases": len(planned) - len(remaining),
+        "remaining_cases": len(remaining),
+        "bytes_per_node": bytes_per_node,
+        "wall_s_per_element": wall_per_element,
         "estimated_gb": estimated_gb,
-        "free_gb": free,
-        "min_free_gb": defn.pilot.min_free_gb,
+        "estimated_wall_h": sum(e for _, e in counts) * wall_per_element / 3600.0,
+        # per pilot, for run's estimate line
+        "wall_s_median": float(statistics.median(walls)),
+        "wall_s_max": max(walls),
+        "bytes_per_case": float(statistics.median(pilot_sizes)),
         "per_level": {
             lv: {
                 "n": len(per_level[lv]),
@@ -980,22 +1014,37 @@ def step_budget(
             for lv in level_order(defn, set(per_level))
         },
     }
+    if not remaining:
+        return Step(
+            "budget",
+            "pass",
+            f"nothing left to generate: all {len(planned)} production cases completed",
+            detail,
+        )
     needed = estimated_gb + defn.pilot.min_free_gb
     if free < needed:
         return Step(
             "budget",
             "fail",
-            f"{free:.1f} GB free, {estimated_gb:.1f} GB estimated for "
-            f"{production_cases} cases plus the {defn.pilot.min_free_gb:g} GB margin",
+            f"{free:.1f} GB free, {estimated_gb:.1f} GB estimated for the "
+            f"{len(remaining)} production cases left plus the "
+            f"{defn.pilot.min_free_gb:g} GB margin",
             detail,
         )
     return Step(
         "budget",
         "pass",
-        f"{production_cases} cases estimated at {estimated_gb:.1f} GB and "
-        f"{detail['estimated_wall_h']:.1f} core-hours; {free:.1f} GB free",
+        f"the {len(remaining)} production cases left are estimated at "
+        f"{estimated_gb:.1f} GB and {detail['estimated_wall_h']:.1f} core-hours "
+        f"(sized by their meshes; the wall ignores increments and severity); "
+        f"{free:.1f} GB free",
         detail,
     )
+
+
+def _mesh_counts(problem: ModuleType, params: Mapping[str, Any]) -> tuple[int, int]:
+    grid = problem.mesh(dict(params))
+    return len(grid.node_labels), len(grid.connectivity)
 
 
 def step_verification(report: Any, defn: Definition) -> Step:
@@ -1209,6 +1258,18 @@ def _run_records(pre: Path, ids: Sequence[str]) -> dict[str, dict[str, Any]]:
         if path.is_file():
             out[cid] = json.loads(path.read_text(encoding="utf-8"))
     return out
+
+
+def _completed(sweep: Path) -> set[str]:
+    """Case ids whose run completed in the sweep (the production already made)."""
+    done = set()
+    for run in sweep.glob("*/run.json"):
+        try:
+            if json.loads(run.read_text(encoding="utf-8")).get("status") == "completed":
+                done.add(run.parent.name)
+        except (OSError, ValueError):
+            continue  # a record being written is not yet a completed run
+    return done
 
 
 def _sizes(pre: Path, ids: Sequence[str]) -> dict[str, int]:
@@ -1451,6 +1512,7 @@ def preflight(
             _run_records(pre, ids),
             _sizes(pre, ids),
             free_gb(work_root),
+            completed=_completed(work_root / defn.name),
         )
     )
     add(step_verification(report, defn))
