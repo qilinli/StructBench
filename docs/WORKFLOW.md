@@ -75,7 +75,11 @@ appear in no commit — the earlier version of this note assumed
 `RESEARCH-PROGRAM.md` existed in pre-2026-07-02 history, but it never
 landed. `scratch/`, `runs/`, and `models/` stay local-only and gitignored;
 keep them that way — dated notes, run outputs, and checkpoint archives
-never enter git. `RESEARCH-PROGRAM.md` and `research/` were retired in
+never enter git. The maintainer's datasets stay outside the repository too
+and are passed by path (`--dataset <dir>`): no dataset name, split, case id
+or constant may appear in a public file, and before a push or merge the
+*commit trees* of the range, not just the working tree, are scanned for
+them (ADR-0071; the checklist is in `docs/datagen/abaqus-lessons.md`). `RESEARCH-PROGRAM.md` and `research/` were retired in
 September 2026 (ADR-0065): the maintainer's research documents now live
 outside the repository altogether, nothing in the repo may depend on
 them, and their `.gitignore` entries stay as a guard against accidental

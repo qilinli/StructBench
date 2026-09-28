@@ -48,6 +48,7 @@ Conventions here are durable defaults, not laws of physics. A genuinely bad fit 
 - **What must be tested**: the case-schema readers/writers and validators, every public API in `core/`, and any non-trivial transform. Round-trip tests (write → read → compare) are the expected pattern for I/O.
 - **Coverage** is a diagnostic, not a target to game. New code in `core/` and `datasets/` is expected to be well-covered; there is no blanket percentage gate.
 - Tests must be deterministic and must not require a solver install, network access, or large data files. Fixtures use small synthetic cases; the `Taylor.k` reference deck is a development aid, not a test dependency.
+- **Real-data acceptance tests are the one exception**, and each is gated: it reads a `STRUCTBENCH_*` environment variable (`grep -rho 'STRUCTBENCH_[A-Z0-9_]*' tests | sort -u` lists them) and skips when it is unset. A green suite without them has not touched real data.
 
 ---
 

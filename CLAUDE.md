@@ -30,18 +30,6 @@ Package layering and module responsibilities: `docs/ARCHITECTURE.md`.
 
 ---
 
-## Standing rules from recent work
-
-Rules that bind every session and have no other always-read home. Each names where it is argued.
-
-- **Private datasets stay out of the repository.** The maintainer's datasets are passed by path (`--dataset <dir>`). No dataset name, split, case id or constant may appear in a public file, and commit *trees*, not just the working tree, are scanned before a merge (ADR-0071, `docs/datagen/abaqus-lessons.md`).
-- ***Verify* and *validate* are different words.** *Verify* is the ADR-0066 instrument: is the run internally sound. *Validate* is comparison with experiment (ADR-0072).
-- **Report, don't judge, until a level is ratified.** No sourced reference level is ratified (maintainer, 2026-09-21). Verification verdicts come only from definitional requirements and instrument tolerances; indicators are reported as measurements with the published level shown for context, and validation reports deviations with no verdict (ADR-0066, ADR-0072).
-- **An absence is a claim.** A `not_applicable` verdict, and the reason given for anything not assessed, assert something about the data and must be checked like any other result (ADR-0066 claim audit).
-- **Real-data tests are env-gated.** Acceptance tests on real data each read a `STRUCTBENCH_*` environment variable (`STRUCTBENCH_DATA_ROOT`, `STRUCTBENCH_TAYLOR_RUN_DIR` and others; `grep -rho 'STRUCTBENCH_[A-Z0-9_]*' tests | sort -u` lists them) and skip when it is unset, so a green suite without them has not touched real data.
-
----
-
 ## Session workflow
 
 ### Starting a session
