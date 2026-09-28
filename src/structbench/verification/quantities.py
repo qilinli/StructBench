@@ -480,6 +480,7 @@ _ROWS = (
         {E.E5},
         "zero-energy modes absorbed a share of the run's energy",
         gate=_ZERO_ENERGY,
+        implemented=True,
     ),
     _row(
         "zero_energy_mode_final_over_internal_final",
@@ -488,6 +489,7 @@ _ROWS = (
         {E.E5},
         "zero-energy modes rival the internal energy",
         gate=_ZERO_ENERGY,
+        implemented=True,
     ),
     _row(
         "zero_energy_mode_peak_over_internal_peak",
@@ -496,6 +498,7 @@ _ROWS = (
         {E.E5},
         "zero-energy modes rival the internal energy at their peak",
         gate=_ZERO_ENERGY,
+        implemented=True,
     ),
     _row(
         "zero_energy_mode_top_part_final_over_internal_final",

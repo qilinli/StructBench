@@ -745,16 +745,130 @@ def test_an_unread_card_keeps_the_yield_ratio_row_an_absence() -> None:
 def test_conformance_is_the_platforms_gap_for_a_solver_it_has_no_vocabulary_for() -> (
     None
 ):
-    """ADR-0068 clause 8 defers the Abaqus output-request vocabulary.
-
-    `_REQUIRED_DATABASES` holds LS-DYNA keyword names, so the row cannot be
-    checked for another solver at all. Falling through to `input_gap` would
-    report SOURCE_MISSING -- contributor-owned -- for a deck that is complete
-    and simply not LS-DYNA.
+    """Falling through to `input_gap` would report SOURCE_MISSING --
+    contributor-owned -- for a deck that is complete and simply from a solver
+    whose output requests the platform has not defined.
     """
     row = _get(
-        _run(facts=_facts(solver="abaqus", databases_requested=None)),
+        _run(facts=_facts(solver="radioss", databases_requested=None)),
         "input_requests_required_evidence",
     )
     assert row.absence is not None
     assert row.absence.reason is AbsenceReason.UNSUPPORTED
+
+
+#: What the Abaqus deck writer's `standard_output` requests: the energy
+#: outputs of `deck.ENERGY_TERMS`, frames on the clock, the ledger on it too.
+_CLOCKS = frozenset({"TIME_MARKS", "HISTORY_ON_FIELD_CLOCK"})
+_ABAQUS_STANDARD = _CLOCKS | frozenset(
+    {"ALLAE", "ALLCD", "ALLFD", "ALLIE", "ALLKE", "ALLPD", "ALLPW", "ALLSE"}
+    | {"ALLVD", "ALLWK", "ETOTAL"}
+)
+
+
+def _abaqus(**overrides: object) -> Measurement:
+    """An axisymmetric impact: one under-integrated solid part against a wall."""
+    base: dict[str, object] = {
+        "solver": "abaqus",
+        "parts": (PartTraits(1, 2, "solid", True),),
+        "contact_defined": True,
+        "rigid_planes": (),
+        "databases_requested": _ABAQUS_STANDARD,
+        "energy_terms_computed": None,
+    }
+    return _conformance(**{**base, **overrides})
+
+
+def test_an_abaqus_deck_naming_the_standard_energy_outputs_is_conformant() -> None:
+    row = _abaqus()
+    assert row.value == 0.0
+    assert row.n_samples == 10  # the ledger's five, ALLAE, ALLFD, ALLPW, 2 clocks
+
+
+def test_an_abaqus_deck_without_the_penalty_work_cannot_close_its_ledger() -> None:
+    """Contact without ALLPW leaves the contact term out of the ledger."""
+    row = _abaqus(databases_requested=_ABAQUS_STANDARD - {"ALLPW"})
+    assert row.value == 1.0
+    assert row.detail["first_missing"] == "energy_output:allpw"
+
+
+def test_an_abaqus_deck_without_the_solvers_total_has_no_ledger_at_all() -> None:
+    row = _abaqus(databases_requested=_ABAQUS_STANDARD - {"ETOTAL", "ALLVD"})
+    assert row.value == 2.0
+    assert row.detail["first_missing"] == "energy_output:allvd"
+
+
+def test_abaqus_requirements_follow_the_model_features() -> None:
+    """No contact and full integration: ALLFD, ALLPW and ALLAE are not asked for."""
+    row = _abaqus(
+        parts=(PartTraits(1, 2, "solid", False),),
+        contact_defined=False,
+        databases_requested=_CLOCKS
+        | frozenset({"ALLIE", "ALLKE", "ALLVD", "ALLWK", "ETOTAL"}),
+    )
+    assert row.value == 0.0
+    assert row.n_samples == 7
+
+
+def test_an_abaqus_deck_that_names_no_energy_output_misses_them_all() -> None:
+    row = _abaqus(databases_requested=frozenset())
+    assert row.value == 10.0
+
+
+def test_frames_off_the_clock_or_a_ledger_off_it_are_unmet_requirements() -> None:
+    """Without time marks, or with the history on its own interval, the ledger
+    is not sampled at the stored frames, and the closures lose their instants."""
+    for token in _CLOCKS:
+        row = _abaqus(databases_requested=_ABAQUS_STANDARD - {token})
+        assert row.value == 1.0, token
+        assert row.detail["first_missing"] == f"output:{token.lower()}"
+
+
+def test_an_energy_the_solver_may_have_chosen_is_not_counted_missing() -> None:
+    """A preselected history request may write ALLPW; the platform cannot tell."""
+    chosen = _ABAQUS_STANDARD | {"SOLVER_CHOSEN_HISTORY"}
+    row = _abaqus(databases_requested=chosen - {"ALLPW"})
+    assert row.absence is not None
+    assert row.absence.reason is AbsenceReason.UNSUPPORTED
+    assert _abaqus(databases_requested=chosen).value == 0.0
+
+
+def test_a_certain_miss_still_counts_beside_one_the_solver_may_cover() -> None:
+    chosen = _ABAQUS_STANDARD | {"SOLVER_CHOSEN_HISTORY"}
+    row = _abaqus(databases_requested=chosen - {"ALLPW", "TIME_MARKS"})
+    assert row.value == 1.0
+    assert row.detail["first_missing"] == "output:time_marks"
+
+
+def test_a_clock_no_observation_places_is_the_platforms_gap() -> None:
+    written_otherwise = (_ABAQUS_STANDARD - {"HISTORY_ON_FIELD_CLOCK"}) | {
+        "CLOCK_UNESTABLISHED"
+    }
+    row = _abaqus(databases_requested=written_otherwise)
+    assert row.absence is not None
+    assert row.absence.reason is AbsenceReason.UNSUPPORTED
+
+
+def test_a_part_of_unknown_integration_is_asked_for_its_zero_energy_modes() -> None:
+    """As the balance rows require it (`_required_terms`): fail closed."""
+    row = _abaqus(
+        parts=(PartTraits(1, 2, "solid", None),),
+        databases_requested=_ABAQUS_STANDARD - {"ALLAE"},
+    )
+    assert row.value == 1.0
+    assert row.detail["first_missing"] == "energy_output:allae"
+
+
+def test_an_abaqus_requirement_is_established_for_explicit_runs_only() -> None:
+    """The conformance runs were Abaqus/Explicit; a `*Static` deck asked for
+    nothing it never needed is not blamed (ADR-0068's misreport)."""
+    for integration in ("implicit", None):
+        row = _abaqus(time_integration=integration, databases_requested=frozenset())
+        assert row.absence is not None, integration
+        assert row.absence.reason is AbsenceReason.UNSUPPORTED
+
+
+def test_an_abaqus_deck_whose_requests_are_not_established_is_not_assessed() -> None:
+    row = _abaqus(databases_requested=None)
+    assert row.absence is not None
+    assert row.absence.missing == {EvidenceItem.E1}

@@ -231,9 +231,14 @@ class InputFacts:
         the input does not establish it -- a solver default is never
         assumed for an absent setting.
     databases_requested : frozenset of str or None
-        Output databases the input asks for with a non-zero interval, by
-        keyword (``"DATABASE_GLSTAT"``). Cards that configure output rather
-        than request it are not listed. ``None`` when not established.
+        Output the input asks for, by the solver's own name: for LS-DYNA the
+        databases requested with a non-zero interval, by keyword
+        (``"DATABASE_GLSTAT"``), cards that configure output rather than
+        request it not listed; for Abaqus the whole-model energy outputs
+        ``*Energy Output`` names (``"ETOTAL"``) and tokens for the requests'
+        properties: ``"TIME_MARKS"``, ``"HISTORY_ON_FIELD_CLOCK"``,
+        ``"CLOCK_UNESTABLISHED"`` and ``"SOLVER_CHOSEN_HISTORY"`` (see
+        ``read_abaqus_input_facts``). ``None`` when not established.
     unparsable : frozenset of str
         Tokens for constructs the reader refused to resolve, e.g.
         ``"include"``, ``"unknown_card_layout:<KEYWORD>"``.

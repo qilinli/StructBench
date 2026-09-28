@@ -68,6 +68,9 @@ _IMPLEMENTED = {
     "yield_table_covers_range",
     "yield_table_matches_input",
     "yield_table_monotone",
+    "zero_energy_mode_final_over_initial_total",
+    "zero_energy_mode_final_over_internal_final",
+    "zero_energy_mode_peak_over_internal_peak",
 }
 
 

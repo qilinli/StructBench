@@ -148,10 +148,14 @@ def test_a_typed_boundary_is_prescribed_motion() -> None:
     assert _read(deck).prescribed_motion_defined is True
 
 
-def test_the_output_vocabulary_is_not_yet_defined_for_abaqus() -> None:
-    """ADR-0068 clause 8 defers it until the claim dossier exists."""
+def test_a_preselected_history_request_is_recorded_not_guessed() -> None:
+    """What `variable=PRESELECT` writes is not established (conformance, point 2).
+
+    It may write energies no `*Energy Output` names, so the reader says the
+    solver chose, and the requirement cannot count a name as missing.
+    """
     facts = _read()
-    assert facts.databases_requested is None
+    assert facts.databases_requested == {"SOLVER_CHOSEN_HISTORY"}
     assert facts.energy_terms_computed is None
 
 
@@ -382,7 +386,18 @@ def test_energy_output_rows_name_the_ledger_terms() -> None:
         "external_work",
         "zero_energy_mode",
     }  # no contact: ALLPW is not requested
-    assert f.databases_requested is None
+    assert f.databases_requested == {
+        "ALLAE",
+        "ALLCD",
+        "ALLFD",
+        "ALLIE",
+        "ALLKE",
+        "ALLPD",
+        "ALLSE",
+        "ALLVD",
+        "ALLWK",
+        "ETOTAL",
+    }  # the outputs as the input names them, the solver's own total among them
 
 
 def test_the_contact_term_needs_the_penalty_work() -> None:
@@ -393,6 +408,103 @@ def test_the_contact_term_needs_the_penalty_work() -> None:
 def test_variable_all_requests_every_term() -> None:
     f = _with_energy("*ENERGY OUTPUT, VARIABLE=ALL\n")
     assert "contact" in f.energy_terms_computed and "kinetic" in f.energy_terms_computed
+
+
+def test_variable_all_requests_the_outputs_it_was_seen_to_write() -> None:
+    """The fourteen a `variable=ALL` run wrote (conformance, the energy identity)."""
+    f = _with_energy("*ENERGY OUTPUT, VARIABLE=ALL\n")
+    assert f.databases_requested == {
+        *("ALLAE", "ALLCD", "ALLFD", "ALLIE", "ALLKE", "ALLPD", "ALLSE"),
+        *("ALLVD", "ALLWK", "ETOTAL", "ALLCW", "ALLDMD", "ALLMW", "ALLPW"),
+    }
+
+
+_FIELD = "*OUTPUT, FIELD, TIME INTERVAL=1e-06, TIME MARKS=YES\n*NODE OUTPUT\nU\n"
+
+
+def test_field_frames_on_the_clock_and_history_on_it_are_requests() -> None:
+    """The two properties of the output requests the stored frames rest on."""
+    f = _with_energy(_FIELD + _PRODUCTION_ENERGY)
+    assert {"TIME_MARKS", "HISTORY_ON_FIELD_CLOCK"} <= f.databases_requested
+
+
+def test_a_field_request_without_time_marks_is_not_on_the_clock() -> None:
+    f = _with_energy(_FIELD.replace(", TIME MARKS=YES", "") + _PRODUCTION_ENERGY)
+    assert "TIME_MARKS" not in f.databases_requested
+    assert "HISTORY_ON_FIELD_CLOCK" in f.databases_requested
+
+
+def test_a_history_request_on_another_clock_is_not_on_the_field_clock() -> None:
+    f = _with_energy(_FIELD + _PRODUCTION_ENERGY.replace("1e-06", "2e-06"))
+    assert "HISTORY_ON_FIELD_CLOCK" not in f.databases_requested
+    assert "TIME_MARKS" in f.databases_requested
+
+
+def test_an_input_that_names_no_energy_output_requests_none() -> None:
+    """Absent is not unknown here: no request card at all hides nothing."""
+    f = read_abaqus_input_facts(_FLAT_2D, source_units="t-mm-s")
+    assert f.databases_requested == frozenset()
+
+
+def test_a_hidden_or_unread_energy_request_establishes_no_outputs() -> None:
+    unread = _with_energy("*ENERGY OUTPUT, VARIABLE=PRESELECT\n")
+    assert unread.databases_requested is None
+    hidden = _with_energy(_PRODUCTION_ENERGY + "*INCLUDE, INPUT=more.inp\n")
+    assert hidden.databases_requested is None
+
+
+def test_a_preselected_history_beside_named_energies_keeps_the_names() -> None:
+    f = _with_energy(
+        _FIELD
+        + _PRODUCTION_ENERGY
+        + "*OUTPUT, HISTORY, TIME INTERVAL=1e-06, VARIABLE=PRESELECT\n"
+    )
+    assert {"SOLVER_CHOSEN_HISTORY", "ETOTAL", "HISTORY_ON_FIELD_CLOCK"} <= (
+        f.databases_requested
+    )
+
+
+def test_the_clock_is_the_energy_requests_own_not_any_history() -> None:
+    """A reaction history on the field clock does not put the ledger on it."""
+    reaction = "*OUTPUT, HISTORY, TIME INTERVAL=1e-06\n*NODE OUTPUT, NSET=R\nRF2\n"
+    f = _with_energy(_FIELD + reaction + _PRODUCTION_ENERGY.replace("1e-06", "2e-06"))
+    assert "HISTORY_ON_FIELD_CLOCK" not in f.databases_requested
+    assert "CLOCK_UNESTABLISHED" not in f.databases_requested
+
+
+def test_an_energy_request_under_a_field_request_is_not_on_a_history_clock() -> None:
+    f = _with_energy(_FIELD + "*ENERGY OUTPUT\nALLKE, ALLIE\n")
+    assert "HISTORY_ON_FIELD_CLOCK" not in f.databases_requested
+    assert "CLOCK_UNESTABLISHED" not in f.databases_requested
+
+
+def test_every_step_must_put_its_ledger_on_its_own_field_clock() -> None:
+    second = (
+        "*STEP, NAME=S2\n*DYNAMIC, EXPLICIT\n, 0.001\n"
+        + _FIELD
+        + _PRODUCTION_ENERGY.replace("1e-06", "2e-06")
+        + "*END STEP\n"
+    )
+    deck = _FLAT_2D.replace("*END STEP\n", _FIELD + _PRODUCTION_ENERGY + "*END STEP\n")
+    f = read_abaqus_input_facts(deck + second, source_units="t-mm-s")
+    assert "HISTORY_ON_FIELD_CLOCK" not in f.databases_requested
+
+
+def test_a_clock_written_another_way_is_not_established() -> None:
+    """Only `time interval=` equal on both requests was observed; the rest is
+    not a miss but a clock the platform cannot place."""
+    for field, history in (
+        ("NUMBER INTERVAL=100", "NUMBER INTERVAL=100"),
+        ("FREQUENCY=100", "FREQUENCY=100"),
+        ("TIME INTERVAL=1e-06", "TIME INTERVAL=5e-07"),  # finer, dividing it
+    ):
+        block = (
+            f"*OUTPUT, FIELD, {field}, TIME MARKS=YES\n*NODE OUTPUT\nU\n"
+            + _PRODUCTION_ENERGY.replace("TIME INTERVAL=1e-06", history)
+        )
+        f = _with_energy(block)
+        assert "HISTORY_ON_FIELD_CLOCK" not in f.databases_requested, field
+        assert "CLOCK_UNESTABLISHED" in f.databases_requested, field
 
 
 def test_an_unread_energy_request_establishes_nothing() -> None:
