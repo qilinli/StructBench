@@ -53,10 +53,70 @@ def _dataset(tmp_path: Path) -> Path:
     return ds
 
 
-def _preflight(ds: Path, work: Path) -> int:
+def _preflight(ds: Path, work: Path, *extra: str) -> int:
     args = ["--dataset", str(ds), "--work-root", str(work), "--abaqus", sys.executable]
     args += ["--workers", "2", "--solver-args", FAKE, "--exporter-args", FAKE]
-    return preflight.main(args)
+    return preflight.main([*args, *extra])
+
+
+def _records(pre: Path) -> dict[str, bytes]:
+    return {p.parent.name: p.read_bytes() for p in pre.glob("*/run.json")}
+
+
+def test_rejudge_after_a_tolerance_change_runs_nothing_and_records_both_hashes(
+    tmp_path,
+):
+    """Plan 3a, Task 5: the same evidence, judged under the current definition."""
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    assert _preflight(ds, work) == 0
+    pre = work / "e2e" / "preflight"
+    before, old = _records(pre), _stamp(work)
+    toml = (ds / "dataset.toml").read_text(encoding="utf-8")
+    looser = toml.replace("tolerance = [0.01, 0.01]", "tolerance = [0.05, 0.05]")
+    assert looser != toml
+    (ds / "dataset.toml").write_bytes(looser.encode("utf-8"))
+    _git(ds, "looser tolerances")
+    assert _preflight(ds, work) == 2  # without --rejudge the stale runs are refused
+    assert _preflight(ds, work, "--rejudge") == 0
+    assert _records(pre) == before  # nothing ran again
+    new = _stamp(work)
+    assert new["definition_sha256"] == definition.load_definition(ds).sha256()
+    assert new["definition_sha256"] != old["definition_sha256"]
+    under = {h["definition_sha256"] for h in new["runs_generated_under"]}
+    assert under == {old["definition_sha256"]}
+    assert new["passed"] is True
+    rc = generate.main(
+        ["--dataset", str(ds), "--work-root", str(work), "--split", "train"]
+    )
+    assert rc == 0  # the gate reads the current hashes
+
+
+def test_rejudge_refuses_a_changed_deck_units_or_case_set(tmp_path, capsys):
+    ds, work = _dataset(tmp_path), tmp_path / "work"
+    assert _preflight(ds, work) == 0
+    pre = work / "e2e" / "preflight"
+    before = _records(pre)
+    toml = (ds / "dataset.toml").read_text(encoding="utf-8")
+    problem = (ds / "problem.py").read_text(encoding="utf-8")
+
+    def attempt(new_toml: str, new_problem: str, message: str) -> None:
+        (ds / "dataset.toml").write_bytes(new_toml.encode("utf-8"))
+        (ds / "problem.py").write_bytes(new_problem.encode("utf-8"))
+        _git(ds, message)
+        capsys.readouterr()
+        assert _preflight(ds, work, "--rejudge") == 2
+        err = capsys.readouterr().err
+        assert message in err, err
+        assert _records(pre) == before
+
+    heading = problem.replace("rod on a rigid wall", "rod on a rigid wall, revised")
+    attempt(toml, heading, "deck")
+    units = toml.replace('units = "t-mm-s"', 'units = "kg-m-s"', 1)
+    assert units != toml
+    attempt(units, problem, "units")
+    more = toml.replace("  { v0 = 2.0e5 },", "  { v0 = 2.0e5 },\n  { v0 = 1.5e5 },")
+    assert more != toml
+    attempt(more, problem, "new case")
 
 
 def _stamp(work: Path) -> dict:

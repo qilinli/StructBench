@@ -1097,8 +1097,11 @@ def stamp_record(
     *,
     created_utc: str,
     siblings_sha256: str,
+    runs_generated_under: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
-    """The stamp: the definition's hashes, the verdicts, the budget, the cases."""
+    """The stamp: the definition's hashes, the verdicts, the budget, the cases,
+    and the hashes the runs were generated under (different from the stamp's
+    own only after ``--rejudge``)."""
     by_name = {s.name: s for s in steps}
     ordered = [by_name[n] for n in STEPS if n in by_name]
     ordered += [s for s in steps if s.name not in STEPS]
@@ -1128,6 +1131,7 @@ def stamp_record(
         },
         "budget": by_name["budget"].detail if "budget" in by_name else {},
         "cases": {role: [s.case_id for s in by_role(specs, role)] for role in ROLES},
+        "runs_generated_under": [dict(h) for h in runs_generated_under],
     }
     return _json_safe(record)
 
@@ -1260,6 +1264,57 @@ def _run_records(pre: Path, ids: Sequence[str]) -> dict[str, dict[str, Any]]:
     return out
 
 
+#: The definition hashes a run's provenance records, and the stamp compares.
+HASH_KEYS = ("definition_sha256", "problem_sha256", "siblings_sha256")
+
+
+def _generated_under(pre: Path, specs: Sequence[CaseSpec]) -> list[dict[str, Any]]:
+    """The distinct definition hashes the preflight's runs were generated under."""
+    seen: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for s in specs:
+        path = pre / s.case_id / "provenance.json"
+        if path.is_file():
+            prov = json.loads(path.read_text(encoding="utf-8"))
+            key = tuple(prov.get(k) for k in HASH_KEYS)
+            seen[key] = dict(zip(HASH_KEYS, key, strict=True))
+    return [seen[k] for k in sorted(seen, key=str)]
+
+
+def _rejudge_refusal(
+    pre: Path, specs: Sequence[CaseSpec], decks: Mapping[str, str], defn: Definition
+) -> str | None:
+    """Why the runs in ``pre`` are not the same evidence under the current
+    definition, or None: the case set must be the planned one, every case must
+    have run, its deck must be the current deck byte for byte, and its units
+    the current units."""
+    present = (
+        {p.name for p in pre.iterdir() if (p / "provenance.json").is_file()}
+        if pre.is_dir()
+        else set()
+    )
+    planned = {s.case_id for s in specs}
+    new = sorted(planned - present)
+    if new:
+        return f"new case {new[0]} (re-judging runs nothing; run without --rejudge)"
+    gone = sorted(present - planned)
+    if gone:
+        return f"case {gone[0]} is no longer planned; move it aside"
+    for s in specs:
+        folder = pre / s.case_id
+        prov = json.loads((folder / "provenance.json").read_text(encoding="utf-8"))
+        if prov.get("units") != defn.units:
+            return (
+                f"{s.case_id} ran in units {prov.get('units')!r}, the definition "
+                f"now says {defn.units!r}"
+            )
+        deck = folder / f"{s.case_id}.inp"
+        if not deck.is_file() or deck.read_bytes() != decks[s.case_id].encode("utf-8"):
+            return f"the deck of {s.case_id} differs from the current definition's"
+        if not (folder / "run.json").is_file():
+            return f"{s.case_id} has not run (run the preflight without --rejudge)"
+    return None
+
+
 def _completed(sweep: Path) -> set[str]:
     """Case ids whose run completed in the sweep (the production already made)."""
     done = set()
@@ -1297,13 +1352,18 @@ def preflight(
     timeout: float | None = None,
     solver_args: Sequence[str] | None = None,
     exporter_args: Sequence[str] | None = None,
+    rejudge: bool = False,
     echo: Callable[[str], None] = print,
 ) -> int:
     """Run the preflight; see the module docstring for the steps and exit codes.
 
     ``solver_args`` and ``exporter_args`` are inserted after the executable on
     the solver's and the exporter's command lines (tests: a fake solver
-    script in place of Abaqus and of ``python <exporter>``).
+    script in place of Abaqus and of ``python <exporter>``). ``rejudge``
+    re-evaluates the steps on the runs already in the preflight folder, with
+    no solver, when the current definition reproduces every deck byte for byte
+    and the units are unchanged (plan 3a); the stamp records the definition
+    hashes the runs were generated under.
     """
     dataset_dir = Path(dataset_dir).resolve()
     work_root = Path(work_root)
@@ -1330,13 +1390,19 @@ def preflight(
         "siblings_sha256": siblings_sha256(dataset_dir, problem),
     }
     stale = _stale_cases(pre, hashes)
-    if stale:
+    if stale and not rejudge:
         print(
             f"{pre} holds runs of another definition ({len(stale)} case(s), e.g. "
-            f"{stale[0]}); move it aside (nothing is deleted)",
+            f"{stale[0]}); move it aside (nothing is deleted), or pass --rejudge "
+            "if only the judging changed and the decks are the same",
             file=sys.stderr,
         )
         return 2
+    if rejudge:
+        why = _rejudge_refusal(pre, specs, decks, defn)
+        if why:
+            print(f"{pre}: cannot re-judge: {why}", file=sys.stderr)
+            return 2
     created = datetime.now(UTC).isoformat(timespec="seconds")
     steps: list[Step] = []
 
@@ -1356,6 +1422,7 @@ def preflight(
             specs,
             created_utc=created,
             siblings_sha256=hashes["siblings_sha256"],
+            runs_generated_under=_generated_under(pre, specs),
         )
         write_outputs(pre, stamp)
         echo(("passed" if stamp["passed"] else "not passed") + f" -> {pre}")
@@ -1387,11 +1454,11 @@ def preflight(
         + " ".join(f"{k}={v}" for k, v in sorted(counts.items()))
         + ")"
     )
-    exe = shutil.which(abaqus)
-    if exe is None:
+    exe = None if rejudge else shutil.which(abaqus)
+    if exe is None and not rejudge:
         print(f"abaqus executable {abaqus!r} not found", file=sys.stderr)
         return 2
-    solver = [exe, *(solver_args or [])]
+    solver = [exe or abaqus, *(solver_args or [])]
     production = defn.levels.production
     ids = [s.case_id for s in specs]
     first = batch_a(specs, production)
@@ -1399,7 +1466,7 @@ def preflight(
 
     def launch(cases: list[str]) -> int | None:
         """Run and export ``cases``; an exit code when the preflight must stop."""
-        if not cases:
+        if not cases or rejudge:  # re-judging runs nothing
             return None
         try:
             results = run_sweep(
@@ -1535,6 +1602,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--exporter-args", nargs="*", default=None, help=argparse.SUPPRESS
     )
+    parser.add_argument(
+        "--rejudge",
+        action="store_true",
+        help="re-evaluate the steps on the runs already made, with no solver, "
+        "when the current definition reproduces every deck and the units",
+    )
     args = parser.parse_args(argv)
     return preflight(
         args.dataset,
@@ -1544,6 +1617,7 @@ def main(argv: list[str] | None = None) -> int:
         timeout=args.timeout,
         solver_args=args.solver_args,
         exporter_args=args.exporter_args,
+        rejudge=args.rejudge,
     )
 
 
