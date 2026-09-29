@@ -4,7 +4,7 @@
 # configs/$BENCH/$ARM.toml. Submit from the repo root ON A LOGIN NODE, one job
 # per arm, e.g.:
 #
-#   mkdir -p logs
+#   mkdir -p scratch/logs
 #   sbatch --job-name=os-taylor-s1 \
 #       --export=ALL,BENCH=taylor_impact_2d,ARM=transolver-oneshot-s1,\
 #OUT=runs/oneshot-taylor-transolver-s1,DATA=/data/curtin_eecms/curtin_qilin/data/taylor_impact \

@@ -1,4 +1,4 @@
-# Running CGN baselines on DUG McCloud
+# Running baselines on DUG McCloud
 
 Taylor 2D is the worked example below; the **Wave-1D** deltas (data, config,
 batch script) are in the [last section](#wave-1d-baseline-v02). DUG uses **SLURM**. Access is SSH (with a JupyterLab-over-localhost option).
@@ -19,6 +19,24 @@ scheduler cycle (~1 min) before starting — don't diagnose it early; and a
 big-memory JupyterHub session (`mem=1019000M`) monopolizes its node's RAM, so
 no batch job co-resides with one — budget a node per live session when
 planning fleets.
+
+## Scripts in this folder
+
+- **For new runs**: `train_arm.slurm`, the generic single-GPU launcher for any
+  benchmark and family (`BENCH` and `ARM` name `configs/<BENCH>/<ARM>.toml`;
+  the config file is the arm, ADR-0032), and `setup_env.sh`, which builds the
+  environment once per checkout.
+- **Launch records of past runs**, kept because they are how a registered
+  run was launched: `train_taylor.slurm` and `train_wave.slurm` (the blessed
+  CGN baselines), `train_deforming_{mgn,transolver,geoflare}.slurm`
+  (DeformingPlate), `train_{taylor,notch_impact}_{mgn,transolver,geoflare}.slurm`
+  (the provisional cross-method runs, ADR-0047/0048), `train_taylor_adr0049.slurm`
+  (the ADR-0049 repair fleet), `train_wave_fleet.slurm` (the wave-1D
+  multi-method fleet), `ablate_{taylor,wave,notch_impact}.slurm` (the CGN
+  ablations) and `probe_state_sufficiency.slurm` (`tools/state_probe/`).
+
+Every script writes job output to `scratch/logs/`, which must exist before
+`sbatch`.
 
 ## 1. Get the code and data onto DUG
 
@@ -280,7 +298,7 @@ srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:15:00 --pty bash -lc '
   python -m structbench.cli.train --mode train --config configs/deforming_plate/mgn_smoke.toml \
     --data-root /data/curtin_eecms/curtin_qilin/data/deforming_plate --out runs/dp-smoke'
 
-mkdir -p logs
+mkdir -p scratch/logs
 sbatch hpc/dug/train_deforming_mgn.slurm    # OUT defaults to runs/deforming-mgn-v03
 squeue --me
 tail -f scratch/logs/slurm-dp-mgn-*.out             # val_pos (mm) / val_aux (MPa) every 50k steps

@@ -5,7 +5,7 @@
 # (noise rescale / +velocity history / +MGN stretch gate; ADR-0049).
 # Submit from the repo root ON A LOGIN NODE, one job per arm:
 #
-#   mkdir -p logs
+#   mkdir -p scratch/logs
 #   sbatch --job-name=taylor-transolver-n02 --export=ALL,ARM=transolver-n02 \
 #       hpc/dug/train_taylor_adr0049.slurm
 #
