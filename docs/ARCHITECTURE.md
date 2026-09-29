@@ -21,6 +21,8 @@ src/structbench/
 ├── models/        # reference ML models (cgn/, mgn/, transolver/, geoflare/) + shared base (common/)
 ├── datasets/      # canonical loaders, windowing, normalization
 ├── verification/  # reference-data verification: measure, judge, report (ADR-0066)
+├── validation/    # validation against experiments: reference sets, measures, deviation record (ADR-0072)
+├── datagen/       # data-generation pipeline, structbench-datagen; per-solver subpackages (ADR-0071)
 ├── eval/          # metrics and evaluation protocols
 ├── viz/           # FEM-style visualization of physics fields
 ├── cli/           # command-line interfaces (structbench-train, datacheck)
@@ -56,7 +58,7 @@ A benchmark module describes *what* the problem is. It does not include the data
 
 ### `models/`
 
-Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, transformer operators, foundation models, anomaly detectors, and any other ML method shipped as part of the platform. Each model is a self-contained submodule of tensor→tensor building blocks; its hyperparameter defaults live in the top-level `config.py` (ADR-0032), its training loop in `cli/`, and — once a run is trained and blessed — a published checkpoint (none is published yet; the CGN baseline is the pending DUG run). From v0.3 the module hosts both a message-passing GNN family and a transformer-operator family, because DeformingPlate's headline is cross-method comparison rather than a single baseline (ADR-0041).
+Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, transformer operators, foundation models, anomaly detectors, and any other ML method shipped as part of the platform. Each model is a self-contained submodule of tensor→tensor building blocks; its hyperparameter defaults live in the top-level `config.py` (ADR-0032), its training loop in `cli/`, and a blessed run's checkpoint is archived in the gitignored `models/` directory, its path recorded in the benchmark's results registry (ADR-0037). From v0.3 the module hosts both a message-passing GNN family and a transformer-operator family, because DeformingPlate's headline is cross-method comparison rather than a single baseline (ADR-0041).
 
 The shipped submodules:
 
@@ -141,22 +143,22 @@ The rule's purpose is to make refactoring tractable: a change to a private helpe
 Allowed import directions between modules:
 
 ```
-                    cli/
-                     │
-       ┌─────────────┼─────────────┬─────────────┐
-       ▼             ▼             ▼             ▼
-  benchmarks/      eval/        models/        viz/
-       │             │             │             │
-       └──────┬──────┘             │             │
-              ▼                    │             │
-        verification/              │             │
-              │                    │             │
-              └─────────────┬──────┴─────────────┘
-                            ▼
-                        datasets/
-                            │
-                            ▼
-                         core/
+                    cli/                               datagen/
+                     │                                    │
+       ┌─────────────┼─────────────┬─────────────┐        ├──────────────┐
+       ▼             ▼             ▼             ▼        │              ▼
+  benchmarks/      eval/        models/        viz/       │         validation/
+       │             │             │             │        │              │
+       └──────┬──────┘             │             │        │              │
+              ▼                    │             │        │              │
+        verification/ ◄────────────┼─────────────┼────────┘              │
+              │                    │             │                       │
+              └─────────────┬──────┴─────────────┘                       │
+                            ▼                                            │
+                        datasets/                                        │
+                            │                                            │
+                            ▼                                            │
+                         core/ ◄─────────────────────────────────────────┘
 ```
 
 Rules:
@@ -165,6 +167,8 @@ Rules:
 - `datasets/` depends only on `core/`.
 - `models/` and `viz/`'s plotting core may depend on `core/` and `datasets/` only — a model is not coupled to a specific benchmark, and visualization plots arrays rather than models.
 - `verification/` depends only on `core/` and `datasets/` (ADR-0066); `benchmarks/` and `eval/` may depend on it (they also reach `datasets/` directly), `models/` and `viz/` do not. An import-boundary test enforces its side.
+- `validation/` depends only on `core/` (ADR-0072), so a predicted case and a reference case go through the same comparison. An import-boundary test enforces it.
+- `datagen/` may depend on `core/`, `datasets/`, `verification/` and `validation/` (ADR-0071), and nothing depends on it. An import-boundary test enforces it.
 - `eval/` may depend on `core/` and `datasets/`; it does not depend on `models/` (evaluation is a property of the benchmark, not the model).
 - **`benchmarks/` depends on `eval/`** in the current code: each benchmark references the QoI protocol type and QoI implementations that live in `eval/`. This coupling arrived with the QoI-owned-by-benchmark design (ADR-0032) and the original "peer modules do not depend on each other" rule was never amended for it. It is a live architectural question — either bless the dependency with an amending ADR, or move the QoI protocol/type down into `core/` so `benchmarks/` and `eval/` both depend on it rather than on each other. *(Flagged 2026-07-06; pending a decision.)*
 - `config.py` (top-level module) depends on nothing internal and sits below `cli/` and `viz/`.

@@ -132,7 +132,7 @@ DeformingPlate benchmark (ADR-0041; operator adaptations ADR-0044/0045).
 
 ```
 src/structbench/
-  core/            # case schema, validation, HDF5 I/O, LS-DYNA adapter
+  core/            # case schema, schema validation, HDF5 I/O, solver adapters
   datasets/        # canonical readers, windowing, normalization
   verification/    # reference-data verification: quantity catalogue, measures,
                    #   criteria, generated report (ADR-0066)
@@ -144,16 +144,16 @@ src/structbench/
   models/          # model families: cgn, mgn, transolver, geoflare (+ shared common/)
   eval/            # rollout driver, metrics
   viz/             # physics-quantity figures, FEM-postprocessor style (ADR-0022)
-  cli/             # structbench-train
+  cli/             # structbench-train, datacheck
 configs/           # grouped TOML run configs, configs/<benchmark>/<family>.toml (ADR-0032)
 decisions/         # architecture decision records (ADRs)
 tools/             # doc generation, the pooled-RMSE blessing aggregator, dev scripts
-data_generation/   # solver decks + offline conversion scripts (data provenance)
+data_generation/   # converters for the datasets that predate datagen (not importable)
 hpc/               # cluster launch scripts (DUG SLURM)
 docs/              # benchmark cards, architecture, harness, corrections;
                    #   datachecks/ (published verification records),
                    #   timelines/ (ground-truth evidence behind protocol values),
-                   #   plans/ (design + source dossier for work still in flight)
+                   #   plans/ (designs, the verification source dossier, implementation plans)
 tests/             # deterministic CPU-only test suite
 assets/            # figures embedded in the docs + landing pages
 ```
@@ -164,7 +164,8 @@ assets/            # figures embedded in the docs + landing pages
      Conventions: done = [x] + strikethrough + (date); ad-hoc additions land
      in Inbox and get triaged into a milestone; when a milestone ships, its
      crossed-out block may be compressed to one line. Reasoning lives in
-     decisions/, not here. Substrate-layer work only (ADR-0014). -->
+     decisions/, not here. Platform work only: the maintainer's research
+     plans stay outside the repository (ADR-0065). -->
 
 *Last revised: 2026-09-29.*
 

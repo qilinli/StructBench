@@ -20,15 +20,24 @@ big-memory JupyterHub session (`mem=1019000M`) monopolizes its node's RAM, so
 no batch job co-resides with one — budget a node per live session when
 planning fleets.
 
-## 1. Copy code + data up (from your Windows machine, Git Bash)
+## 1. Get the code and data onto DUG
+
+Code reaches DUG only through git (`docs/WORKFLOW.md`): the execution checkout
+`<proj>/structbench` is a clone of the repository, moved with
+`git pull --ff-only` between job fleets and never while jobs are queued or
+running, and every run records its commit.
 
 ```bash
-REPO="<path-to-local>/StructBench"
-DATA="<path-to-local>/data/StructBench/canonical/taylor_impact_2d"
+# once, on the DUG login node
+git clone https://github.com/qilinli/StructBench <proj>/structbench
+# later, between fleets (squeue --me lists nothing)
+cd <proj>/structbench && git pull --ff-only
+```
 
-rsync -avP "$REPO/" <user>@<dug-host>:<proj>/structbench/ \
-  --exclude '.venv' --exclude 'runs' --exclude '.git' \
-  --exclude '__pycache__' --exclude 'scratch'
+Data is not in git. Copy it up from your machine (Git Bash):
+
+```bash
+DATA="<path-to-local>/data/StructBench/canonical/taylor_impact_2d"
 rsync -avP "$DATA/" <user>@<dug-host>:<proj>/data/taylor_impact/    # 2.4 GB, 34 files (the path train_taylor.slurm reads)
 ```
 
