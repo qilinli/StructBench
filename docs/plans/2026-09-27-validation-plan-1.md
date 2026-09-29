@@ -1,5 +1,7 @@
 # Validation against experiments — implementation plan
 
+> **Executed** — merged 2026-09-27 (`3208612`). A historical record, not instructions: do not re-run it. See `docs/plans/README.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (the maintainer chose native execution). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build `structbench.validation` — the `taylor_copper` reference set with provenance, measures shared by experiment and simulation, a comparison that reports deviations, a byte-stable record with Markdown, and the `structbench-validate` command — rename the datagen stage `validate` to `verify`, and regenerate the first dataset's private validation record with the public tool.

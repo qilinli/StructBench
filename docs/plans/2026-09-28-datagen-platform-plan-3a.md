@@ -1,5 +1,7 @@
 # Datagen platform, part three (a): a gate a real dataset can pass — implementation plan
 
+> **Executed** — merged 2026-09-28 (`ca70020`). A historical record, not instructions: do not re-run it. See `docs/plans/README.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (the maintainer chose native execution for this series). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the preflight passable on a real dataset's merits. The dataset declares which stored quantities the frame step reports rather than judges, each with its reason. The stamp records a person's acceptance of a `review`, with its reason. The budget estimates what production still has to generate. A re-judge mode re-evaluates the steps on existing runs when only the judging changed and every deck is byte-identical.
