@@ -24,7 +24,7 @@
 #
 #   for ARM in full kinematic; do for S in 1 2; do
 #     sbatch --job-name=probe-$ARM-s$S --export=ALL,ARM=$ARM,SEED=$S \
-#         hpc/dug/probe_state_sufficiency.slurm
+#         tools/hpc/dug/probe_state_sufficiency.slurm
 #   done; done
 #
 # Recognised variables:

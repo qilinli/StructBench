@@ -2,7 +2,7 @@
 # Full DeformingPlate MGN blessing run on DUG (SLURM) — ADR-0043 §8 recipe.
 # Submit from the repo root ON A LOGIN NODE (sbatch does not work inside the
 # JupyterHub container — no munge):
-#   mkdir -p scratch/logs && sbatch hpc/dug/train_deforming_mgn.slurm
+#   mkdir -p scratch/logs && sbatch tools/hpc/dug/train_deforming_mgn.slurm
 #
 # Values live for the curtin_eecms partition (TIMELIMIT infinite; ~21 nodes
 # with gpu:a100:2 as of 2026-07-10). Single-GPU loop; ONE A100 80G. The MGN
@@ -36,7 +36,7 @@ export PYTHONPATH=src
 
 # World edges are dynamic contact edges (data-dependent count); a contact-heavy
 # frame's processor activations OOM'd the first v03 attempt at ~760k steps (see
-# hpc/dug/README.md incident note). Primary fix is MGNet activation
+# tools/hpc/dug/README.md incident note). Primary fix is MGNet activation
 # checkpointing (default-on, output-identical). This complements it by letting
 # the allocator reclaim the reserved-but-fragmented pool instead of failing.
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True

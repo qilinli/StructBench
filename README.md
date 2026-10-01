@@ -146,9 +146,9 @@ src/structbench/
   viz/             # physics-quantity figures, FEM-postprocessor style (ADR-0022)
   cli/             # structbench-train, datacheck
 configs/           # grouped TOML run configs, configs/<benchmark>/<family>.toml (ADR-0032)
-tools/             # doc generation, the pooled-RMSE blessing aggregator, dev scripts
+tools/             # doc generation, the pooled-RMSE blessing aggregator, dev scripts;
+                   #   hpc/ (cluster launch scripts, DUG SLURM)
 data_generation/   # converters for the datasets that predate datagen (not importable)
-hpc/               # cluster launch scripts (DUG SLURM)
 docs/              # benchmark cards, architecture, harness, corrections;
                    #   decisions/ (architecture decision records, ADRs),
                    #   datachecks/ (published verification records),

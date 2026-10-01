@@ -71,7 +71,7 @@ rclone copy onedrive:"<path-to>/data/StructBench/canonical/taylor_impact_2d" \
 
 ```bash
 cd <proj>/structbench
-bash hpc/dug/setup_env.sh
+bash tools/hpc/dug/setup_env.sh
 ```
 
 Only `torch` + `torch_geometric.nn.MessagePassing` are needed — no compiled
@@ -89,7 +89,7 @@ srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:15:00 --pty bash -lc '
 
 # full baseline as a batch job (from a login node; OUT defaults to
 # runs/taylor-cgn-v01 and must be fresh per attempt):
-sbatch hpc/dug/train_taylor.slurm
+sbatch tools/hpc/dug/train_taylor.slurm
 squeue --me                     # watch the queue
 tail -f scratch/logs/slurm-taylor-*.out # progress: val_pos (mm) / val_aux (MPa) each val_every
 ```
@@ -213,7 +213,7 @@ srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:10:00 --pty bash -lc '
   python -m structbench.cli.train --mode train --config configs/wave_propagation_1d/cgn_smoke.toml \
     --data-root /data/curtin_eecms/curtin_qilin/data/wave_propagation_1d --out runs/wave-smoke'
 
-sbatch hpc/dug/train_wave.slurm   # OUT defaults to runs/wave-cgn-v02
+sbatch tools/hpc/dug/train_wave.slurm   # OUT defaults to runs/wave-cgn-v02
 squeue --me
 tail -f scratch/logs/slurm-wave-*.out     # val_pos (mm) / val_aux (MPa) each val_every
 ```
@@ -260,7 +260,7 @@ the primary sweep axis, everything at `SEED=1`:
 FLEET=runs/fleet-$(date +%F)
 sbatch --job-name=ni-n002-s1 \
   --export=ALL,NAME=n002-s1,HIDDEN=128,MP=10,NMLP=2,BATCH=8,SEED=1,NOISE=0.02,STEPS=50000,FLEET=$FLEET \
-  hpc/dug/ablate_notch_impact.slurm
+  tools/hpc/dug/ablate_notch_impact.slurm
 ```
 
 Rank arms on val rollout metrics at the reduced step budget; the winner gets
@@ -299,7 +299,7 @@ srun --partition=curtin_eecms --gres=gpu:a100:1 --time=00:15:00 --pty bash -lc '
     --data-root /data/curtin_eecms/curtin_qilin/data/deforming_plate --out runs/dp-smoke'
 
 mkdir -p scratch/logs
-sbatch hpc/dug/train_deforming_mgn.slurm    # OUT defaults to runs/deforming-mgn-v03
+sbatch tools/hpc/dug/train_deforming_mgn.slurm    # OUT defaults to runs/deforming-mgn-v03
 squeue --me
 tail -f scratch/logs/slurm-dp-mgn-*.out             # val_pos (mm) / val_aux (MPa) every 50k steps
 ```

@@ -8,7 +8,7 @@
 #   sbatch --job-name=os-taylor-s1 \
 #       --export=ALL,BENCH=taylor_impact_2d,ARM=transolver-oneshot-s1,\
 #OUT=runs/oneshot-taylor-transolver-s1,DATA=/data/curtin_eecms/curtin_qilin/data/taylor_impact \
-#       hpc/dug/train_arm.slurm
+#       tools/hpc/dug/train_arm.slurm
 #
 # Recognised variables:
 #   BENCH  benchmark dir under configs/            (required)

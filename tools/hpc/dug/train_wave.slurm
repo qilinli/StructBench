@@ -1,7 +1,7 @@
 #!/bin/bash
 # Full Wave-1D CGN baseline on DUG (SLURM). Submit from the repo root ON A
 # LOGIN NODE (sbatch does not work inside the JupyterHub container — no munge):
-#   sbatch hpc/dug/train_wave.slurm
+#   sbatch tools/hpc/dug/train_wave.slurm
 #
 # The wave model is small (hidden 64, 5 MP hops, ~500-1250 particles/case vs
 # Taylor's 128/10), so it has wide headroom on the A100 and should finish well

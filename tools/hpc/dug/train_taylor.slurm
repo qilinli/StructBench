@@ -1,7 +1,7 @@
 #!/bin/bash
 # Full Taylor 2D CGN baseline on DUG (SLURM). Submit from the repo root ON A
 # LOGIN NODE (sbatch does not work inside the JupyterHub container — no munge):
-#   sbatch hpc/dug/train_taylor.slurm
+#   sbatch tools/hpc/dug/train_taylor.slurm
 #
 # Values below are live for the curtin_eecms partition (verified 2026-07-03:
 # one 2x A100-80GB node, TIMELIMIT infinite). The partition's A100 node is

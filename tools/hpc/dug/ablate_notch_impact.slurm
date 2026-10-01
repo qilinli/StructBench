@@ -8,7 +8,7 @@
 #
 #   sbatch --job-name=ni-n002-s1 \
 #       --export=ALL,NAME=n002-s1,HIDDEN=128,MP=10,NMLP=2,BATCH=8,SEED=1,NOISE=0.02,STEPS=50000,FLEET=runs/fleet-<date> \
-#       hpc/dug/ablate_notch_impact.slurm
+#       tools/hpc/dug/ablate_notch_impact.slurm
 #
 # The base config still carries the pre-round-1 small recipe (64/5/1), so
 # round-1 arms pass the capacity overrides explicitly, exactly as wave

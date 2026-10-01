@@ -185,7 +185,7 @@ Solver-related code is split across three locations:
 
 This separation enforces the solver-agnostic posture committed to in ADR-0004. The package depends on no solver. Contributions from other solvers integrate via output adapters in `core/io/`, not via package modifications.
 
-A third repo-root folder follows the same non-importable-glue pattern: **`hpc/`** holds cluster job scripts for training runs (SLURM decks, environment setup — one subfolder per cluster, e.g. `hpc/dug/`). It is deliberately *not* named `deploy/`: deploying a surrogate into an engineering workflow (README Roadmap, *Later*) is a different concern from launching training jobs, and the name stays free for it.
+Cluster job scripts for training runs live under **`tools/hpc/`** (SLURM decks and environment setup, one subfolder per cluster, e.g. `tools/hpc/dug/`), beside the other scripts that are run but not shipped; they are launched by path from the repo root and record the commit they ran. Nothing is named `deploy/`: deploying a surrogate into an engineering workflow (README Roadmap, *Later*) is a different concern from launching training jobs, and the name stays free for it.
 
 ---
 

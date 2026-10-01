@@ -7,7 +7,7 @@
 #
 #   mkdir -p scratch/logs
 #   sbatch --job-name=taylor-transolver-n02 --export=ALL,ARM=transolver-n02 \
-#       hpc/dug/train_taylor_adr0049.slurm
+#       tools/hpc/dug/train_taylor_adr0049.slurm
 #
 # Recognised variables:
 #   ARM   config stem under configs/taylor_impact_2d/   (required)
