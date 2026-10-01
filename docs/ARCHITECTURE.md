@@ -27,16 +27,11 @@ src/structbench/
 ├── viz/           # FEM-style visualization of physics fields
 ├── cli/           # command-line interfaces (structbench-train, datacheck)
 └── config.py      # grouped run configuration: typed sections, strict loading (ADR-0032)
-
-# Reserved namespaces (declared but not yet implemented)
-├── deploy/        # asset onboarding and deployment workflows (post-v0.1)
-├── vision/        # computer-vision-based damage detection (post-v0.1)
-└── sensing/       # sensor-stream anomaly detection (post-v0.1)
 ```
 
 The `src/`-layout is used (rather than placing the package directly at repo root) to avoid common Python packaging pitfalls and to make the distinction between source code and other repo content explicit.
 
-Reserved namespaces are declared here so the long-term shape of the package is visible from day one, but they are not created on disk until a real implementation begins. Creating empty namespaces speculatively is forbidden; they are added when their first real content lands.
+No namespace is reserved ahead of its implementation: a package is added when its first real content lands. The long-run direction beyond verification and validation — the surrogate placed inside structural-engineering workflows — is recorded in the README Roadmap under *Later*, and each piece of it becomes an ADR when picked up.
 
 ---
 
@@ -58,7 +53,7 @@ A benchmark module describes *what* the problem is. It does not include the data
 
 ### `models/`
 
-Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, transformer operators, foundation models, anomaly detectors, and any other ML method shipped as part of the platform. Each model is a self-contained submodule of tensor→tensor building blocks; its hyperparameter defaults live in the top-level `config.py` (ADR-0032), its training loop in `cli/`, and a blessed run's checkpoint is archived in the gitignored `models/` directory, its path recorded in the benchmark's results registry (ADR-0037). From v0.3 the module hosts both a message-passing GNN family and a transformer-operator family, because DeformingPlate's headline is cross-method comparison rather than a single baseline (ADR-0041).
+Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, transformer operators, and any other learned surrogate shipped as part of the platform. Each model is a self-contained submodule of tensor→tensor building blocks; its hyperparameter defaults live in the top-level `config.py` (ADR-0032), its training loop in `cli/`, and a blessed run's checkpoint is archived in the gitignored `models/` directory, its path recorded in the benchmark's results registry (ADR-0037). From v0.3 the module hosts both a message-passing GNN family and a transformer-operator family, because DeformingPlate's headline is cross-method comparison rather than a single baseline (ADR-0041).
 
 The shipped submodules:
 
@@ -173,7 +168,6 @@ Rules:
 - **`benchmarks/` depends on `eval/`** in the current code: each benchmark references the QoI protocol type and QoI implementations that live in `eval/`. This coupling arrived with the QoI-owned-by-benchmark design (ADR-0032) and the original "peer modules do not depend on each other" rule was never amended for it. It is a live architectural question — either bless the dependency with an amending ADR, or move the QoI protocol/type down into `core/` so `benchmarks/` and `eval/` both depend on it rather than on each other. *(Flagged 2026-07-06; pending a decision.)*
 - `config.py` (top-level module) depends on nothing internal and sits below `cli/` and `viz/`.
 - `cli/` may depend on any other module. It is the assembly point. `viz/`'s `__main__` entry likewise reaches up into `benchmarks/` and `config.py` for run-record resolution, so as an entry point it behaves like `cli/` rather than like the `viz/` plotting core.
-- Reserved namespaces (`deploy/`, `vision/`, `sensing/`) will be placed in this graph when implemented; their position is a future architectural decision.
 
 Cycles are not permitted. If a proposed dependency would create a cycle, the design is wrong and must be reconsidered.
 
@@ -191,7 +185,7 @@ Solver-related code is split across three locations:
 
 This separation enforces the solver-agnostic posture committed to in ADR-0004. The package depends on no solver. Contributions from other solvers integrate via output adapters in `core/io/`, not via package modifications.
 
-A third repo-root folder follows the same non-importable-glue pattern: **`hpc/`** holds cluster job scripts for training runs (SLURM decks, environment setup — one subfolder per cluster, e.g. `hpc/dug/`). It is deliberately *not* named `deploy/`: that name is reserved for the future `src/structbench/deploy/` namespace (asset onboarding and deployment workflows), which is an entirely different concern.
+A third repo-root folder follows the same non-importable-glue pattern: **`hpc/`** holds cluster job scripts for training runs (SLURM decks, environment setup — one subfolder per cluster, e.g. `hpc/dug/`). It is deliberately *not* named `deploy/`: deploying a surrogate into an engineering workflow (README Roadmap, *Later*) is a different concern from launching training jobs, and the name stays free for it.
 
 ---
 
@@ -199,7 +193,7 @@ A third repo-root folder follows the same non-importable-glue pattern: **`hpc/`*
 
 The case schema is the central data structure that all modules read or write — it represents one record (a specimen under a scenario, with the resulting response) in a form that is common to data generation, surrogate training, and evaluation. The vocabulary used here is fixed in ADR-0011.
 
-Designing the schema well is one of the highest-stakes architectural decisions in the project. A well-designed schema enables modules to compose cleanly and accommodates future scope expansion (multi-modal SHM, deployment workflows). A poorly-designed schema forces every downstream component to work around its limitations.
+Designing the schema well is one of the highest-stakes architectural decisions in the project. A well-designed schema enables modules to compose cleanly and accommodates the scope the README Roadmap anticipates under *Later* (cases observed on a physical structure beside simulated ones). A poorly-designed schema forces every downstream component to work around its limitations.
 
 The schema's design is treated as its own focused exercise, separate from the rest of this document. The conceptual model and field-level structure below are settled (ADR-0011 and ADR-0012), as is the HDF5 persistence layout — group spelling, dtypes, attribute conventions (ADR-0013).
 
@@ -218,7 +212,7 @@ Inside `response`, the temporal axis uses two further terms:
 - **Frame** — a single time slice of the response (one image in the "video" of state evolution).
 - **Transition** — a pair of consecutive frames `(frame_t, frame_{t+1})`, the natural unit for auto-regressive ML training.
 
-The word **asset** is reserved for the physical-structure / deployment meaning (see `deploy/`). A case that came from real-world observation may carry an `asset_id` field linking it to the physical structure it was observed on; many such cases on the same asset link via that field.
+The word **asset** is reserved for the physical-structure / deployment meaning (ADR-0011). A case that came from real-world observation may carry an `asset_id` field linking it to the physical structure it was observed on; many such cases on the same asset link via that field.
 
 ### Field-level structure
 
