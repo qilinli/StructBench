@@ -41,7 +41,7 @@ Read these files, in order, before any work begins:
 3. `docs/HARNESS.md`.
 4. `docs/PRINCIPLES.md`.
 5. `docs/CORRECTIONS.md` — all entries marked `active`.
-6. `decisions/README.md` — the ADR index.
+6. `docs/decisions/README.md` — the ADR index.
 7. `docs/WORKFLOW.md` — session venues and multi-machine git workflow; identify your venue before making any change.
 
 Then, conditionally based on the session's task:
@@ -138,7 +138,7 @@ Small corrections that don't warrant an ADR are logged in `CORRECTIONS.md`. Form
 - **Repository structure and package layout**: `docs/ARCHITECTURE.md`.
 - **Case schema**: `docs/ARCHITECTURE.md`.
 - **Dependency policy and approved list**: `docs/PRINCIPLES.md`, with individual additions recorded as ADRs.
-- **ADR format and process**: `decisions/README.md`.
+- **ADR format and process**: `docs/decisions/README.md`.
 - **Session venues and multi-machine git workflow**: `docs/WORKFLOW.md`.
 - **Planning, work in progress and open items**: the Roadmap section of `README.md`.
 - **Data generation (the dataset contract and the stages)**: `docs/DATA_GENERATION.md`.

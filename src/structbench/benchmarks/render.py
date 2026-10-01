@@ -540,7 +540,7 @@ def _layout_lines(c: BenchmarkCard, name: str, verification_report: bool) -> lis
         "particles, E elements, T stored frames and d = `metadata.dimension`; "
         "the exact schema version is the `schema_version` attribute "
         "(ADR-0013 — 0.2.0 readers read 0.1.0 files unchanged, ADR-0042). "
-        "`ADR-NNNN` refers to the decision records under `decisions/` in the "
+        "`ADR-NNNN` refers to the decision records under `docs/decisions/` in the "
         "code repository.",
         "",
         "| Path | Shape | Dtype | Content |",
