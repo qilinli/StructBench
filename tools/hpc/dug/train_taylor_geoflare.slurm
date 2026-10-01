@@ -3,7 +3,7 @@
 # family recipe on the synthesized lattice mesh + wall nodes; CGN-matched
 # 100k budget). NO numeric gate; metrics recorded provisional per ADR-0046.
 # Submit from the repo root ON A LOGIN NODE:
-#   mkdir -p scratch/logs && sbatch hpc/dug/train_taylor_geoflare.slurm
+#   mkdir -p scratch/logs && sbatch tools/hpc/dug/train_taylor_geoflare.slurm
 #
 # Single-GPU loop; ONE A100 80G per job — nodes carry gpu:a100:2, so jobs
 # pack two-per-node automatically (no exclusive flags).

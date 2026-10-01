@@ -6,7 +6,7 @@
 #
 #   mkdir -p scratch/logs
 #   sbatch --job-name=wave-mgn-s1 --export=ALL,ARM=mgn-s1 \
-#       hpc/dug/train_wave_fleet.slurm
+#       tools/hpc/dug/train_wave_fleet.slurm
 #
 # Recognised variables:
 #   ARM   config stem under configs/wave_propagation_1d/   (required)

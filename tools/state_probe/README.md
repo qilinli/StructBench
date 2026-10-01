@@ -108,7 +108,7 @@ on an M5 Pro. Put `--cache-dir` outside any synced folder.
 
 ## Running on DUG
 
-See `hpc/dug/probe_state_sufficiency.slurm`, which uses the A100 configuration
+See `tools/hpc/dug/probe_state_sufficiency.slurm`, which uses the A100 configuration
 (batch 2, hidden 128, 6 blocks — measured to need ~12 GB, ample on an 80 GB
 card). Build the cache once before submitting a fleet; concurrent jobs race on
 it.

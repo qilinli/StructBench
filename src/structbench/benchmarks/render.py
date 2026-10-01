@@ -868,7 +868,7 @@ def render_benchmark_page(
     ]
     if provenance == "blessed":
         # The committed grouped config is the blessed recipe verbatim, kept
-        # so by the bless checklist (hpc/dug/README.md §5, ADR-0037).
+        # so by the bless checklist (tools/hpc/dug/README.md §5, ADR-0037).
         lines += [
             "",
             "This config is the blessed baseline recipe verbatim, seed "

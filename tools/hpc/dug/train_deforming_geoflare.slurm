@@ -3,7 +3,7 @@
 # NO numeric gate applies (no published rollout anchor); the run's §5 metrics
 # are recorded provisional=True per ADR-0046 clause 7. Submit from the repo
 # root ON A LOGIN NODE:
-#   mkdir -p scratch/logs && sbatch hpc/dug/train_deforming_geoflare.slurm
+#   mkdir -p scratch/logs && sbatch tools/hpc/dug/train_deforming_geoflare.slurm
 #
 # Single-GPU loop; ONE A100 80G per job — nodes carry gpu:a100:2, so two of
 # these jobs pack per node automatically (no exclusive flags).

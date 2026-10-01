@@ -3,7 +3,7 @@
 # Submit from the repo root ON A LOGIN NODE, parameterized via --export:
 #
 #   sbatch --job-name=abl-n005 --export=ALL,NAME=n005,NOISE=0.05 \
-#       hpc/dug/ablate_taylor.slurm
+#       tools/hpc/dug/ablate_taylor.slurm
 #
 # Recognised variables (all optional except NAME):
 #   NAME    run name -> output dir runs/fleet-<date>/<NAME>   (required)

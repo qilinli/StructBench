@@ -5,12 +5,12 @@
 # LOGIN NODE, parameterized via --export:
 #
 #   sbatch --job-name=w-n006-s1 --export=ALL,NAME=n006-s1,NOISE=0.06,SEED=1 \
-#       hpc/dug/ablate_wave.slurm
+#       tools/hpc/dug/ablate_wave.slurm
 #   # capacity arms are slower — give them the full walltime and (pending the
 #   # memory smoke test) their own batch size:
 #   sbatch --job-name=w-k1-s1 --time=24:00:00 \
 #       --export=ALL,NAME=k1-s1,HIDDEN=128,MP=10,NMLP=2,SEED=1,STEPS=50000 \
-#       hpc/dug/ablate_wave.slurm
+#       tools/hpc/dug/ablate_wave.slurm
 #
 # Recognised variables (all optional except NAME):
 #   NAME    run name -> output dir runs/fleet-<date>/<NAME>   (required)
