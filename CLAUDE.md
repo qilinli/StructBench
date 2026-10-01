@@ -58,7 +58,7 @@ Target: the full start-of-session reading should take under 10 minutes of agent 
 ### During a session
 
 - **Default to asking when ambiguous.** Silent resolution of ambiguity is how invariants erode.
-- **Draft ADRs immediately when decisions are made**, not at end of session.
+- **Record decisions immediately, in the decision's home**, not at end of session. `docs/decisions/README.md` says what earns an ADR; most decisions go elsewhere (code, plans, configs, the records, CORRECTIONS). When it is an ADR, write its Your-call block before building.
 - **Flag scope expansion.** If the task has grown beyond what was originally requested, say so.
 - **Break complex work into checkpoints.** Pause for confirmation at natural boundaries.
 - **When corrected, ask whether to log to `CORRECTIONS.md`.**

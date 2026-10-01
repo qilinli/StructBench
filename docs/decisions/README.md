@@ -1,6 +1,41 @@
 # Decisions
 
-This folder holds the project's Architecture Decision Records (ADRs). Each ADR captures one decision, its context, the alternatives considered, and its consequences. Together, they form the project's decision history.
+This folder holds the project's Architecture Decision Records (ADRs): one file per decision, with its context, the alternatives considered and its consequences. Together they are the project's decision history, and each one is a constraint on everything decided after it.
+
+---
+
+## What earns an ADR
+
+A record constrains future work, so the log grows only when both of these hold:
+
+1. **The decision binds what comes after it.** Scope and identity; a public contract (the case schema, a file format, the dataset definition, a command); a benchmark protocol that fixes the comparability of registered results; what counts as a pass or as trustworthy; what is published and on what terms; a dependency or a layering rule.
+2. **The decision needs the maintainer's judgment.** It rests on context the agent cannot see, its consequences reach beyond the repository, or it is expensive or impossible to reverse.
+
+The test is: *would a future session, without this record, make a choice the maintainer would reject?* If not, there is no ADR. Everything else has another home and goes there:
+
+| Instead of an ADR | Home |
+|---|---|
+| how something is implemented | the code and its docstrings |
+| a design, a plan, a build log | `docs/plans/`; commit messages |
+| a training recipe, a run, an experiment arm | the run config; the results registry |
+| a measured fact about the data | the published record (`docs/datachecks/`, the benchmark card) |
+| a small correction to how the agent works | `docs/CORRECTIONS.md` |
+| a change to a decision already recorded | a dated note on that record |
+
+Why the bar is where it is: the log was reviewed in full on 2026-09-29 (ADR-0073). It held 71 records and 86,000 words, most of them accepted unread because they were long, and several contradicted each other or the shipped code. Every record added is a constraint future work must honour and a chance for two constraints to clash; fewer, shorter records are easier to keep true *(maintainer, 2026-10-01)*.
+
+## Shape
+
+An ADR is one page: about 800 words before any appended note, and the test suite refuses a new record over 900. Right after the header it opens with the block the maintainer accepts from:
+
+```
+**Your call**: the one to three judgments the maintainer makes by accepting
+this record, one line each, with what reversing each would cost.
+```
+
+Every judgment the maintainer is accountable for is named in that block. A call that appears only in the body is a call the maintainer has not made. The Decision section states the decision in numbered clauses, plainly. Design detail, measurements and rationale longer than a paragraph go to a linked plan under `docs/plans/`.
+
+Before proposing, the drafter searches the log for every record the decision touches and names them in the `**Amends**:` header line. A clash with an accepted record is resolved in the new one, by amending or superseding the clause it clashes with, never left for a reader to find.
 
 ---
 
@@ -11,15 +46,18 @@ Each ADR is one markdown file with the following structure:
 ```
 # NNNN — Title
 
-**Status**: Accepted | Proposed | Superseded by NNNN
-**Type**: Durable | Ephemeral
+**Status**: Proposed | Accepted (maintainer, YYYY-MM-DD) | Superseded by NNNN
+**Type**: Ephemeral | Durable
 **Date**: YYYY-MM-DD
+**Amends**: the records this one changes or constrains, or "none"
+
+**Your call**: see Shape above.
 
 ## Context
 What problem or question prompted this decision.
 
 ## Decision
-What was decided.
+What was decided, in numbered clauses.
 
 ## Alternatives considered
 What else was on the table, and why not.
@@ -34,14 +72,26 @@ What becomes easier, harder, or constrained as a result.
 
 ### Status
 
-- **Proposed** — drafted, not yet approved by the human.
-- **Accepted** — current, active decision.
-- **Superseded by NNNN** — replaced by a later ADR. The superseded ADR is kept for history; the new one references it.
+- **Proposed** — drafted, not yet approved by the maintainer. Work may be built on a branch while a record is Proposed, but no Accepted record may depend on it, and a record whose build is merged is accepted or withdrawn in the same session. Proposed is not a parking state.
+- **Accepted** — the maintainer has read the Your-call block and the Decision and approved them; the status line carries the date.
+- **Superseded by NNNN** — replaced by a later record. The superseded record is kept for history; the new one references it.
 
 ### Type
 
-- **Durable** — effectively permanent. Revising requires a new superseding ADR with explicit reasoning. Small adjustments that do not reverse the decision (timing slips, parking a sub-item) may instead be recorded as a dated amendment note appended to the ADR and reflected in the index Status column *(maintainer, 2026-08-06)*; supersession remains required for genuine reversals.
-- **Ephemeral** — expected to change as the project evolves. Can be updated in place with a dated note appended to the ADR; supersession is not required.
+- **Ephemeral** — the default. Expected to change as the project evolves; updated in place with a dated note, and supersession is not required.
+- **Durable** — only for commitments that are expensive or impossible to reverse: the case schema and format compatibility, what is published and under which licence, a benchmark protocol behind registered results, the project's identity and scope, and the harness itself. Revising one requires a new superseding record with explicit reasoning. Small adjustments that do not reverse the decision (timing slips, parking a sub-item) may instead be recorded as a dated amendment note and reflected in the index Status column *(maintainer, 2026-08-06)*; supersession remains required for genuine reversals.
+
+### Notes
+
+A dated note is appended only when it changes the decision (an amendment), records its outcome (a verdict), or points at a later record that changed it. Build logs, measured counts and narratives do not go in notes; they go in commit messages, the plans or the published records. A record carrying more than three notes, or grown past twice the page, is consolidated: a short successor states the current decision and supersedes it.
+
+### Index and moves
+
+The index row's Status column names every later record that amended, narrowed or superseded the row's, so a reader who opens a record from the index knows when it is not the whole story. When a file the log cites moves, the record that cites it gets "(moved YYYY-MM-DD; was `old path`)" at the first mention; records are history and are not rewritten.
+
+## Review
+
+At each release, or every fifteen records, the whole log is triaged: index rows against the files, text that is no longer true, labels, clashes, and calls the maintainer never made. The triage's decisions go in one record with a dated pointer on each record it touches, as ADR-0073 did.
 
 ---
 
@@ -126,8 +176,14 @@ What becomes easier, harder, or constrained as a result.
 
 ## Adding a new ADR
 
-1. Claim the next available number by checking the highest NNNN in use.
-2. Create `NNNN-kebab-case-title.md` using the format above.
-3. Draft the ADR. Claude Code may draft; the human finalises.
-4. Add a row to the index in this README.
-5. Commit with a message like `docs: add ADR-NNNN on <title>`.
+1. Check the bar above. If the decision does not meet it, record it in its
+   home instead.
+2. Claim the next available number by checking the highest NNNN in use.
+3. Create `NNNN-kebab-case-title.md` using the format above, and write the
+   Your-call block first.
+4. Search the log for the records the decision touches; name them in the
+   `**Amends**` line and resolve any clash in the new record.
+5. Draft the rest within the page. Claude Code may draft; the maintainer
+   finalises by reading the Your-call block and the Decision.
+6. Add a row to the index in this README.
+7. Commit with a message like `docs: add ADR-NNNN on <title>`.
