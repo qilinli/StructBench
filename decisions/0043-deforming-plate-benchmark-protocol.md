@@ -238,7 +238,9 @@ config correctly scaled the world-edge radius to match (0.03 m → `world_edge_r
 UNSCALED, so the applied position noise (`train.py:_mesh_family_noise`, no
 `× length_scale` factor) was **0.003 mm, ~1000× weaker** than the paper's intent
 (faithful working-frame value `3.0` mm). The blessed MGN and both AR operators
-(`deforming-mgn-v03b`, `deforming-{transolver,geoflare}-v03`) trained under-noised.
+(`deforming-mgn-v03b`, `deforming-{transolver,geoflare}-v03`) trained under-noised;
+the re-blessed MGN run is `deforming-mgn-n3`, archived as `mgn-eb39994`
+(name confirmed from its metrics and checkpoint on DUG, 2026-10-01).
 It stayed in-band on position (world edges + contact regularize enough), but the
 signature is unmistakable: one-step 4× *better* than the paper (0.059 vs 0.25 mm),
 rollout at the *high* edge (16.98 / 2.10 vs 15.1 / 1.8 mm). **Correction:** `noise_std`
