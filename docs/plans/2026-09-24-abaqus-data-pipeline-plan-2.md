@@ -1,5 +1,7 @@
 # Abaqus Data Pipeline — Plan 2 of 2: readers, adapter, verification, validate, archive
 
+> **Executed** — merged 2026-09-25 (`4b30201`). A historical record, not instructions: do not re-run it. See `docs/plans/README.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn finished Abaqus/Explicit runs into verified canonical cases:

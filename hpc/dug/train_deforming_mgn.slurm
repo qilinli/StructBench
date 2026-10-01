@@ -2,7 +2,7 @@
 # Full DeformingPlate MGN blessing run on DUG (SLURM) — ADR-0043 §8 recipe.
 # Submit from the repo root ON A LOGIN NODE (sbatch does not work inside the
 # JupyterHub container — no munge):
-#   mkdir -p logs && sbatch hpc/dug/train_deforming_mgn.slurm
+#   mkdir -p scratch/logs && sbatch hpc/dug/train_deforming_mgn.slurm
 #
 # Values live for the curtin_eecms partition (TIMELIMIT infinite; ~21 nodes
 # with gpu:a100:2 as of 2026-07-10). Single-GPU loop; ONE A100 80G. The MGN

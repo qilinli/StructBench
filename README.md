@@ -132,7 +132,7 @@ DeformingPlate benchmark (ADR-0041; operator adaptations ADR-0044/0045).
 
 ```
 src/structbench/
-  core/            # case schema, validation, HDF5 I/O, LS-DYNA adapter
+  core/            # case schema, schema validation, HDF5 I/O, solver adapters
   datasets/        # canonical readers, windowing, normalization
   verification/    # reference-data verification: quantity catalogue, measures,
                    #   criteria, generated report (ADR-0066)
@@ -144,16 +144,16 @@ src/structbench/
   models/          # model families: cgn, mgn, transolver, geoflare (+ shared common/)
   eval/            # rollout driver, metrics
   viz/             # physics-quantity figures, FEM-postprocessor style (ADR-0022)
-  cli/             # structbench-train
+  cli/             # structbench-train, datacheck
 configs/           # grouped TOML run configs, configs/<benchmark>/<family>.toml (ADR-0032)
 decisions/         # architecture decision records (ADRs)
 tools/             # doc generation, the pooled-RMSE blessing aggregator, dev scripts
-data_generation/   # solver decks + offline conversion scripts (data provenance)
+data_generation/   # converters for the datasets that predate datagen (not importable)
 hpc/               # cluster launch scripts (DUG SLURM)
 docs/              # benchmark cards, architecture, harness, corrections;
                    #   datachecks/ (published verification records),
                    #   timelines/ (ground-truth evidence behind protocol values),
-                   #   plans/ (design + source dossier for work still in flight)
+                   #   plans/ (designs, the verification source dossier, implementation plans)
 tests/             # deterministic CPU-only test suite
 assets/            # figures embedded in the docs + landing pages
 ```
@@ -164,7 +164,8 @@ assets/            # figures embedded in the docs + landing pages
      Conventions: done = [x] + strikethrough + (date); ad-hoc additions land
      in Inbox and get triaged into a milestone; when a milestone ships, its
      crossed-out block may be compressed to one line. Reasoning lives in
-     decisions/, not here. Substrate-layer work only (ADR-0014). -->
+     decisions/, not here. Platform work only: the maintainer's research
+     plans stay outside the repository (ADR-0065). -->
 
 *Last revised: 2026-09-29.*
 
@@ -265,15 +266,18 @@ assets/            # figures embedded in the docs + landing pages
     data) plus the scale infrastructure it needs (cell-list `radius_graph`,
     TB-scale hosting); its methods already ship in v0.3 (ADR-0041)
   - *Segmented beam* — parked since ADR-0015
-- **Agentic data generation** — an agent-driven pipeline that produces
-  benchmark data end to end with a solver (Abaqus the first candidate):
-  parameter sweep, deck generation, submission, convergence and the
-  run-evidence the ADR-0066 requirement asks for, then conversion to the
-  canonical schema. The point is data generation the platform can audit and
-  a contributor can repeat, rather than archives whose provenance is a
-  folder someone still has; the standard input block
-  ([`docs/datagen/lsdyna-conformance.md`](docs/datagen/lsdyna-conformance.md))
-  is the LS-DYNA statement of what such a pipeline must switch on
+- **An agent driving data generation** — `structbench-datagen` (In
+  progress, above) is the pipeline; what remains is an agent that runs it end
+  to end for a dataset definition — preflight, production, verification,
+  convergence, archive — and reports what the records say, so that a
+  contributor can repeat a dataset without the maintainer's hands on it
+- **Surrogates inside engineering workflows (long run)** — once a
+  surrogate's trust can be established, placing it in the workflows that
+  need it: protective-structure design and optimisation, and structural
+  health monitoring, where real-time sensor data calibrates the surrogate
+  against the structure it stands for. The case schema's `asset_id` already
+  links a case to a physical structure (ADR-0011); nothing else is reserved
+  for this in the package, and each piece becomes an ADR when picked up
 - Training: resume support · part-id→embedding remap · ADR-0028 Phase-2
   ablations
 - **Surrogate V&V as a reported axis** — a prediction is judged on three

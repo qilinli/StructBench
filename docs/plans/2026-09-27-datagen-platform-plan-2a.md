@@ -1,5 +1,7 @@
 # Datagen platform, part two (a): the convergence engine and the layering — implementation plan
 
+> **Executed** — merged 2026-09-27 (`486d9be`). A historical record, not instructions: do not re-run it. See `docs/plans/README.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (the maintainer chose native execution). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Move the convergence engine into `structbench.verification.convergence` as solution verification, give the pipeline a generic `converge` stage that writes a byte-stable record and a Markdown report from a dataset's `[levels]` and `qoi()` alone, remove the one layering exception (`datagen` reaching `verification` through `cli/datacheck`), let a dataset's `problem.py` import its own siblings, and retire the private dataset's copies (its `convergence.py` and the QoI copy in `problem.py`) against a numerical regression.

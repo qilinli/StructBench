@@ -21,20 +21,17 @@ src/structbench/
 ├── models/        # reference ML models (cgn/, mgn/, transolver/, geoflare/) + shared base (common/)
 ├── datasets/      # canonical loaders, windowing, normalization
 ├── verification/  # reference-data verification: measure, judge, report (ADR-0066)
+├── validation/    # validation against experiments: reference sets, measures, deviation record (ADR-0072)
+├── datagen/       # data-generation pipeline, structbench-datagen; per-solver subpackages (ADR-0071)
 ├── eval/          # metrics and evaluation protocols
 ├── viz/           # FEM-style visualization of physics fields
 ├── cli/           # command-line interfaces (structbench-train, datacheck)
 └── config.py      # grouped run configuration: typed sections, strict loading (ADR-0032)
-
-# Reserved namespaces (declared but not yet implemented)
-├── deploy/        # asset onboarding and deployment workflows (post-v0.1)
-├── vision/        # computer-vision-based damage detection (post-v0.1)
-└── sensing/       # sensor-stream anomaly detection (post-v0.1)
 ```
 
 The `src/`-layout is used (rather than placing the package directly at repo root) to avoid common Python packaging pitfalls and to make the distinction between source code and other repo content explicit.
 
-Reserved namespaces are declared here so the long-term shape of the package is visible from day one, but they are not created on disk until a real implementation begins. Creating empty namespaces speculatively is forbidden; they are added when their first real content lands.
+No namespace is reserved ahead of its implementation: a package is added when its first real content lands. The long-run direction beyond verification and validation — the surrogate placed inside structural-engineering workflows — is recorded in the README Roadmap under *Later*, and each piece of it becomes an ADR when picked up.
 
 ---
 
@@ -56,7 +53,7 @@ A benchmark module describes *what* the problem is. It does not include the data
 
 ### `models/`
 
-Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, transformer operators, foundation models, anomaly detectors, and any other ML method shipped as part of the platform. Each model is a self-contained submodule of tensor→tensor building blocks; its hyperparameter defaults live in the top-level `config.py` (ADR-0032), its training loop in `cli/`, and — once a run is trained and blessed — a published checkpoint (none is published yet; the CGN baseline is the pending DUG run). From v0.3 the module hosts both a message-passing GNN family and a transformer-operator family, because DeformingPlate's headline is cross-method comparison rather than a single baseline (ADR-0041).
+Reference ML models that establish baselines on the benchmarks. This is where the data-driven approaches live — GNN surrogates, transformer operators, and any other learned surrogate shipped as part of the platform. Each model is a self-contained submodule of tensor→tensor building blocks; its hyperparameter defaults live in the top-level `config.py` (ADR-0032), its training loop in `cli/`, and a blessed run's checkpoint is archived in the gitignored `models/` directory, its path recorded in the benchmark's results registry (ADR-0037). From v0.3 the module hosts both a message-passing GNN family and a transformer-operator family, because DeformingPlate's headline is cross-method comparison rather than a single baseline (ADR-0041).
 
 The shipped submodules:
 
@@ -84,7 +81,7 @@ Reference-data verification (ADR-0066): whether a simulation run can be trusted 
 
 What varies has one home each: solver vocabulary stays in `core/io/`; material-class semantics (what the state variable means, which yield law is assessable) in `materials.py`; run traits that scope reference levels in `traits.py`; array-level kernels, written on plain arrays so the model-side checks of ADR-0065 can reuse them, in `kernels.py`. Benchmarks declare facts; they cannot loosen a criterion.
 
-Two more modules arrived with ADR-0071's part two. `convergence.py` is solution verification across nested mesh levels (clause 4): Richardson extrapolation with the observed order and its statuses (`monotone`, `oscillatory`, `diverging`, `flat`), nested-node matching, restriction of element fields onto the coarser mesh with axisymmetric or planar volume weights, and the pooled relative L2 of each stored field of a coarser solution against the finest — all on `Case` objects; the pipeline's `converge` stage does the pairing and the reading. The headline metric itself, `relative_l2_pooled` (ADR-0055), lives in `kernels.py` and `eval.metrics` re-exports it, so `verification` never imports `eval`. `dataset.py` holds `declared_from_toml`, `measure_cases` and `input_facts_for`, the dataset-level entry the `datacheck` CLI and `structbench-datagen verify` share. `temporal.py` (part two (b)) is solution verification in time, on `Case` objects and threshold-free: when a response settles (a quantity of interest as a time series against its final value), when contact ends (the last frame a force exceeds a fraction of its peak), how fast a global rises, and whether the stored frame interval resolves the response (the midpoint-interpolation error of a half-interval export, and two clocks compared at their common instants); the pipeline's `preflight` applies the dataset's declared tolerances to what it measures.
+Solution verification has two modules of its own, both threshold-free and on `Case` objects. `convergence.py` works across nested mesh levels (ADR-0071 clause 4): Richardson extrapolation with the observed order and its statuses (`monotone`, `oscillatory`, `diverging`, `flat`), nested-node matching, restriction of element fields onto the coarser mesh with axisymmetric or planar volume weights, and the pooled relative L2 of each stored field of a coarser solution against the finest. `temporal.py` works in time: when a response settles, when contact ends, how fast a global rises, and whether the stored frame interval resolves the response. The pipeline's `converge` and `preflight` stages do the pairing and the reading and apply the dataset's tolerances. The headline metric `relative_l2_pooled` (ADR-0055) lives in `kernels.py` and `eval.metrics` re-exports it, so `verification` never imports `eval`. `dataset.py` holds `declared_from_toml`, `measure_cases` and `input_facts_for`, the dataset-level entry that the `datacheck` CLI and `structbench-datagen verify` share.
 
 `verification/` depends on `core/` and `datasets/` only, and sits below `eval/` and `benchmarks/` so both can import its result types and kernels without a cycle. It is distinct from `core/validation.py`, which checks that a case is a *valid schema instance*; this module asks whether the run behind it is *trustworthy*. The entry point is `python -m structbench.cli.datacheck measure|judge`.
 
@@ -108,13 +105,13 @@ The `viz/` plotting core (`fringe.py`) depends on `core/` (reading canonical cas
 
 ### `datagen/`
 
-The data-generation pipeline, `structbench-datagen` (ADR-0071). Solver-agnostic stages (`sampling`, `preflight`, `generate`, `run`, `follow`, `export`, `convert`, `verify`, `converge`, `archive`, `definition`, `template`, `cli`) and per-solver subpackages (`abaqus`: `deck`, `odb_export`). It depends on `core` (readers, adapter, schema) and `verification` (through `verify`, the stage that runs the ADR-0066 instrument — it was called `validate` until ADR-0072 gave that word to comparison with experiment — and through `preflight`, which reads `convergence.py` and `temporal.py`), and nothing depends on it. `preflight` is the preparation stage: it plans a case set from the pilot points, drives the other stages over it in a sub-sweep of its own, turns their records into ten verdicts with pure functions, and writes a stamp bound to both definition files' hashes; `generate` opens splits that are not probes only against a passing stamp, and `run` reads the same stamp for its free-space margin and its estimate. No stage imports `datagen/cli.py`; `export.py` holds the exporter command so that `preflight` and `follow` can call it. An import-boundary test holds it to `core`, `datasets`, `verification` and `validation` (the dataset-level helpers `declared_from_toml`, `measure_cases` and `input_facts_for` live in `verification/dataset.py` since ADR-0071's part two; the `datacheck` CLI imports them from there). `odb_export.py` is package data as much as code: Python 3.10, no imports from `structbench`, handed to `abaqus python` by the CLI.
+The data-generation pipeline, `structbench-datagen` (ADR-0071). Solver-agnostic stages (`sampling`, `preflight`, `generate`, `run`, `follow`, `export`, `convert`, `verify`, `converge`, `archive`, `definition`, `template`, `cli`) and per-solver subpackages (`abaqus`: `deck`, `odb_export`). `verify` runs the ADR-0066 instrument over a sweep. `preflight` is the preparation stage: it plans a case set from the pilot points, drives the other stages over it in a sub-sweep of its own, turns their records into verdicts with pure functions, and writes a stamp bound to both definition files' hashes; `generate` opens splits that are not probes only against a passing stamp, and `run` reads the same stamp for its free-space margin and its estimate. No stage imports `datagen/cli.py`; `export.py` holds the exporter command so that `preflight` and `follow` can call it. `odb_export.py` is package data as much as code: Python 3.10, no imports from `structbench`, handed to `abaqus python` by the CLI. Its allowed dependencies are in the dependency graph below.
 
 ### `cli/`
 
-Command-line entry points. Thin wrappers around functionality in the other modules. The CLI exposes `structbench-train` with `train`/`valid`/`rollout` modes — training a baseline on a benchmark and evaluating it on the benchmark's splits. (Dataset/model listing operations are part of the intended scope but are not yet implemented.)
+Command-line entry points. Thin wrappers around functionality in the other modules. The CLI exposes `structbench-train` with `train`/`valid`/`rollout` modes — training a baseline on a benchmark and evaluating it on the benchmark's splits — and `python -m structbench.cli.datacheck measure|judge` for the verification instrument. (Dataset/model listing operations are part of the intended scope but are not yet implemented.)
 
-`cli/` depends on most other modules but is depended on by none. It is the outermost layer. `datagen/` sits beside `eval/` and `benchmarks/`, above `verification/` and `validation/` — the layering reads `core ← datasets ← {verification, validation} ← {eval, benchmarks, datagen} ← cli`; `cli/` and `datagen/cli` are both entry-point layers. (`viz/` additionally carries its own `__main__` so `python -m structbench.viz` can regenerate a run's standard figures without a console-script entry.)
+`cli/` depends on most other modules but is depended on by none. It is the outermost layer. `datagen/cli.py` and `validation/cli.py` are entry points of the same kind inside their own modules (`structbench-datagen`, `structbench-validate`). (`viz/` additionally carries its own `__main__` so `python -m structbench.viz` can regenerate a run's standard figures without a console-script entry.)
 
 ### `config.py`
 
@@ -141,22 +138,22 @@ The rule's purpose is to make refactoring tractable: a change to a private helpe
 Allowed import directions between modules:
 
 ```
-                    cli/
-                     │
-       ┌─────────────┼─────────────┬─────────────┐
-       ▼             ▼             ▼             ▼
-  benchmarks/      eval/        models/        viz/
-       │             │             │             │
-       └──────┬──────┘             │             │
-              ▼                    │             │
-        verification/              │             │
-              │                    │             │
-              └─────────────┬──────┴─────────────┘
-                            ▼
-                        datasets/
-                            │
-                            ▼
-                         core/
+                    cli/                               datagen/
+                     │                                    │
+       ┌─────────────┼─────────────┬─────────────┐        ├──────────────┐
+       ▼             ▼             ▼             ▼        │              ▼
+  benchmarks/      eval/        models/        viz/       │         validation/
+       │             │             │             │        │              │
+       └──────┬──────┘             │             │        │              │
+              ▼                    │             │        │              │
+        verification/ ◄────────────┼─────────────┼────────┘              │
+              │                    │             │                       │
+              └─────────────┬──────┴─────────────┘                       │
+                            ▼                                            │
+                        datasets/                                        │
+                            │                                            │
+                            ▼                                            │
+                         core/ ◄─────────────────────────────────────────┘
 ```
 
 Rules:
@@ -165,11 +162,12 @@ Rules:
 - `datasets/` depends only on `core/`.
 - `models/` and `viz/`'s plotting core may depend on `core/` and `datasets/` only — a model is not coupled to a specific benchmark, and visualization plots arrays rather than models.
 - `verification/` depends only on `core/` and `datasets/` (ADR-0066); `benchmarks/` and `eval/` may depend on it (they also reach `datasets/` directly), `models/` and `viz/` do not. An import-boundary test enforces its side.
+- `validation/` depends only on `core/` (ADR-0072), so a predicted case and a reference case go through the same comparison. An import-boundary test enforces it.
+- `datagen/` may depend on `core/`, `datasets/`, `verification/` and `validation/` (ADR-0071), and nothing depends on it. An import-boundary test enforces it.
 - `eval/` may depend on `core/` and `datasets/`; it does not depend on `models/` (evaluation is a property of the benchmark, not the model).
 - **`benchmarks/` depends on `eval/`** in the current code: each benchmark references the QoI protocol type and QoI implementations that live in `eval/`. This coupling arrived with the QoI-owned-by-benchmark design (ADR-0032) and the original "peer modules do not depend on each other" rule was never amended for it. It is a live architectural question — either bless the dependency with an amending ADR, or move the QoI protocol/type down into `core/` so `benchmarks/` and `eval/` both depend on it rather than on each other. *(Flagged 2026-07-06; pending a decision.)*
 - `config.py` (top-level module) depends on nothing internal and sits below `cli/` and `viz/`.
 - `cli/` may depend on any other module. It is the assembly point. `viz/`'s `__main__` entry likewise reaches up into `benchmarks/` and `config.py` for run-record resolution, so as an entry point it behaves like `cli/` rather than like the `viz/` plotting core.
-- Reserved namespaces (`deploy/`, `vision/`, `sensing/`) will be placed in this graph when implemented; their position is a future architectural decision.
 
 Cycles are not permitted. If a proposed dependency would create a cycle, the design is wrong and must be reconsidered.
 
@@ -179,16 +177,15 @@ Cycles are not permitted. If a proposed dependency would create a cycle, the des
 
 StructBench treats the FEM solver as an external data source rather than as a package component. The package consumes data in a canonical format (the case schema, persisted as HDF5); how that data was originally produced — by which solver, with what input deck, on what compute resource — is upstream of the package's concerns.
 
-Solver-related code is split across two locations:
+Solver-related code is split across three locations:
 
 - **`datagen/`** inside the package holds the data-generation pipeline (ADR-0069, ADR-0071): sampling, deck generation with provenance, the job runner, conversion, verification, archive, the dataset-definition contract with its scaffold and check, and per-solver subpackages (`datagen/abaqus/`: the deck writers and the ODB exporter, which runs under the solver's own Python). A dataset is a definition (`dataset.toml`, `problem.py`) that the pipeline consumes; definitions may live outside the repository. The package still depends on no solver: `datagen` shells out to one.
-- **`validation/`** holds validation against experiments (ADR-0072): reference-experiment sets with provenance, the shared measures, the comparison and its record, behind `structbench-validate`. Depends on `core/` only.
 - **`data_generation/`** at repo root keeps only glue that is not importable: the per-dataset converters and collectors of the datasets that predate `datagen` (the three LS-DYNA sweeps and MeshGraphNets `deforming_plate`). It ingests existing solver output; a dataset `datagen` produces never gains a folder there. The solvers' standard input blocks are `docs/datagen/{lsdyna,abaqus}-conformance.md`.
 - **`core/io/`** inside the package holds the readers and writers for the canonical HDF5 format, and (when needed) adapters that convert raw solver outputs into the canonical format. These adapters are the bridge: they let data produced by any solver be consumed by the rest of the package uniformly.
 
 This separation enforces the solver-agnostic posture committed to in ADR-0004. The package depends on no solver. Contributions from other solvers integrate via output adapters in `core/io/`, not via package modifications.
 
-A third repo-root folder follows the same non-importable-glue pattern: **`hpc/`** holds cluster job scripts for training runs (SLURM decks, environment setup — one subfolder per cluster, e.g. `hpc/dug/`). It is deliberately *not* named `deploy/`: that name is reserved for the future `src/structbench/deploy/` namespace (asset onboarding and deployment workflows), which is an entirely different concern.
+A third repo-root folder follows the same non-importable-glue pattern: **`hpc/`** holds cluster job scripts for training runs (SLURM decks, environment setup — one subfolder per cluster, e.g. `hpc/dug/`). It is deliberately *not* named `deploy/`: deploying a surrogate into an engineering workflow (README Roadmap, *Later*) is a different concern from launching training jobs, and the name stays free for it.
 
 ---
 
@@ -196,7 +193,7 @@ A third repo-root folder follows the same non-importable-glue pattern: **`hpc/`*
 
 The case schema is the central data structure that all modules read or write — it represents one record (a specimen under a scenario, with the resulting response) in a form that is common to data generation, surrogate training, and evaluation. The vocabulary used here is fixed in ADR-0011.
 
-Designing the schema well is one of the highest-stakes architectural decisions in the project. A well-designed schema enables modules to compose cleanly and accommodates future scope expansion (multi-modal SHM, deployment workflows). A poorly-designed schema forces every downstream component to work around its limitations.
+Designing the schema well is one of the highest-stakes architectural decisions in the project. A well-designed schema enables modules to compose cleanly and accommodates the scope the README Roadmap anticipates under *Later* (cases observed on a physical structure beside simulated ones). A poorly-designed schema forces every downstream component to work around its limitations.
 
 The schema's design is treated as its own focused exercise, separate from the rest of this document. The conceptual model and field-level structure below are settled (ADR-0011 and ADR-0012), as is the HDF5 persistence layout — group spelling, dtypes, attribute conventions (ADR-0013).
 
@@ -215,7 +212,7 @@ Inside `response`, the temporal axis uses two further terms:
 - **Frame** — a single time slice of the response (one image in the "video" of state evolution).
 - **Transition** — a pair of consecutive frames `(frame_t, frame_{t+1})`, the natural unit for auto-regressive ML training.
 
-The word **asset** is reserved for the physical-structure / deployment meaning (see `deploy/`). A case that came from real-world observation may carry an `asset_id` field linking it to the physical structure it was observed on; many such cases on the same asset link via that field.
+The word **asset** is reserved for the physical-structure / deployment meaning (ADR-0011). A case that came from real-world observation may carry an `asset_id` field linking it to the physical structure it was observed on; many such cases on the same asset link via that field.
 
 ### Field-level structure
 

@@ -1,5 +1,7 @@
 # Abaqus Data Pipeline — Plan 1 of 2: generator, runner, conformance run, ODB export
 
+> **Executed** — merged 2026-09-24 (`a59075f`). A historical record, not instructions: do not re-run it. See `docs/plans/README.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Deliver the first half of the Abaqus pipeline end to end on real runs:

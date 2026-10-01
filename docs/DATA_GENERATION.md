@@ -1,8 +1,9 @@
 # Data generation with StructBench
 
-*Parts one and two of ADR-0071 are built. Part three owes the card generator,
-the Abaqus verification rows and this guide in full; until then this page is
-the working reference.*
+*ADR-0071 is built through part three (a), with the Abaqus verification rows
+(2026-09-28). Part three still owes the energy-gain indicator's ratification,
+the card generator and this guide in full; until then this page is the working
+reference.*
 
 StructBench generates reference data through `structbench-datagen`. A dataset is
 a definition in a directory of its own, which may be private:

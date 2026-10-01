@@ -1,5 +1,7 @@
 # Datagen platform, part one — implementation plan
 
+> **Executed** — merged 2026-09-27 (`602ab0d`). A historical record, not instructions: do not re-run it. See `docs/plans/README.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Move the Abaqus data-generation pipeline into the package as `structbench.datagen` with one console entry point, give datasets a stated, checked contract (`dataset.toml` + `problem.py`) with a scaffold and a public example, and prove it by rebuilding dataset A's 520 decks byte for byte.

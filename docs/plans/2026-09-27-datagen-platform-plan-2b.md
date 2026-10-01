@@ -1,5 +1,7 @@
 # Datagen platform, part two (b): the preflight and its stamp, the gate, the runner's budget, `follow` — implementation plan
 
+> **Executed** — merged 2026-09-28 (`8032ac3`). A historical record, not instructions: do not re-run it. See `docs/plans/README.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (the maintainer chose native execution). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give the pipeline its preparation stage: `structbench-datagen preflight` runs the pilot split through the three resolutions (space, time, duration), the energy account, the budget and the verification instrument, writes a report and a stamp bound to the definition's hashes; `generate` refuses production splits without a passing stamp; `run` stops cleanly when the disk runs low and prints the sweep's estimate; `follow` exports and converts finished cases while a run proceeds.

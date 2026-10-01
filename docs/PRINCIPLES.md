@@ -94,7 +94,7 @@ A dependency is a long-term commitment, not a convenience. The bar to add one is
 | torch-geometric | `MessagePassing` base class for the CGN; its `radius_graph` was replaced by a native pure-torch implementation (ADR-0020) | ADR-0018, ADR-0020 |
 | matplotlib | FEM-style fringe visualization; optional `viz` extra, never a hard runtime dependency | ADR-0022 |
 | huggingface_hub | Fetching the public canonical archives; optional `data` extra, never imported by the package | ADR-0058 |
-| scipy | Scrambled-Sobol sampling in the Abaqus data-generation scripts; optional `datagen` extra, never imported by the package | ADR-0069 |
+| scipy | Scrambled-Sobol sampling and nested-mesh node matching for data generation; optional `datagen` extra, imported by `structbench.datagen` and lazily by `verification/convergence.py`, never by the rest of the package | ADR-0069, ADR-0071 |
 
 **Development** *(established by this document)*:
 
@@ -112,4 +112,5 @@ A dependency is a long-term commitment, not a convenience. The bar to add one is
 - **Branches** never receive direct commits to `main`; work happens on feature branches. Branch names follow `type/short-description` (e.g. `init/foundation`, `feat/hdf5-io`, `fix/connectivity-indexing`).
 - **Commits follow Conventional Commits**: a `type: summary` subject line (`feat`, `fix`, `docs`, `chore`, `test`, `refactor`), imperative mood, with a body explaining *why* when the change is non-trivial. Unfinished work is committed with a `WIP:` prefix (see `CLAUDE.md`).
 - Agent-authored commits end with the `Co-Authored-By:` trailer for Claude Code.
+- **The repo root holds only tracked project files.** Job stdout, temporary and analysis outputs, and one-off work go under the gitignored `scratch/` (SLURM `--output` → `scratch/logs/`), never the root.
 - **Merging a feature branch into `main` and pushing to the remote execute on the human's explicit in-session instruction** (ADR-0023, amending 0006); unprompted, `main` does not move. **Tagging, releasing, rewriting shared history, and accepting third-party PRs remain out-of-session human actions** — forbidden within a coding session per `CLAUDE.md`. This document does not loosen those boundaries.

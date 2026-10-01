@@ -4,7 +4,7 @@
 # unmeshed kinematic+scripted; h250c-matched 250k budget, ADR-0039
 # train_frames=250). NO numeric gate; metrics recorded provisional per
 # ADR-0046. Submit from the repo root ON A LOGIN NODE:
-#   mkdir -p logs && sbatch hpc/dug/train_notch_impact_geoflare.slurm
+#   mkdir -p scratch/logs && sbatch hpc/dug/train_notch_impact_geoflare.slurm
 #
 # Single-GPU loop; ONE A100 80G per job — nodes carry gpu:a100:2, so jobs
 # pack two-per-node automatically (no exclusive flags).
