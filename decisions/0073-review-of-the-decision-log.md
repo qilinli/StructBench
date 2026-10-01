@@ -53,9 +53,9 @@ one-line pointer here, and the index says which records it touches.
    benchmark's `rollout_pos_rmse_mm` and `rollout_vm_rmse_mpa`, as its
    registry has recorded since 2026-08-21 and its card states. 0046 clause 6
    and the two `rollout_*` rows of its clause 7 are reversed for DeformingPlate;
-   0055's "blessing-only" wording no longer describes it. Owed: the von Mises
-   pooling committed beside `tools/blessing_pooled_rmse.py`, reproducing the
-   registered values. *Amends 0043, 0046, 0055.*
+   0055's "blessing-only" wording no longer describes it. The von Mises
+   pooling is in `tools/blessing_pooled_rmse.py` (2026-10-01); re-running it on
+   the six registered runs to confirm the registry's values is still to do. *Amends 0043, 0046, 0055.*
 7. **D7 — `input_frames = 6`.** Confirmed, read as 0053 reads it: the shared
    seed and the start of the scored span for every model; each family's
    history window is its own. *Confirms 0035.*

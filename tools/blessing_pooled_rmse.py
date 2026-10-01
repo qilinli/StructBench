@@ -1,5 +1,11 @@
 """ADR-0043 SS8 blessing aggregator: paper-convention pooled rollout RMSE.
 
+Since ADR-0073 D6 (2026-10-01) the pooled statistic is also DeformingPlate's
+leaderboard RMSE: the registry's ``rollout_pos_rmse_mm`` is the pooled
+position number below, and ``rollout_vm_rmse_mpa`` is the same pooling of the
+von Mises field over the non-kinematic rows (kinematic rows carry no aux
+prediction; ADR-0026 masking), which this tool also computes.
+
 Computes the pooled rollout-position RMSE from an ``evaluate()`` run's
 on-disk artifacts, under the paper's pooling convention (ADR-0043 SS8, as
 corrected by its 2026-08-08 dated note): sqrt(sum of squared position error
@@ -90,6 +96,55 @@ def pooled_rmse(
     return sse, count
 
 
+def pooled_aux_rmse(
+    pred: NDArray[np.floating],
+    true: NDArray[np.floating],
+    keep: NDArray[np.bool_],
+) -> tuple[float, int]:
+    """Summed squared aux error and element count over the kept particles.
+
+    The von Mises companion of :func:`pooled_rmse` (ADR-0073 D6): pooled over
+    every frame and channel of the particles ``keep`` selects, so the
+    kinematic rows, which carry no aux prediction (the rollout zeroes them;
+    ADR-0026 masking), are left out. A legacy ``(T, P)`` array is one
+    channel; both arrays are lifted to ``(T, P, C)`` before comparison.
+
+    Parameters
+    ----------
+    pred, true : numpy.ndarray
+        ``(T, P)`` or ``(T, P, C)`` aux trajectories in the working frame.
+    keep : numpy.ndarray
+        ``(P,)`` boolean mask, ``True`` for the particles that are pooled.
+
+    Returns
+    -------
+    tuple of (float, int)
+        ``(sse, count)``, combined across cases as for :func:`pooled_rmse`.
+
+    Raises
+    ------
+    ValueError
+        If the lifted shapes differ, or ``keep`` is not ``(P,)``.
+    """
+    pred_arr = np.asarray(pred, dtype=np.float64)
+    true_arr = np.asarray(true, dtype=np.float64)
+    if pred_arr.ndim == 2:
+        pred_arr = pred_arr[..., None]
+    if true_arr.ndim == 2:
+        true_arr = true_arr[..., None]
+    if pred_arr.shape != true_arr.shape:
+        raise ValueError(
+            f"aux pred/true shape mismatch: {pred_arr.shape} vs {true_arr.shape}"
+        )
+    keep_arr = np.asarray(keep, dtype=bool)
+    if keep_arr.shape != (pred_arr.shape[1],):
+        raise ValueError(
+            f"keep mask shape {keep_arr.shape} does not match P={pred_arr.shape[1]}"
+        )
+    diff = pred_arr[:, keep_arr] - true_arr[:, keep_arr]
+    return float(np.sum(diff**2)), int(diff.size)
+
+
 def _rmse_from_sse_count(sse: float, count: int) -> float:
     """``sqrt(sse / count)``, guarding the empty-array degenerate case."""
     if count == 0:
@@ -135,7 +190,11 @@ def compute_pooled_rmse(
         JSON-serializable report: ``run_dir``, ``data_root``, ``benchmark``,
         ``split``, ``n_cases``, ``pooled_rmse_mm``, ``pooled_rmse_native``,
         ``per_case_mean_mm``, ``per_case_stderr_mm``, ``per_case_rmse_mm``
-        (diagnostic, keyed by case id), and ``gate`` (``band_mm``, ``pass``).
+        (diagnostic, keyed by case id), ``gate`` (``band_mm``, ``pass``), and
+        the von Mises companion (ADR-0073 D6): ``pooled_aux_rmse`` in
+        ``aux_unit`` over the non-kinematic rows, ``per_case_aux_rmse``, and
+        ``aux_rows`` naming the exclusion; ``None`` for the aux values when
+        the rollouts carry no ``predicted_aux``.
 
     Raises
     ------
@@ -169,6 +228,10 @@ def compute_pooled_rmse(
     per_case_sse: dict[str, float] = {}
     per_case_count: dict[str, int] = {}
     per_case_rmse_mm: dict[str, float] = {}
+    per_case_aux_sse: dict[str, float] = {}
+    per_case_aux_count: dict[str, int] = {}
+    per_case_aux_rmse: dict[str, float] = {}
+    aux_missing: list[str] = []
 
     for case_id in case_ids:
         npz_path = rollout_dir / f"{split}-{case_id}.npz"
@@ -184,6 +247,9 @@ def compute_pooled_rmse(
                     f"(keys: {sorted(npz.files)})"
                 )
             pred_positions = np.asarray(npz["predicted_positions"])
+            pred_aux = (
+                np.asarray(npz["predicted_aux"]) if "predicted_aux" in npz else None
+            )
 
         try:
             trajectory = load_case_trajectory(
@@ -202,6 +268,30 @@ def compute_pooled_rmse(
         per_case_sse[case_id] = sse
         per_case_count[case_id] = count
         per_case_rmse_mm[case_id] = _rmse_from_sse_count(sse, count)
+
+        if pred_aux is None:
+            aux_missing.append(case_id)
+            continue
+        keep = ~np.isin(trajectory.particle_type, np.asarray(spec.kinematic_types))
+        try:
+            aux_sse, aux_count = pooled_aux_rmse(pred_aux, trajectory.aux, keep)
+        except ValueError as exc:
+            raise ValueError(f"case {case_id!r}: {exc}") from exc
+        per_case_aux_sse[case_id] = aux_sse
+        per_case_aux_count[case_id] = aux_count
+        per_case_aux_rmse[case_id] = _rmse_from_sse_count(aux_sse, aux_count)
+
+    if aux_missing and len(aux_missing) != len(case_ids):
+        raise KeyError(
+            f"{len(aux_missing)} of {len(case_ids)} rollouts carry no "
+            f"'predicted_aux' (first: {aux_missing[0]!r}); the pooled von Mises "
+            "RMSE needs every case or none"
+        )
+    pooled_aux: float | None = None
+    if not aux_missing:
+        pooled_aux = _rmse_from_sse_count(
+            sum(per_case_aux_sse.values()), sum(per_case_aux_count.values())
+        )
 
     total_sse = sum(per_case_sse.values())
     total_count = sum(per_case_count.values())
@@ -233,7 +323,16 @@ def compute_pooled_rmse(
             "band_mm": [band_lo, band_hi],
             "pass": gate_pass,
         },
+        "pooled_aux_rmse": pooled_aux,
+        "aux_unit": spec.card.aux_unit,
+        "aux_rows": (f"particles not of kinematic types {list(spec.kinematic_types)}"),
+        "per_case_aux_rmse": per_case_aux_rmse if not aux_missing else None,
     }
+
+
+def spec_aux_label(benchmark: str) -> str:
+    """The benchmark's aux field name, for the printed line."""
+    return str(get_benchmark(benchmark).aux_field)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -303,6 +402,12 @@ def main(argv: list[str] | None = None) -> int:
         f"(per-case mean {result['per_case_mean_mm']:.4f} +/- "
         f"{result['per_case_stderr_mm']:.4f} mm)"
     )
+    if result["pooled_aux_rmse"] is not None:
+        print(
+            f"pooled rollout {spec_aux_label(args.benchmark)} RMSE = "
+            f"{result['pooled_aux_rmse']:.6g} {result['aux_unit']} over "
+            f"{result['aux_rows']} (ADR-0073 D6)"
+        )
     print(f"wrote {out_path}")
     return 0 if result["gate"]["pass"] else 1
 

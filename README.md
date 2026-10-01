@@ -253,8 +253,9 @@ assets/            # figures embedded in the docs + landing pages
   - [ ] A `/2` record format for time-resolved measurements.
 - **The decision log** (ADR-0073, 2026-10-01) — the maintainer's review of
   all 71 records; its decisions are applied.
-  - [ ] The von Mises pooling script beside `tools/blessing_pooled_rmse.py`,
-        reproducing the DeformingPlate registry's values (ADR-0073 D6).
+  - [ ] Re-run `tools/blessing_pooled_rmse.py` (von Mises pooling added
+        2026-10-01) on the six registered DeformingPlate runs and confirm the
+        registry's values (ADR-0073 D6).
   - [ ] The housekeeping the review listed: index rows that miss later
         amendments, stale text, Durable labels on experiment records, verdict
         notes never written (0061, 0064).

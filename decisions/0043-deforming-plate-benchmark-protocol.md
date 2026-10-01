@@ -257,4 +257,6 @@ non-kinematic rows), as the registry header has said since 2026-08-21 and the
 card states. The last sentence of §8 ("blessing-only; the leaderboard keeps the
 per-step-mean statistics") and the ADR-0046 narrowing above no longer apply to
 those two keys; the per-step-mean values remain in `metrics-<split>.json`.
-Owed: the von Mises pooling committed beside `tools/blessing_pooled_rmse.py`.
+The von Mises pooling is in `tools/blessing_pooled_rmse.py` since 2026-10-01;
+its reproduction of the registered values waits on the machine that holds the
+saved rollouts.

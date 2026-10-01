@@ -42,8 +42,8 @@ __all__ = [
 #: space+time RMSE (root of the mean squared error pooled over coordinates x
 #: nodes x steps x trajectories) — the same statistic as the published
 #: DeformingPlate number, computed by ``tools/blessing_pooled_rmse.py`` for
-#: position and by the same pooling for von Mises with kinematic rows
-#: excluded (they carry no aux prediction; ADR-0026 masking). This is
+#: position and, since 2026-10-01 (ADR-0073 D6), for von Mises too, with
+#: kinematic rows excluded (they carry no aux prediction; ADR-0026 masking). This is
 #: DELIBERATELY a different statistic from the mean-of-per-step-RMSE the
 #: evaluator reports as ``rollout_position_rmse`` and that the other
 #: benchmarks' leaderboards use (ADR-0019 SS5); conflating the two destroys
