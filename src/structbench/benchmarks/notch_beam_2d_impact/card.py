@@ -27,6 +27,16 @@ from a short ground-truth prefix the model advances the SPH particle state one
 output step at a time, predicting both position and the per-particle **max
 principal strain**, the field that carries the crack pattern.
 
+## What the data is
+
+The sweep is a numerical example: an LS-DYNA campaign run by a collaborator
+to exercise the method, not a model validated against a physical drop-weight
+test. Read the reference data as the solver's answer to the stated inputs.
+One input matters for how the response should be read: the steel impactor
+and supports carry a yield stress of 337 GPa in the deck, a thousand times
+steel's, so they never yield and act as elastic bodies, and the concrete
+response is conditioned on that (ADR-0067; ADR-0073 D1).
+
 ![Schematic of the notch-beam impact setup: a drop weight above a simply-supported notched concrete beam, with the swept parameter ranges.](../../assets/problem_notch_beam_impact.png)
 
 *Problem setup: a drop weight — plate 'P', disk 'D', or rod 'R' cross-section
@@ -46,10 +56,11 @@ harder: it is out-of-distribution on up to *four* axes at once — a new width
 beam is H = 80), an off-grid velocity (140 / 60 m/s), and, decisively, an
 **off-centre impact** (every in-distribution case is struck exactly at
 midspan). It measures graceful failure
-on a genuinely new loading mode, not interpolation — and it is where the method
-ordering flips (a global-attention operator that wins in-distribution
-mis-localises the response there, while relative-position message passing
-degrades more gracefully). Everything is scored over the 250 µs window (ADR-0039)
+on a genuinely new loading mode, not interpolation, and because the cases
+differ from training on several axes at once a probe score locates no single
+cause. It is where the method ordering flips: the global-attention operator
+that wins in-distribution placed the response at midspan on the probe cases,
+while relative-position message passing degraded more gracefully. Everything is scored over the 250 µs window (ADR-0039)
 in physical units — position RMSE in mm, strain RMSE — plus two quantities of
 interest: peak mid-span deflection and the end-state cracked fraction. The
 numbers, and the cross-method comparison, are below."""  # noqa: E501 - a markdown image line cannot wrap
@@ -162,10 +173,11 @@ CARD = BenchmarkCard(
         "offset 0.0 mm, every notch a/b/c variant and width); the probe impacts "
         "land ~6% off-centre — a loading mode absent from training entirely. "
         "Probe scores therefore measure graceful failure on a genuinely new "
-        "loading configuration, not ordinary interpolation: global-attention "
-        "operators mis-localise the response to the learned midspan prior, "
-        "while relative-position message-passing (MGN/CGN) degrades more "
-        "gracefully."
+        "loading configuration, not ordinary interpolation, and a probe score "
+        "locates no single cause (the cases differ from training on several "
+        "axes at once). Observed: the global-attention operators placed the "
+        "response at midspan on the probe cases, while relative-position "
+        "message passing (MGN/CGN) degraded more gracefully (ADR-0073 D8)."
     ),
     size_gb=24.9,
     figures=(

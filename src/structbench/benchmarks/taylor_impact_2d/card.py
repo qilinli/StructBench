@@ -41,6 +41,16 @@ outcome directly: final bar length, mushroom width, and the peak mean von
 Mises stress with its timing. The reference CGN baseline is strong in
 interpolation and degrades honestly at 200 m/s; the numbers are below.
 
+## The stored total energy
+
+`global/total_energy` is the channel LS-DYNA wrote to d3plot, copied as is:
+it equals kinetic plus internal energy to 2e-6, while the solver's printed
+total also carries the rigid-wall energy, so the two differ by 0.6–1.2 % over
+a trajectory. The verification record reports this as a finding on every
+case. It is documented here rather than changed, because changing it means a
+new schema version and re-converting every archive (ADR-0066 coverage note;
+ADR-0073 D2).
+
 ## The von Mises stress floor
 
 The per-particle von Mises field carries an irreducible, model-independent

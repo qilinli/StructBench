@@ -12,7 +12,11 @@ strict-SI canonical case. It decides three things the export leaves open:
    (``_END_FRAME_RTOL``), except the acceleration, which that frame writes
    afresh (``_END_FRAME_RECOMPUTED``); otherwise the export is refused.
    Frame N is kept, and a time axis with a repeated instant never reaches a
-   case.
+   case. A last frame that sits *off* the sampling interval (the step time
+   not a multiple of it) is dropped too, so the canonical time axis is
+   strictly uniform (ADR-0012, amended 2026-10-01; ADR-0073 D13); interior
+   frames off the interval are refused, since dropping one frame would not
+   make the axis uniform.
 2. **A rigid body's reference node.** It carries no field output, so it is
    left out of ``Nodes``. Each ``RF<k>`` it writes to the history becomes the
    global ``reaction_force_<k>_reference_node`` [N]: its label moves with the
@@ -184,7 +188,46 @@ def read_abaqus_export(npz_path: str | Path) -> AbaqusExport:
                 )
             arrays[key] = data[:-1]
         time = time[:-1]
+    time = _drop_off_interval_end_frame(npz_path, time, arrays, series)
     return AbaqusExport(manifest, step, time, arrays)
+
+
+#: Tolerance on a frame interval, relative to the interval itself; the
+#: storage precision of the frame times is added on top.
+_INTERVAL_RTOL = 1e-5
+
+
+def _drop_off_interval_end_frame(
+    npz_path: str | Path,
+    time: NDArray[Any],
+    arrays: dict[str, Any],
+    series: list[str],
+) -> NDArray[Any]:
+    """Drop a terminal frame written off the sampling interval; refuse the rest.
+
+    The canonical time axis of pipeline-generated data is strictly uniform
+    (ADR-0012, amended 2026-10-01). Abaqus writes a field frame at the step's
+    end time, which lands off the interval when the step time is not a
+    multiple of it; with at least three frames and interior intervals that
+    agree, a final interval that differs drops the final frame from every
+    series. Interior intervals that disagree are refused by name.
+    """
+    if len(time) < 3:
+        return time
+    dt = np.diff(time.astype(np.float64))
+    step = float(np.median(dt[:-1]))
+    tol = _INTERVAL_RTOL * abs(step) + 4.0 * float(np.spacing(np.abs(time).max()))
+    if np.any(np.abs(dt[:-1] - step) > tol):
+        raise ValueError(
+            f"{npz_path}: frame times are not uniform (intervals "
+            f"{dt[:-1].min():.6g} to {dt[:-1].max():.6g}); the canonical time "
+            "axis must be (ADR-0012)"
+        )
+    if abs(dt[-1] - step) <= tol:
+        return time
+    for key in series:
+        arrays[key] = arrays[key][:-1]
+    return time[:-1]
 
 
 def _positions(
