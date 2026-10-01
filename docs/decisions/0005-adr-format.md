@@ -62,3 +62,22 @@ are records, and the files they name sit beside them.
 
 *(Drafted by the agent on the maintainer's instruction; the maintainer
 finalises.)*
+
+## Amendment (2026-10-01): the bar for a record is raised
+
+After the review of the whole log (ADR-0073: 71 records, 86,000 words, most
+accepted unread, several in conflict), the maintainer raised the bar
+(2026-10-01). A record is written only for a decision that binds later work
+*and* needs the maintainer's judgment; anything else goes to the home
+`docs/decisions/README.md` names. A record is one page (the suite refuses a
+new one over 900 words), opens with a `**Your call**` block naming the
+judgments acceptance makes, and names in `**Amends**` the records it touches,
+resolving clashes rather than leaving them. Ephemeral is the default type;
+Durable is reserved for what is expensive or impossible to reverse. Notes are
+for amendments, verdicts and pointers only; a record with more than three is
+consolidated. Proposed is not a parking state. The log is triaged at each
+release or every fifteen records. The format's five sections, the numbering
+and the index stand; `docs/decisions/README.md` carries the rules in full.
+
+*(Drafted by the agent on the maintainer's instruction; the maintainer
+finalises.)*
