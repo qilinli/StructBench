@@ -73,7 +73,9 @@ def test_architecture_names_the_validation_layer():
     root = Path(__file__).resolve().parents[2]
     text = (root / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
     assert "### `validation/`" in text and "structbench-validate" in text
-    assert "{verification, validation}" in text
+    # The layering is stated in prose since the 2026-09-30 ARCHITECTURE rewrite:
+    # validation sits beside verification and depends on core alone.
+    assert "`validation/` depends only on `core/`" in text
 
 
 def test_a_test_whose_wf_count_differs_from_the_fractions_is_refused(tmp_path):
