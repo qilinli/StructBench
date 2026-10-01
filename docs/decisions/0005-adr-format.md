@@ -43,3 +43,22 @@ The `decisions/README.md` file contains the format spec and an index table of ac
 - Supersession is itself a decision event, producing a new ADR that references the old one — preserving the historical record.
 - `decisions/README.md` must be maintained as the single index; a missing row there can cause an ADR to be effectively invisible.
 - Claude Code may draft ADRs during sessions; the human finalises them before they are marked `Accepted`.
+
+## Amendment (2026-10-01): the folder moves to `docs/decisions/`
+
+The decision log moves from `decisions/` at the repo root to
+`docs/decisions/` (maintainer, 2026-10-01). ADRs are documents, `docs/` is
+where the project's other documents live, and the root is kept for the
+package, its configuration and the tooling. Nothing else in this ADR
+changes: the format, the numbering, the index and the finalisation rule
+stand.
+
+Consequences: the citable address is now `docs/decisions/NNNN-slug.md`;
+citations by number (`ADR-NNNN`) are unaffected; links to the old path
+from outside this repository are not redirected and are their authors' to
+update; the index is `docs/decisions/README.md`. ADR bodies that spell the
+old path (0009, 0015, 0029, 0056, 0062, 0065) are left as written -- they
+are records, and the files they name sit beside them.
+
+*(Drafted by the agent on the maintainer's instruction; the maintainer
+finalises.)*

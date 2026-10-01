@@ -146,11 +146,11 @@ src/structbench/
   viz/             # physics-quantity figures, FEM-postprocessor style (ADR-0022)
   cli/             # structbench-train, datacheck
 configs/           # grouped TOML run configs, configs/<benchmark>/<family>.toml (ADR-0032)
-decisions/         # architecture decision records (ADRs)
 tools/             # doc generation, the pooled-RMSE blessing aggregator, dev scripts
 data_generation/   # converters for the datasets that predate datagen (not importable)
 hpc/               # cluster launch scripts (DUG SLURM)
 docs/              # benchmark cards, architecture, harness, corrections;
+                   #   decisions/ (architecture decision records, ADRs),
                    #   datachecks/ (published verification records),
                    #   timelines/ (ground-truth evidence behind protocol values),
                    #   plans/ (designs, the verification source dossier, implementation plans)
@@ -164,7 +164,7 @@ assets/            # figures embedded in the docs + landing pages
      Conventions: done = [x] + strikethrough + (date); ad-hoc additions land
      in Inbox and get triaged into a milestone; when a milestone ships, its
      crossed-out block may be compressed to one line. Reasoning lives in
-     decisions/, not here. Platform work only: the maintainer's research
+     docs/decisions/, not here. Platform work only: the maintainer's research
      plans stay outside the repository (ADR-0065). -->
 
 *Last revised: 2026-09-29.*
@@ -306,7 +306,7 @@ assets/            # figures embedded in the docs + landing pages
   ≥10⁶-node dataset lands · other solvers (Kratos, OpenSees, OpenRadioss) ·
   SHM expansion · deployment tools · packaging extras · PhysicsNeMo interop
 
-Rationale for every item lives in [`decisions/`](decisions/).
+Rationale for every item lives in [`docs/decisions/`](docs/decisions/).
 
 ## Citation
 

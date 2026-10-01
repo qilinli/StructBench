@@ -96,7 +96,7 @@ trusted or blessed (ADR-0042 §2b). Do not treat output from the current
 
 ## See also
 
-- ADR-0042 (`decisions/0042-schema-020-per-node-fields-nodal-fe-ingestion.md`)
+- ADR-0042 (`docs/decisions/0042-schema-020-per-node-fields-nodal-fe-ingestion.md`)
   — the schema/ingestion decision this converter implements.
 - `structbench.core.io.meshgraphnets` — the pure `build_deforming_plate_case`
   assembly and the lazy-TF `read_deforming_plate` reader this script drives.
