@@ -238,7 +238,9 @@ config correctly scaled the world-edge radius to match (0.03 m → `world_edge_r
 UNSCALED, so the applied position noise (`train.py:_mesh_family_noise`, no
 `× length_scale` factor) was **0.003 mm, ~1000× weaker** than the paper's intent
 (faithful working-frame value `3.0` mm). The blessed MGN and both AR operators
-(`deforming-mgn-v03b`, `deforming-{transolver,geoflare}-v03`) trained under-noised.
+(`deforming-mgn-v03b`, `deforming-{transolver,geoflare}-v03`) trained under-noised;
+the re-blessed MGN run is `deforming-mgn-n3`, archived as `mgn-eb39994`
+(name confirmed from its metrics and checkpoint on DUG, 2026-10-01).
 It stayed in-band on position (world edges + contact regularize enough), but the
 signature is unmistakable: one-step 4× *better* than the paper (0.059 vs 0.25 mm),
 rollout at the *high* edge (16.98 / 2.10 vs 15.1 / 1.8 mm). **Correction:** `noise_std`
@@ -257,6 +259,11 @@ non-kinematic rows), as the registry header has said since 2026-08-21 and the
 card states. The last sentence of §8 ("blessing-only; the leaderboard keeps the
 per-step-mean statistics") and the ADR-0046 narrowing above no longer apply to
 those two keys; the per-step-mean values remain in `metrics-<split>.json`.
-The von Mises pooling is in `tools/blessing_pooled_rmse.py` since 2026-10-01;
-its reproduction of the registered values waits on the machine that holds the
-saved rollouts.
+The von Mises pooling is in `tools/blessing_pooled_rmse.py` since 2026-10-01,
+and was re-run on DUG the same day from the saved rollouts: five of the six
+registered rows reproduce to four significant figures (MGN 15.4505 mm /
+0.0150094 MPa; Transolver AR 3.0176 / 0.00813902; Transolver TC 3.4538 /
+0.00890623; Transolver++ 3.3224 / 0.00933176; GeoFLARE AR 4.0635 / 0.013262).
+The GeoFLARE time-conditioned run directory (`deforming-geoflare-tc-s1`) no
+longer exists under `runs/` on DUG and is not in the `models/` mirror, so its
+registered 4.369 / 0.01219 stand unverified until the run is found.
