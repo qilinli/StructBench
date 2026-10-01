@@ -257,6 +257,11 @@ non-kinematic rows), as the registry header has said since 2026-08-21 and the
 card states. The last sentence of §8 ("blessing-only; the leaderboard keeps the
 per-step-mean statistics") and the ADR-0046 narrowing above no longer apply to
 those two keys; the per-step-mean values remain in `metrics-<split>.json`.
-The von Mises pooling is in `tools/blessing_pooled_rmse.py` since 2026-10-01;
-its reproduction of the registered values waits on the machine that holds the
-saved rollouts.
+The von Mises pooling is in `tools/blessing_pooled_rmse.py` since 2026-10-01,
+and was re-run on DUG the same day from the saved rollouts: five of the six
+registered rows reproduce to four significant figures (MGN 15.4505 mm /
+0.0150094 MPa; Transolver AR 3.0176 / 0.00813902; Transolver TC 3.4538 /
+0.00890623; Transolver++ 3.3224 / 0.00933176; GeoFLARE AR 4.0635 / 0.013262).
+The GeoFLARE time-conditioned run directory (`deforming-geoflare-tc-s1`) no
+longer exists under `runs/` on DUG and is not in the `models/` mirror, so its
+registered 4.369 / 0.01219 stand unverified until the run is found.

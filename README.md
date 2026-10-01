@@ -252,9 +252,12 @@ assets/            # figures embedded in the docs + landing pages
   - [ ] A `/2` record format for time-resolved measurements.
 - **The decision log** (ADR-0073, 2026-10-01) — the maintainer's review of
   all 71 records; its decisions are applied.
-  - [ ] Re-run `tools/blessing_pooled_rmse.py` (von Mises pooling added
-        2026-10-01) on the six registered DeformingPlate runs and confirm the
-        registry's values (ADR-0073 D6).
+  - [x] ~~Re-run `tools/blessing_pooled_rmse.py` (von Mises pooling added
+        2026-10-01) on the registered DeformingPlate runs (2026-10-01): five of
+        six rows reproduce to four significant figures (ADR-0073 D6).~~
+  - [ ] The GeoFLARE time-conditioned run (`deforming-geoflare-tc-s1`) is not
+        under `runs/` on DUG nor in the `models/` mirror; find it or mark the
+        registry row's pooled values unverified.
   - [ ] The housekeeping the review listed: index rows that miss later
         amendments, stale text, Durable labels on experiment records, verdict
         notes never written (0061, 0064).

@@ -54,8 +54,10 @@ one-line pointer here, and the index says which records it touches.
    registry has recorded since 2026-08-21 and its card states. 0046 clause 6
    and the two `rollout_*` rows of its clause 7 are reversed for DeformingPlate;
    0055's "blessing-only" wording no longer describes it. The von Mises
-   pooling is in `tools/blessing_pooled_rmse.py` (2026-10-01); re-running it on
-   the six registered runs to confirm the registry's values is still to do. *Amends 0043, 0046, 0055.*
+   pooling is in `tools/blessing_pooled_rmse.py` (2026-10-01) and was re-run on
+   DUG the same day: five rows reproduce to four significant figures; the
+   GeoFLARE time-conditioned run directory is missing, so that row stands
+   unverified (ADR-0043 amendment). *Amends 0043, 0046, 0055.*
 7. **D7 — `input_frames = 6`.** Confirmed, read as 0053 reads it: the shared
    seed and the start of the scored span for every model; each family's
    history window is its own. *Confirms 0035.*
