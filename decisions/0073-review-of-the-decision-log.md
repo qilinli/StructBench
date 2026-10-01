@@ -118,8 +118,9 @@ one-line pointer here, and the index says which records it touches.
 
 ## Consequences
 
-- 0057, 0071 and 0072 move to Accepted; 0058, 0060, 0068, 0069 and 0070 stay
-  Proposed, built, until the maintainer confirms them from their summaries.
+- 0057, 0071 and 0072 move to Accepted with the decisions above; 0058, 0060,
+  0068, 0069 and 0070 were accepted from their summaries the same day
+  (2026-10-01), with the corrections their notes record.
 - Each amended record carries a dated note naming the decision above; the
   index Status column names this record.
 - Still owed: the von Mises pooling script (D6); the housekeeping the triage

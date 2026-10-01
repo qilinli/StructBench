@@ -1,6 +1,6 @@
 # 0069 — The Abaqus data-generation pipeline
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-10-01, from the ADR-0073 review summary); amended by 0071
 **Type**: Durable
 **Date**: 2026-09-24
 
@@ -74,3 +74,16 @@ the way a region `exclude` does, so prefixes stay nested. Explicit points
 bypass it. The limit is a property of the solver setup. It is measured on
 pilot and probe runs, declared before production, and recorded with the
 dataset. It is never adjusted afterwards to admit or drop production cases.
+
+---
+
+**Accepted (2026-10-01, maintainer; amended by ADR-0071).** What survives of
+this ADR after ADR-0071: the `abaqus-npz/1` intermediate (clause 3), scipy as
+the `datagen` extra, energy indicators measured only (clause 7, confirmed by
+ADR-0073 D9), and the feasibility rule of the appended note, which the
+maintainer confirms: a dataset may declare, before production, a region of its
+parameter box the solver setup cannot run, and skip it. Clause 2 is overtaken:
+`sweep.toml`/`model.py` became `dataset.toml`/`problem.py`, the shared code is
+`structbench.datagen`, and `data_generation/abaqus/<name>/` no longer exists.
+Where an admitted dataset's definition is published is not decided here;
+ADR-0071 clause 7 keeps it out of this repository.

@@ -1,6 +1,6 @@
 # 0058 — `huggingface_hub` as an optional `data` extra
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-10-01, from the ADR-0073 review summary)
 **Type**: Durable
 **Date**: 2026-08-31
 
@@ -67,3 +67,10 @@ fetch tool and a maintainer-tool dependency, in exactly the position
   groups, none of them imported by core.
 - Core install stays lean for the training path, which was the reason to keep
   the runtime dependency list short in the first place.
+
+---
+
+**Accepted (2026-10-01, maintainer).** Built as proposed (`pyproject.toml`,
+commit 3ba38d5). The follow-up this ADR's Consequences owed is done the same
+day: the three cards' download instructions name the extra
+(`pip install structbench[data]`).

@@ -216,8 +216,7 @@ assets/            # figures embedded in the docs + landing pages
   - [x] ~~Reference levels (2026-10-01) — none is ratified; indicators are
         measured and shown with their published level, and the reader judges
         (ADR-0073 D9).~~
-- **Data generation platform** (ADR-0068/0069 Proposed; ADR-0071 Accepted
-  2026-10-01) —
+- **Data generation platform** (ADR-0068/0069/0071, Accepted) —
   `structbench-datagen`: the Abaqus pipeline as a package capability, with a
   preflight gate before production. Guide:
   [`docs/DATA_GENERATION.md`](docs/DATA_GENERATION.md).
@@ -259,8 +258,8 @@ assets/            # figures embedded in the docs + landing pages
   - [ ] The housekeeping the review listed: index rows that miss later
         amendments, stale text, Durable labels on experiment records, verdict
         notes never written (0061, 0064).
-  - [ ] 0058, 0060, 0068, 0069 and 0070: built, still Proposed, to be
-        confirmed from their summaries.
+  - [x] ~~0058, 0060, 0068, 0069 and 0070 accepted from their summaries
+        (2026-10-01).~~
 
 ### Inbox — untriaged, add freely
 

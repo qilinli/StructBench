@@ -105,9 +105,9 @@ What becomes easier, harder, or constrained as a result.
 | 0055 | Relative-L2 as the headline metric (amended: headline, RMSE retained secondary) | Durable | Accepted (amended by 0073) |
 | 0056 | Descope notch-bend: the notch-beam benchmark narrows to notch-impact (redundant with impact; amends 0024/0026) | Durable | Accepted (amended 2026-09-23: excluded, not parked) |
 | 0057 | Transolver++ eidetic-state adaptation (adaptive temperature + train-only Gumbel Rep-Slice) on the Transolver family | Durable | Accepted (0073) |
-| 0058 | `huggingface_hub` as an optional `data` extra | Durable | Proposed |
+| 0058 | `huggingface_hub` as an optional `data` extra | Durable | Accepted (2026-10-01) |
 | 0059 | Auxiliary state channels: `aux` generalises from `(T, P)` to `(T, P, C)` | Durable | Accepted |
-| 0060 | Aux channels as model inputs: the state-feedback surface (Transolver AR) | Durable | Proposed (narrowed by 0062) |
+| 0060 | Aux channels as model inputs: the state-feedback surface (Transolver AR) | Durable | Accepted (2026-10-01; narrowed by 0062; line closed by 0064) |
 | 0061 | State-feedback stability: input noise and pushforward on the state channel | Durable | Accepted |
 | 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Durable | Accepted (verdict note 2026-09-12) |
 | 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Durable | Accepted (amended 2026-09-10; verdict note 2026-09-12) |
@@ -115,9 +115,9 @@ What becomes easier, harder, or constrained as a result.
 | 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session; data standard fixed by 0073) |
 | 0066 | Reference-data verification: the `verification/` module | Durable | Accepted (reviewed by 0073) |
 | 0067 | Material classes for the notch sweep: K&C concrete and bilinear steel | Durable | Accepted (note by 0073) |
-| 0068 | Abaqus is the second solver; the deferred abstraction question is answered (amends 0066 clause 3) | Durable | Proposed (clause 8 lifted for one row by 0073) |
-| 0069 | The Abaqus data-generation pipeline (four stages, shared scripts, `abaqus-npz/1`, `datagen` extra) | Durable | Proposed |
-| 0070 | Material class `elastic_plastic_isotropic` (Abaqus `*PLASTIC`, isotropic, no EOS) | Durable | Proposed |
+| 0068 | Abaqus is the second solver; the deferred abstraction question is answered (amends 0066 clause 3) | Durable | Accepted (2026-10-01; clause 8 lifted for one row by 0073) |
+| 0069 | The Abaqus data-generation pipeline (four stages, shared scripts, `abaqus-npz/1`, `datagen` extra) | Durable | Accepted (2026-10-01; amended by 0071) |
+| 0070 | Material class `elastic_plastic_isotropic` (Abaqus `*PLASTIC`, isotropic, no EOS) | Durable | Accepted (2026-10-01) |
 | 0071 | The Abaqus data-generation pipeline becomes a StructBench capability: `structbench.datagen`, the dataset template and `check`, the preflight gate, the convergence engine in `verification`, runner budget and `follow` (amends ADR-0069) | Durable | Accepted (0073) |
 | 0072 | Validation against experiments: `structbench.validation`, reference-experiment sets with provenance, measures shared by experiment and simulation, a record that reports deviations and never judges; the datagen stage `validate` renamed `verify` | Durable | Accepted (0073) |
 | 0073 | Decisions from the maintainer's review of the decision log (amends 0010, 0012, 0026, 0035, 0043, 0046, 0055, 0064, 0065, 0066, 0067, 0068, 0071, 0072; accepts 0057, 0071, 0072) | Durable | Accepted |

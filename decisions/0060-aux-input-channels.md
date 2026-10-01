@@ -1,6 +1,6 @@
 # 0060 — Aux channels as model inputs: the state-feedback surface (Transolver AR)
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-10-01, from the ADR-0073 review summary); narrowed by 0062
 **Type**: Durable
 **Date**: 2026-09-03
 
@@ -162,3 +162,10 @@ anchored flow map consumes the anchor state through the TC formulation).
 Plain time-conditioning still consumes no evolving state, and the
 rejection stands whenever `flow_map = false`. An adjustment, not a
 reversal — recorded per the index-README amendment mechanism.
+
+---
+
+**Accepted as a record (2026-10-01, maintainer).** Built on `main` and
+relied on by ADR-0061, ADR-0062 (which narrows it) and ADR-0063. The
+autoregressive state-feedback line this ADR opened is closed: ADR-0064
+retired AR in favour of the flow map, and the switches stay off by default.
