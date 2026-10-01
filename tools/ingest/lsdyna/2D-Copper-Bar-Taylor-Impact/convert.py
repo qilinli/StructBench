@@ -14,7 +14,7 @@ this script never touches response data. It is not part of the importable
 package (ADR-0010).
 
 Run with the project venv from the repo root. ``SCRIPT`` below stands for this
-file, ``data_generation/lsdyna/2D-Copper-Bar-Taylor-Impact/convert.py``::
+file, ``tools/ingest/lsdyna/2D-Copper-Bar-Taylor-Impact/convert.py``::
 
     python SCRIPT --dry-run      # list discovered cases, read nothing
     python SCRIPT --case 60/100  # convert one case
@@ -41,10 +41,10 @@ SOURCE_UNITS = "g-mm-ms"  # no *CONTROL_UNITS in the deck (ADR-0016 §5)
 DIMENSION = 2
 DECK_NAME = "Taylor.k"
 
-#: <repo>/data_generation/lsdyna/<dataset>/convert.py -> repo root is parents[3].
+#: <repo>/tools/ingest/lsdyna/<dataset>/convert.py -> repo root is parents[4].
 #: Data layout per ADR-0031: raw runs and canonical archives live under
 #: <repo-parent>/data/StructBench/{raw,canonical}/<benchmark>/.
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 _STRUCTBENCH_DATA = _REPO_ROOT.parent / "data" / "StructBench"
 _DEFAULT_DATA_ROOT = _STRUCTBENCH_DATA / "raw" / "taylor_impact_2d"
 _DEFAULT_OUT = _STRUCTBENCH_DATA / "canonical" / "taylor_impact_2d"

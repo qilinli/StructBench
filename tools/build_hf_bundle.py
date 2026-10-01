@@ -158,7 +158,7 @@ def _case_params(benchmark: str, case_id: str) -> dict[str, object]:
 def _deck_path(benchmark: str, case_id: str, raw_root: Path) -> Path:
     """The LS-DYNA input deck for ``case_id`` in the raw tree.
 
-    Layouts mirror each family's ``data_generation`` converter (the
+    Layouts mirror each family's ``tools/ingest`` converter (the
     authoritative raw-tree walkers); deck filenames per converter constants.
     """
     if benchmark == "taylor_impact_2d":

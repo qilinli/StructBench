@@ -53,7 +53,7 @@ BENCHMARK = "notch_beam_2d_impact"
 SOURCE_UNITS = "kg-mm-ms"
 MESSAGES_NAME = "mes0000"
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 _DEFAULT_DATA_ROOT = (
     _REPO_ROOT.parent / "data" / "StructBench" / "raw" / "notch_beam_2d"
 )

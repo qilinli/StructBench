@@ -37,7 +37,7 @@ this script never touches response data. It is not part of the importable
 package (ADR-0010).
 
 Run with the project venv from the repo root. ``SCRIPT`` below stands for
-``data_generation/lsdyna/2DNotchBeam/convert.py``::
+``tools/ingest/lsdyna/2DNotchBeam/convert.py``::
 
     uv run python SCRIPT --dry-run          # list 221 cases, read nothing
     uv run python SCRIPT --case NB-B-320-Aa-8   # convert one bend case
@@ -66,10 +66,10 @@ SOURCE_UNITS = "kg-mm-ms"  # deck mass unit is kg, not g (ADR-0030); no *CONTROL
 DIMENSION = 2
 DECK_NAME = "Beam1.k"
 
-#: <repo>/data_generation/lsdyna/<dataset>/convert.py -> repo root is parents[3].
+#: <repo>/tools/ingest/lsdyna/<dataset>/convert.py -> repo root is parents[4].
 #: Data layout per ADR-0031: raw runs and canonical archives live under
 #: <repo-parent>/data/StructBench/{raw,canonical}/<benchmark>/.
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 _STRUCTBENCH_DATA = _REPO_ROOT.parent / "data" / "StructBench"
 _DEFAULT_DATA_ROOT = _STRUCTBENCH_DATA / "raw" / "notch_beam_2d"
 _CANONICAL_ROOT = _STRUCTBENCH_DATA / "canonical"

@@ -168,7 +168,7 @@ CARD = BenchmarkCard(
         "`deforming_plate` tfrecords from the DeepMind bucket "
         "(`https://storage.googleapis.com/dm-meshgraphnets/deforming_plate/`) "
         "and convert to canonical HDF5 with the download-and-convert script "
-        "in `data_generation/meshgraphnets/deforming_plate/` (ADR-0042 — the "
+        "in `tools/ingest/meshgraphnets/deforming_plate/` (ADR-0042 — the "
         "source states no data licence, so StructBench points to it rather "
         "than rehosting; note the bucket is unreachable from mainland China "
         "without a VPN). The maintainer's already-converted archive is also "

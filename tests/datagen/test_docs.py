@@ -9,9 +9,9 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_the_conformance_documents_live_under_docs_and_nothing_names_the_old_file():
     for solver in ("abaqus", "lsdyna"):
         assert (ROOT / "docs" / "datagen" / f"{solver}-conformance.md").is_file()
-    assert not (ROOT / "data_generation" / "abaqus").exists()
+    assert not (ROOT / "tools" / "ingest" / "abaqus").exists()
     assert not (
-        ROOT / "data_generation" / "lsdyna" / "STANDARD_INPUT_BLOCK.md"
+        ROOT / "tools" / "ingest" / "lsdyna" / "STANDARD_INPUT_BLOCK.md"
     ).is_file()
     # Both blocks moved (Abaqus 2026-09-27, LS-DYNA 2026-09-29), so neither code
     # nor a living document may name the old file. ADRs keep a "(moved ...; was
@@ -24,7 +24,7 @@ def test_the_conformance_documents_live_under_docs_and_nothing_names_the_old_fil
         *ROOT.glob("docs/datagen/*.md"),
         ROOT / "README.md",
         ROOT / "CLAUDE.md",
-        ROOT / "data_generation" / "README.md",
+        ROOT / "tools" / "ingest" / "README.md",
     ]
     stale = [
         p
@@ -61,7 +61,7 @@ def test_no_living_document_or_code_still_says_datagen_validate():
         *ROOT.glob("docs/*.md"),
         *ROOT.glob("docs/datagen/*.md"),
         ROOT / "CLAUDE.md",
-        ROOT / "data_generation" / "README.md",
+        ROOT / "tools" / "ingest" / "README.md",
         *ROOT.glob("src/structbench/datagen/**/*.py"),
         *ROOT.glob("src/structbench/datagen/**/*.md"),
     ]

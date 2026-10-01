@@ -1,4 +1,4 @@
-# data_generation/
+# tools/ingest/
 
 Per-dataset scripts that turn **existing** solver output into canonical
 StructBench cases: the three LS-DYNA sweeps and the MeshGraphNets

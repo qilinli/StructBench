@@ -19,7 +19,7 @@ this script never touches response data.  It is not part of the importable
 package (ADR-0010).
 
 Run with the project venv from the repo root.  ``SCRIPT`` below stands for
-``data_generation/lsdyna/1DWavePropagation/convert.py``::
+``tools/ingest/lsdyna/1DWavePropagation/convert.py``::
 
     python SCRIPT --dry-run          # list discovered cases, read nothing
     python SCRIPT --case 200/1       # convert one case
@@ -46,10 +46,10 @@ SOURCE_UNITS = "kg-mm-ms"  # deck mass unit is kg, not g (ADR-0030); no *CONTROL
 DIMENSION = 2  # *CONTROL_SPH IDIM=2; thin strip, bar along x
 DECK_NAME = "WavePropagation.k"
 
-#: <repo>/data_generation/lsdyna/<dataset>/convert.py -> repo root is parents[3].
+#: <repo>/tools/ingest/lsdyna/<dataset>/convert.py -> repo root is parents[4].
 #: Data layout per ADR-0031: raw runs and canonical archives live under
 #: <repo-parent>/data/StructBench/{raw,canonical}/<benchmark>/.
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 _STRUCTBENCH_DATA = _REPO_ROOT.parent / "data" / "StructBench"
 _DEFAULT_DATA_ROOT = _STRUCTBENCH_DATA / "raw" / "wave_propagation_1d"
 _DEFAULT_OUT = _STRUCTBENCH_DATA / "canonical" / "wave_propagation_1d"
