@@ -957,7 +957,7 @@ The two published LS-DYNA records were re-measured and change only in the new
 row. It reads `source_missing` on every case, because the LS-DYNA adapter
 stores no plastic-dissipation series.
 
-## Abaqus rows note (2026-09-28, agent; draft for the maintainer to finalise)
+## Abaqus rows note (2026-09-28, agent; finalised by the maintainer 2026-10-01, ADR-0073 D11)
 
 ADR-0071 part three owed two Abaqus rows. Both are built. Neither changes a
 published record, and no level is ratified by either.
@@ -1052,3 +1052,17 @@ the first cut, each fixed with a test that failed first:
 - a part of unknown integration was not asked for ALLAE.
 
 The explicit-only scope came out of the same pass.
+
+---
+
+## Review note (2026-10-01, maintainer; ADR-0073)
+
+- **D2.** Taylor's stored `global/total_energy` (coverage note) stays as the
+  adapter copies it from d3plot; the Taylor card documents that it is kinetic
+  plus internal without the rigid-wall term, and the row keeps reading `fail`.
+- **D9.** No sourced reference level is ratified. Indicators are measured and
+  shown with their published level; the reader judges. ADR-0071 clause 6 is
+  corrected accordingly.
+- **D11.** `input_requests_required_evidence` stays a requirement for LS-DYNA
+  inputs although the conformance document is a draft, and the Abaqus rows note
+  above is finalised: ADR-0068 clause 8 is lifted for that row on observation.

@@ -217,3 +217,12 @@ monotonicity claim of this ADR holding on all 110 cases rather than on the
 22 it was measured from. Taylor is re-measured and byte-identical: its class
 was untouched, and its yield law is tabulated, so the gate change does not
 reach it.
+
+---
+
+**Review note (2026-10-01, maintainer; ADR-0073 D1).** The "left open" steel
+bullet is answered: the notch sweep is a numerical example produced by a
+collaborator and was not validated against a physical experiment, and with
+`sigy = 337` GPa the steel impactor and supports never yield, so they act as
+elastic bodies. The data stand as the benchmark's reference; the card says both
+things.

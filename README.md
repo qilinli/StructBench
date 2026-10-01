@@ -209,11 +209,15 @@ assets/            # figures embedded in the docs + landing pages
         [`docs/datachecks/notch_beam_2d_impact.md`](docs/datachecks/notch_beam_2d_impact.md);
         material classes for its two materials (ADR-0067).~~
   - [ ] The kinetic-energy closure's tolerance; E6, E7 and the remaining E9
-        rows, which wait on a run that writes their files; what to do about
-        Taylor's stored `global/total_energy` (maintainer's call).
-  - [ ] Ratifying any sourced reference level (maintainer's call; until then
-        indicators judge nothing).
-- **Data generation platform** (ADR-0068/0069/0071, Proposed) —
+        rows, which wait on a run that writes their files.
+  - [x] ~~Taylor's stored `global/total_energy` (2026-10-01) — documented on
+        the card as kinetic plus internal without the rigid-wall term; the row
+        keeps reading `fail` (ADR-0073 D2).~~
+  - [x] ~~Reference levels (2026-10-01) — none is ratified; indicators are
+        measured and shown with their published level, and the reader judges
+        (ADR-0073 D9).~~
+- **Data generation platform** (ADR-0068/0069 Proposed; ADR-0071 Accepted
+  2026-10-01) —
   `structbench-datagen`: the Abaqus pipeline as a package capability, with a
   preflight gate before production. Guide:
   [`docs/DATA_GENERATION.md`](docs/DATA_GENERATION.md).
@@ -223,8 +227,8 @@ assets/            # figures embedded in the docs + landing pages
         `generate` requires.~~
   - [x] ~~Part three (a) (2026-09-28) — a gate a real dataset can pass; the
         Abaqus input-request and zero-energy-mode verification rows.~~
-  - [ ] Part three, still owed: ratifying the energy-gain indicator, the card
-        generator, the full guide.
+  - [ ] Part three, still owed: the card generator, the full guide (the
+        energy-gain indicator stays unratified by decision, ADR-0073 D9).
   - [ ] Minors deferred from part one's whole-branch review (moved here from
         CLAUDE.md 2026-09-29, not re-checked): `check` nests each level
         against the first only · the QoI-name check is order-sensitive ·
@@ -238,7 +242,7 @@ assets/            # figures embedded in the docs + landing pages
         exit codes 2 and 3 are used inconsistently across stages · the
         private dataset's `problem.py` still carries literal keyword text for
         probe splits.
-- **Validation against experiments** (ADR-0072, Proposed) — built
+- **Validation against experiments** (ADR-0072, Accepted 2026-10-01) — built
   2026-09-27: `structbench.validation`, `structbench-validate`, and the first
   reference set, `taylor_copper`. Reports deviations, never a verdict.
   - [ ] A `BenchmarkCard` field and landing-page link, with the first public
@@ -247,6 +251,15 @@ assets/            # figures embedded in the docs + landing pages
         conditions (maintainer's call).
   - [ ] A figure in the reference companion.
   - [ ] A `/2` record format for time-resolved measurements.
+- **The decision log** (ADR-0073, 2026-10-01) — the maintainer's review of
+  all 71 records; its decisions are applied.
+  - [ ] The von Mises pooling script beside `tools/blessing_pooled_rmse.py`,
+        reproducing the DeformingPlate registry's values (ADR-0073 D6).
+  - [ ] The housekeeping the review listed: index rows that miss later
+        amendments, stale text, Durable labels on experiment records, verdict
+        notes never written (0061, 0064).
+  - [ ] 0058, 0060, 0068, 0069 and 0070: built, still Proposed, to be
+        confirmed from their summaries.
 
 ### Inbox — untriaged, add freely
 
@@ -310,4 +323,7 @@ If you use StructBench, please cite it
 
 ## License
 
-[Apache 2.0](LICENSE).
+[Apache 2.0](LICENSE). The Transolver family's network module derives
+from two MIT-licensed reference implementations (Transolver and Transolver++,
+THUML @ Tsinghua University) and carries their copyright and permission
+notices in its header (ADR-0073 D4).

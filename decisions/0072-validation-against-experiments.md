@@ -1,6 +1,6 @@
 # 0072 — Validation against experiments: `structbench.validation`, reference sets, and the stage rename
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in writing 2026-09-29, recorded 2026-10-01; ADR-0073 D3)
 **Type**: Durable
 **Date**: 2026-09-27
 **Relates to**: ADR-0065 (the V&V identity), ADR-0066 (verification of reference runs), ADR-0071 (the data-generation pipeline; its `validate` stage is renamed here)
@@ -95,3 +95,14 @@ second name. The design is
 - The LS-DYNA Taylor benchmark could carry a public record once runs at the
   experiments' conditions exist; that is the maintainer's decision and not
   part of this ADR.
+
+---
+
+**Review note (2026-10-01, maintainer; ADR-0073 D3).** Accepted on the
+condition that the curves carry no copyright problem, checked the same day
+against the Europe PMC full text of S1 (PMC10419794): the article is CC BY 4.0
+in full, Figures 4 and 5 are the authors' own plots of calculated and
+experimental profiles, and no figure or datum in it is marked as reproduced
+from, or used with the permission of, another publication. The outlines are
+measurements, redistributed from S1's drawing with the attribution CC BY
+requires.

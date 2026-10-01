@@ -300,3 +300,14 @@ defaults now shipped in
 - **GeoFLARE (step ③) inherits the seams established here** — the
   `CaseBoundSimulator` base and the point-set featurization / segment-batching
   patterns — rather than re-deriving them.
+
+---
+
+**Clause 14 settled (2026-10-01, maintainer; ADR-0073 D4).** The port stays
+under the repository's Apache License 2.0, and the MIT copyright and permission
+notices of `github.com/thuml/Transolver` (2024) and
+`github.com/thuml/Transolver_plus` (2025; ADR-0057), both THUML @ Tsinghua
+University, are carried in the header of `models/transolver/network.py`, which
+ships inside the installed package. No repo-root NOTICE file; `LICENSE` is
+untouched. The GeoFLARE port's upstream (NVIDIA PhysicsNeMo, Apache-2.0) has no
+NOTICE file, checked 2026-09-29, so its docstring credit suffices.

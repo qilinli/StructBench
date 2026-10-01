@@ -168,3 +168,14 @@ positive claim, used to fail a contributor.
   vocabulary; whether the intermediate's format is HDF5 or something else;
   every Abaqus keyword question in clause 8; and whether a `linear_elastic`
   material class is added, which is a separate decision on its own merits.
+
+---
+
+**Amendment (2026-10-01, maintainer; ADR-0073 D11).** Clause 8 is lifted for
+one row: `input_requests_required_evidence` checks Abaqus/Explicit decks against
+the output requests the conformance runs established by observation (ADR-0066,
+Abaqus rows note), with no claim taken from the Keywords Reference. The clause
+stands for every other keyword-level question. The ADR itself remains Proposed:
+clauses 1 and 5 name `data_generation/abaqus/`, which ADR-0071 moved into the
+package, and the admission of Abaqus as the second solver awaits the
+maintainer's confirmation from the summary.
