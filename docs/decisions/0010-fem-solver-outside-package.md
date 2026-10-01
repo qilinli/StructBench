@@ -43,3 +43,22 @@ need no solver installed; the exporter runs under the solver's own Python and
 imports nothing from the package. "The package itself contains no solver code"
 above narrows to: the package *depends on* no solver. `data_generation/` keeps
 the per-dataset glue of the datasets that predate the pipeline.
+
+## Amendment (2026-10-01): the folder is `tools/ingest/`
+
+`data_generation/` at the repo root is renamed `tools/ingest/`, its
+`<solver>/<dataset>/` layout unchanged (maintainer, 2026-10-01). The name
+this ADR gave the folder described the role it was to have -- decks,
+sweeps, job submission -- and that role is the package's `datagen`
+pipeline since ADR-0071; what the folder actually holds is the glue that
+turned four datasets' *existing* solver output into canonical cases (the
+three LS-DYNA sweeps and the MeshGraphNets `deforming_plate` download),
+which is ingestion in ADR-0016's and ADR-0042's sense. Two folders named
+data generation, one of which generates nothing, were confusing. Like
+`tools/hpc/`, these are scripts that are run but not shipped. The posture
+of this ADR stands: the package contains no solver code, the glue is not
+importable, and a dataset the pipeline produces never gains a folder
+here. ADR bodies that spell the old path are left as written.
+
+*(Drafted by the agent on the maintainer's instruction; the maintainer
+finalises.)*

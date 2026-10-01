@@ -19,7 +19,7 @@ itself and is not part of the importable package (ADR-0010).
 comment; the train split is capped at the protocol's 1,000 (``_SPLIT_CAPS``).
 
 Run with the throwaway TF env from the repo root. ``SCRIPT`` below stands for
-``data_generation/meshgraphnets/deforming_plate/convert.py``::
+``tools/ingest/meshgraphnets/deforming_plate/convert.py``::
 
     python SCRIPT --data-root <dir> --out <dir> --split valid --limit 2
     python SCRIPT --data-root <dir> --out <dir>              # full 1000/100/100

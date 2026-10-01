@@ -74,10 +74,10 @@ import numpy as np
 # Paths
 # ---------------------------------------------------------------------------
 
-#: <repo>/data_generation/lsdyna/Concrete-Beam-unit-patch/patch_units.py
-#: → repo root is parents[3]; canonical archives per ADR-0031 live at
+#: <repo>/tools/ingest/lsdyna/Concrete-Beam-unit-patch/patch_units.py
+#: → repo root is parents[4]; canonical archives per ADR-0031 live at
 #: <repo-parent>/data/StructBench/canonical/<benchmark>/.
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 _CANONICAL_ROOT = _REPO_ROOT.parent / "data" / "StructBench" / "canonical"
 
 _DEFAULT_ROOTS: tuple[Path, ...] = (

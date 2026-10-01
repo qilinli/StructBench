@@ -32,7 +32,7 @@ for the full problem, data, and numbers to beat.*
 | Wave1D-Propagation | elastic wave in a bar (entry tier) | 16 | [Hugging Face](https://huggingface.co/datasets/StructBench/wave-propagation-1d) |
 | Taylor2D-Impact | copper bar impact (SPH, plasticity) | 33 | [Hugging Face](https://huggingface.co/datasets/StructBench/taylor-impact-2d) |
 | NotchBeam2D-Impact | notched concrete beam, drop-weight impact | 110 | [Hugging Face](https://huggingface.co/datasets/StructBench/notch-beam-2d-impact) |
-| DeformingPlate | hyperelastic 3D plate + rigid actuator (MeshGraphNets, quasi-static) | 1200 | [public source](data_generation/meshgraphnets/deforming_plate/) |
+| DeformingPlate | hyperelastic 3D plate + rigid actuator (MeshGraphNets, quasi-static) | 1200 | [public source](tools/ingest/meshgraphnets/deforming_plate/) |
 
 Ordered by constitutive regime: linear elastic → elastoplastic → concrete
 fracture → 3D hyperelastic contact.
@@ -147,8 +147,8 @@ src/structbench/
   cli/             # structbench-train, datacheck
 configs/           # grouped TOML run configs, configs/<benchmark>/<family>.toml (ADR-0032)
 tools/             # doc generation, the pooled-RMSE blessing aggregator, dev scripts;
-                   #   hpc/ (cluster launch scripts, DUG SLURM)
-data_generation/   # converters for the datasets that predate datagen (not importable)
+                   #   hpc/ (cluster launch scripts, DUG SLURM),
+                   #   ingest/ (converters for the datasets that predate datagen)
 docs/              # benchmark cards, architecture, harness, corrections;
                    #   decisions/ (architecture decision records, ADRs),
                    #   datachecks/ (published verification records),

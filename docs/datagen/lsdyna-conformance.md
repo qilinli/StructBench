@@ -170,7 +170,7 @@ record. `mes0000` and `d3hsp` contain a licence number, a host name and local
 paths; the record holds numbers, enum values and version tokens only, and
 raw solver files are never published.
 
-    python data_generation/lsdyna/<dataset>/collect_run_evidence.py --out runs/datachecks/<name>_run_evidence.json
+    python tools/ingest/lsdyna/<dataset>/collect_run_evidence.py --out runs/datachecks/<name>_run_evidence.json
     python -m structbench.cli.datacheck measure --benchmark <name> --data-root <canonical dir> \
         --run-evidence runs/datachecks/<name>_run_evidence.json --out runs/datachecks/<name>.json
 

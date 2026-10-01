@@ -16,7 +16,7 @@ from structbench.core.io import load_run_evidence
 
 _TOOL_PATH = (
     Path(__file__).resolve().parents[2]
-    / "data_generation"
+    / "tools" / "ingest"
     / "lsdyna"
     / "2DNotchBeam"
     / "collect_run_evidence.py"
