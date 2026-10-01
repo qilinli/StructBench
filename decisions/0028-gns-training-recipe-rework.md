@@ -68,16 +68,16 @@ stress-history input feature.
 
 ## Consequences
 
-- Prior runs are not comparable to post-0024 runs (different wall feature,
+- Prior runs are not comparable to post-rework runs (this ADR was numbered 0024 before the renumbering) (different wall feature,
   graph, trajectory length 151 vs 152). `runs/taylor-baseline` remains the
-  pre-0024 record.
+  pre-rework record.
 - Edge count roughly triples (degree ~4 → ~19): training throughput drops
   accordingly; the measured 14k steps/h on an A100 is expected to fall to
   roughly a third of that.
 - The trimmed final frame moves the QoI evaluation point ~2 µs earlier
   (bar essentially at rest; negligible physically).
 - `GNSConfig` gains `max_neighbors`; older `config.json` files without it
-  load with the (new) default — `evaluate()` on pre-0024 run dirs still works
+  load with the (new) default — `evaluate()` on pre-rework run dirs still works
   because architecture is rebuilt from the run's own record.
 
 ---

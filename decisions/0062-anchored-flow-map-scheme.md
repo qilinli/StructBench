@@ -1,7 +1,7 @@
 # 0062 — Anchored flow map: state-anchored time-conditioned prediction (Transolver)
 
 **Status**: Accepted (maintainer, in-session 2026-09-08)
-**Type**: Durable
+**Type**: Ephemeral (relabelled from Durable 2026-10-01, ADR-0073 housekeeping: an experiment record whose standing its verdict notes change in place)
 **Date**: 2026-09-08
 
 ## Context

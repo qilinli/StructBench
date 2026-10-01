@@ -282,8 +282,13 @@ dependency graph in `docs/ARCHITECTURE.md`, and the active corrections of
    closure sums); it is never fitted to values measured on the test bed, and
    a quantity whose mechanism is unconfirmed is measured and published with
    no criterion. Both yield `pass` or `fail`. An *indicator*'s bound is a
-   sourced *reference level*, and it yields `pass` or `review`. The design
-   doc's catalogue is authoritative on which quantity is judged how.
+   sourced *reference level*, and it yields `pass` or `review` once the
+   maintainer has ratified the level; until then the level is shown for
+   context and the row gets no verdict (maintainer decision 2026-09-21,
+   `Criterion.ratified`; sentence added 2026-10-01, ADR-0073 housekeeping). The
+   catalogue in `verification/quantities.py` and the criteria in
+   `verification/criteria.py` are authoritative on which quantity is judged
+   how.
 
    *Why indicators.* Some error measures have no definitional bound: how
    much energy imbalance, zero-energy-mode energy, added mass, or contact

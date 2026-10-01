@@ -12,7 +12,7 @@ HARNESS.md tenet 4 (after its revision on 2026-04-24) establishes that the human
 
 ## Decision
 
-Small corrections are recorded in a root-level file: `CORRECTIONS.md`.
+Small corrections are recorded in `CORRECTIONS.md` (a root-level file when written; `docs/CORRECTIONS.md` since 2026-07-02).
 
 - **Format**: append-only log, dated entries, one line per correction, with a status flag.
 - **Statuses**: `active` (informs future behaviour), `resolved` (no longer applies, retained for history), `promoted` (moved into `CLAUDE.md` or `PRINCIPLES.md` as a durable rule).

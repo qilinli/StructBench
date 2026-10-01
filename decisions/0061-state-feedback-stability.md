@@ -1,7 +1,7 @@
 # 0061 — State-feedback stability: input noise and pushforward on the state channel
 
 **Status**: Accepted (maintainer, in-session 2026-09-04)
-**Type**: Durable
+**Type**: Ephemeral (relabelled from Durable 2026-10-01, ADR-0073 housekeeping: an experiment record whose standing its verdict notes change in place)
 **Date**: 2026-09-04
 
 ## Context
@@ -144,3 +144,13 @@ position noise, and entangling the two would blur attribution):
 - **ADR-0049 precedent** for noise-scale decisiveness: treat the noise
   scale as a sensitive knob; the fleet sweeps two scales rather than
   trusting one.
+
+---
+
+**Verdict note (2026-10-01, written from ADR-0063's record; ADR-0073 housekeeping).** The
+pre-registered fleet of 2026-09-04 chose the state-channel input noise:
+`aux_input_noise_std = 0.15` went on in every later fleet arm, and the
+pushforward arm lost to it ("dominated loser", ADR-0063 Context). Under the
+flow map's re-anchoring that noise was later measured inert (FM-N0 ≈ FM-FULL,
+ADR-0063). The fleet's numbers live in the gitignored `scratch/` and are not in
+the repository.

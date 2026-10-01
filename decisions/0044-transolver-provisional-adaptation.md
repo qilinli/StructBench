@@ -311,3 +311,10 @@ University, are carried in the header of `models/transolver/network.py`, which
 ships inside the installed package. No repo-root NOTICE file; `LICENSE` is
 untouched. The GeoFLARE port's upstream (NVIDIA PhysicsNeMo, Apache-2.0) has no
 NOTICE file, checked 2026-09-29, so its docstring credit suffices.
+
+---
+
+**Correction (2026-10-01, ADR-0073 housekeeping).** Clause 3's `noise_std = 0.003` was the
+paper's data-native value copied unscaled; the working-frame value is 3.0 mm
+(CORRECTIONS 2026-08-17; ADR-0043 dated note of the same day), and the shipped
+configs carry it.

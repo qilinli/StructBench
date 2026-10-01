@@ -12,7 +12,7 @@ Harness engineering is an emerging practice — evolved from prompt engineering 
 
 ## Decision
 
-The project adopts harness engineering as its operating methodology. The philosophy is documented in `HARNESS.md`. Operational rules derived from the philosophy live in `CLAUDE.md`, with supporting documents (`VISION.md`, `PRINCIPLES.md`, `ARCHITECTURE.md`, `ROADMAP.md`) carrying specific classes of content. Decisions are recorded as ADRs in `decisions/`.
+The project adopts harness engineering as its operating methodology. The philosophy is documented in `HARNESS.md`. Operational rules derived from the philosophy live in `CLAUDE.md`, with supporting documents (`VISION.md`, `PRINCIPLES.md`, `ARCHITECTURE.md`, and the README Roadmap, which replaced `ROADMAP.md` on 2026-07-05) carrying specific classes of content. Decisions are recorded as ADRs in `decisions/`.
 
 ## Alternatives considered
 

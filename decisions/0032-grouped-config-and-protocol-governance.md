@@ -154,8 +154,8 @@ arrival at the first gauge (the `arrival_time` QoI).
   baseline-favoring protocol tuning this ADR exists to prevent.
 - **Grandfather init = 11 for v0.1**: keeps fleet numbers comparable, but
   ships a deployment-dishonest task (the solver would have to produce 22 µs
-  of the answer first) and hands models the hardest physics; the ADR-0031
-  retrain was already going to reset absolute numbers.
+  of the answer first) and hands models the hardest physics; the recipe-rework
+  retrain (ADR-0028, numbered 0031 before the renumbering) was already going to reset absolute numbers.
 - **Stride as a protocol constant**: dissolved instead — native-time scoring
   plus peak QoIs make temporal resolution a scored property of the model
   rather than a task parameter.

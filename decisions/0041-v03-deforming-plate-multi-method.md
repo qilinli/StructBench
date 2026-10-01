@@ -228,3 +228,10 @@ self-attention backend. The native family is keyed `"geoflare"`
 ("GeoTransolver with FLARE" / "GeoTS-FLARE" / "GeoFlare", and a spurious
 `GALE_FE` comment/config bug) and every fidelity pin are recorded in **ADR-0045**.
 A dated note (not a scope reversal), per the index-README convention.
+
+---
+
+**Pointer (2026-10-01, ADR-0073 housekeeping).** ADR-0065 (2026-09-15) names this ADR's
+cross-method headline as drift from the platform's purpose and makes
+comparison a use rather than the mission. The benchmark, its baselines and its
+leaderboard stand.
