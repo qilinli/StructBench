@@ -384,3 +384,10 @@ defaults now shipped in `config.py` `GeoFlareConfig` and
   `NOTICE` obligation).
 - **Naming is recorded on ADR-0041** via a dated note, and in this ADR's
   clause 1.
+
+---
+
+**Correction (2026-10-01, ADR-0073 housekeeping).** Clause 13's `σ = 3e-3` was the paper's
+data-native value copied unscaled; the working-frame value is 3.0 mm
+(CORRECTIONS 2026-08-17; ADR-0043 dated note of the same day), and the shipped
+configs carry it.

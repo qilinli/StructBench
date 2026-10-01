@@ -163,6 +163,23 @@ def _write_synthetic_case(root: Path, case_id: str, rng: np.random.Generator) ->
     write_case(case, root / f"{case_id}.h5")
 
 
+def test_pooled_aux_rmse_excludes_the_masked_particles():
+    # ADR-0073 D6: the von Mises pooling leaves the kinematic rows out, so an
+    # arbitrary error on them changes nothing; a legacy (T, P) array is one
+    # channel.
+    true = np.zeros((3, 4), dtype=np.float32)
+    pred = np.full((3, 4), 0.5, dtype=np.float32)
+    pred[:, 3] = 100.0
+    keep = np.array([True, True, True, False])
+    sse, count = tool.pooled_aux_rmse(pred, true, keep)
+    assert count == 9
+    assert sse == pytest.approx(9 * 0.25)
+    sse3, count3 = tool.pooled_aux_rmse(pred[..., None], true[..., None], keep)
+    assert (sse3, count3) == (sse, count)
+    with pytest.raises(ValueError, match="keep mask"):
+        tool.pooled_aux_rmse(pred, true, keep[:3])
+
+
 def test_main_end_to_end_pooled_and_gate(tmp_path, monkeypatch):
     """Wire main() through synthetic evaluate()-artifacts; hand-check the gate.
 
@@ -248,6 +265,76 @@ def test_main_end_to_end_pooled_and_gate(tmp_path, monkeypatch):
     assert report["gate"]["band_mm"] == [11.1, 19.1]
     assert report["gate"]["pass"] is True
     assert set(report["per_case_rmse_mm"]) == set(case_ids)
+    # predicted_aux was the ground truth itself, so the pooled von Mises
+    # RMSE is zero and reported in the card's unit (ADR-0073 D6).
+    assert report["pooled_aux_rmse"] == 0.0
+    assert report["aux_unit"] == "MPa"
+    assert report["aux_rows"] == "particles not of kinematic types [1, 3]"
+    assert set(report["per_case_aux_rmse"]) == set(case_ids)
+
+
+def test_main_pools_von_mises_over_non_kinematic_rows(tmp_path, monkeypatch):
+    # ADR-0073 D6: a uniform 0.25 MPa error on every deformable node and a
+    # 100 MPa error on the kinematic nodes (types 1 and 3) pools to exactly
+    # 0.25 MPa, because the kinematic rows are excluded.
+    rng = np.random.default_rng(11)
+    case_ids = ["test_0000", "test_0001"]
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for cid in case_ids:
+        _write_synthetic_case(data_root, cid, rng)
+    spec = _mini_spec(case_ids)
+    monkeypatch.setattr(tool, "get_benchmark", lambda name: spec)
+    run_dir = tmp_path / "run"
+    (run_dir / "rollouts").mkdir(parents=True)
+    for cid in case_ids:
+        trajectory = load_case_trajectory(
+            data_root / f"{cid}.h5", aux_field="von_mises_stress"
+        )
+        pred_aux = trajectory.aux[..., 0].astype(np.float64) + 0.25
+        kinematic = np.isin(trajectory.particle_type, [1, 3])
+        assert kinematic.sum() == 2
+        pred_aux[:, kinematic] += 100.0
+        np.savez(
+            run_dir / "rollouts" / f"test-{cid}.npz",
+            predicted_positions=trajectory.positions,
+            predicted_aux=pred_aux.astype(np.float32),
+        )
+    (run_dir / "metrics-test.json").write_text(
+        json.dumps({"split": "test", "cases": {cid: {} for cid in case_ids}}),
+        encoding="utf-8",
+    )
+    report = tool.compute_pooled_rmse(run_dir, data_root, "test", "deforming_plate")
+    assert report["pooled_rmse_mm"] == 0.0
+    assert report["pooled_aux_rmse"] == pytest.approx(0.25, rel=1e-5)
+    assert all(
+        v == pytest.approx(0.25, rel=1e-5) for v in report["per_case_aux_rmse"].values()
+    )
+
+
+def test_main_without_predicted_aux_reports_none(tmp_path, monkeypatch):
+    rng = np.random.default_rng(12)
+    case_ids = ["test_0000"]
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    _write_synthetic_case(data_root, case_ids[0], rng)
+    spec = _mini_spec(case_ids)
+    monkeypatch.setattr(tool, "get_benchmark", lambda name: spec)
+    run_dir = tmp_path / "run"
+    (run_dir / "rollouts").mkdir(parents=True)
+    trajectory = load_case_trajectory(
+        data_root / f"{case_ids[0]}.h5", aux_field="von_mises_stress"
+    )
+    np.savez(
+        run_dir / "rollouts" / f"test-{case_ids[0]}.npz",
+        predicted_positions=trajectory.positions,
+    )
+    (run_dir / "metrics-test.json").write_text(
+        json.dumps({"split": "test", "cases": {case_ids[0]: {}}}), encoding="utf-8"
+    )
+    report = tool.compute_pooled_rmse(run_dir, data_root, "test", "deforming_plate")
+    assert report["pooled_aux_rmse"] is None
+    assert report["per_case_aux_rmse"] is None
 
 
 def test_main_missing_metrics_file_hard_errors(tmp_path, monkeypatch):

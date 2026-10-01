@@ -1,9 +1,9 @@
 # 0071 — The Abaqus data-generation pipeline becomes a StructBench capability
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in writing 2026-09-29, recorded 2026-10-01; ADR-0073 D9, D10, D15)
 **Type**: Durable
 **Date**: 2026-09-27
-**Amends**: ADR-0069 (the four-stage pipeline as shared scripts)
+**Amends**: ADR-0069 (the four-stage pipeline as shared scripts); ADR-0010 (solver-side code in the package, by its 2026-10-01 amendment)
 
 ## Context
 
@@ -63,8 +63,9 @@ design is `docs/plans/2026-09-27-abaqus-datagen-platform-design.md`.
 6. **Three verification changes**, each with an ADR-0066 note:
    `input_requests_required_evidence` extended to Abaqus decks; the hourglass
    rows measured from the stored hourglass global; the sourced 1 % level
-   (B-BLM-1, provisional) ratified for `energy_gain_max` and `energy_loss_max`
-   as an indicator whose exceedance is `review`, not as a requirement.
+   (B-BLM-1, provisional) shown beside `energy_gain_max` and `energy_loss_max`
+   for context; it judges nothing (ADR-0073 D9 struck the ratification this
+   clause first proposed).
 7. **A user guide and a public example**: `docs/DATA_GENERATION.md`, the
    conformance document under `docs/datagen/`, and one public example
    definition (the single-rod conformance case) that the scaffold, the docs
@@ -211,3 +212,16 @@ production cases not yet completed, from their own meshes at the pilots' rates.
 solver, when the case set is the planned one and every deck and every unit
 label is reproduced by the current definition; the stamp records the hashes
 the runs were generated under beside its own.
+
+---
+
+**Review note (2026-10-01, maintainer; ADR-0073).** Accepted with three
+rulings. D9: clause 6's third item is corrected above; no energy level is
+ratified. D10: the preflight's semantics stand as built through part three (a):
+the stamp required, `--no-preflight` recorded, the dataset author declaring
+tolerances, `frame_reported` and `accepted_reviews`, the defaults (QoI 1 %,
+frame 5 %, settling margin 25 %, increment factor 0.5, ledger closure 1e-5),
+and the archive stage's default retention of about 5 % of `.odb` files with
+`--prune-odb --yes` deleting the rest. D15: clause 1's move of solver-side code
+into `structbench.datagen.abaqus` amends ADR-0010, which now says so. Still
+owed from part three: the card generator and the full guide.

@@ -1,6 +1,6 @@
 # 0070 — Material class `elastic_plastic_isotropic` (Abaqus `*PLASTIC`, isotropic)
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-10-01, from the ADR-0073 review summary)
 **Type**: Durable
 **Date**: 2026-09-25
 
@@ -68,3 +68,10 @@ other inelastic card.
   (plan 2, Task 7).
 - Not decided here: combined or kinematic hardening classes; rate- or
   temperature-dependent tables.
+
+---
+
+**Accepted (2026-10-01, maintainer).** The field values stand, including the
+assumption that the yield stress holds its last tabulated value past the final
+knot; a run that strains beyond its table would read a yield failure that is
+this assumption's, and a dated note here would narrow it.

@@ -116,3 +116,13 @@ A case file MAY contain:
 - **SHM extension is additive**: when SHM scope concretises, `sensors` and `response/sensor` get their internal shape designed; this extension does not affect existing v0.1 cases.
 - **HDF5 layout design (Stage 3) is now scoped**: it must faithfully represent the field set above with reasonable HDF5 idioms; the design space is bounded.
 - **Real follow-on decisions**, each likely warranting its own ADR: the canonical-material-name enum, BC and loading field-level shape, the HDF5 layout, sensor representation when SHM is on the table.
+
+---
+
+**Amendment (2026-10-01, maintainer; ADR-0073 D13).** "Uniformity is implicit"
+becomes a requirement for data generated with this repository: `response/time/t`
+is strictly uniform, and a terminal frame the solver writes off the sampling
+interval is dropped at conversion (the Abaqus adapter does this since
+2026-10-01). Archives converted before the pipeline existed are exempt: the 33
+Taylor cases keep their off-interval terminal frame, which the loaders trim
+(ADR-0028) and the verification record reports as a fact.

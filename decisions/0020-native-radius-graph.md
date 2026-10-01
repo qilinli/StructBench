@@ -22,7 +22,8 @@ platforms.
 ## Decision
 
 1. **StructBench provides its own `radius_graph`** in
-   `models/gns/graph_ops.py`, in pure `torch`. The GNS simulator uses it
+   `models/gns/graph_ops.py` (now `models/cgn/graph_ops.py`, ADR-0034), in
+   pure `torch`. The GNS simulator uses it
    instead of `torch_geometric.nn.radius_graph`. No `torch-cluster` or
    `pyg-lib` dependency is added.
 

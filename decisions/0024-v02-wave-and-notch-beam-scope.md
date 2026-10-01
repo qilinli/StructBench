@@ -1,7 +1,7 @@
 # 0024 — v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3
 
 **Status**: Accepted
-**Type**: Durable
+**Type**: Ephemeral (relabelled from Durable 2026-10-01, ADR-0073 housekeeping: release sequencing, a folder layout or a training recipe, all expected to change)
 **Date**: 2026-07-03
 
 ## Context
@@ -119,3 +119,10 @@ module, frozen split, card, and configs remain in the repo with an empty
 results registry, ready if it is ever picked back up. Recorded as a dated
 amendment note rather than a superseding ADR per the convention adopted the
 same day (see Status in the index README).
+
+---
+
+**Pointer (2026-10-01, ADR-0073 housekeeping).** The 2026-08-06 amendment's "remain in the
+repo" described that date. ADR-0056 (amended 2026-09-23) excluded notch-bend
+and removed its module, card and configs from the tree; only the bend branch
+of `data_generation/lsdyna/2DNotchBeam/{convert,freeze_splits}.py` is left.

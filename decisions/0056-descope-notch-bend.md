@@ -86,3 +86,10 @@ bend family in the 2DNotchBeam converter and split-freezer, which still
 produce the canonical `notch_beam_2d_bend` archive. None of it is
 registered, published or referenced by a shipped benchmark; the archive was
 never hosted. Removing it is a separate, scoped change and is not made here.
+
+---
+
+**Correction (2026-10-01, ADR-0073 housekeeping).** Point 2 and the 2026-09-23 amendment say
+the module and configs remain in the tree; commit 48b9520 removed them the
+same day. Only the bend branch of
+`data_generation/lsdyna/2DNotchBeam/{convert,freeze_splits}.py` is left.

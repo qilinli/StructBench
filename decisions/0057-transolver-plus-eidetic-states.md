@@ -1,7 +1,6 @@
 # 0057 — Transolver++ eidetic-state adaptation (adaptive temperature + Gumbel Rep-Slice)
 
-**Status**: Proposed — drafted by Claude Code, prototype landed on
-`feat/adr-0057-transolver-plus`; the human finalises
+**Status**: Accepted (maintainer, in writing 2026-09-29, recorded 2026-10-01; ADR-0073 D5) — drafted by Claude Code; built and registered as provisional rows before acceptance
 **Type**: Durable
 **Date**: 2026-08-18
 
@@ -92,3 +91,12 @@ provisional per ADR-0046 until blessed.
   orthogonality regularizer; physics-informed temperature from a contact /
   strain-rate proxy) — deferred; this ADR establishes the published reference
   baseline first, against which a novel treatment is measured.
+
+---
+
+**Accepted as it stands (2026-10-01, maintainer; ADR-0073 D5).** The
+provisional Transolver++ rows on the Taylor, notch-impact and DeformingPlate
+leaderboards stand under that name, with the evaluation-time deviation from
+upstream disclosed on the pages. The released code this ADR follows is
+`github.com/thuml/Transolver_plus` (MIT License, Copyright (c) 2025 THUML @
+Tsinghua University); its notice travels with the port (ADR-0073 D4).

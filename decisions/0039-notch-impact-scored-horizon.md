@@ -109,3 +109,11 @@ timeline analysis before any horizon decision.
   test-interp ~2.8 mm full-horizon → ~1.1 mm at 250) — a metric-definition
   change, not a model improvement; results registries must not mix the two
   definitions.
+
+---
+
+**Correction (2026-10-01, ADR-0073 housekeeping).** The scored window is frames
+`[input_frames, 250)`, end-exclusive, as the card and the evaluator implement
+it and as ADR-0043 §6 reads it; `cracked_fraction` is read at the window's end
+as the card defines it. The notch-bend horizon paragraph is moot since
+ADR-0056 removed notch-bend.

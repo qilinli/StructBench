@@ -246,3 +246,17 @@ must be scaled to the working frame whenever `length_scale ≠ 1`; DP baselines 
 retrained with `noise_std = 3.0` and MGN re-blessed on the corrected recipe. See
 CORRECTIONS.md 2026-08-17. The §8 gate (pooled position RMSE in 15.1 ± 4.0) is
 unchanged — only the training recipe is corrected.
+
+---
+
+**Amendment (2026-10-01, maintainer; ADR-0073 D6).** The pooled statistic of
+§8 is DeformingPlate's leaderboard RMSE: `rollout_pos_rmse_mm` and
+`rollout_vm_rmse_mpa` in the registry are the root of the mean squared error
+pooled over coordinates × nodes × steps × trajectories (von Mises over the
+non-kinematic rows), as the registry header has said since 2026-08-21 and the
+card states. The last sentence of §8 ("blessing-only; the leaderboard keeps the
+per-step-mean statistics") and the ADR-0046 narrowing above no longer apply to
+those two keys; the per-step-mean values remain in `metrics-<split>.json`.
+The von Mises pooling is in `tools/blessing_pooled_rmse.py` since 2026-10-01;
+its reproduction of the registered values waits on the machine that holds the
+saved rollouts.

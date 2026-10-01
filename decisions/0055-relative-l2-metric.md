@@ -213,3 +213,11 @@ Accepted + amended. Implemented (2026-08-15) on `feat/native-baselines`:
 commit 1c7ad7b); the ADR-0046 render reordered so relative L2 leads. Remaining: the
 cheap re-eval of the current baselines to populate the new keys, then record the
 values in each benchmark's registry.
+
+---
+
+**Amendment (2026-10-01, maintainer; ADR-0073 D6).** Points 4–5 above, which
+call the pooled RMSE "blessing-only" after ADR-0043/0046, no longer describe
+DeformingPlate: its two `rollout_*_rmse` keys are the pooled statistic (the
+ADR-0043 and ADR-0046 amendments of the same date). The relative-L2 headline
+and its aggregation are unchanged.

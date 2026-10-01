@@ -1,7 +1,7 @@
-# 0040 — Dataset hosting: the maintainer's OneDrive stays the master; archives shared on request
+# 0040 — Dataset hosting: the maintainer's OneDrive stays the master; archives public on Hugging Face (was: shared on request)
 
 **Status**: Accepted
-**Type**: Ephemeral
+**Type**: Durable (relabelled from Ephemeral 2026-10-01, ADR-0073 housekeeping: it holds the CC BY 4.0 grant on the public archives, which cannot be withdrawn)
 **Date**: 2026-08-06
 
 ## Context

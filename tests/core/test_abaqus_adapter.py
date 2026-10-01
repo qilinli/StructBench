@@ -165,6 +165,38 @@ def test_the_reference_node_is_a_global_reaction(tmp_path):
     )
 
 
+def _with_times(t: np.ndarray) -> dict[str, np.ndarray]:
+    """The export with `t` as its frame clock and one fresh value per frame."""
+    out = _arrays()
+    rng = np.random.default_rng(1)
+    out["step/S/frame_times"] = t
+    for key, data in list(out.items()):
+        if key.startswith("field/S/") and key.endswith("/data"):
+            out[key] = rng.normal(size=(len(t), *data.shape[1:])).astype(np.float32)
+        elif key.startswith("history/S/"):
+            out[key] = np.stack([t, np.arange(len(t), dtype=float)], -1)
+    return out
+
+
+def test_a_terminal_frame_off_the_interval_is_dropped(tmp_path):
+    # ADR-0012 (amended 2026-10-01; ADR-0073 D13): the step ended at 1.2 ms
+    # on a 0.5 ms clock, so the solver's last frame is off the interval.
+    case = _case(tmp_path, _with_times(np.array([0.0, 0.0005, 0.001, 0.0012])))
+    assert case.response.time.shape == (3,)
+    assert case.response.node["displacement"].shape[0] == 3
+    assert all(len(v) == 3 for v in case.response.globals_.values())
+
+
+def test_a_terminal_frame_on_the_interval_is_kept(tmp_path):
+    case = _case(tmp_path, _with_times(np.array([0.0, 0.0005, 0.001, 0.0015])))
+    assert case.response.time.shape == (4,)
+
+
+def test_interior_frames_off_the_interval_are_refused(tmp_path):
+    with pytest.raises(ValueError, match="not uniform"):
+        _case(tmp_path, _with_times(np.array([0.0, 0.0005, 0.0012, 0.0017])))
+
+
 def test_a_history_clock_off_the_frame_clock_is_refused(tmp_path):
     a = _arrays()
     key = "history/S/Assembly Assembly-1/ALLIE"

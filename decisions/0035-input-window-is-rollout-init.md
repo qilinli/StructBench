@@ -110,3 +110,10 @@ full-rollout metrics score the same `[input_frames, end]` span.
 - Amends ADR-0019 (Taylor eval protocol) and ADR-0032 §4/§6/§7 (protocol
   governance): the model-independent-init mechanism and the constant-velocity
   warm-start are amended by this ADR.
+
+---
+
+**Confirmed (2026-10-01, maintainer; ADR-0073 D7).** `input_frames = 6` stands,
+read as ADR-0053 reads it: the shared seed and the start of the scored span for
+every model, with each family's history window its own (CGN's architecture
+uses the full window; the others declare `history_frames`).

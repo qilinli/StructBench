@@ -36,6 +36,16 @@ outcome directly: final bar length, mushroom width, and the peak mean von
 Mises stress with its timing. The reference CGN baseline is strong in
 interpolation and degrades honestly at 200 m/s; the numbers are below.
 
+## The stored total energy
+
+`global/total_energy` is the channel LS-DYNA wrote to d3plot, copied as is:
+it equals kinetic plus internal energy to 2e-6, while the solver's printed
+total also carries the rigid-wall energy, so the two differ by 0.6–1.2 % over
+a trajectory. The verification record reports this as a finding on every
+case. It is documented here rather than changed, because changing it means a
+new schema version and re-converting every archive (ADR-0066 coverage note;
+ADR-0073 D2).
+
 ## The von Mises stress floor
 
 The per-particle von Mises field carries an irreducible, model-independent
@@ -169,7 +179,7 @@ structbench-train --mode train --config configs/taylor_impact_2d/cgn.toml \
 
 This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
 
-Dataset access: the canonical archive is public on Hugging Face — [StructBench/taylor-impact-2d](https://huggingface.co/datasets/StructBench/taylor-impact-2d) (CC BY 4.0): one `.h5` per case (the held-aside Convergence run included, `split=held_aside` in the manifest), `cases.csv` (split, loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input decks under `decks/`. Fetch one case with `hf_hub_download` or the whole archive with `snapshot_download` and point `--data-root` at it; pin the dataset repo's `v0.1.0` tag (`revision="v0.1.0"` — a data release, independent of the code version) for reproducible pipelines. The maintainer's OneDrive copy remains the master (ADR-0040, amended 2026-08-28). The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
+Dataset access: the canonical archive is public on Hugging Face — [StructBench/taylor-impact-2d](https://huggingface.co/datasets/StructBench/taylor-impact-2d) (CC BY 4.0): one `.h5` per case (the held-aside Convergence run included, `split=held_aside` in the manifest), `cases.csv` (split, loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input decks under `decks/`. Fetch one case with `hf_hub_download` (`pip install structbench[data]`, ADR-0058) or the whole archive with `snapshot_download` and point `--data-root` at it; pin the dataset repo's `v0.1.0` tag (`revision="v0.1.0"` — a data release, independent of the code version) for reproducible pipelines. The maintainer's OneDrive copy remains the master (ADR-0040, amended 2026-08-28). The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
 
 ## References
 

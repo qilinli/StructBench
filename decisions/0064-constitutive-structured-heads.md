@@ -1,7 +1,7 @@
 # 0064 — Constitutively-structured admissible heads (physics baked into training)
 
 **Status**: Accepted (maintainer, in-session 2026-09-12)
-**Type**: Durable
+**Type**: Ephemeral (relabelled from Durable 2026-10-01, ADR-0073 housekeeping: an experiment record whose standing its verdict notes change in place)
 **Date**: 2026-09-12
 
 ## Context
@@ -229,3 +229,25 @@ and knots are constructed on-device; checked in review).
   order/units).
 - **F-011 / WAUX3 / FM-N0**: the adverse priors this ADR's bets are
   structured around rather than against.
+
+---
+
+**Review note (2026-10-01, maintainer; ADR-0073 D12).** The constraint stands:
+the structured heads keep von Mises stress at or below σ_y(peeq) by
+construction. The published Taylor verification record measures the reference
+data itself at yield ratios up to 1.00153 (solver return mapping and float32
+storage), which the instrument's `yield_saturation_min` row passes; so 1.001 is
+this model's internal tripwire only, and any future property test that judges a
+model's stress against yield must allow at least the excess the reference data
+shows. F-011 and F-002, cited above, were entries in the maintainer's research
+findings file, retired with ADR-0065 and not in the repository. As this ADR
+uses them: F-002 is "a single-seed evaluation probe is not a result", and F-011
+is "soft auxiliary losses degrade the auxiliary field while the primary field
+pays" (the WAUX3 arm). No other source for either exists.
+
+---
+
+**Verdict note (2026-10-01, ADR-0073 housekeeping).** No outcome of the structured-heads runs
+is recorded in the repository: the validation plan above ran from `scratch/`,
+which is gitignored. Whatever the maintainer wants kept from those runs needs
+a dated note here.

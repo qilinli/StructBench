@@ -256,3 +256,16 @@ of trustworthiness — and that is a finding worth reporting either way.
 
 A note is the right weight for this: it is direction, not decision, and
 follow-up 1 remains flag-first and undrafted.
+
+---
+
+**Review note (2026-10-01, maintainer; ADR-0073 D14).** The data standard that
+follow-up 2 will render is fixed: a benchmark admitted after this date must have
+a convergence run, a measured noise floor, a survivor log of discarded cases and
+a constitutive sensitivity study; a physical-test anchor and a second-solver
+reproduction are recorded where they exist and not required. The four shipped
+benchmarks are grandfathered, as clause 2 says. Scope: the state-feedback,
+flow-map and structured-head code (ADR-0060 to ADR-0064) is reference-baseline
+infrastructure under clause 3 and stays in the repository, inside a model
+family or as a module shared by several; it is not a scientific contribution
+hosted here.

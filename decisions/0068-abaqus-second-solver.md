@@ -1,6 +1,6 @@
 # 0068 — Abaqus is the second solver; the deferred abstraction question is answered
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-10-01, from the ADR-0073 review summary); clauses 1 and 5 corrected on acceptance
 **Type**: Durable
 **Date**: 2026-09-24
 
@@ -40,7 +40,10 @@ positive claim, used to fail a contributor.
 ## Decision
 
 1. **Abaqus is admitted as the platform's second solver.** Solver-side code
-   lives in `data_generation/abaqus/`, never importable (ADR-0010 unchanged).
+   lives in `structbench.datagen.abaqus` (deck writers and the exporter,
+   ADR-0071; the package depends on no solver, ADR-0010 as amended
+   2026-10-01). *Corrected on acceptance; the clause first read
+   "`data_generation/abaqus/`, never importable (ADR-0010 unchanged)".*
 
 2. **ADR-0010's deferred abstraction question is answered: no abstraction.**
    Each solver contributes plain reader functions producing the existing
@@ -79,8 +82,10 @@ positive claim, used to fail a contributor.
    package requires Python `>=3.12`; the Abaqus scripting interpreter is
    3.10.5. An `.odb` is readable only through that interpreter, whereas
    `lasso-python` reads a d3plot with no LS-DYNA installed. So an
-   Abaqus-side exporter under `data_generation/abaqus/` writes a neutral
-   intermediate, and the package adapter reads only that. `odbAccess` must
+   Abaqus-side exporter (`structbench/datagen/abaqus/odb_export.py`, package
+   data handed to `abaqus python`; it was under `data_generation/abaqus/`
+   until ADR-0071) writes a neutral intermediate, and the package adapter
+   reads only that. `odbAccess` must
    stay unreachable from `import structbench`, or ADR-0004's promise that a
    user needs no solver is broken.
 
@@ -168,3 +173,22 @@ positive claim, used to fail a contributor.
   vocabulary; whether the intermediate's format is HDF5 or something else;
   every Abaqus keyword question in clause 8; and whether a `linear_elastic`
   material class is added, which is a separate decision on its own merits.
+
+---
+
+**Amendment (2026-10-01, maintainer; ADR-0073 D11).** Clause 8 is lifted for
+one row: `input_requests_required_evidence` checks Abaqus/Explicit decks against
+the output requests the conformance runs established by observation (ADR-0066,
+Abaqus rows note), with no claim taken from the Keywords Reference. The clause
+stands for every other keyword-level question. The ADR itself remains Proposed:
+clauses 1 and 5 name `data_generation/abaqus/`, which ADR-0071 moved into the
+package, and the admission of Abaqus as the second solver awaits the
+maintainer's confirmation from the summary.
+
+---
+
+**Accepted (2026-10-01, maintainer).** Abaqus's admission and the
+no-abstraction answer are confirmed; the intermediate stays off Hugging Face
+and goes out on request (clause 6, ADR-0040). Clauses 1 and 5 were corrected
+in place on acceptance to the paths ADR-0071 gave the code; clause 8 stands
+except for the one row ADR-0073 D11 lifted it for.

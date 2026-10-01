@@ -130,3 +130,12 @@ ad-hoc scripts. Building a parser from scratch is not on the table.
   LS-DYNA adapters live as siblings — `core/io/kratos.py`,
   `core/io/openradioss.py`, etc. — each free to choose its own parsing
   library. This ADR is about LS-DYNA specifically.
+
+---
+
+**Note (2026-10-01, ADR-0073 housekeeping).** Clause 6's rule that glue must not manipulate
+response data was broken once, deliberately: ADR-0030 (2026-07-05) rescaled
+the mass-derived fields of 237 Concrete-Beam cases in place with
+`patch_units.py`, gated on `source_units`, rather than re-convert tens of
+gigabytes of d3plot. The rule stands for ingestion; ADR-0030 records the
+exception and keeps the script as its audit trail.

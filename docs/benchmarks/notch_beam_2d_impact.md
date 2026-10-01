@@ -22,6 +22,16 @@ from a short ground-truth prefix the model advances the SPH particle state one
 output step at a time, predicting both position and the per-particle **max
 principal strain**, the field that carries the crack pattern.
 
+## What the data is
+
+The sweep is a numerical example: an LS-DYNA campaign run by a collaborator
+to exercise the method, not a model validated against a physical drop-weight
+test. Read the reference data as the solver's answer to the stated inputs.
+One input matters for how the response should be read: the steel impactor
+and supports carry a yield stress of 337 GPa in the deck, a thousand times
+steel's, so they never yield and act as elastic bodies, and the concrete
+response is conditioned on that (ADR-0067; ADR-0073 D1).
+
 ![Schematic of the notch-beam impact setup: a drop weight above a simply-supported notched concrete beam, with the swept parameter ranges.](../../assets/problem_notch_beam_impact.png)
 
 *Problem setup: a drop weight — plate 'P', disk 'D', or rod 'R' cross-section
@@ -41,10 +51,11 @@ harder: it is out-of-distribution on up to *four* axes at once — a new width
 beam is H = 80), an off-grid velocity (140 / 60 m/s), and, decisively, an
 **off-centre impact** (every in-distribution case is struck exactly at
 midspan). It measures graceful failure
-on a genuinely new loading mode, not interpolation — and it is where the method
-ordering flips (a global-attention operator that wins in-distribution
-mis-localises the response there, while relative-position message passing
-degrades more gracefully). Everything is scored over the 250 µs window (ADR-0039)
+on a genuinely new loading mode, not interpolation, and because the cases
+differ from training on several axes at once a probe score locates no single
+cause. It is where the method ordering flips: the global-attention operator
+that wins in-distribution placed the response at midspan on the probe cases,
+while relative-position message passing degraded more gracefully. Everything is scored over the 250 µs window (ADR-0039)
 in physical units — position RMSE in mm, strain RMSE — plus two quantities of
 interest: peak mid-span deflection and the end-state cracked fraction. The
 numbers, and the cross-method comparison, are below.
@@ -86,7 +97,7 @@ autoregressive transition (ADR-0026). Auxiliary target: `max_principal_strain` (
 <details>
 <summary>Protocol rationale — the ground-truth timeline analysis behind these values (ADR-0032 §5)</summary>
 
-Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length — the velocity budget is the criterion, not a rigid prefix. The timeline analysis (2026-07-20, on the DUG data copy) shows impact contact from frame 0, so the observed window takes in the first 6 us of contact; accepted. Scored horizon (ADR-0039): rollout metrics and QoIs are scored on frames [input_frames, 250) (250 µs). Internal energy reaches 99% of its final value by frame 77-213 (width-dependent); the remaining frames are ballistic separation and elastic ringing, which dominated full-horizon RMSE (half the final error accrued after frame 301 in baseline rollouts) while adding no fracture physics. The full 502-frame error curve remains a non-leaderboard long-horizon diagnostic. The cracked_fraction QoI threshold 0.01 is a declared protocol definition (ADR-0029, amended 2026-08-06): the SPH source model has no erosion or crack criterion; a 221-case sweep shows the GT fraction shifts ~0.05 mean per case across the factor-2 band [0.005, 0.02], and frame-249 vs frame-501 fractions are nearly identical (0.305 vs 0.317 mean), corroborating the 250 us horizon. Probe split (characterisation, 2026-08-15; height axis added 2026-08-27): the probe cases are out-of-distribution on up to FOUR axes at once — beam width (400/800 mm) and impactor velocity (140/60 m/s) both off the training grids ({320,480,640} mm; {40,80,120,160} m/s), beam height H=100 mm on the 800 mm case (every grid case is H=80; verified from canonical frame-0 extents, 2026-08-27), and, decisively, an OFF-CENTRE impact. All 108 train/val/test_interp cases are struck exactly at midspan (impact offset 0.0 mm, every notch a/b/c variant and width); the probe impacts land ~6% off-centre — a loading mode absent from training entirely. Probe scores therefore measure graceful failure on a genuinely new loading configuration, not ordinary interpolation: global-attention operators mis-localise the response to the learned midspan prior, while relative-position message-passing (MGN/CGN) degrades more gracefully.
+Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length — the velocity budget is the criterion, not a rigid prefix. The timeline analysis (2026-07-20, on the DUG data copy) shows impact contact from frame 0, so the observed window takes in the first 6 us of contact; accepted. Scored horizon (ADR-0039): rollout metrics and QoIs are scored on frames [input_frames, 250) (250 µs). Internal energy reaches 99% of its final value by frame 77-213 (width-dependent); the remaining frames are ballistic separation and elastic ringing, which dominated full-horizon RMSE (half the final error accrued after frame 301 in baseline rollouts) while adding no fracture physics. The full 502-frame error curve remains a non-leaderboard long-horizon diagnostic. The cracked_fraction QoI threshold 0.01 is a declared protocol definition (ADR-0029, amended 2026-08-06): the SPH source model has no erosion or crack criterion; a 221-case sweep shows the GT fraction shifts ~0.05 mean per case across the factor-2 band [0.005, 0.02], and frame-249 vs frame-501 fractions are nearly identical (0.305 vs 0.317 mean), corroborating the 250 us horizon. Probe split (characterisation, 2026-08-15; height axis added 2026-08-27): the probe cases are out-of-distribution on up to FOUR axes at once — beam width (400/800 mm) and impactor velocity (140/60 m/s) both off the training grids ({320,480,640} mm; {40,80,120,160} m/s), beam height H=100 mm on the 800 mm case (every grid case is H=80; verified from canonical frame-0 extents, 2026-08-27), and, decisively, an OFF-CENTRE impact. All 108 train/val/test_interp cases are struck exactly at midspan (impact offset 0.0 mm, every notch a/b/c variant and width); the probe impacts land ~6% off-centre — a loading mode absent from training entirely. Probe scores therefore measure graceful failure on a genuinely new loading configuration, not ordinary interpolation, and a probe score locates no single cause (the cases differ from training on several axes at once). Observed: the global-attention operators placed the response at midspan on the probe cases, while relative-position message passing (MGN/CGN) degraded more gracefully (ADR-0073 D8).
 
 </details>
 
@@ -163,7 +174,7 @@ structbench-train --mode train --config configs/notch_beam_2d_impact/cgn.toml \
 
 This config is the blessed baseline recipe verbatim, seed included — after training, `structbench-train --mode valid` and `--mode rollout` against the run directory regenerate the `metrics-<split>.json` files behind the numbers above (expect statistically similar rather than bit-identical numbers under GPU nondeterminism; the registry's checkpoint pointer and SHA-256 identify the exact blessed artifact).
 
-Dataset access: the canonical archive is public on Hugging Face — [StructBench/notch-beam-2d-impact](https://huggingface.co/datasets/StructBench/notch-beam-2d-impact) (CC BY 4.0): one `.h5` per case, `cases.csv` (split, loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input decks under `decks/`. Fetch one case with `hf_hub_download` or the whole archive with `snapshot_download` (resumable) and point `--data-root` at it; pin the dataset repo's `v0.1.0` tag (`revision="v0.1.0"` — a data release, independent of the code version) for reproducible pipelines. The maintainer's OneDrive copy remains the master (ADR-0040, amended 2026-08-28). The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
+Dataset access: the canonical archive is public on Hugging Face — [StructBench/notch-beam-2d-impact](https://huggingface.co/datasets/StructBench/notch-beam-2d-impact) (CC BY 4.0): one `.h5` per case, `cases.csv` (split, loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input decks under `decks/`. Fetch one case with `hf_hub_download` (`pip install structbench[data]`, ADR-0058) or the whole archive with `snapshot_download` (resumable) and point `--data-root` at it; pin the dataset repo's `v0.1.0` tag (`revision="v0.1.0"` — a data release, independent of the code version) for reproducible pipelines. The maintainer's OneDrive copy remains the master (ADR-0040, amended 2026-08-28). The cross-benchmark index is [docs/benchmarks.md](../benchmarks.md); machine-readable card metadata ships as `card.json` with the data archive.
 
 ## References
 

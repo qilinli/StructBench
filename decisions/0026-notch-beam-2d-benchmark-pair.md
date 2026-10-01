@@ -133,7 +133,7 @@ maintainer trained GNS separately per family in the prior work.
 
 ## Amendment (2026-08-15): the Impact probe set is triple-OOD
 
-*Draft by Claude Code; maintainer finalises.* Decision point 5 framed the two
+*Drafted by Claude Code; finalised by the maintainer 2026-10-01 (ADR-0073 D8).* Decision point 5 framed the two
 `S_*` Impact probe cases as testing "new geometry and out-of-range velocity."
 Direct inspection of the frozen splits (2026-08-15) adds a third, decisive
 out-of-distribution axis and sharpens how probe scores should be read.
@@ -168,7 +168,7 @@ scored protocol nor the frozen split lists — only their documented interpretat
 
 ## Amendment (2026-08-27): units, dimension naming, and a fourth probe axis
 
-*Draft by Claude Code; maintainer finalises.* Corrections applied in place
+*Drafted by Claude Code; finalised by the maintainer 2026-10-01 (ADR-0073 D8).* Corrections applied in place
 above, verified against the canonical SI data and the deck material constants:
 
 - **Velocities are m/s, not mm/s.** The decks are kg-mm-ms (steel E = 200 GPa,
@@ -185,3 +185,14 @@ above, verified against the canonical SI data and the deck material constants:
   also a new height (H = 100 mm vs the fixed H = 80 across all 108 grid cases,
   verified from canonical frame-0 extents). The 2026-08-15 amendment's reading
   of probe scores is unchanged; the height axis strengthens it.
+
+---
+
+**Review note (2026-10-01, maintainer; ADR-0073 D8).** The probe set stays the
+benchmark's reported generalisation measure. Because its two cases differ from
+training on several axes at once, a probe score locates no single cause, and
+the card says so. The card's reading of the probe results is reduced to what
+was observed (the attention operators place the response at midspan on the
+probe cases); the explanation in the 2026-08-15 amendment above ("the learned
+midspan prior") stays here as the agent's interpretation and is not asserted
+on the public page.

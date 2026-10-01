@@ -115,5 +115,10 @@ faithful to `Transolver_Structured_Mesh_2D.py` (`Time_Input=True`).
   official model on a toy grid.
 
 ## Status / next
-Proposed. On acceptance: implement on `feat/native-baselines`, smoke, add
-configs, then run (DP 3-day-capped, budget-matched).
+Accepted and built (2026-08-15). Three things ran differently from the plan
+above, recorded here on 2026-10-01 (ADR-0073 housekeeping): the DeformingPlate budget
+match did not happen, the time-conditioned baseline trained far fewer steps
+than the autoregressive ones, as the landing page records; the guard's
+`velocity_history` is `history_frames` since ADR-0053; and the
+autoregressive rows this ADR called not-native were kept in the family ×
+scheme matrix by ADR-0046's 2026-08-27 amendment.

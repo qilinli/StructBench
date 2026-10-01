@@ -32,3 +32,14 @@ For v0.1, `data_generation/` contains LS-DYNA-specific content. The package itse
 - Adding support for a new solver means adding a new subfolder under `data_generation/` and (if needed) a new output adapter in `core/io/`. It does not require changes to `benchmarks/`, `models/`, `eval/`, or other consumer modules.
 - The repository's top-level structure now explicitly includes `data_generation/` as a non-package directory alongside `src/`, `tests/`, `docs/`, etc.
 - Pawsey orchestration and other compute-cluster glue is excluded from the package, which keeps the package's dependencies minimal and its concerns focused.
+
+---
+
+**Amendment (2026-10-01, maintainer; ADR-0073 D15).** The package may hold the
+solver-side code of its own data-generation pipeline under
+`structbench.datagen.<solver>/` (today the Abaqus deck writers and the ODB
+exporter, ADR-0071), so long as `import structbench` and every consumer path
+need no solver installed; the exporter runs under the solver's own Python and
+imports nothing from the package. "The package itself contains no solver code"
+above narrows to: the package *depends on* no solver. `data_generation/` keeps
+the per-dataset glue of the datasets that predate the pipeline.

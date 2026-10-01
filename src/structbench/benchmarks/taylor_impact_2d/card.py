@@ -41,6 +41,16 @@ outcome directly: final bar length, mushroom width, and the peak mean von
 Mises stress with its timing. The reference CGN baseline is strong in
 interpolation and degrades honestly at 200 m/s; the numbers are below.
 
+## The stored total energy
+
+`global/total_energy` is the channel LS-DYNA wrote to d3plot, copied as is:
+it equals kinetic plus internal energy to 2e-6, while the solver's printed
+total also carries the rigid-wall energy, so the two differ by 0.6–1.2 % over
+a trajectory. The verification record reports this as a finding on every
+case. It is documented here rather than changed, because changing it means a
+new schema version and re-converting every archive (ADR-0066 coverage note;
+ADR-0073 D2).
+
 ## The von Mises stress floor
 
 The per-particle von Mises field carries an irreducible, model-independent
@@ -195,7 +205,8 @@ CARD = BenchmarkCard(
         "(CC BY 4.0): one `.h5` per case (the held-aside Convergence run "
         "included, `split=held_aside` in the manifest), `cases.csv` (split, "
         "loading/geometry parameters, SHA-256 manifest) and the LS-DYNA input "
-        "decks under `decks/`. Fetch one case with `hf_hub_download` or the "
+        "decks under `decks/`. Fetch one case with `hf_hub_download` (`pip install "
+        "structbench[data]`, ADR-0058) or the "
         "whole archive with `snapshot_download` and point `--data-root` at "
         'it; pin the dataset repo\'s `v0.1.0` tag (`revision="v0.1.0"` — a '
         "data release, independent of the code version) for reproducible "

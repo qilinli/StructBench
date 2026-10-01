@@ -31,3 +31,9 @@ Forbidden items cannot be unlocked by in-session instruction from the human. Unl
 - Some in-session friction on forbidden items — the harness has to be revised out-of-session to unlock them. This friction is the point.
 - The specific lists in each tier are expected to evolve. Revisions are recorded by updating `CLAUDE.md` and noting in an ADR if the change is substantive.
 - If Claude Code finds itself wanting to refuse something not on the forbidden list but feeling it should be, this is flagged as a potential tier-list update, not resolved silently.
+
+---
+
+**Pointer (2026-10-01, ADR-0073 housekeeping).** ADR-0023 (2026-07-03) added a fourth tier,
+*on explicit instruction*, and moved merging and pushing out of Forbidden;
+CLAUDE.md's Authority tiers section is the current list.

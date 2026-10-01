@@ -321,3 +321,14 @@ registry header had carried as "dated ADR note pending".
   the Quickstart chain (clause 4) still selects the first blessed entry in
   declaration order; the provisional flag, footnote, and archive discipline
   (clauses 5/8) apply per row exactly as before.
+
+---
+
+**Amendment (2026-10-01, maintainer; ADR-0073 D6).** Clause 6 and the two
+`rollout_*` rows of clause 7's table are reversed for DeformingPlate: the pooled
+statistic of ADR-0043 §8 *is* `rollout_pos_rmse_mm` / `rollout_vm_rmse_mpa`
+there, as the registry has recorded since 2026-08-21. The comparability clause
+6 protected is kept by the registry header and by the DeformingPlate card, both
+of which state that on this benchmark the two columns are the pooled statistic
+and on the other benchmarks the per-step mean. Clause 7's other rows and
+clauses 1–5 and 8–9 are unchanged.
