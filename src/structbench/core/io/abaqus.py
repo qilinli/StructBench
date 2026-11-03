@@ -13,10 +13,13 @@ strict-SI canonical case. It decides three things the export leaves open:
    afresh (``_END_FRAME_RECOMPUTED``); otherwise the export is refused.
    Frame N is kept, and a time axis with a repeated instant never reaches a
    case. A last frame that sits *off* the sampling interval (the step time
-   not a multiple of it) is dropped too, so the canonical time axis is
-   strictly uniform (ADR-0012, amended 2026-10-01; ADR-0073 D13); interior
-   frames off the interval are refused, since dropping one frame would not
-   make the axis uniform.
+   not a multiple of it) is dropped too, and interior frames off the
+   interval are refused, since dropping one frame would not make the axis
+   uniform. What remains is the solver's single-precision record of
+   ``t0 + i * interval``; the case and the ledger carry that clock itself,
+   the interval read as the shortest decimal number the record is
+   consistent with (``_uniform_clock``), so the canonical time axis is
+   strictly uniform (ADR-0012, amended 2026-10-01; ADR-0073 D13).
 2. **A rigid body's reference node.** It carries no field output, so it is
    left out of ``Nodes``. Each ``RF<k>`` it writes to the history becomes the
    global ``reaction_force_<k>_reference_node`` [N]: its label moves with the
@@ -189,7 +192,18 @@ def read_abaqus_export(npz_path: str | Path) -> AbaqusExport:
             arrays[key] = data[:-1]
         time = time[:-1]
     time = _drop_off_interval_end_frame(npz_path, time, arrays, series)
-    return AbaqusExport(manifest, step, time, arrays)
+    clock = _uniform_clock(time)
+    for key in series:
+        if key.startswith(f"history/{step}/"):
+            if not np.array_equal(arrays[key][:, 0], time):
+                raise ValueError(
+                    f"{key}: history clock differs from the field frame clock; "
+                    "a ledger sampled elsewhere cannot share the case's time axis"
+                )
+            clocked = arrays[key].astype(np.float64)
+            clocked[:, 0] = clock
+            arrays[key] = clocked
+    return AbaqusExport(manifest, step, clock, arrays)
 
 
 #: Tolerance on a frame interval, relative to the interval itself. Abaqus
@@ -234,6 +248,36 @@ def _drop_off_interval_end_frame(
     for key in series:
         arrays[key] = arrays[key][:-1]
     return time[:-1]
+
+
+#: Significant decimal digits tried for the frame interval, fewest first.
+_INTERVAL_DIGITS = range(1, 10)
+
+
+def _uniform_clock(time: NDArray[Any]) -> NDArray[np.float64]:
+    """The strictly uniform clock the frames record (ADR-0073 D13).
+
+    Abaqus writes frame times in single precision, so an export's times are
+    the rounded record of ``t0 + i * interval``. The interval is estimated
+    from the span and taken as the shortest decimal number consistent with
+    that record (the estimate is off by at most one single-precision ulp of
+    the largest time over the span); the axis is its exact multiples from
+    the first frame's time. The history series are put on the same clock by
+    the caller, since the solver samples them at the frames.
+    """
+    t = time.astype(np.float64)
+    if len(t) < 2:
+        return t
+    n = len(t) - 1
+    estimate = (float(t[-1]) - float(t[0])) / n
+    slack = float(np.spacing(np.float32(np.abs(t).max()))) / n
+    interval = estimate
+    for digits in _INTERVAL_DIGITS:
+        candidate = float(f"{estimate:.{digits}g}")
+        if abs(candidate - estimate) <= slack:
+            interval = candidate
+            break
+    return float(t[0]) + np.arange(len(t), dtype=np.float64) * interval
 
 
 def _positions(
