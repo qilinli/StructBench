@@ -16,6 +16,7 @@ import pytest
 
 from structbench.core.io.abaqus import (
     ABAQUS_NPZ_FORMAT,
+    LEDGER_CLOSED_TERMS,
     abaqus_export_to_case,
     abaqus_ledger,
 )
@@ -200,6 +201,23 @@ def test_frame_times_rounded_to_single_precision_are_on_the_interval(tmp_path):
     case = _case(tmp_path, _with_times(t))
     assert case.response.time.shape == (401,)
     assert case.response.node["displacement"].shape[0] == 401
+
+
+def test_the_canonical_clock_is_the_exact_multiples_of_the_interval(tmp_path):
+    # ADR-0073 D13: the stored axis is strictly uniform. The export's times
+    # are the solver's single-precision record of a 1 us clock; the case and
+    # the ledger carry the clock itself.
+    t = (np.arange(401) * 1e-6).astype(np.float32).astype(np.float64)
+    arrays = _with_times(t)
+    for key in list(arrays):  # a ledger needs the terms outside its identity at zero
+        term = key.rsplit("/", 1)[-1]
+        if key.startswith("history/S/Assembly") and term not in LEDGER_CLOSED_TERMS:
+            arrays[key] = np.stack([t, np.zeros(len(t))], -1)
+    case = _case(tmp_path, arrays)
+    np.testing.assert_array_equal(case.response.time, np.arange(401) * 1e-6)
+    ledger = abaqus_ledger(tmp_path / "toy.npz", source_units="t-mm-s")
+    assert ledger is not None
+    np.testing.assert_array_equal(ledger.time, case.response.time)
 
 
 def test_interior_frames_off_the_interval_are_refused(tmp_path):
