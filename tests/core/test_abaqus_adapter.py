@@ -192,6 +192,16 @@ def test_a_terminal_frame_on_the_interval_is_kept(tmp_path):
     assert case.response.time.shape == (4,)
 
 
+def test_frame_times_rounded_to_single_precision_are_on_the_interval(tmp_path):
+    # Abaqus writes a frame's time in single precision: multiples of 1 us
+    # carry up to 3e-11 s of rounding by 0.4 ms, 3e-5 of the interval, and
+    # every frame is still on the clock.
+    t = (np.arange(401) * 1e-6).astype(np.float32).astype(np.float64)
+    case = _case(tmp_path, _with_times(t))
+    assert case.response.time.shape == (401,)
+    assert case.response.node["displacement"].shape[0] == 401
+
+
 def test_interior_frames_off_the_interval_are_refused(tmp_path):
     with pytest.raises(ValueError, match="not uniform"):
         _case(tmp_path, _with_times(np.array([0.0, 0.0005, 0.0012, 0.0017])))
