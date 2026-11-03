@@ -192,8 +192,9 @@ def read_abaqus_export(npz_path: str | Path) -> AbaqusExport:
     return AbaqusExport(manifest, step, time, arrays)
 
 
-#: Tolerance on a frame interval, relative to the interval itself; the
-#: storage precision of the frame times is added on top.
+#: Tolerance on a frame interval, relative to the interval itself. Abaqus
+#: writes a frame's time in single precision, whatever the export stores it
+#: as, so four single-precision ulps at the largest time are added on top.
 _INTERVAL_RTOL = 1e-5
 
 
@@ -210,13 +211,18 @@ def _drop_off_interval_end_frame(
     end time, which lands off the interval when the step time is not a
     multiple of it; with at least three frames and interior intervals that
     agree, a final interval that differs drops the final frame from every
-    series. Interior intervals that disagree are refused by name.
+    series. Interior intervals that disagree are refused by name. The frame
+    times come from the ODB in single precision, so multiples of the interval
+    carry rounding of a few single-precision ulps (3e-11 s at 0.4 ms on a 1 us
+    clock); the tolerance allows for it.
     """
     if len(time) < 3:
         return time
     dt = np.diff(time.astype(np.float64))
     step = float(np.median(dt[:-1]))
-    tol = _INTERVAL_RTOL * abs(step) + 4.0 * float(np.spacing(np.abs(time).max()))
+    tol = _INTERVAL_RTOL * abs(step) + 4.0 * float(
+        np.spacing(np.float32(np.abs(time).max()))
+    )
     if np.any(np.abs(dt[:-1] - step) > tol):
         raise ValueError(
             f"{npz_path}: frame times are not uniform (intervals "
