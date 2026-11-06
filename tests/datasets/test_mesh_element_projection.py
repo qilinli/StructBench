@@ -140,3 +140,12 @@ def test_unknown_name_names_both_routes_and_missing_input_is_explained(tmp_path)
     assert "element block 'solid'" in str(excinfo.value)
     with pytest.raises(ValueError, match="needs element field 'density'"):
         load_case_trajectory(path, aux_field="density")
+
+
+def test_missing_reference_coords_default_to_the_initial_coordinates(tmp_path):
+    traj = load_case_trajectory(
+        _quad_case(tmp_path), aux_field="effective_plastic_strain"
+    )
+    assert traj.reference_coords is not None
+    np.testing.assert_allclose(traj.reference_coords, COORDS, rtol=1e-6)  # mm
+    np.testing.assert_allclose(traj.reference_coords, traj.positions[0], rtol=1e-6)
