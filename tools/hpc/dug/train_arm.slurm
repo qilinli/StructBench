@@ -11,8 +11,11 @@
 #       tools/hpc/dug/train_arm.slurm
 #
 # Recognised variables:
-#   BENCH  benchmark dir under configs/            (required)
-#   ARM    config stem under configs/$BENCH/       (required)
+#   BENCH  benchmark dir under configs/            (required unless CONFIG)
+#   ARM    config stem under configs/$BENCH/       (required unless CONFIG)
+#   CONFIG path to the arm's config file, for a benchmark loaded by path
+#          (ADR-0032 note, 2026-11-06) whose configs live outside this
+#          checkout; BENCH/ARM are then optional (ARM defaults to the stem)
 #   DATA   canonical data root                     (required)
 #   OUT    output dir                              (default runs/$ARM)
 #
@@ -30,10 +33,16 @@
 set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 
-: "${BENCH:?set BENCH=<benchmark dir under configs/>}"
-: "${ARM:?set ARM=<config stem under configs/$BENCH/>}"
 : "${DATA:?set DATA=<canonical data root>}"
-CONFIG="configs/${BENCH}/${ARM}.toml"
+if [ -n "${CONFIG:-}" ]; then
+    # A config by path: the arm is the file's stem unless ARM says otherwise.
+    ARM=${ARM:-$(basename "${CONFIG%.toml}")}
+    BENCH=${BENCH:-by-path}
+else
+    : "${BENCH:?set BENCH=<benchmark dir under configs/> (or CONFIG=<path>)}"
+    : "${ARM:?set ARM=<config stem under configs/$BENCH/>}"
+    CONFIG="configs/${BENCH}/${ARM}.toml"
+fi
 [ -f "$CONFIG" ] || { echo "no such arm config: $CONFIG" >&2; exit 1; }
 
 OUT=${OUT:-runs/${ARM}}
