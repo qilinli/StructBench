@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import subprocess
 import tomllib
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any
@@ -883,13 +884,19 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
 
     # ADR-0035: the model observes exactly the frames it inputs, so a run's
     # input_frames must equal its benchmark's protocol (no rollout backfill).
-    # Enforced here when the benchmark is registered; train() re-checks against
-    # the resolved spec for programmatically-built configs.
-    from .benchmarks import available_benchmarks, get_benchmark
+    # Enforced here when the benchmark resolves -- a registry name, or a
+    # definition directory loaded by path (ADR-0032 note, 2026-11-06), which
+    # the config then names by its absolute path so the run record is
+    # independent of the working directory; train() re-checks against the
+    # resolved spec for programmatically-built configs.
+    from .benchmarks import resolve_benchmark
 
     bench = run["benchmark"]
-    if bench in available_benchmarks():
-        card_frames = get_benchmark(bench).card.input_frames
+    spec = resolve_benchmark(bench)
+    if spec is not None and spec.source is not None:
+        bench = run["benchmark"] = str(spec.source.path)
+    if spec is not None:
+        card_frames = spec.card.input_frames
         if model_table.get("input_frames") != card_frames:
             raise ConfigError(
                 f"[model] input_frames={model_table.get('input_frames')} must equal "
@@ -970,11 +977,11 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                 f"[train] unknown aux_fields: {', '.join(bad)}; "
                 f"available: {', '.join(sorted(available_aux_fields()))}"
             )
-    if bench in available_benchmarks():
+    if spec is not None:
         from .datasets import aux_channel_count
         from .datasets.normalization import expand_aux_knob
 
-        names = train_cfg.aux_fields or (get_benchmark(bench).aux_field,)
+        names = train_cfg.aux_fields or (spec.aux_field,)
         n_channels = aux_channel_count(names)
         for section, key, value in (
             ("model", "aux_transform", getattr(model, "aux_transform", "none")),
@@ -1178,8 +1185,8 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             # Effective layout: an omitted train.aux_fields falls back to
             # the benchmark's single default field (never the state block).
             layout = tuple(train_cfg.aux_fields or ())
-            if not layout and bench in available_benchmarks():
-                layout = (get_benchmark(bench).aux_field,)
+            if not layout and spec is not None:
+                layout = (spec.aux_field,)
             required = (
                 "deviatoric_stress_2d",
                 "effective_plastic_strain",
@@ -1192,10 +1199,7 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                     f"canonical state block train.aux_fields = {required} "
                     f"(ADR-0064); got {layout}"
                 )
-            if (
-                bench in available_benchmarks()
-                and get_benchmark(bench).hardening_curve is None
-            ):
+            if spec is not None and spec.hardening_curve is None:
                 raise ConfigError(
                     f"[model] {knob} requires a benchmark with a "
                     f"hardening_curve (sigma_y(peeq) table); benchmark "
@@ -1285,6 +1289,7 @@ def resolved_config_dict(
     eval_times: str = "native",
     n_particle_types: int,
     data_root: Path,
+    definition: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The nested ``config.json`` payload for one run (ADR-0032 §3, ADR-0035).
 
@@ -1304,13 +1309,22 @@ def resolved_config_dict(
         As computed from the training trajectories.
     data_root : pathlib.Path
         Directory of canonical cases.
+    definition : mapping or None
+        For a benchmark loaded from a definition directory (ADR-0032 note,
+        2026-11-06): its absolute path and the sha256 of its files, as
+        :meth:`~structbench.benchmarks.BenchmarkSource.to_json_dict` gives
+        them, recorded under ``run.definition``. ``None`` for a registered
+        benchmark, which writes no such key.
     """
+    run: dict[str, Any] = {
+        "benchmark": train.benchmark,
+        "seed": train.seed,
+        "commit": _git_commit(),
+    }
+    if definition is not None:
+        run["definition"] = dict(definition)
     return {
-        "run": {
-            "benchmark": train.benchmark,
-            "seed": train.seed,
-            "commit": _git_commit(),
-        },
+        "run": run,
         "model": {"family": family, **asdict(model)},
         "train": {k: v for k, v in asdict(train).items() if k not in _RUN_SOURCED},
         "protocol": {
