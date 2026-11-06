@@ -24,8 +24,10 @@ planning fleets.
 
 - **For new runs**: `train_arm.slurm`, the generic single-GPU launcher for any
   benchmark and family (`BENCH` and `ARM` name `configs/<BENCH>/<ARM>.toml`;
-  the config file is the arm, ADR-0032), and `setup_env.sh`, which builds the
-  environment once per checkout.
+  the config file is the arm, ADR-0032; `CONFIG=<path>` instead names a config
+  outside the checkout, for a benchmark loaded by path, ADR-0032 note
+  2026-11-06), and `setup_env.sh`, which builds the environment once per
+  checkout.
 - **Launch records of past runs**, kept because they are how a registered
   run was launched: `train_taylor.slurm` and `train_wave.slurm` (the blessed
   CGN baselines), `train_deforming_{mgn,transolver,geoflare}.slurm`

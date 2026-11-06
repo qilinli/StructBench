@@ -602,7 +602,9 @@ def _load_mesh_trajectory(
     deviator traceless, so the projected reference still satisfies the
     constraints the element state does; it is a smoothed proxy of that
     state, not the state itself. A case without ``nodes.node_type`` has one
-    node type, 0.
+    node type, 0; a case without ``nodes.reference_coords`` has its initial
+    coordinates as the reference configuration (a Lagrangian mesh's rest
+    state), so the mesh-native families can build their mesh from it.
     """
     nodes = case.nodes
     if len(case.elements) != 1:
@@ -648,11 +650,10 @@ def _load_mesh_trajectory(
     aux = np.concatenate(
         [c[..., None] if c.ndim == 2 else c for c in channels], axis=-1
     ).astype(np.float32)
-    reference = (
-        (nodes.reference_coords * length_scale).astype(np.float32)
-        if nodes.reference_coords is not None
-        else None
+    reference_src = (
+        nodes.reference_coords if nodes.reference_coords is not None else nodes.coords
     )
+    reference = (np.asarray(reference_src) * length_scale).astype(np.float32)
     node_type = (
         nodes.node_type.astype(np.int64)
         if nodes.node_type is not None
