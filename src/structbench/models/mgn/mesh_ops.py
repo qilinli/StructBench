@@ -11,22 +11,33 @@ from torch import Tensor
 _QUERY_CHUNK = 2048
 
 
-def cells_to_edges(cells: Tensor) -> Tensor:
+def cells_to_edges(cells: Tensor, *, dim: int | None = None) -> Tensor:
     """Unique bidirectional edge index from element connectivity.
 
     Parameters
     ----------
     cells:
         ``(n_cells, nodes_per_cell)`` int64 connectivity (0-indexed).
+    dim:
+        Spatial dimension of the mesh. A four-node cell is a tetrahedron in
+        3D and a quadrilateral in 2D; the quad contributes its four sides
+        only (consecutive corners, in connectivity order), never the two
+        diagonals, which is the mesh-edge convention MeshGraphNets uses.
+        ``None`` keeps every vertex pair, which is exact for triangles and
+        tetrahedra and is what every benchmark meshed before 2026-11-06
+        has.
 
     Returns
     -------
     Tensor
-        ``(2, E)`` int64 edge index containing every vertex pair of every
-        cell in both directions, deduplicated, without self-loops.
+        ``(2, E)`` int64 edge index of the cells' edges in both directions,
+        deduplicated, without self-loops.
     """
     k = cells.shape[1]
-    pairs = [(a, b) for a in range(k) for b in range(a + 1, k)]
+    if dim == 2 and k == 4:
+        pairs = [(a, (a + 1) % 4) for a in range(4)]
+    else:
+        pairs = [(a, b) for a in range(k) for b in range(a + 1, k)]
     src = torch.cat([cells[:, a] for a, b in pairs])
     dst = torch.cat([cells[:, b] for a, b in pairs])
     und = torch.stack([torch.cat([src, dst]), torch.cat([dst, src])])  # (2, 2*n)

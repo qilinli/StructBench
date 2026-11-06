@@ -315,6 +315,36 @@ def _aux_density(
     return sph["density"][...].astype(np.float32)
 
 
+def _aux_stress_axisymmetric(
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
+) -> NDArray[np.float32]:
+    """The four stress components of a 2D continuum, scaled (2026-11-06).
+
+    Voigt ``[xx, yy, zz, xy]`` of the stored 6-component tensor, read as
+    ``(s_rr, s_zz, s_tt, s_rz)`` for an axisymmetric model whose first
+    coordinate is the radius and second the axis (the Abaqus adapter's
+    layout for ``CAX4R``, ``core/io/abaqus.py``); for a plane model the
+    same slots hold ``xx, yy, zz, xy``. The out-of-plane shears ``yz, zx``
+    are identically zero there and are dropped so that no channel has zero
+    variance.
+
+    Parameters
+    ----------
+    sph:
+        Mapping of response fields with a ``"stress"`` key holding a
+        ``(T, P, 6)`` array (Pa).
+    stress_scale:
+        Multiplier applied to SI stress (e.g. 1e-6: Pa -> MPa).
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T, P, 4)``, float32, in the working stress unit.
+    """
+    stress = np.asarray(sph["stress"])
+    return (stress[..., :4] * stress_scale).astype(np.float32)
+
+
 @dataclass(frozen=True)
 class AuxFieldInfo:
     """Registry metadata for one auxiliary field name (ADR-0059).
@@ -355,6 +385,9 @@ _AUX_FIELDS: dict[str, AuxFieldInfo] = {
     ),
     "internal_energy": AuxFieldInfo(_aux_internal_energy, ("internal_energy",), "J"),
     "density": AuxFieldInfo(_aux_density, ("density",), "kg/m^3"),
+    "stress_axisymmetric": AuxFieldInfo(
+        _aux_stress_axisymmetric, ("s_rr", "s_zz", "s_tt", "s_rz"), "MPa"
+    ),
 }
 
 #: Backwards-compatible view used by pre-0059 call sites/tests.
@@ -413,19 +446,19 @@ def aux_channel_units(aux_field: str | Sequence[str]) -> tuple[str, ...]:
 
 
 def available_aux_fields() -> frozenset[str]:
-    """Names accepted by :func:`load_case_trajectory`'s ``aux_field`` on the SPH path.
+    """Names accepted by :func:`load_case_trajectory`'s ``aux_field``.
 
-    This registry governs SPH cases only; the mesh path reads ``aux_field``
-    directly as a ``response.node`` key instead (ADR-0043).
-    :class:`~structbench.benchmarks.registry.BenchmarkSpec` still validates
-    every benchmark's ``aux_field`` against this set, which
-    ``"von_mises_stress"`` satisfies for both paths — accepted debt until a
-    mesh-only aux name arrives.
+    On the SPH path each name is an extraction strategy over the particle
+    fields. On the mesh path a name is first read as a ``response.node`` key
+    (ADR-0043) and otherwise as the same strategy applied to the case's
+    element block and projected onto the nodes (2026-11-06).
+    :class:`~structbench.benchmarks.registry.BenchmarkSpec` validates every
+    benchmark's ``aux_field`` against this set.
 
     Returns
     -------
     frozenset of str
-        The set of valid SPH-path ``aux_field`` strings.
+        The set of registered ``aux_field`` strings.
     """
     return frozenset(_AUX_EXTRACTORS)
 
@@ -555,13 +588,23 @@ def _load_mesh_trajectory(
     length_scale: float,
     stress_scale: float,
 ) -> CaseTrajectory:
-    """Load a nodal-FE (mesh) case: nodes are the particles (ADR-0043)."""
+    """Load a nodal-FE (mesh) case: nodes are the particles (ADR-0043).
+
+    Each aux name is a ``response.node`` key, read as its first component in
+    the stress working unit (the DeformingPlate convention), or a registered
+    field name (:func:`available_aux_fields`) computed from the case's one
+    element block and projected onto the nodes (2026-11-06): each node takes
+    the mean of its adjacent elements' values, weighted by element area in
+    2D (tetrahedron volume for 3D four-node cells, equal weights otherwise).
+    A positive-weighted mean keeps a yield-admissible state admissible under
+    a convex yield function and a hardening law linear in the plastic
+    strain, keeps a monotone plastic strain monotone and a traceless
+    deviator traceless, so the projected reference still satisfies the
+    constraints the element state does; it is a smoothed proxy of that
+    state, not the state itself. A case without ``nodes.node_type`` has one
+    node type, 0.
+    """
     nodes = case.nodes
-    if nodes.node_type is None:
-        raise ValueError(
-            f"mesh case {case.metadata.case_id!r} has no nodes.node_type; "
-            "mesh benchmarks require it (schema 0.2.0, ADR-0042)"
-        )
     if len(case.elements) != 1:
         raise ValueError(
             f"mesh case {case.metadata.case_id!r} has element types "
@@ -569,34 +612,110 @@ def _load_mesh_trajectory(
         )
     response = case.response
     assert response is not None  # guaranteed: shared response-None check runs first
-    for name in aux_fields:
-        if name not in response.node:
-            raise ValueError(
-                f"aux field {name!r} not in response.node "
-                f"(available: {sorted(response.node)})"
-            )
+    ((block_name, block),) = case.elements.items()
+    element_fields = response.element.get(block_name, {})
     n = n_valid_frames(np.asarray(response.time))  # same trim as the SPH path
+    n_nodes = nodes.coords.shape[0]
+    cells = block.connectivity.astype(np.int64)
+    weights: NDArray[np.float64] | None = None
+    channels: list[NDArray[np.float64]] = []
+    for name in aux_fields:
+        if name in response.node:
+            channels.append(
+                response.node[name][:n, :, 0].astype(np.float64) * stress_scale
+            )
+            continue
+        info = _AUX_FIELDS.get(name)
+        if info is None:
+            raise ValueError(
+                f"aux field {name!r} is not in response.node (available: "
+                f"{sorted(response.node)}) nor a registered field computed from "
+                f"the element block {block_name!r} (available: "
+                f"{sorted(_AUX_FIELDS)})"
+            )
+        try:
+            values = np.asarray(info.extractor(element_fields, stress_scale))[:n]
+        except KeyError as exc:
+            raise ValueError(
+                f"aux field {name!r} needs element field {exc} in block "
+                f"{block_name!r} (available: {sorted(element_fields)})"
+            ) from None
+        if weights is None:
+            weights = _cell_weights(nodes.coords, cells)
+        channels.append(_elements_to_nodes(values, cells, weights, n_nodes))
     disp = response.node["displacement"][:n].astype(np.float64)
     positions = ((nodes.coords[None, :, :] + disp) * length_scale).astype(np.float32)
-    aux = np.stack(
-        [
-            response.node[name][:n, :, 0].astype(np.float64) * stress_scale
-            for name in aux_fields
-        ],
-        axis=-1,
+    aux = np.concatenate(
+        [c[..., None] if c.ndim == 2 else c for c in channels], axis=-1
     ).astype(np.float32)
-    (block,) = case.elements.values()
     reference = (
         (nodes.reference_coords * length_scale).astype(np.float32)
         if nodes.reference_coords is not None
         else None
     )
+    node_type = (
+        nodes.node_type.astype(np.int64)
+        if nodes.node_type is not None
+        else np.zeros(n_nodes, dtype=np.int64)
+    )
     return CaseTrajectory(
         case_id=case.metadata.case_id,
         positions=positions,
-        particle_type=nodes.node_type.astype(np.int64),
+        particle_type=node_type,
         aux=aux,
         time=np.asarray(response.time[:n], dtype=np.float64),
-        cells=block.connectivity.astype(np.int64),
+        cells=cells,
         reference_coords=reference,
     )
+
+
+def _cell_weights(
+    coords: NDArray[np.floating], cells: NDArray[np.int64]
+) -> NDArray[np.float64]:
+    """Positive per-cell weights for the element-to-node mean.
+
+    Polygon area in 2D (shoelace over the corners in connectivity order),
+    tetrahedron volume for 3D four-node cells, 1 otherwise; equal weights
+    when any cell is degenerate, so the mean is always defined.
+    """
+    pts = np.asarray(coords, dtype=np.float64)[cells]  # (E, k, dim)
+    dim, k = pts.shape[-1], pts.shape[1]
+    if dim == 2:
+        x, y = pts[..., 0], pts[..., 1]
+        w = 0.5 * np.abs(
+            np.sum(x * np.roll(y, -1, axis=1) - np.roll(x, -1, axis=1) * y, axis=1)
+        )
+    elif dim == 3 and k == 4:
+        a, b, c = (pts[:, i] - pts[:, 0] for i in (1, 2, 3))
+        w = np.abs(np.einsum("ij,ij->i", a, np.cross(b, c))) / 6.0
+    else:
+        w = np.ones(len(cells))
+    return w if np.all(w > 0) else np.ones(len(cells))
+
+
+def _elements_to_nodes(
+    values: NDArray[np.floating],
+    cells: NDArray[np.int64],
+    weights: NDArray[np.float64],
+    n_nodes: int,
+) -> NDArray[np.float64]:
+    """Weighted mean of each node's adjacent elements, frame by frame.
+
+    ``values`` is ``(T, E)`` or ``(T, E, k)``; the result is ``(T, N)`` or
+    ``(T, N, k)``. A node no cell touches reads 0.
+    """
+    squeeze = values.ndim == 2
+    v = values[..., None] if squeeze else values
+    n_frames, n_cells, n_ch = v.shape
+    flat = np.ascontiguousarray(np.transpose(v, (1, 0, 2))).reshape(n_cells, -1)
+    num = np.zeros((n_nodes, flat.shape[1]), dtype=np.float64)
+    den = np.zeros(n_nodes, dtype=np.float64)
+    for corner in range(cells.shape[1]):
+        idx = cells[:, corner]
+        np.add.at(num, idx, weights[:, None] * flat.astype(np.float64))
+        np.add.at(den, idx, weights)
+    mean = np.zeros_like(num)
+    touched = den > 0
+    mean[touched] = num[touched] / den[touched, None]
+    out = mean.reshape(n_nodes, n_frames, n_ch).transpose(1, 0, 2)
+    return out[..., 0] if squeeze else out

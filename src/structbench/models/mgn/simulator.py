@@ -131,9 +131,14 @@ class MeshSimulator(CaseBoundSimulator):
         Parameters
         ----------
         cells:
-            ``(n_cells, nodes_per_cell)`` int64 element connectivity.
+            ``(n_cells, nodes_per_cell)`` int64 element connectivity. The
+            spatial dimension comes from the reference coordinates the base
+            class cached just before this hook, so a 2D four-node cell is
+            read as a quadrilateral (its sides, not its diagonals).
         """
-        self._mesh_edge_index = cells_to_edges(cells)
+        reference = self._reference_coords
+        dim = None if reference is None else int(reference.shape[-1])
+        self._mesh_edge_index = cells_to_edges(cells, dim=dim)
 
     def predict_positions(
         self,

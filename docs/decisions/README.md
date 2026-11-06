@@ -130,14 +130,14 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0029 | Notch-beam aux is max principal strain, not K&C damage (amends 0026) | Durable | Accepted (amended in place 2026-08-06: 0.01 threshold declared, provisional flag resolved) |
 | 0030 | Concrete-Beam decks are kg-mm-ms; canonical data patched in place | Durable | Accepted |
 | 0031 | Data archive layout: canonical/raw mirrors named by benchmark | Ephemeral | Accepted (amended by 0037; the bend archive removed by 0056) |
-| 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted (amended by 0035) |
+| 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted (amended by 0035; note 2026-11-06: the benchmark field accepts a definition directory) |
 | 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted (amended by 0037; extended by 0046) |
 | 0034 | The reference baseline is CGN (Concrete Graph Network, Li et al. 2023) | Durable | Accepted |
 | 0035 | The model input window is the rollout init; no history backfill (amends 0019, 0032) | Durable | Accepted (amended by 0053; confirmed by 0073) |
 | 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted (extended by 0046) |
 | 0037 | Blessed runs archive: `models/` mirror and registry checkpoint pointers (amends 0031, 0033) | Durable | Accepted |
 | 0038 | Auxiliary-channel training knobs: target-space transform and tail weight | Ephemeral | Accepted |
-| 0039 | Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe | Durable | Accepted |
+| 0039 | Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe | Durable | Accepted (note 2026-11-06: the bound may be per case) |
 | 0040 | Dataset hosting: maintainer's OneDrive stays the master; archives public on Hugging Face (was: shared on request) | Durable | Accepted (amended 2026-08-28: public Hugging Face mirror; 2026-09-23: data tag v0.1.1, and the on-request promise needs ADR-0068 clause 6 for Abaqus) |
 | 0041 | v0.3 pivots to a public multi-method benchmark: DeformingPlate with native MGN/Transolver/GeoFLARE (supersedes ADR-0024's v0.3 scope) | Durable | Accepted (amends 0034; corrected in place 2026-08-07 re schema, see 0042; comparison reframed as a use, not the purpose, by 0065) |
 | 0042 | Schema 0.2.0 adds per-node fields; nodal-FE ingestion via download-and-convert (deforming_plate) | Durable | Accepted (corrects 0041) |

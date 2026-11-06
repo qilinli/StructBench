@@ -189,3 +189,28 @@ by name, per case.
 Abaqus dataset taught, written as rules with the reason behind each and what
 the pipeline now does about it, and it ends in a pre-production checklist.
 Read it before the first run of a new model.
+
+## Training on a dataset before admission
+
+A dataset that has passed `verify` and `archive` can be trained on with
+`structbench-train` before it is admitted, and without any of its names
+entering the public repository. Beside the dataset definition, write a
+*benchmark definition*: a directory holding `benchmark.py` that exports a
+`BenchmarkSpec` named `SPEC` — the card, the split lists, the auxiliary
+channels, the QoIs, the boundary feature, and the scored horizon, which may
+be a function of the case id. The run config then names that directory
+instead of a registry key:
+
+    [run]
+    benchmark = "/path/to/my_dataset/benchmark"
+
+and `--data-root` points at the canonical cases. The config loader checks the
+model's `input_frames` against the definition's card as it does for a shipped
+benchmark, and every run's `config.json` records the definition's absolute
+path and the sha256 of its files, so a result is tied to the definition that
+produced it. Such a benchmark is unadmitted: it has no registry row, no
+landing page and no results registry; admission is a separate step. On a
+mesh case an auxiliary name may be a registered field computed from the
+element block (stress, plastic strain) and projected onto the nodes by an
+area-weighted mean; `benchmark.py` may import sibling modules of its own
+directory, which are hashed with it.

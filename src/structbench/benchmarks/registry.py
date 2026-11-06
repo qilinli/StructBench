@@ -3,22 +3,60 @@
 A benchmark module exposes one frozen :class:`BenchmarkSpec` named
 ``SPEC``; the training pipeline resolves it by name through
 :func:`get_benchmark`, replacing per-benchmark imports in ``cli/``.
+
+A benchmark may also be a *definition* outside the package: a directory
+holding ``benchmark.py`` that exports ``SPEC`` (ADR-0032 note, 2026-11-06),
+loaded by path the way ``structbench.datagen`` loads a dataset definition.
+Such a benchmark is unadmitted: it has no registry row, no landing page and
+no results registry, and the spec records where it came from
+(:attr:`BenchmarkSpec.source`) so a run can be tied to the definition that
+produced it.
 """
 
 from __future__ import annotations
 
 import importlib
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from pathlib import Path
 from types import MappingProxyType
 
 from torch import Tensor
 
+from ..core.definition_module import (
+    DefinitionModuleError,
+    definition_sha256s,
+    load_definition_module,
+)
 from ..datasets import available_aux_fields
 from ..datasets.canonical import CaseTrajectory
 from ..eval import QoiFn
 from .card import BenchmarkCard
 from .results import BaselineResult
+
+#: The file a benchmark definition directory must hold.
+DEFINITION_FILE = "benchmark.py"
+
+
+@dataclass(frozen=True)
+class BenchmarkSource:
+    """Where a by-path benchmark definition was loaded from.
+
+    Parameters
+    ----------
+    path:
+        The definition directory, resolved to an absolute path.
+    files:
+        ``{relative path: sha256}`` of ``benchmark.py`` and the sibling
+        modules it imported, LF-normalised; what a run record stores.
+    """
+
+    path: Path
+    files: Mapping[str, str]
+
+    def to_json_dict(self) -> dict[str, object]:
+        return {"path": str(self.path), "files": dict(self.files)}
+
 
 #: Registered benchmark modules; each must define a module-level ``SPEC``.
 #: notch_beam_2d_bend was descoped (ADR-0056, amends 0024/0026) and then
@@ -79,13 +117,18 @@ class BenchmarkSpec:
     amended 2026-08-27) — both validated at construction. May mix blessed and
     provisional entries (ADR-0046); use :attr:`blessed_results`, not this
     field directly, wherever "the blessed baseline" is meant."""
-    scored_frames: int | None = None
+    scored_frames: int | Callable[[str], int] | None = None
     """Exclusive upper frame bound of the scored span (ADR-0039), mirroring
     the trajectory-end bound ``T``: rollout/one-step aggregates and QoIs are
     computed over ``[card.input_frames, scored_frames)``; per-frame arrays
     still cover the full trajectory as the long-horizon diagnostic. ``None``
-    scores to the trajectory end. Must exceed ``card.input_frames`` and not
-    exceed ``card.n_frames`` — validated at construction."""
+    scores to the trajectory end. An ``int`` is one bound for every case
+    (validated at construction); a callable maps a case id to that case's
+    bound (ADR-0039 note, 2026-11-06), checked when read through
+    :meth:`scored_frames_for`. Either must exceed ``card.input_frames`` and
+    not exceed ``card.n_frames``. Consumers that need one bound for the
+    whole benchmark (the time-conditioned query's reference) read
+    :attr:`scored_frames_fixed`, which is ``None`` for a per-case bound."""
     quickstart_family: str = "cgn"
     """Model family (ADR-0032) whose blessed run anchors the Quickstart
     recipe on the generated benchmark page; must be non-blank — validated
@@ -124,6 +167,40 @@ class BenchmarkSpec:
     per-node velocity history. ``None`` when the benchmark has no such scalar
     (e.g. actuator-driven deforming-plate), in which case a run that requests
     the feature is rejected at train time."""
+
+    source: BenchmarkSource | None = None
+    """Set by :func:`get_benchmark` when the spec was loaded from a definition
+    directory; ``None`` for a registered benchmark. A spec with a source is
+    unadmitted, and its runs record the source beside the benchmark path."""
+
+    @property
+    def scored_frames_fixed(self) -> int | None:
+        """The one scored bound shared by every case, or ``None`` when the
+        benchmark scores to the trajectory end or per case."""
+        return self.scored_frames if isinstance(self.scored_frames, int) else None
+
+    def scored_frames_for(self, case_id: str) -> int | None:
+        """The scored bound of one case: the fixed ``int``, the callable's
+        value for ``case_id``, or ``None`` (scored to the trajectory end).
+
+        Raises
+        ------
+        ValueError
+            If a per-case bound is not an ``int`` in
+            ``(card.input_frames, card.n_frames]``.
+        """
+        if self.scored_frames is None or isinstance(self.scored_frames, int):
+            return self.scored_frames
+        bound = self.scored_frames(case_id)
+        if not isinstance(bound, int) or not (
+            self.card.input_frames < bound <= self.card.n_frames
+        ):
+            raise ValueError(
+                f"scored_frames({case_id!r}) = {bound!r} must be an int with "
+                f"input_frames ({self.card.input_frames}) < scored_frames "
+                f"<= n_frames ({self.card.n_frames})"
+            )
+        return bound
 
     @property
     def aux_fields(self) -> tuple[str, ...]:
@@ -202,7 +279,7 @@ class BenchmarkSpec:
                 f"scripted_types={self.scripted_types} must be a subset of "
                 f"kinematic_types={self.kinematic_types}"
             )
-        if self.scored_frames is not None and not (
+        if isinstance(self.scored_frames, int) and not (
             self.card.input_frames < self.scored_frames <= self.card.n_frames
         ):
             raise ValueError(
@@ -233,19 +310,80 @@ def available_benchmarks() -> tuple[str, ...]:
     return tuple(sorted(_MODULES))
 
 
+def is_benchmark_definition(name: str | Path) -> bool:
+    """Whether ``name`` is a directory holding ``benchmark.py``."""
+    try:
+        return (Path(name) / DEFINITION_FILE).is_file()
+    except (OSError, ValueError):  # a name no filesystem accepts
+        return False
+
+
+def load_benchmark_definition(directory: str | Path) -> BenchmarkSpec:
+    """Load the ``SPEC`` of ``<directory>/benchmark.py`` and stamp its source.
+
+    The directory is importable while the module loads, so ``benchmark.py``
+    may import a sibling (a split table, a QoI module); the siblings are
+    hashed into :attr:`BenchmarkSpec.source` with the file itself.
+
+    Raises
+    ------
+    ValueError
+        If the file is missing or raises on import, or exports no
+        :class:`BenchmarkSpec` named ``SPEC``.
+    """
+    root = Path(directory).resolve()
+    try:
+        module = load_definition_module(root, DEFINITION_FILE, qualifier="benchmark")
+    except DefinitionModuleError as exc:
+        raise ValueError(str(exc)) from exc
+    spec = getattr(module, "SPEC", None)
+    if not isinstance(spec, BenchmarkSpec):
+        raise ValueError(
+            f"{DEFINITION_FILE} in {root} must export a BenchmarkSpec named SPEC"
+            f" (found {type(spec).__name__})"
+        )
+    source = BenchmarkSource(
+        path=root,
+        files=MappingProxyType(definition_sha256s(root, DEFINITION_FILE, module)),
+    )
+    return replace(spec, source=source)
+
+
+def resolve_benchmark(name: str) -> BenchmarkSpec | None:
+    """The spec for a registry name or a definition directory, else ``None``.
+
+    The ``None`` is for callers that must tolerate a name they cannot
+    resolve (a config built in code around an unregistered spec);
+    :func:`get_benchmark` is the strict form.
+    """
+    if name in _MODULES:
+        return get_benchmark(name)
+    if is_benchmark_definition(name):
+        return load_benchmark_definition(name)
+    return None
+
+
 def get_benchmark(name: str) -> BenchmarkSpec:
-    """Resolve a benchmark's :class:`BenchmarkSpec` by registry name.
+    """Resolve a benchmark's :class:`BenchmarkSpec` by registry name or path.
+
+    ``name`` is a registry key, or a directory holding ``benchmark.py``
+    (:func:`load_benchmark_definition`).
 
     Raises
     ------
     KeyError
-        If ``name`` is not registered; the message lists valid names.
+        If ``name`` is neither; the message lists the registry names.
+    ValueError
+        If the directory's definition cannot be loaded or exports no spec.
     """
-    if name not in _MODULES:
-        raise KeyError(
-            f"unknown benchmark {name!r}; available: "
-            f"{', '.join(available_benchmarks())}"
-        )
-    module = importlib.import_module(_MODULES[name])
-    spec: BenchmarkSpec = module.SPEC
-    return spec
+    if name in _MODULES:
+        module = importlib.import_module(_MODULES[name])
+        spec: BenchmarkSpec = module.SPEC
+        return spec
+    if is_benchmark_definition(name):
+        return load_benchmark_definition(name)
+    raise KeyError(
+        f"unknown benchmark {name!r}; available: "
+        f"{', '.join(available_benchmarks())}, or a directory holding "
+        f"{DEFINITION_FILE}"
+    )

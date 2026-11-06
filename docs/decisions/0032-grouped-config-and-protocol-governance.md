@@ -181,3 +181,18 @@ arrival at the first gauge (the `arrival_time` QoI).
 - `rollout()` gains `init_frames` decoupled from the model window with
   constant-velocity warm-start — which also enables protocol-sensitivity
   re-evaluation of existing checkpoints without retraining.
+
+---
+
+**Note (2026-11-06) — the benchmark field accepts a definition directory.**
+`[run].benchmark` names a registry key or a directory holding `benchmark.py`
+that exports a `BenchmarkSpec` named `SPEC`, loaded by path with the importer
+dataset definitions use (ADR-0071's contract, `core/definition_module.py`).
+The loader rewrites the field to the directory's absolute path, and the run
+record carries `run.definition`: that path and the LF-normalised sha256 of
+`benchmark.py` and the siblings it imported. A benchmark loaded this way is
+unadmitted — no registry row, no landing page, no results registry (ADR-0033)
+— so a dataset can be trained on before admission without any of its names
+entering the repository (CORRECTIONS 2026-08-12). The protocol checks of
+§3 run for it as for a registered benchmark. Design:
+`docs/plans/2026-11-06-benchmark-by-path-design.md`.

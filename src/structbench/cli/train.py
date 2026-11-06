@@ -539,6 +539,19 @@ def _load_trajectories(
     ]
 
 
+def _definition_record(spec: BenchmarkSpec) -> dict[str, Any] | None:
+    """The ``run.definition`` block for a benchmark loaded from a definition
+    directory (its absolute path and file hashes), else ``None``."""
+    return None if spec.source is None else spec.source.to_json_dict()
+
+
+def _scored_frames_record(spec: BenchmarkSpec) -> int | str | None:
+    """What a metrics record says about the scored horizon: the benchmark's
+    one bound, ``None`` when scored to the end, or ``"per_case"`` when each
+    case has its own (the definition the run record hashes holds the rule)."""
+    return "per_case" if callable(spec.scored_frames) else spec.scored_frames_fixed
+
+
 def _stats_to_dict(stats: NormalizationStats) -> dict[str, dict[str, Tensor]]:
     """Convert :class:`NormalizationStats` to the nested-Tensor stats dict."""
     return {
@@ -827,13 +840,14 @@ def train(
     if spec.scored_frames is not None:
         # In-training validation rolls out only the scored span (ADR-0039):
         # checkpoint selection then keys on the same window the benchmark
-        # reports, and each val pass costs proportionally less.
+        # reports, and each val pass costs proportionally less. The bound may
+        # be the case's own (ADR-0039 note, 2026-11-06).
         val_trajs = [
             replace(
                 tr,
-                positions=tr.positions[: spec.scored_frames],
-                aux=tr.aux[: spec.scored_frames],
-                time=tr.time[: spec.scored_frames],
+                positions=tr.positions[: spec.scored_frames_for(tr.case_id)],
+                aux=tr.aux[: spec.scored_frames_for(tr.case_id)],
+                time=tr.time[: spec.scored_frames_for(tr.case_id)],
             )
             for tr in val_trajs
         ]
@@ -937,6 +951,7 @@ def train(
                 eval_times=spec.card.eval_times,
                 n_particle_types=n_types,
                 data_root=data_root,
+                definition=_definition_record(spec),
             ),
             indent=2,
         ),
@@ -1196,6 +1211,7 @@ def _train_mgn(
                 eval_times=spec.card.eval_times,
                 n_particle_types=mgn.node_type_size,
                 data_root=data_root,
+                definition=_definition_record(spec),
             ),
             indent=2,
         ),
@@ -1298,7 +1314,7 @@ def _train_mgn(
                             mgn.input_frames,
                             device,
                             kinematic_types=spec.kinematic_types,
-                            scored_frames=spec.scored_frames,
+                            scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
                 val_pos = (
@@ -1738,6 +1754,7 @@ def _train_transolver(
                 eval_times=spec.card.eval_times,
                 n_particle_types=cfg.node_type_size,
                 data_root=data_root,
+                definition=_definition_record(spec),
             ),
             indent=2,
         ),
@@ -1966,7 +1983,7 @@ def _train_transolver(
                             cfg.input_frames,
                             device,
                             kinematic_types=spec.kinematic_types,
-                            scored_frames=spec.scored_frames,
+                            scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
                 val_pos = (
@@ -2182,11 +2199,13 @@ def _train_transolver_fm(
         loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
 
     min_len = min(int(tr.positions.shape[0]) for tr in train_trajs)
-    time_ref = _tc_time_ref_frames(spec.scored_frames, train_cfg.train_frames, min_len)
+    time_ref = _tc_time_ref_frames(
+        spec.scored_frames_fixed, train_cfg.train_frames, min_len
+    )
     if time_ref < 2:
         raise ValueError(
             f"flow-map time_ref_frames={time_ref} < 2 (scored_frames="
-            f"{spec.scored_frames}, train_frames={train_cfg.train_frames}, "
+            f"{spec.scored_frames_fixed}, train_frames={train_cfg.train_frames}, "
             f"min train length={min_len})"
         )
 
@@ -2235,6 +2254,7 @@ def _train_transolver_fm(
                 eval_times=spec.card.eval_times,
                 n_particle_types=cfg.node_type_size,
                 data_root=data_root,
+                definition=_definition_record(spec),
             ),
             indent=2,
         ),
@@ -2628,7 +2648,7 @@ def _train_transolver_fm(
                             gt_aux=torch.from_numpy(tr.aux).to(device),
                         )
                         val_time_ref = _tc_time_ref_frames(
-                            spec.scored_frames,
+                            spec.scored_frames_fixed,
                             train_cfg.train_frames,
                             int(tr.positions.shape[0]),
                         )
@@ -2643,7 +2663,7 @@ def _train_transolver_fm(
                             "self",
                             device,
                             kinematic_types=spec.kinematic_types,
-                            scored_frames=spec.scored_frames,
+                            scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
                 val_pos = (
@@ -2747,11 +2767,13 @@ def _train_transolver_tc(
         loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
 
     min_len = min(int(tr.positions.shape[0]) for tr in train_trajs)
-    time_ref = _tc_time_ref_frames(spec.scored_frames, train_cfg.train_frames, min_len)
+    time_ref = _tc_time_ref_frames(
+        spec.scored_frames_fixed, train_cfg.train_frames, min_len
+    )
     if time_ref < 2:
         raise ValueError(
             f"time-conditioned time_ref_frames={time_ref} < 2 (scored_frames="
-            f"{spec.scored_frames}, train_frames={train_cfg.train_frames}, "
+            f"{spec.scored_frames_fixed}, train_frames={train_cfg.train_frames}, "
             f"min train length={min_len})"
         )
 
@@ -2780,6 +2802,7 @@ def _train_transolver_tc(
                 eval_times=spec.card.eval_times,
                 n_particle_types=cfg.node_type_size,
                 data_root=data_root,
+                definition=_definition_record(spec),
             ),
             indent=2,
         ),
@@ -2927,7 +2950,7 @@ def _train_transolver_tc(
                             ),
                         )
                         val_time_ref = _tc_time_ref_frames(
-                            spec.scored_frames,
+                            spec.scored_frames_fixed,
                             train_cfg.train_frames,
                             int(tr.positions.shape[0]),
                         )
@@ -2938,7 +2961,7 @@ def _train_transolver_tc(
                             val_time_ref,
                             device,
                             kinematic_types=spec.kinematic_types,
-                            scored_frames=spec.scored_frames,
+                            scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
                 val_pos = (
@@ -3020,11 +3043,13 @@ def _train_geoflare_tc(
         loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
 
     min_len = min(int(tr.positions.shape[0]) for tr in train_trajs)
-    time_ref = _tc_time_ref_frames(spec.scored_frames, train_cfg.train_frames, min_len)
+    time_ref = _tc_time_ref_frames(
+        spec.scored_frames_fixed, train_cfg.train_frames, min_len
+    )
     if time_ref < 2:
         raise ValueError(
             f"time-conditioned time_ref_frames={time_ref} < 2 (scored_frames="
-            f"{spec.scored_frames}, train_frames={train_cfg.train_frames}, "
+            f"{spec.scored_frames_fixed}, train_frames={train_cfg.train_frames}, "
             f"min train length={min_len})"
         )
 
@@ -3052,6 +3077,7 @@ def _train_geoflare_tc(
                 eval_times=spec.card.eval_times,
                 n_particle_types=cfg.node_type_size,
                 data_root=data_root,
+                definition=_definition_record(spec),
             ),
             indent=2,
         ),
@@ -3160,7 +3186,7 @@ def _train_geoflare_tc(
                             ),
                         )
                         val_time_ref = _tc_time_ref_frames(
-                            spec.scored_frames,
+                            spec.scored_frames_fixed,
                             train_cfg.train_frames,
                             int(tr.positions.shape[0]),
                         )
@@ -3171,7 +3197,7 @@ def _train_geoflare_tc(
                             val_time_ref,
                             device,
                             kinematic_types=spec.kinematic_types,
-                            scored_frames=spec.scored_frames,
+                            scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
                 val_pos = (
@@ -3337,6 +3363,7 @@ def _train_geoflare(
                 eval_times=spec.card.eval_times,
                 n_particle_types=cfg.node_type_size,
                 data_root=data_root,
+                definition=_definition_record(spec),
             ),
             indent=2,
         ),
@@ -3447,7 +3474,7 @@ def _train_geoflare(
                             cfg.input_frames,
                             device,
                             kinematic_types=spec.kinematic_types,
-                            scored_frames=spec.scored_frames,
+                            scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
                 val_pos = (
@@ -3828,7 +3855,7 @@ def evaluate(
             # exposing predict_state_at); assert so mypy narrows the union.
             assert isinstance(simulator, (TransolverSimulator, GeoFlareSimulator))
             time_ref = _tc_time_ref_frames(
-                spec.scored_frames,
+                spec.scored_frames_fixed,
                 record["train"].get("train_frames", 0),
                 len(trajectory.time),
             )
@@ -3860,7 +3887,7 @@ def evaluate(
                             device,
                             qois=spec.qois if canonical_pass else None,
                             kinematic_types=spec.kinematic_types,
-                            scored_frames=spec.scored_frames,
+                            scored_frames=spec.scored_frames_for(trajectory.case_id),
                             qoi_aux_channel=qoi_aux_channel,
                         )
                         prefixes = [
@@ -3902,7 +3929,7 @@ def evaluate(
                     device,
                     qois=spec.qois,
                     kinematic_types=spec.kinematic_types,
-                    scored_frames=spec.scored_frames,
+                    scored_frames=spec.scored_frames_for(trajectory.case_id),
                     qoi_aux_channel=qoi_aux_channel,
                 )
             one_step = None
@@ -3922,7 +3949,7 @@ def evaluate(
                 device,
                 qois=spec.qois,
                 kinematic_types=spec.kinematic_types,
-                scored_frames=spec.scored_frames,
+                scored_frames=spec.scored_frames_for(trajectory.case_id),
                 qoi_aux_channel=qoi_aux_channel,
             )
             result_oracle = None
@@ -3939,7 +3966,7 @@ def evaluate(
                     # QoIs come from the canonical self-fed rollout.
                     qois=None,
                     kinematic_types=spec.kinematic_types,
-                    scored_frames=spec.scored_frames,
+                    scored_frames=spec.scored_frames_for(trajectory.case_id),
                     qoi_aux_channel=qoi_aux_channel,
                 )
             if mesh_sim is not None:
@@ -3968,10 +3995,11 @@ def evaluate(
                 simulator.aux_feedback = "self"
         # One-step aggregates cover the same scored span as the rollout means
         # (ADR-0035 parity, ADR-0039 horizon); per-frame arrays stay full.
+        case_bound = spec.scored_frames_for(trajectory.case_id)
         n_scored = (
             None
-            if spec.scored_frames is None
-            else min(spec.scored_frames, len(trajectory.time)) - model_cfg.input_frames
+            if case_bound is None
+            else min(case_bound, len(trajectory.time)) - model_cfg.input_frames
         )
         cases[case_id] = {
             # null one-step for a time-conditioned run (ADR-0054): the metric
@@ -4102,9 +4130,10 @@ def evaluate(
         "checkpoint_path": str(ckpt_path),
         "input_frames": model_cfg.input_frames,
         # Metric definition (ADR-0039): rollout/one-step means and QoIs cover
-        # frames [input_frames, scored_frames); null means scored to the end.
-        # Records with different scored_frames are not comparable.
-        "scored_frames": spec.scored_frames,
+        # frames [input_frames, scored_frames); null means scored to the end,
+        # "per_case" that each case has its own bound (ADR-0039 note,
+        # 2026-11-06). Records with different scored_frames are not comparable.
+        "scored_frames": _scored_frames_record(spec),
         # Card-conforming by construction: a checkpoint's input_frames is
         # validated equal to the card's at config load and train (ADR-0035),
         # so a standard run stays standard on re-eval. Legacy off-card records

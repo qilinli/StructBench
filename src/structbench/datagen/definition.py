@@ -10,9 +10,7 @@ runs. The contract is the design's table ("The dataset definition").
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import re
-import sys
 import tomllib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -20,6 +18,11 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+from structbench.core.definition_module import (
+    DefinitionModuleError,
+    file_sha256,
+    load_definition_module,
+)
 from structbench.core.io import unit_factors
 from structbench.datagen import sampling
 
@@ -149,11 +152,6 @@ class Definition:
 
     def sha256(self) -> str:
         return file_sha256(self.path)
-
-
-def file_sha256(path: Path) -> str:
-    """The file's sha256 with LF line endings, whatever a checkout wrote."""
-    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def _number(label: str) -> float | None:
@@ -485,46 +483,20 @@ def load_problem(dataset_dir: Path) -> ModuleType:
     the entry is removed afterwards, and so are the sibling modules it
     imported, so two datasets' siblings of one name never meet.
     """
-    path = dataset_dir / PROBLEM_FILE
-    if not path.is_file():
-        raise DefinitionError(f"{PROBLEM_FILE}: not found in {dataset_dir}")
-    spec = importlib.util.spec_from_file_location(
-        f"dataset_problem_{dataset_dir.name}", path
-    )
-    if spec is None or spec.loader is None:
-        raise DefinitionError(f"{PROBLEM_FILE}: cannot be loaded from {dataset_dir}")
-    module = importlib.util.module_from_spec(spec)
-    previous, sys.dont_write_bytecode = sys.dont_write_bytecode, True
-    sys.path.insert(0, str(dataset_dir))
-    known = set(sys.modules)
-    # Registered before execution, as importlib's recipe says: dataclasses
-    # resolve a class's annotations through sys.modules[cls.__module__].
-    sys.modules[spec.name] = module
+    # The importer is shared with the benchmark definition
+    # (structbench.core.definition_module); the module's ``__siblings__`` are
+    # the dataset's own modules problem.py imported, relative to its
+    # directory, which the stamp and the provenance hash beside the two
+    # definition files.
     try:
-        spec.loader.exec_module(module)
-    except Exception as exc:  # a broken problem.py is a definition problem
-        sys.modules.pop(spec.name, None)
-        raise DefinitionError(f"{PROBLEM_FILE}: {type(exc).__name__}: {exc}") from exc
-    except BaseException:
-        sys.modules.pop(spec.name, None)
-        raise
-    finally:
-        sys.dont_write_bytecode = previous
-        if str(dataset_dir) in sys.path:
-            sys.path.remove(str(dataset_dir))
-        root = dataset_dir.resolve()
-        siblings: list[str] = []
-        for name in set(sys.modules) - known - {spec.name}:
-            file = getattr(sys.modules.get(name), "__file__", None)
-            if file and root in Path(file).resolve().parents:
-                siblings.append(Path(file).resolve().relative_to(root).as_posix())
-                del sys.modules[name]  # a sibling stays with its dataset
+        module = load_definition_module(
+            dataset_dir, PROBLEM_FILE, qualifier="dataset_problem"
+        )
+    except DefinitionModuleError as exc:
+        raise DefinitionError(str(exc)) from exc
     for hook in REQUIRED_HOOKS:
         if not callable(getattr(module, hook, None)):
             raise DefinitionError(f"{PROBLEM_FILE}: defines no {hook}()")
-    #: The dataset's own modules problem.py imported, relative to its directory;
-    #: the stamp and the provenance hash them beside the two definition files.
-    module.__siblings__ = tuple(sorted(siblings))  # type: ignore[attr-defined]
     return module
 
 

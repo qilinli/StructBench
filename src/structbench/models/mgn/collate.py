@@ -66,7 +66,9 @@ def mesh_static_from_trajectory(traj: CaseTrajectory) -> MeshStatic:
             "trajectory (ADR-0043)"
         )
     return MeshStatic(
-        mesh_edge_index=cells_to_edges(torch.from_numpy(traj.cells)),
+        mesh_edge_index=cells_to_edges(
+            torch.from_numpy(traj.cells), dim=int(traj.reference_coords.shape[-1])
+        ),
         reference_coords=torch.from_numpy(traj.reference_coords),
     )
 

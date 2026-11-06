@@ -117,3 +117,16 @@ timeline analysis before any horizon decision.
 it and as ADR-0043 §6 reads it; `cracked_fraction` is read at the window's end
 as the card defines it. The notch-bend horizon paragraph is moot since
 ADR-0056 removed notch-bend.
+
+---
+
+**Note (2026-11-06) — the bound may be the case's own.** `scored_frames`
+also accepts a function of the case id, read through
+`BenchmarkSpec.scored_frames_for`; every rollout and one-step aggregate uses
+the case's bound, and a metrics record says `"per_case"` where this record
+says `250`. The time-conditioned query's reference, which must be one clock
+for every case, reads `scored_frames_fixed` and falls back to the recipe
+truncation or the trajectory length. Notch-impact's window is unchanged.
+First user: a dataset whose scored span ends when the body leaves the wall,
+a frame that differs per case. Design:
+`docs/plans/2026-11-06-benchmark-by-path-design.md`.

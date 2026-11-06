@@ -25,6 +25,7 @@ table maps those names to files.
 | `2026-09-27-validation-against-experiments-design.md` | design | | the design behind ADR-0072 |
 | `2026-09-27-validation-plan-1.md` | plan | validation plan 1 | executed, merged 2026-09-27 (`3208612`) |
 | `2026-09-28-datagen-platform-plan-3a.md` | plan | plan 3a | executed, merged 2026-09-28 (`ca70020`) |
+| `2026-11-06-benchmark-by-path-design.md` | design | benchmark by path | executed on `feat/benchmark-by-path` (2026-11-06); recorded as notes on ADR-0032 and ADR-0039 |
 
 No plan is in flight. What ADR-0071's part three still owes has no plan yet
 (README Roadmap).

@@ -227,6 +227,10 @@ assets/            # figures embedded in the docs + landing pages
         `generate` requires.~~
   - [x] ~~Part three (a) (2026-09-28) — a gate a real dataset can pass; the
         Abaqus input-request and zero-energy-mode verification rows.~~
+  - [x] ~~Training before admission (2026-11-06) — a benchmark definition
+        loaded by path (`benchmark.py` beside the dataset definition), the
+        scored horizon per case, element fields projected to nodes; notes on
+        ADR-0032/0039, design in `docs/plans/`.~~
   - [ ] Part three, still owed: the card generator, the full guide (the
         energy-gain indicator stays unratified by decision, ADR-0073 D9).
   - [ ] Minors deferred from part one's whole-branch review (moved here from
