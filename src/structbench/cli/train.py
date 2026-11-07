@@ -43,7 +43,12 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from ..benchmarks import BenchmarkSpec, available_benchmarks, get_benchmark
+from ..benchmarks import (
+    BenchmarkSpec,
+    ConstitutiveLaw,
+    available_benchmarks,
+    get_benchmark,
+)
 from ..config import (
     LR_SCHEDULE_FLOOR,
     MODEL_FAMILIES,
@@ -81,12 +86,14 @@ from ..eval import (
 from ..models.cgn import LearnedSimulator
 from ..models.cgn.simulator import time_diff
 from ..models.common import CaseBoundSimulator
+from ..models.common.two_site import LawRows, law_rows
 from ..models.geoflare import GeoFlareSimulator
 from ..models.mgn import (
     MeshSimulator,
     collate_mesh_samples,
     mesh_static_from_trajectory,
 )
+from ..models.mgn.collate import LawTuple
 from ..models.transolver import (
     TransolverSimulator,
     hardening_sigma_y,
@@ -404,6 +411,7 @@ def build_transolver_simulator(
     scripted_types: tuple[int, ...] | None = None,
     n_aux: int = 1,
     hardening_curve: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
+    element_formulation: str | None = None,
     device: str,
 ) -> TransolverSimulator:
     """Construct a :class:`TransolverSimulator` from a :class:`TransolverConfig`.
@@ -459,6 +467,11 @@ def build_transolver_simulator(
         # simulator exactly when flow_map_structured_heads is on.
         flow_map_structured_heads=cfg.flow_map_structured_heads,
         hardening_curve=hardening_curve,
+        # ADR-0075: the two-site decoder carries the element state block,
+        # which has the nodal aux block's channels (its projection).
+        two_site_decoder=cfg.two_site_decoder,
+        n_state=n_aux if cfg.two_site_decoder != "off" else 0,
+        element_formulation=element_formulation,
         kinematic_types=kinematic_types,
         **({} if scripted_types is None else {"scripted_types": scripted_types}),
         n_aux=n_aux,
@@ -530,13 +543,71 @@ def build_geoflare_simulator(
 
 
 def _load_trajectories(
-    case_ids: list[str], data_root: Path, aux_field: str | tuple[str, ...]
+    case_ids: list[str],
+    data_root: Path,
+    aux_field: str | tuple[str, ...],
+    state_fields: tuple[str, ...] | None = None,
 ) -> list[CaseTrajectory]:
     """Load each ``<data_root>/<case_id>.h5`` into a :class:`CaseTrajectory`."""
     return [
-        load_case_trajectory(data_root / f"{case_id}.h5", aux_field=aux_field)
+        load_case_trajectory(
+            data_root / f"{case_id}.h5", aux_field=aux_field, state_fields=state_fields
+        )
         for case_id in case_ids
     ]
+
+
+def _state_fields_for(
+    family: str, model_cfg: Any, spec: BenchmarkSpec
+) -> tuple[str, ...] | None:
+    """The element-site fields a run loads, or ``None`` (ADR-0075).
+
+    Only a Transolver run with a two-site decoder reads the element block;
+    every other run keeps the nodal view alone, so its memory and its data
+    path are unchanged.
+    """
+    if (
+        family == "transolver"
+        and getattr(model_cfg, "two_site_decoder", "off") != "off"
+    ):
+        return tuple(spec.state_channels)
+    return None
+
+
+def _law_tuple(law: ConstitutiveLaw) -> LawTuple:
+    """A benchmark's :class:`ConstitutiveLaw` as the collate's plain tuple."""
+    return (law.youngs_modulus, law.poisson_ratio, law.hardening[0], law.hardening[1])
+
+
+def _case_law_rows(
+    spec: BenchmarkSpec, trajectory: CaseTrajectory, device: str
+) -> LawRows | None:
+    """The per-element law rows of one case for the return-map decoder
+    (ADR-0075), or ``None`` when the benchmark declares no law."""
+    if spec.constitutive_law is None or trajectory.state is None:
+        return None
+    law = spec.constitutive_law(trajectory.case_id)
+    n = int(trajectory.state.shape[1])
+    knots_peeq, knots_sy = law.hardening
+    return law_rows(
+        torch.full((n,), law.youngs_modulus, dtype=torch.float32, device=device),
+        torch.full((n,), law.poisson_ratio, dtype=torch.float32, device=device),
+        torch.tensor(knots_peeq, dtype=torch.float32, device=device).expand(n, -1),
+        torch.tensor(knots_sy, dtype=torch.float32, device=device).expand(n, -1),
+    )
+
+
+def _truncate_trajectory(tr: CaseTrajectory, n: int | None) -> CaseTrajectory:
+    """The first ``n`` frames of every per-frame array (``None`` = all)."""
+    if n is None:
+        return tr
+    return replace(
+        tr,
+        positions=tr.positions[:n],
+        aux=tr.aux[:n],
+        time=tr.time[:n],
+        state=None if tr.state is None else tr.state[:n],
+    )
 
 
 def _definition_record(spec: BenchmarkSpec) -> dict[str, Any] | None:
@@ -813,7 +884,8 @@ def train(
 
     train_ids = list(spec.splits["train"])
     logger.info("loading %d TRAIN trajectories from %s", len(train_ids), data_root)
-    train_trajs = _load_trajectories(train_ids, data_root, aux_field)
+    state_fields = _state_fields_for(family, model_cfg, spec)
+    train_trajs = _load_trajectories(train_ids, data_root, aux_field, state_fields)
     if train_cfg.train_frames > 0:
         # ADR-0039 §4 recipe: train only on the scored window's frames. Must
         # precede cached_compute_stats so normalization follows the truncated
@@ -824,31 +896,22 @@ def train(
                 f"window (input_frames={model_cfg.input_frames})"
             )
         train_trajs = [
-            replace(
-                tr,
-                positions=tr.positions[: train_cfg.train_frames],
-                aux=tr.aux[: train_cfg.train_frames],
-                time=tr.time[: train_cfg.train_frames],
-            )
-            for tr in train_trajs
+            _truncate_trajectory(tr, train_cfg.train_frames) for tr in train_trajs
         ]
         logger.info(
             "train_frames=%d: training pool truncated (ADR-0039 recipe)",
             train_cfg.train_frames,
         )
-    val_trajs = _load_trajectories(list(spec.splits["val"]), data_root, aux_field)
+    val_trajs = _load_trajectories(
+        list(spec.splits["val"]), data_root, aux_field, state_fields
+    )
     if spec.scored_frames is not None:
         # In-training validation rolls out only the scored span (ADR-0039):
         # checkpoint selection then keys on the same window the benchmark
         # reports, and each val pass costs proportionally less. The bound may
         # be the case's own (ADR-0039 note, 2026-11-06).
         val_trajs = [
-            replace(
-                tr,
-                positions=tr.positions[: spec.scored_frames_for(tr.case_id)],
-                aux=tr.aux[: spec.scored_frames_for(tr.case_id)],
-                time=tr.time[: spec.scored_frames_for(tr.case_id)],
-            )
+            _truncate_trajectory(tr, spec.scored_frames_for(tr.case_id))
             for tr in val_trajs
         ]
 
@@ -2210,12 +2273,39 @@ def _train_transolver_fm(
         )
 
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
+    # ADR-0075: the two-site decoder carries the element-site state block
+    # (loaded by _state_fields_for) and, for the return map, each case's law.
+    two_site = cfg.two_site_decoder != "off"
+    laws: list[LawTuple] | None = None
+    if two_site:
+        missing = [tr.case_id for tr in train_trajs + val_trajs if tr.state is None]
+        if missing:
+            raise ValueError(
+                f"two_site_decoder={cfg.two_site_decoder!r} needs the element-site "
+                f"state block on every trajectory; {len(missing)} carry none "
+                f"(first: {missing[0]!r}); does benchmark {spec.card.name!r} "
+                "declare state_site='element'? (ADR-0075)"
+            )
+        if cfg.two_site_decoder == "return_map":
+            if spec.constitutive_law is None:
+                raise ValueError(
+                    "two_site_decoder='return_map' needs the benchmark's "
+                    f"constitutive_law; benchmark {spec.card.name!r} has none "
+                    "(ADR-0075)"
+                )
+            laws = [_law_tuple(spec.constitutive_law(tr.case_id)) for tr in train_trajs]
+            if len({len(law[2]) for law in laws}) != 1:
+                raise ValueError(
+                    "every case's constitutive_law must carry the same number of "
+                    "hardening knots for batched training (ADR-0075)"
+                )
     sim = build_transolver_simulator(
         cfg,
         n_aux=int(train_trajs[0].aux.shape[-1]),  # ADR-0059
         kinematic_types=spec.kinematic_types,
         scripted_types=spec.scripted_types,
         hardening_curve=spec.hardening_curve,
+        element_formulation=spec.element_formulation,
         device=device,
     )
     sim.to(device)
@@ -2297,6 +2387,8 @@ def _train_transolver_fm(
             include_target_frame=True,
             include_anchor_frame=True,
             include_chain_frame=chain,
+            include_elements=two_site,
+            laws=laws,
         ),
     )
     optimizer = torch.optim.AdamW(
@@ -2370,6 +2462,9 @@ def _train_transolver_fm(
 
             accumulate = step < cfg.normalizer_warmup_steps
             optimizer.zero_grad()
+            # ADR-0075: the element-state pair of a two-site step (else None).
+            state_pred: Tensor | None = None
+            state_target: Tensor | None = None
             # ADR-0064 knob 2: one hinge term per query, each against the
             # anchor actually FED to that query; empty when the knob is off.
             hinge_terms: list[Tensor] = []
@@ -2574,6 +2669,39 @@ def _train_transolver_fm(
                 # over the three query losses (2:1 clean:dirty, ADR-0063).
                 pred = torch.stack([*preds, p_b], dim=1)
                 target = torch.stack([*targets, t_b], dim=1)
+            elif two_site:
+                # ADR-0075: the element state rides the anchor; the loss
+                # below adds its per-channel z-scored error to the nodal one.
+                dt_norm = (target_frame - anchor_frame).to(torch.float32) / (
+                    time_ref - 1
+                )  # (B,)
+                law_batch: LawRows | None = None
+                if laws is not None:
+                    law_batch = law_rows(
+                        batch["law_youngs"].to(device),
+                        batch["law_poisson"].to(device),
+                        batch["law_knots_peeq"].to(device),
+                        batch["law_knots_sy"].to(device),
+                    )
+                pred, target, state_pred, state_target = sim.forward_train_two_site(
+                    next_position,
+                    next_aux,
+                    batch["next_state"].to(device),
+                    particle_type,
+                    reference_coords,
+                    n_particles_per_example,
+                    dt_norm,
+                    accumulate=accumulate,
+                    cells=batch["cells"].to(device),
+                    weights=batch["cell_weights"].to(device),
+                    law=law_batch,
+                    anchor_disp=anchor_disp,
+                    anchor_vel=anchor_vel,
+                    anchor_aux=anchor_aux,
+                    anchor_state=batch["input_state"].to(device),
+                    loading_feature=loading_feature,
+                    anchor_time_feature=anchor_time_feature,
+                )
             else:
                 dt_norm = (target_frame - anchor_frame).to(torch.float32) / (
                     time_ref - 1
@@ -2612,6 +2740,12 @@ def _train_transolver_fm(
                 loss = per_particle[free].mean()
             else:
                 loss = per_particle.new_tensor(0.0, requires_grad=True)
+            if state_pred is not None and state_target is not None:
+                # ADR-0075: the element-site state loss, every element scored,
+                # weighted like the nodal aux block.
+                loss = (
+                    loss + train_cfg.w_aux * ((state_pred - state_target) ** 2).mean()
+                )
             if hinge_terms and free.any():
                 # ADR-0064 knob 2: mean over queries then free rows — the
                 # primary loss's pooling.
@@ -2646,6 +2780,13 @@ def _train_transolver_fm(
                             ),
                             # set_anchor's kinematic clamp reads the GT state.
                             gt_aux=torch.from_numpy(tr.aux).to(device),
+                            # ADR-0075: the element state and the case's law.
+                            gt_state=(
+                                torch.from_numpy(tr.state).to(device)
+                                if two_site and tr.state is not None
+                                else None
+                            ),
+                            law=_case_law_rows(spec, tr, device) if two_site else None,
                         )
                         val_time_ref = _tc_time_ref_frames(
                             spec.scored_frames_fixed,
@@ -3744,6 +3885,7 @@ def evaluate(
             kinematic_types=spec.kinematic_types,
             scripted_types=spec.scripted_types,
             hardening_curve=spec.hardening_curve,
+            element_formulation=spec.element_formulation,
             device=device,
         )
     elif family == "geoflare":
@@ -3798,6 +3940,12 @@ def evaluate(
     # interval's self-anchored pass writes the standard keys/artifacts/QoIs.
     fm = family == "transolver" and bool(getattr(model_cfg, "flow_map", False))
     fm_intervals, fm_canonical = _fm_intervals_and_canonical(model_cfg)
+    # ADR-0075: a two-site run scores the element state beside the nodal view.
+    two_site_run = _state_fields_for(family, model_cfg, spec) is not None
+    state_labels = aux_channel_labels(spec.state_channels) if two_site_run else ()
+    fm_metrics = _FM_INTERVAL_METRICS + (
+        ("state_rmse", "rel_l2_state") if two_site_run else ()
+    )
     if fm and not fm_intervals:
         raise ValueError(
             "flow_map=true run record carries no flow_map_eval_intervals "
@@ -3816,7 +3964,9 @@ def evaluate(
     cases: dict[str, dict[str, Any]] = {}
     for case_id in case_ids:
         trajectory = load_case_trajectory(
-            data_root / f"{case_id}.h5", aux_field=run_aux_fields
+            data_root / f"{case_id}.h5",
+            aux_field=run_aux_fields,
+            state_fields=_state_fields_for(family, model_cfg, spec),
         )
         if mesh_sim is not None and spec.mesh_transform is not None:
             # ADR-0047: same synthesis the training load applied.
@@ -3828,6 +3978,16 @@ def evaluate(
                     f"(cells/reference_coords); {family} evaluation requires "
                     "a mesh benchmark"
                 )
+            two_site_bind: dict[str, Any] = {}
+            if two_site_run:
+                two_site_bind = {
+                    "gt_state": (
+                        None
+                        if trajectory.state is None
+                        else torch.from_numpy(trajectory.state).to(device)
+                    ),
+                    "law": _case_law_rows(spec, trajectory, device),
+                }
             mesh_sim.bind_case(
                 torch.from_numpy(trajectory.cells).to(device),
                 torch.from_numpy(trajectory.reference_coords).to(device),
@@ -3842,6 +4002,9 @@ def evaluate(
                 gt_aux=(
                     torch.from_numpy(trajectory.aux).to(device) if aux_in_run else None
                 ),
+                # ADR-0075: a two-site run binds the element state and the
+                # case's law; every other run passes nothing new.
+                **two_site_bind,
             )
             mesh_sim.reset_rollout()
         one_step: np.ndarray | None
@@ -3898,7 +4061,7 @@ def evaluate(
                         if single_anchor:
                             prefixes.append(f"rollout_oracle_m{m}")
                         for prefix in prefixes:
-                            for metric in _FM_INTERVAL_METRICS:
+                            for metric in fm_metrics:
                                 fm_extra[f"{prefix}_{metric}"] = getattr(
                                     r, f"mean_{metric}"
                                 )
@@ -3907,6 +4070,14 @@ def evaluate(
                                     zip(
                                         run_aux_labels,
                                         r.mean_rel_l2_aux_channels,
+                                        strict=True,
+                                    )
+                                )
+                            if r.mean_rel_l2_state_channels is not None:
+                                fm_extra[f"{prefix}_rel_l2_state_channels"] = dict(
+                                    zip(
+                                        state_labels,
+                                        r.mean_rel_l2_state_channels,
                                         strict=True,
                                     )
                                 )
@@ -4063,6 +4234,30 @@ def evaluate(
             # ADR-0062: per-interval flow-map metrics (self- and oracle-
             # anchored per m), empty for every non-flow-map run.
             **fm_extra,
+            # ADR-0075: the element-site state of a two-site run (the
+            # canonical pass), per channel like the nodal aux block.
+            **(
+                {}
+                if result.predicted_state is None
+                else {
+                    "rollout_state_rmse": result.mean_state_rmse,
+                    "rollout_rel_l2_state": result.mean_rel_l2_state,
+                    "rollout_state_rmse_channels": dict(
+                        zip(
+                            state_labels,
+                            result.mean_state_rmse_channels or (),
+                            strict=True,
+                        )
+                    ),
+                    "rollout_rel_l2_state_channels": dict(
+                        zip(
+                            state_labels,
+                            result.mean_rel_l2_state_channels or (),
+                            strict=True,
+                        )
+                    ),
+                }
+            ),
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
             # frame to trajectory end. Non-leaderboard; equals the scored value
             # when the benchmark pins no horizon. Field name matches the
@@ -4095,6 +4290,13 @@ def evaluate(
             saved_aux = result.predicted_aux
             if saved_aux.ndim == 3 and saved_aux.shape[-1] == 1:
                 saved_aux = saved_aux[..., 0]
+            # ADR-0075: the element-site state block of a two-site run.
+            state_arrays: dict[str, Any] = {}
+            if result.predicted_state is not None:
+                state_arrays = {
+                    "predicted_state": result.predicted_state,
+                    "state_rmse": result.state_rmse,
+                }
             if one_step is None:
                 # Time-conditioned: no one-step arrays to persist (null; ADR-0054).
                 np.savez(
@@ -4103,6 +4305,7 @@ def evaluate(
                     predicted_aux=saved_aux,
                     position_rmse=result.position_rmse,
                     aux_rmse=result.aux_rmse,
+                    **state_arrays,
                 )
             else:
                 assert one_step_aux is not None  # set together with one_step
@@ -4162,6 +4365,15 @@ def evaluate(
                 "rollout_rel_l2_displacement"
             ),
             "rollout_rel_l2_aux": _mean_over_cases("rollout_rel_l2_aux"),
+            # ADR-0075: split means of the element-state scalars.
+            **(
+                {
+                    "rollout_state_rmse": _mean_over_cases("rollout_state_rmse"),
+                    "rollout_rel_l2_state": _mean_over_cases("rollout_rel_l2_state"),
+                }
+                if two_site_run
+                else {}
+            ),
             # A TC/flow-map aux_input run computes no ADR-0060 oracle
             # rollout (its accumulation isolation is the per-interval
             # oracle-ANCHORED mode below), so the per-case dicts carry
@@ -4188,7 +4400,7 @@ def evaluate(
                     f"{prefix}_{metric}": _mean_over_cases(f"{prefix}_{metric}")
                     for m in fm_intervals
                     for prefix in (f"rollout_m{m}", f"rollout_oracle_m{m}")
-                    for metric in _FM_INTERVAL_METRICS
+                    for metric in fm_metrics
                 }
             ),
             "rollout_position_rmse_full": _mean_over_cases(

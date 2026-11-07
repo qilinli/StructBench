@@ -191,7 +191,7 @@ class FlowMapPairDataset(Dataset):
         """Return one ``(anchor, query)`` sample (see class docstring)."""
         tr, t0, t, traj_idx = self._index[i]
         pair = tr.positions[t0 - 1 : t0 + 1]  # (2, P, dim)
-        return {
+        sample: dict[str, torch.Tensor | int] = {
             "position_seq": torch.from_numpy(
                 np.ascontiguousarray(np.transpose(pair, (1, 0, 2)))
             ),
@@ -209,6 +209,13 @@ class FlowMapPairDataset(Dataset):
             # anchor-time feature from it. Additive to the sample contract.
             "anchor_frame": t0,
         }
+        if tr.state is not None:
+            # ADR-0075: the element-site state at the anchor (carried) and
+            # at the query (the target), additive like the nodal pair.
+            sample["input_state"] = torch.from_numpy(np.ascontiguousarray(tr.state[t0]))
+            sample["next_state"] = torch.from_numpy(np.ascontiguousarray(tr.state[t]))
+            sample["n_elements"] = int(tr.state.shape[1])
+        return sample
 
 
 class FlowMapChainDataset(Dataset):
@@ -378,8 +385,12 @@ def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:
         anchor frame ``t0`` (ADR-0062).
         ``n_particles_per_example``: LongTensor ``(B,)`` — particle count per
         example.
+        ``input_state`` / ``next_state``: Tensor ``(sum_E, S)`` and
+        ``n_elements_per_example``: LongTensor ``(B,)`` — the element-site
+        state at the anchor and at the query (ADR-0075), present only when
+        the samples carry them.
     """
-    return {
+    out = {
         "position_seq": torch.cat([b["position_seq"] for b in batch], dim=0),
         "particle_type": torch.cat([b["particle_type"] for b in batch], dim=0),
         "next_position": torch.cat([b["next_position"] for b in batch], dim=0),
@@ -394,3 +405,10 @@ def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:
             [b["n_particles"] for b in batch], dtype=torch.long
         ),
     }
+    if "input_state" in batch[0]:
+        out["input_state"] = torch.cat([b["input_state"] for b in batch], dim=0)
+        out["next_state"] = torch.cat([b["next_state"] for b in batch], dim=0)
+        out["n_elements_per_example"] = torch.tensor(
+            [b["n_elements"] for b in batch], dtype=torch.long
+        )
+    return out

@@ -390,6 +390,28 @@ class TransolverConfig:
         sigma_y0 + relu(peeq_anchor - peeq)/peeq_scale. Requires
         ``flow_map = true``; ``0.0`` (default) is byte-identical; >= 0;
         mutually exclusive with ``flow_map_structured_heads``.
+    two_site_decoder : str
+        ADR-0075 clause 3: how the anchored flow map carries the element-site
+        state of a benchmark that declares ``state_site = "element"``.
+        ``"off"`` (default, byte-identical) predicts the nodal view only, as
+        every pre-0075 run does. ``"return_map"`` is the admissible arm: the
+        network predicts nodal kinematics and the simulator derives the
+        element state by the material class's radial return from the carried
+        anchor state, the strain increment of each element and the case's
+        own law (``spec.constitutive_law``), so yield admissibility,
+        plastic-strain monotonicity and a traceless deviator hold by
+        construction. ``"corner_mean"`` is the unconstrained two-site arm:
+        the element state is the mean of the corner nodes' predicted state
+        channels. Both score the element state against the stored one and
+        report the projected nodal view beside it. Requires ``flow_map =
+        true``, a benchmark with an element site, and ``train.aux_fields``
+        equal to the benchmark's ``state_channels`` (the nodal view is the
+        projection of exactly the state block); ``return_map`` also requires
+        the benchmark's ``constitutive_law`` and the canonical layout
+        ``("stress_axisymmetric", "effective_plastic_strain")``.
+        Incompatible with ``flow_map_pushforward``,
+        ``flow_map_structured_heads`` and ``flow_map_consistency_hinge``
+        (3a scope; follow-ups).
     flow_map_pushforward_generations : int
         ADR-0063 amendment (2026-09-10): GraphCast-style GENERATION
         curriculum on the pushforward chain. ``G > 1`` deepens the chain to
@@ -437,6 +459,7 @@ class TransolverConfig:
     flow_map_pushforward_generations: int = 1
     flow_map_structured_heads: bool = False
     flow_map_consistency_hinge: float = 0.0
+    two_site_decoder: str = "off"
 
 
 @dataclass
@@ -1214,6 +1237,8 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
                     f"[model] {knob} must be >= 0 (absolute working-unit "
                     f"noise scale, ADR-0063); got {getattr(model, knob)}"
                 )
+        # ADR-0075 clause 3: the two-site decoder and what it needs.
+        _validate_two_site(model, train_cfg, spec, bench)
     else:
         # Non-default flow-map knobs without flow_map=true would be silently
         # inert — reject loudly (ADR-0061 inert-knob precedent).
@@ -1257,12 +1282,72 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
             raise ConfigError(
                 "[model] flow_map_consistency_hinge requires flow_map=true (ADR-0064)"
             )
+        if getattr(model, "two_site_decoder", "off") != "off":
+            raise ConfigError(
+                "[model] two_site_decoder requires flow_map=true (ADR-0075: the "
+                "element state is carried across the anchor interface)"
+            )
 
     return ResolvedRunConfig(
         family=family,
         model=model,
         train=train_cfg,
     )
+
+
+def _validate_two_site(
+    model: Any, train_cfg: TrainConfig, spec: Any, bench: str
+) -> None:
+    """ADR-0075 clause 3 load-time rules for ``two_site_decoder`` (flow map on)."""
+    from .benchmarks.constitutive import RETURN_MAP_STATE_CHANNELS, TWO_SITE_DECODERS
+
+    decoder = getattr(model, "two_site_decoder", "off")
+    if decoder not in TWO_SITE_DECODERS:
+        raise ConfigError(
+            f"[model] two_site_decoder must be one of {TWO_SITE_DECODERS} "
+            f"(ADR-0075); got {decoder!r}"
+        )
+    if decoder == "off":
+        return
+    for knob in ("flow_map_pushforward", "flow_map_structured_heads"):
+        if getattr(model, knob, False):
+            raise ConfigError(
+                f"[model] two_site_decoder={decoder!r} is incompatible with "
+                f"{knob}=true (ADR-0075 plan 3a scope)"
+            )
+    if getattr(model, "flow_map_consistency_hinge", 0.0) != 0.0:
+        raise ConfigError(
+            f"[model] two_site_decoder={decoder!r} is incompatible with "
+            "flow_map_consistency_hinge (ADR-0075 plan 3a scope)"
+        )
+    if spec is None:
+        return
+    if spec.state_site != "element":
+        raise ConfigError(
+            f"[model] two_site_decoder={decoder!r} needs a benchmark that "
+            f"declares state_site='element'; benchmark {bench!r} declares "
+            f"{spec.state_site!r} (ADR-0075)"
+        )
+    layout = tuple(train_cfg.aux_fields or (spec.aux_field,))
+    if layout != tuple(spec.state_channels):
+        raise ConfigError(
+            f"[model] two_site_decoder={decoder!r} requires train.aux_fields = "
+            f"the benchmark's state_channels {tuple(spec.state_channels)} (the "
+            f"nodal view is the projection of the state block; ADR-0075); got "
+            f"{layout}"
+        )
+    if decoder == "return_map":
+        if tuple(spec.state_channels) != RETURN_MAP_STATE_CHANNELS:
+            raise ConfigError(
+                "[model] two_site_decoder='return_map' requires the state layout "
+                f"{RETURN_MAP_STATE_CHANNELS}; benchmark {bench!r} declares "
+                f"{tuple(spec.state_channels)} (ADR-0075)"
+            )
+        if spec.constitutive_law is None:
+            raise ConfigError(
+                "[model] two_site_decoder='return_map' requires the benchmark's "
+                f"constitutive_law; benchmark {bench!r} has none (ADR-0075)"
+            )
 
 
 def _git_commit() -> str:

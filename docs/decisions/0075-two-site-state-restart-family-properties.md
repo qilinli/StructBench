@@ -1,6 +1,6 @@
 # 0075 — The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3)
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, 2026-11-07)
 **Type**: Durable
 **Date**: 2026-11-07
 **Amends**: 0065 (clause 4; follow-ups 1 and 3), 0059, 0060, 0062, 0064, 0043 (clause 5), 0032, 0033, 0055; constrains 0019, 0025, 0026 (a task family is added; their tasks stand). The case schema (0012, 0013, 0042) is untouched.

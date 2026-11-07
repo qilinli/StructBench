@@ -474,6 +474,14 @@ class CaseTrajectory:
     time: NDArray[np.float64]  # (T,), s
     cells: NDArray[np.int64] | None = None  # (n_cells, nodes_per_cell); mesh only
     reference_coords: NDArray[np.float32] | None = None  # (P, dim), mm; mesh only
+    #: ADR-0075: the element-site state block ``(T, E, S)`` read verbatim from
+    #: the element block (no projection), in the aux working units, for a
+    #: benchmark that declares an element site; ``None`` otherwise. ``aux``
+    #: is then the nodal projection of these channels.
+    state: NDArray[np.float32] | None = None
+    #: The field names behind ``state``'s channels, in declaration order
+    #: (``aux_channel_labels`` flattens them to per-channel labels).
+    state_channels: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         # ADR-0059 compat lift: a legacy (T, P) aux is one channel. Keeps the
@@ -488,13 +496,16 @@ def load_case_trajectory(
     aux_field: str | Sequence[str] = "von_mises_stress",
     length_scale: float = 1e3,
     stress_scale: float = 1e-6,
+    state_fields: Sequence[str] | None = None,
 ) -> CaseTrajectory:
     """Load a canonical case into a :class:`CaseTrajectory`.
 
     Dispatches on the case's element types: SPH cases (``"sph" in
     case.elements``) return SPH particles only, dropping visualization shell
     nodes; mesh (nodal-FE) cases return every node as a particle, with
-    ``cells``/``reference_coords`` populated (ADR-0043).
+    ``cells``/``reference_coords`` populated (ADR-0043). With
+    ``state_fields`` (mesh cases only; ADR-0075) the named registered
+    fields are also read per element, unprojected, into ``state``.
 
     Parameters
     ----------
@@ -535,6 +546,11 @@ def load_case_trajectory(
 
     aux_names = as_aux_fields(aux_field)
     if "sph" in case.elements:
+        if state_fields:
+            raise ValueError(
+                f"case {case.metadata.case_id} is an SPH case; state_fields "
+                "(the element-site state block, ADR-0075) apply to mesh cases only"
+            )
         infos = []
         for name in aux_names:
             try:
@@ -578,6 +594,7 @@ def load_case_trajectory(
         aux_fields=aux_names,
         length_scale=length_scale,
         stress_scale=stress_scale,
+        state_fields=tuple(state_fields or ()),
     )
 
 
@@ -587,6 +604,7 @@ def _load_mesh_trajectory(
     aux_fields: tuple[str, ...],
     length_scale: float,
     stress_scale: float,
+    state_fields: tuple[str, ...] = (),
 ) -> CaseTrajectory:
     """Load a nodal-FE (mesh) case: nodes are the particles (ADR-0043).
 
@@ -605,6 +623,9 @@ def _load_mesh_trajectory(
     node type, 0; a case without ``nodes.reference_coords`` has its initial
     coordinates as the reference configuration (a Lagrangian mesh's rest
     state), so the mesh-native families can build their mesh from it.
+    ``state_fields`` (ADR-0075) are registered field names read per element
+    without projection into ``state`` ``(T, E, S)``; the element site is the
+    state's home, and the projected ``aux`` its nodal view.
     """
     nodes = case.nodes
     if len(case.elements) != 1:
@@ -645,6 +666,25 @@ def _load_mesh_trajectory(
         if weights is None:
             weights = _cell_weights(nodes.coords, cells)
         channels.append(_elements_to_nodes(values, cells, weights, n_nodes))
+    state: NDArray[np.float32] | None = None
+    if state_fields:
+        state_blocks: list[NDArray[np.floating]] = []
+        for name in state_fields:
+            info = _AUX_FIELDS.get(name)
+            if info is None:
+                raise ValueError(
+                    f"state field {name!r} is not a registered field computed "
+                    f"from the element block (available: {sorted(_AUX_FIELDS)})"
+                )
+            try:
+                values = np.asarray(info.extractor(element_fields, stress_scale))[:n]
+            except KeyError as exc:
+                raise ValueError(
+                    f"state field {name!r} needs element field {exc} in block "
+                    f"{block_name!r} (available: {sorted(element_fields)})"
+                ) from None
+            state_blocks.append(values[..., None] if values.ndim == 2 else values)
+        state = np.concatenate(state_blocks, axis=-1).astype(np.float32)
     disp = response.node["displacement"][:n].astype(np.float64)
     positions = ((nodes.coords[None, :, :] + disp) * length_scale).astype(np.float32)
     aux = np.concatenate(
@@ -667,6 +707,8 @@ def _load_mesh_trajectory(
         time=np.asarray(response.time[:n], dtype=np.float64),
         cells=cells,
         reference_coords=reference,
+        state=state,
+        state_channels=tuple(state_fields),
     )
 
 
