@@ -26,7 +26,11 @@ planning fleets.
   benchmark and family (`BENCH` and `ARM` name `configs/<BENCH>/<ARM>.toml`;
   the config file is the arm, ADR-0032; `CONFIG=<path>` instead names a config
   outside the checkout, for a benchmark loaded by path, ADR-0032 note
-  2026-11-06), and `setup_env.sh`, which builds the environment once per
+  2026-11-06, and then requires an absolute `OUT` outside the checkout, with
+  `sbatch --output=` sending the slurm log beside the run: nothing of a
+  by-path benchmark is written into the checkout). Every finished run ends
+  with a `MANIFEST.sha256` of its files, which `sha256sum -c` verifies after
+  the run has moved machines. `setup_env.sh` builds the environment once per
   checkout.
 - **Launch records of past runs**, kept because they are how a registered
   run was launched: `train_taylor.slurm` and `train_wave.slurm` (the blessed
@@ -38,7 +42,8 @@ planning fleets.
   ablations) and `probe_state_sufficiency.slurm` (`tools/state_probe/`).
 
 Every script writes job output to `scratch/logs/`, which must exist before
-`sbatch`.
+`sbatch`, unless `sbatch --output=` names another place (the by-path case
+above).
 
 ## 1. Get the code and data onto DUG
 
