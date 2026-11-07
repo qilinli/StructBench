@@ -32,6 +32,7 @@ from ..datasets import available_aux_fields
 from ..datasets.canonical import CaseTrajectory
 from ..eval import QoiFn
 from .card import BenchmarkCard
+from .constitutive import ELEMENT_FORMULATIONS, ConstitutiveLaw
 from .results import BaselineResult
 
 #: The file a benchmark definition directory must hold.
@@ -173,6 +174,28 @@ class BenchmarkSpec:
     directory; ``None`` for a registered benchmark. A spec with a source is
     unadmitted, and its runs record the source beside the benchmark path."""
 
+    state_site: str = "node"
+    """ADR-0075: where the case's constitutive state lives. ``"node"`` (every
+    benchmark before ADR-0075) scores the nodal ``aux`` block only;
+    ``"element"`` declares the integration-point site as the state's home:
+    ``state_channels`` are read per element into ``CaseTrajectory.state``,
+    scored, property-checked and restarted from there, and the nodal ``aux``
+    is their projection (the cheap baseline view)."""
+    state_channels: tuple[str, ...] = ()
+    """The registered element-block fields of the element-site state, in
+    declaration order (ADR-0075); required and validated against
+    :func:`available_aux_fields` when ``state_site == "element"``, empty
+    otherwise. A two-site run's ``train.aux_fields`` must equal them."""
+    element_formulation: str | None = None
+    """The element kinematics of the state site, one of
+    :data:`~structbench.benchmarks.constitutive.ELEMENT_FORMULATIONS`;
+    required with ``state_site == "element"``, ``None`` otherwise."""
+    constitutive_law: Callable[[str], ConstitutiveLaw] | None = None
+    """Maps a case id to its own :class:`ConstitutiveLaw` (ADR-0075 clause 3):
+    the law the admissible decoder applies, an input of the case rather than
+    a table baked into a checkpoint. ``None`` when the benchmark declares no
+    element site or its cases carry no return-map law."""
+
     @property
     def scored_frames_fixed(self) -> int | None:
         """The one scored bound shared by every case, or ``None`` when the
@@ -287,6 +310,36 @@ class BenchmarkSpec:
                 f"input_frames ({self.card.input_frames}) < scored_frames "
                 f"<= n_frames ({self.card.n_frames})"
             )
+        # ADR-0075: the state site and what it needs, all or nothing.
+        if self.state_site not in ("node", "element"):
+            raise ValueError(
+                f"state_site must be 'node' or 'element', got {self.state_site!r}"
+            )
+        if self.state_site == "element":
+            if not self.state_channels:
+                raise ValueError("state_site='element' needs non-empty state_channels")
+            bad = [n for n in self.state_channels if n not in available_aux_fields()]
+            if bad:
+                raise ValueError(
+                    f"state_channels {bad} are not registered element-block fields "
+                    f"({sorted(available_aux_fields())})"
+                )
+            if len(set(self.state_channels)) != len(self.state_channels):
+                raise ValueError("state_channels must be unique")
+            if self.element_formulation not in ELEMENT_FORMULATIONS:
+                raise ValueError(
+                    "state_site='element' needs element_formulation in "
+                    f"{ELEMENT_FORMULATIONS}, got {self.element_formulation!r}"
+                )
+        else:
+            if self.state_channels or self.element_formulation is not None:
+                raise ValueError(
+                    "state_channels and element_formulation require "
+                    "state_site='element'"
+                )
+            if self.constitutive_law is not None:
+                raise ValueError("constitutive_law requires state_site='element'")
+        object.__setattr__(self, "state_channels", tuple(self.state_channels))
         # Wrap in read-only proxies to prevent accidental mutation
         object.__setattr__(self, "splits", MappingProxyType(dict(self.splits)))
         object.__setattr__(self, "qois", MappingProxyType(dict(self.qois)))

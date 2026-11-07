@@ -28,6 +28,16 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from ..common import CaseBoundSimulator
+from ..common.two_site import (
+    FORMULATIONS,
+    RETURN_MAP_WIDTH,
+    TWO_SITE_DECODERS,
+    LawRows,
+    cell_weights,
+    corner_mean,
+    project_elements_to_nodes,
+    return_map_decode,
+)
 from ..mgn.normalizers import OnlineNormalizer
 from .network import TransolverNet
 
@@ -149,6 +159,9 @@ class TransolverSimulator(CaseBoundSimulator):
         flow_map_anchor_time: bool = True,
         flow_map_structured_heads: bool = False,
         hardening_curve: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
+        two_site_decoder: str = "off",
+        n_state: int = 0,
+        element_formulation: str | None = None,
         device: str | torch.device = "cpu",
     ) -> None:
         super().__init__(
@@ -283,6 +296,55 @@ class TransolverSimulator(CaseBoundSimulator):
             # a since-corrected table must fail LOUD, not silently diverge
             # from the registry table the analysis instruments use).
             self._hardening_ctor = (he.clone(), hs.clone())
+        # ADR-0075 clause 3: the two-site decoder. The network stays nodal;
+        # the simulator carries the element-site state across the anchor
+        # interface and derives it per query (return map, or the corner-mean
+        # head), and the nodal aux the network reads and emits is that
+        # state's projection. Guarded at config load too.
+        if two_site_decoder not in TWO_SITE_DECODERS:
+            raise ValueError(
+                f"two_site_decoder must be one of {TWO_SITE_DECODERS}, got "
+                f"{two_site_decoder!r} (ADR-0075)"
+            )
+        self._two_site = two_site_decoder
+        self._n_state = n_state
+        self._formulation = element_formulation
+        if two_site_decoder != "off":
+            if not flow_map:
+                raise ValueError("two_site_decoder requires flow_map=True (ADR-0075)")
+            if flow_map_structured_heads:
+                raise ValueError(
+                    "two_site_decoder is incompatible with "
+                    "flow_map_structured_heads (ADR-0075 plan 3a scope)"
+                )
+            if n_state != n_aux:
+                raise ValueError(
+                    "two_site_decoder needs n_state == n_aux: the nodal aux block "
+                    f"is the projected state block (ADR-0075); got n_state="
+                    f"{n_state}, n_aux={n_aux}"
+                )
+            if two_site_decoder == "return_map" and n_state != RETURN_MAP_WIDTH:
+                raise ValueError(
+                    "two_site_decoder='return_map' needs the canonical "
+                    f"{RETURN_MAP_WIDTH}-channel state block (four stress "
+                    f"components + peeq; ADR-0075); got n_state={n_state}"
+                )
+            if element_formulation not in FORMULATIONS:
+                raise ValueError(
+                    "two_site_decoder needs element_formulation in "
+                    f"{FORMULATIONS}; got {element_formulation!r} (ADR-0075)"
+                )
+            # Registered ONLY when the knob is on: the off-path state_dict
+            # and every existing checkpoint are untouched.
+            self._state_normalizer = OnlineNormalizer(n_state)
+        # Two-site per-case binding and the anchor's element state (plain
+        # attributes: never in a checkpoint).
+        self._gt_state: Tensor | None = None
+        self._law: LawRows | None = None
+        self._cells: Tensor | None = None
+        self._cell_weights: Tensor | None = None
+        self._anchor_state: Tensor | None = None
+        self._last_state: Tensor | None = None
         # ADR-0062 anchor cache (eval path): set via set_anchor(), cleared on
         # bind_case()/reset_rollout(). The training path passes anchor parts
         # per batch instead and never touches the cache.
@@ -344,6 +406,50 @@ class TransolverSimulator(CaseBoundSimulator):
         :mod:`structbench.cli.train`, before the simulator is built.
         """
         return self._flow_map
+
+    @property
+    def two_site(self) -> str:
+        """The ADR-0075 two-site decoder: ``"off"``, ``"return_map"`` or
+        ``"corner_mean"``. ``structbench.eval`` reads it to carry the element
+        state through a re-anchoring rollout."""
+        return self._two_site
+
+    def bind_case(
+        self,
+        cells: Tensor,
+        reference_coords: Tensor,
+        particle_types: Tensor,
+        kinematic_positions: Tensor,
+        loading_scalar: float | None = None,
+        gt_aux: Tensor | None = None,
+        gt_state: Tensor | None = None,
+        law: LawRows | None = None,
+    ) -> None:
+        """Bind a case (see the base class); a two-site simulator also takes
+        the case's element-site state ``gt_state`` ``(T, E, S)`` (the first
+        and the oracle anchors read it) and, for the return-map decoder, its
+        law rows ``law`` (ADR-0075)."""
+        if self._two_site != "off":
+            if gt_state is None:
+                raise ValueError(
+                    "a two-site simulator needs gt_state (T, E, S) at bind_case "
+                    "(ADR-0075)"
+                )
+            if self._two_site == "return_map" and law is None:
+                raise ValueError(
+                    "the return-map decoder needs the case's law rows at "
+                    "bind_case (ADR-0075)"
+                )
+        self._gt_state = gt_state
+        self._law = None if law is None else law.to(reference_coords.device)
+        super().bind_case(
+            cells,
+            reference_coords,
+            particle_types,
+            kinematic_positions,
+            loading_scalar=loading_scalar,
+            gt_aux=gt_aux,
+        )
 
     def _features(
         self,
@@ -512,11 +618,18 @@ class TransolverSimulator(CaseBoundSimulator):
         self._clear_anchor()
 
     def _on_bind_case(self, cells: Tensor) -> None:
-        """Clear the ADR-0060 state cache and ADR-0062 anchor for the new case."""
-        del cells  # no static connectivity to derive (operator family)
+        """Clear the ADR-0060 state cache and ADR-0062 anchor for the new case;
+        a two-site simulator keeps the cells and their projection weights."""
         self._aux_state = None
         self._aux_t = None
         self._clear_anchor()
+        self._cells = None
+        self._cell_weights = None
+        if self._two_site != "off":
+            reference_coords = self._reference_coords
+            assert reference_coords is not None  # set by bind_case before the hook
+            self._cells = cells.to(reference_coords.device)
+            self._cell_weights = cell_weights(reference_coords, self._cells)
 
     def _clear_anchor(self) -> None:
         """Drop the ADR-0062 anchor cache (stale-anchor tripwire support)."""
@@ -524,6 +637,8 @@ class TransolverSimulator(CaseBoundSimulator):
         self._anchor_vel = None
         self._anchor_aux = None
         self._anchor_t_norm = None
+        self._anchor_state = None
+        self._last_state = None
 
     def set_anchor(
         self,
@@ -532,6 +647,7 @@ class TransolverSimulator(CaseBoundSimulator):
         positions: Tensor,
         aux: Tensor,
         anchor_t_norm: float | None = None,
+        state: Tensor | None = None,
     ) -> None:
         """Bind the ADR-0062 flow-map anchor for subsequent queries.
 
@@ -560,6 +676,12 @@ class TransolverSimulator(CaseBoundSimulator):
         anchor_t_norm:
             The anchor's normalized time ``t0 / (time_ref - 1)``; required
             exactly when built with ``flow_map_anchor_time=True``.
+        state:
+            ``(E, S)`` element-site state at ``t0`` (ADR-0075); required
+            exactly when built with a two-site decoder. Under ``return_map``
+            it is the state the decoder advances; ``aux`` should be its
+            projection (the rollout passes the one the previous query
+            emitted).
 
         Raises
         ------
@@ -600,6 +722,144 @@ class TransolverSimulator(CaseBoundSimulator):
         self._anchor_t_norm = (
             float(anchor_t_norm) if anchor_t_norm is not None else None
         )
+        if self._two_site != "off":
+            if state is None:
+                raise ValueError(
+                    "set_anchor() needs the element state under a two-site "
+                    "decoder (ADR-0075)"
+                )
+            self._anchor_state = state.detach()
+
+    def _two_site_state(
+        self,
+        anchor_state: Tensor,
+        x_anchor: Tensor,
+        x_query: Tensor,
+        aux_net: Tensor,
+        cells: Tensor,
+        weights: Tensor,
+        law: LawRows | None,
+        du: Tensor | None = None,
+    ) -> tuple[Tensor, Tensor]:
+        """The two-site decode: element state ``(E, S)`` and its nodal view.
+
+        ``return_map`` advances the carried ``anchor_state`` by the material
+        class's radial return from the kinematic increment between the two
+        configurations (the case's law rows); ``corner_mean`` takes the
+        network's raw-unit nodal aux ``aux_net`` to the elements as the
+        corner mean. Either way the nodal view is the area-weighted
+        projection the loader applies, so the network's next anchor input is
+        the projection of the state it carries.
+        """
+        if self._two_site == "return_map":
+            assert law is not None and self._formulation is not None
+            state = return_map_decode(
+                anchor_state, x_anchor, x_query, cells, law, self._formulation, du=du
+            )
+        else:
+            state = corner_mean(aux_net, cells)
+        return state, project_elements_to_nodes(state, cells, weights, x_query.shape[0])
+
+    def forward_train_two_site(
+        self,
+        gt_position: Tensor,
+        gt_aux: Tensor,
+        gt_state: Tensor,
+        particle_types: Tensor,
+        reference_coords: Tensor,
+        n_particles_per_example: Tensor,
+        t_norm: Tensor,
+        *,
+        accumulate: bool,
+        cells: Tensor,
+        weights: Tensor,
+        law: LawRows | None,
+        anchor_disp: Tensor,
+        anchor_vel: Tensor,
+        anchor_aux: Tensor,
+        anchor_state: Tensor,
+        loading_feature: Tensor | None = None,
+        anchor_time_feature: Tensor | None = None,
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        """One flow-map training pass with the element state carried (ADR-0075).
+
+        The nodal half mirrors :meth:`forward_train_tc`; the aux slice of the
+        returned nodal prediction is the projection of the decoded element
+        state (so the nodal loss trains the kinematics through the decoder
+        too), and the element state is returned beside it in the state
+        normalizer's space.
+
+        Returns
+        -------
+        tuple[Tensor, Tensor, Tensor, Tensor]
+            ``(pred_norm (P, dim + S), target_norm (P, dim + S), state_pred_norm
+            (E, S), state_target_norm (E, S))``.
+        """
+        if self._two_site == "off":
+            raise RuntimeError(
+                "forward_train_two_site() requires a two-site decoder (ADR-0075)"
+            )
+        one_hot = F.one_hot(particle_types, num_classes=self._node_type_size).to(
+            torch.float32
+        )
+        kinematic = torch.as_tensor(
+            self._kinematic_types,
+            dtype=particle_types.dtype,
+            device=particle_types.device,
+        )
+        kin_mask = torch.isin(particle_types, kinematic)
+        kinematic_bc = self._kinematic_bc(gt_position, reference_coords, kin_mask)
+        node_feats_raw = self._features_tc(
+            one_hot,
+            reference_coords,
+            kinematic_bc,
+            loading_feature,
+            anchor_disp=anchor_disp,
+            anchor_vel=anchor_vel,
+            anchor_aux=anchor_aux,
+            anchor_time_feature=anchor_time_feature,
+        )
+        node_feats = self._node_normalizer(node_feats_raw, accumulate=accumulate)
+        target_raw = torch.cat([gt_position - reference_coords, gt_aux], dim=1)
+        target_norm = self._target_normalizer(target_raw, accumulate=accumulate)
+        state_target_norm = self._state_normalizer(gt_state, accumulate=accumulate)
+
+        net_out = self._net(node_feats, n_particles_per_example, t=t_norm)
+        raw = self._target_normalizer.inverse(net_out)
+        disp_pred = raw[..., : self._dim]
+        aux_net = raw[..., self._dim :]
+        # Kinematic rows are prescribed: the query configuration the decoder
+        # sees carries their ground truth, as the rollout override does.
+        disp_query = torch.where(
+            kin_mask[:, None], gt_position - reference_coords, disp_pred
+        )
+        state_pred, aux_proj = self._two_site_state(
+            anchor_state,
+            reference_coords + anchor_disp,
+            reference_coords + disp_query,
+            aux_net,
+            cells,
+            weights,
+            law,
+            du=disp_query - anchor_disp,
+        )
+        pred_norm = self._target_normalizer(
+            torch.cat([disp_pred, aux_proj], dim=-1), accumulate=False
+        )
+        state_pred_norm = self._state_normalizer(state_pred, accumulate=False)
+        return pred_norm, target_norm, state_pred_norm, state_target_norm
+
+    def predict_two_site_at(
+        self, frame: int, t_norm: float
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        """:meth:`predict_state_at` plus the decoded element state ``(E, S)``."""
+        positions, aux = self.predict_state_at(frame, t_norm)
+        state = self._last_state
+        if state is None:
+            raise RuntimeError(
+                "predict_two_site_at() requires a two-site decoder (ADR-0075)"
+            )
+        return positions, aux, state
 
     def _loading_feature(self, ref: Tensor) -> Tensor | None:
         """Broadcast the bound case's scalar loading parameter to ``(P, 1)``.
@@ -1248,4 +1508,23 @@ class TransolverSimulator(CaseBoundSimulator):
         stress = out[:, self._dim :]
         positions = (reference_coords + displacement).clone()
         positions[kin_mask] = gt_frame[kin_mask]
+        if self._two_site != "off":
+            # ADR-0075: the emitted aux is the projection of the decoded
+            # element state; the state itself is kept for the rollout.
+            anchor_state, anchor_disp = self._anchor_state, self._anchor_disp
+            cells, weights = self._cells, self._cell_weights
+            assert anchor_state is not None and anchor_disp is not None
+            assert cells is not None and weights is not None
+            disp_query = positions - reference_coords
+            state, stress = self._two_site_state(
+                anchor_state,
+                reference_coords + anchor_disp,
+                positions,
+                stress,
+                cells,
+                weights,
+                self._law,
+                du=disp_query - anchor_disp,
+            )
+            self._last_state = state
         return positions, stress

@@ -26,7 +26,8 @@ table maps those names to files.
 | `2026-09-27-validation-plan-1.md` | plan | validation plan 1 | executed, merged 2026-09-27 (`3208612`) |
 | `2026-09-28-datagen-platform-plan-3a.md` | plan | plan 3a | executed, merged 2026-09-28 (`ca70020`) |
 | `2026-11-06-benchmark-by-path-design.md` | design | benchmark by path | executed on `feat/benchmark-by-path` (2026-11-06); recorded as notes on ADR-0032 and ADR-0039 |
-| `2026-11-07-two-site-state-design.md` | design | two-site state | the design behind ADR-0075 (Proposed); build parts 3a, 3b, 3c not started |
+| `2026-11-07-two-site-state-design.md` | design | two-site state | the design behind ADR-0075 (Proposed); 3a built on `feat/two-site-state-3a` (2026-11-07), 3b and 3c not started |
+| `2026-11-07-two-site-state-plan-3a.md` | plan | plan 3a | executed on `feat/two-site-state-3a` (2026-11-07): flow-map scheme only; the AR scheme and the pushforward chains are follow-ups |
 
 No plan is in flight. What ADR-0071's part three still owes has no plan yet
 (README Roadmap).

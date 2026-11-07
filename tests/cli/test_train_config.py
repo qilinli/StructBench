@@ -273,6 +273,7 @@ flow_map_anchor_noise_vel = 0.0  # ADR-0063 differential anchor noise (0 = off)
 flow_map_pushforward_generations = 1  # ADR-0063 amendment (1 = plain chain)
 flow_map_structured_heads = false  # ADR-0064 return-map decoder (off = reference)
 flow_map_consistency_hinge = 0.0  # ADR-0064 soft comparator (0 = off)
+two_site_decoder = "off"  # ADR-0075 element-state decoder (off = nodal view only)
 
 [train]
 batch_size = 8

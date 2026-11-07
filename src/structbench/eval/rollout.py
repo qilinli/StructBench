@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol, cast
 
 import numpy as np
 import torch
@@ -80,6 +80,16 @@ class RolloutResult:
     qoi_pred: dict[str, float] = field(default_factory=dict)
     qoi_true: dict[str, float] = field(default_factory=dict)
     qoi_error: dict[str, float] = field(default_factory=dict)
+    # ADR-0075: the element-site state a two-site simulator carried, scored
+    # against the stored element block with the same forms as the nodal aux
+    # (no kinematic mask: elements are never prescribed). ``None`` for every
+    # nodal run. Seeded frames carry the ground-truth state.
+    predicted_state: NDArray[np.float32] | None = None  # (T, E, S)
+    state_rmse: NDArray[np.float64] | None = None  # (nsteps,)
+    mean_state_rmse: float = float("nan")
+    mean_rel_l2_state: float = float("nan")
+    mean_state_rmse_channels: tuple[float, ...] | None = None
+    mean_rel_l2_state_channels: tuple[float, ...] | None = None
 
 
 def rollout(
@@ -230,6 +240,7 @@ def _finalize_rollout(
     scored_frames: int | None,
     qois: Mapping[str, QoiFn] | None,
     qoi_aux_channel: int | None = 0,
+    state_pred: list[torch.Tensor] | None = None,
 ) -> RolloutResult:
     """Assemble per-frame arrays into a :class:`RolloutResult` (shared tail).
 
@@ -335,6 +346,46 @@ def _finalize_rollout(
             )
             for c in range(n_channels)
         )
+    state_kwargs: dict[str, Any] = {}
+    if state_pred is not None:
+        # ADR-0075: the element-site state, same forms and scored span as
+        # the nodal aux, every element scored.
+        if trajectory.state is None:
+            raise ValueError(
+                f"trajectory {trajectory.case_id!r} carries no element-site "
+                "state block to score the predicted state against (ADR-0075)"
+            )
+        pred_state = torch.stack(state_pred, dim=0).cpu().numpy().astype(np.float32)
+        true_state = trajectory.state
+        st_rmse = field_rmse(pred_state[input_frames:], true_state[input_frames:])
+        n_state_ch = pred_state.shape[-1]
+        state_kwargs = {
+            "predicted_state": pred_state,
+            "state_rmse": st_rmse,
+            "mean_state_rmse": float(st_rmse[:n_scored].mean()),
+            "mean_rel_l2_state": relative_l2_pooled(
+                pred_state[input_frames:][:n_scored],
+                true_state[input_frames:][:n_scored],
+            ),
+            "mean_state_rmse_channels": tuple(
+                float(
+                    field_rmse(
+                        pred_state[input_frames:, :, c : c + 1],
+                        true_state[input_frames:, :, c : c + 1],
+                    )[:n_scored].mean()
+                )
+                for c in range(n_state_ch)
+            ),
+            "mean_rel_l2_state_channels": tuple(
+                float(
+                    relative_l2_pooled(
+                        pred_state[input_frames:, :, c][:n_scored],
+                        true_state[input_frames:, :, c][:n_scored],
+                    )
+                )
+                for c in range(n_state_ch)
+            ),
+        }
     return RolloutResult(
         predicted_positions=pred_pos,
         predicted_aux=pred_aux,
@@ -349,6 +400,7 @@ def _finalize_rollout(
         qoi_pred=qoi_pred,
         qoi_true=qoi_true,
         qoi_error={name: qoi_pred[name] - qoi_true[name] for name in qoi_pred},
+        **state_kwargs,
     )
 
 
@@ -542,6 +594,24 @@ def flow_map_rollout(
     kin_mask_np = np.isin(trajectory.particle_type, np.asarray(kinematic_types))
     keep: np.ndarray | None = ~kin_mask_np if kin_mask_np.any() else None
 
+    # ADR-0075: a two-site simulator carries the element state across the
+    # anchor interface; the anchors (first, self, oracle) feed it the state
+    # the way they feed the nodal aux.
+    two_site = getattr(simulator, "two_site", "off") != "off"
+    state_true: torch.Tensor | None = None
+    state_pred: list[torch.Tensor] = []
+    if two_site:
+        if trajectory.state is None:
+            raise ValueError(
+                f"trajectory {trajectory.case_id!r} carries no element-site state "
+                "block, which a two-site simulator needs (ADR-0075)"
+            )
+        state_true = torch.from_numpy(trajectory.state).to(device)
+        state_pred = [state_true[i] for i in range(input_frames)]
+
+    def _anchor_kwargs(st: torch.Tensor | None) -> dict[str, torch.Tensor]:
+        return {"state": st} if two_site and st is not None else {}
+
     predicted = [pos[i] for i in range(input_frames)]
     aux_pred = [aux_true[i] for i in range(input_frames)]
     t0 = input_frames - 1
@@ -552,26 +622,39 @@ def flow_map_rollout(
             pos[t0],
             aux_true[t0],
             anchor_t_norm=t0 / (time_ref_frames - 1),
+            **_anchor_kwargs(None if state_true is None else state_true[t0]),
         )
         for f in range(input_frames, n_frames):
             dt_norm = (f - t0) / (time_ref_frames - 1)
-            next_pos, aux = simulator.predict_state_at(f, dt_norm)
+            if two_site:
+                next_pos, aux, state = cast(Any, simulator).predict_two_site_at(
+                    f, dt_norm
+                )
+                state_pred.append(state)  # (E, S)
+            else:
+                next_pos, aux = simulator.predict_state_at(f, dt_norm)
             predicted.append(next_pos)
             aux_pred.append(aux)  # (P, C)
             if f - t0 == interval and f < n_frames - 1:
+                state_a: torch.Tensor | None = None
                 if anchor_mode == "oracle":
                     prev_a, pos_a, aux_a = pos[f - 1], pos[f], aux_true[f]
+                    if state_true is not None:
+                        state_a = state_true[f]
                 else:
                     # predicted[] is frame-indexed (seed frames included), so
                     # [f]/[f - 1] are this segment's own queries (or, at
                     # interval=1, the previous anchor frame).
                     prev_a, pos_a, aux_a = predicted[f - 1], predicted[f], aux_pred[f]
+                    if two_site:
+                        state_a = state_pred[f]
                 simulator.set_anchor(
                     f,
                     prev_a,
                     pos_a,
                     aux_a,
                     anchor_t_norm=f / (time_ref_frames - 1),
+                    **_anchor_kwargs(state_a),
                 )
                 t0 = f
 
@@ -585,6 +668,7 @@ def flow_map_rollout(
         scored_frames,
         qois,
         qoi_aux_channel,
+        state_pred=state_pred if two_site else None,
     )
 
 
