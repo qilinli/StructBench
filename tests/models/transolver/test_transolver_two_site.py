@@ -161,8 +161,10 @@ def test_return_map_arm_emits_admissible_state_and_its_projection():
     assert bool((von_mises4(st[:, :4]) <= sy * (1 + 1e-5)).all())
     assert bool((st[:, 4] >= state[1][:, 4]).all())
     # The emitted nodal aux is the area-weighted projection of the state.
+    # The state is carried in double; the emitted nodal view is single.
+    assert st.dtype == torch.float64
     expected = project_elements_to_nodes(st, CELLS, torch.tensor([1.0, 2.0]), P)
-    assert torch.allclose(aux_out, expected, atol=1e-5)
+    assert torch.allclose(aux_out.double(), expected, atol=1e-5)
     # Kinematic rows are overridden with ground truth, as before.
     assert torch.allclose(pos[4:], positions[3][4:])
 
@@ -176,6 +178,8 @@ def test_corner_mean_arm_emits_the_corner_mean_of_the_network_aux():
     sim.eval()
     with torch.no_grad():
         _pos, aux_out, st = sim.predict_two_site_at(3, 0.4)
+    # The state is carried in double; the emitted nodal view is single.
+    assert st.dtype == torch.float64
     expected = project_elements_to_nodes(st, CELLS, torch.tensor([1.0, 2.0]), P)
-    assert torch.allclose(aux_out, expected, atol=1e-5)
+    assert torch.allclose(aux_out.double(), expected, atol=1e-5)
     assert st.shape == (E, S)

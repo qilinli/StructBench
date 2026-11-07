@@ -42,6 +42,11 @@ FORMULATIONS: tuple[str, ...] = ("axisymmetric", "plane_strain")
 #: The decoders a two-site simulator may carry (``TransolverConfig.two_site_decoder``).
 TWO_SITE_DECODERS: tuple[str, ...] = ("off", "return_map", "corner_mean")
 
+#: Largest displacement-gradient and hoop-strain component one increment may
+#: carry; beyond it the geometry a prediction implies is unphysical for a
+#: frame or a segment, and the clamp keeps the trial stress finite.
+INCREMENT_CAP = 1.0
+
 #: The state-channel layout the return-map decoder emits and consumes:
 #: the four stress components then the equivalent plastic strain.
 RETURN_MAP_CHANNELS: tuple[str, ...] = (
@@ -154,11 +159,22 @@ def quad_increment(
     xm = xa + 0.5 * du
     dn = _DN_DXI.to(dtype=xm.dtype, device=xm.device)  # (2, 4)
     jac = torch.einsum("ri,eid->erd", dn, xm)  # J[r, d] = d x_d / d xi_r
+    # Guard against degenerate predicted geometry (an element collapsed or
+    # inverted in the mid-configuration): fall back to the anchor
+    # configuration's gradient there, so no inverse explodes. A trained
+    # model never reaches this; an untrained one does on its first steps.
+    jac_anchor = torch.einsum("ri,eid->erd", dn, xa)
+    degenerate = torch.linalg.det(jac).abs() < 1e-6 * torch.linalg.det(jac_anchor).abs()
+    jac = torch.where(degenerate[:, None, None], jac_anchor, jac)
     jinv = torch.linalg.inv(jac)  # (J^-1)[d, r] = d xi_r / d x_d
     grad_n = torch.einsum("edr,ri->eid", jinv, dn)  # dN_i / dx_d, (E, 4, 2)
     disp_grad = torch.einsum(
         "eia,eib->eab", du, grad_n
     )  # L[a, b] = sum_i du_i[a] dN_i/dx_b
+    # The same guard on magnitude: an increment beyond INCREMENT_CAP per
+    # component is unphysical for one frame or segment and would only carry
+    # a wild prediction into an unbounded trial stress.
+    disp_grad = disp_grad.clamp(-INCREMENT_CAP, INCREMENT_CAP)
     sym = 0.5 * (disp_grad + disp_grad.transpose(1, 2))
     skew = 0.5 * (disp_grad - disp_grad.transpose(1, 2))
     eye = torch.eye(2, dtype=xm.dtype, device=xm.device).expand_as(skew)
@@ -169,7 +185,8 @@ def quad_increment(
     if formulation == "axisymmetric":
         r_mid = xm[..., 0].mean(dim=1)
         du_r = du[..., 0].mean(dim=1)
-        deps[:, 2, 2] = du_r / r_mid.clamp(min=torch.finfo(xm.dtype).eps)
+        hoop = du_r / r_mid.clamp(min=torch.finfo(xm.dtype).eps)
+        deps[:, 2, 2] = hoop.clamp(-INCREMENT_CAP, INCREMENT_CAP)
     return deps, rot
 
 
@@ -327,10 +344,12 @@ def return_map_decode(
     """The admissible arm's decoder: carried element state + kinematics -> state.
 
     ``state_anchor`` is ``(E, 5)`` in the :data:`RETURN_MAP_CHANNELS` layout
-    (four stress components, then peeq); the result has the same layout and
-    dtype at the query configuration. The arithmetic runs in float64 (a
+    (four stress components, then peeq); the result has the same layout at
+    the query configuration, in float64: the arithmetic runs in double (a
     frame's strain increment can sit at the single-precision floor of the
-    stored positions) and casts back.
+    stored positions, and a deviator of a few hundred MPa must survive
+    beside a mean stress a thousand times larger), and a simulator carries
+    the state in double between anchors.
     """
     if state_anchor.shape[-1] != RETURN_MAP_WIDTH:
         raise ValueError(
@@ -346,7 +365,7 @@ def return_map_decode(
     )
     anchor64 = state_anchor.to(torch.float64)
     stress, peeq, _ = radial_return(anchor64[:, :4], anchor64[:, 4], deps, rot, law64)
-    return torch.cat([stress, peeq[:, None]], dim=-1).to(state_anchor.dtype)
+    return torch.cat([stress, peeq[:, None]], dim=-1)
 
 
 def von_mises4(stress: Tensor) -> Tensor:

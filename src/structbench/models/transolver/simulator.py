@@ -728,7 +728,9 @@ class TransolverSimulator(CaseBoundSimulator):
                     "set_anchor() needs the element state under a two-site "
                     "decoder (ADR-0075)"
                 )
-            self._anchor_state = state.detach()
+            # Carried in double: the return map's deviator must survive
+            # beside the mean stress across every hand-off.
+            self._anchor_state = state.detach().to(torch.float64)
 
     def _two_site_state(
         self,
@@ -757,8 +759,9 @@ class TransolverSimulator(CaseBoundSimulator):
                 anchor_state, x_anchor, x_query, cells, law, self._formulation, du=du
             )
         else:
-            state = corner_mean(aux_net, cells)
-        return state, project_elements_to_nodes(state, cells, weights, x_query.shape[0])
+            state = corner_mean(aux_net, cells).to(torch.float64)
+        projection = project_elements_to_nodes(state, cells, weights, x_query.shape[0])
+        return state, projection.to(x_query.dtype)
 
     def forward_train_two_site(
         self,
@@ -846,7 +849,9 @@ class TransolverSimulator(CaseBoundSimulator):
         pred_norm = self._target_normalizer(
             torch.cat([disp_pred, aux_proj], dim=-1), accumulate=False
         )
-        state_pred_norm = self._state_normalizer(state_pred, accumulate=False)
+        state_pred_norm = self._state_normalizer(
+            state_pred.to(gt_state.dtype), accumulate=False
+        )
         return pred_norm, target_norm, state_pred_norm, state_target_norm
 
     def predict_two_site_at(
