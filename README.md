@@ -274,7 +274,7 @@ assets/            # figures embedded in the docs + landing pages
 <!-- Completed inbox items are removed at each release; their record lives in
      git history and the ADRs they cite. -->
 
-- [ ] ADR-0075 (Proposed, 2026-11-07): the two-site state. Part 3a is built
+- [ ] ADR-0075 (Accepted 2026-11-07): the two-site state. Part 3a is built
       (the element-site state block, `two_site_decoder` on the Transolver flow
       map, state metrics); owed: 3b (the restart task family and the
       composition sweep), 3c (the properties block in the registries and

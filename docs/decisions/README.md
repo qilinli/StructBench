@@ -171,7 +171,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0071 | The Abaqus data-generation pipeline becomes a StructBench capability: `structbench.datagen`, the dataset template and `check`, the preflight gate, the convergence engine in `verification`, runner budget and `follow` (amends ADR-0069) | Durable | Accepted (0073) |
 | 0072 | Validation against experiments: `structbench.validation`, reference-experiment sets with provenance, measures shared by experiment and simulation, a record that reports deviations and never judges; the datagen stage `validate` renamed `verify` | Durable | Accepted (0073) |
 | 0073 | Decisions from the maintainer's review of the decision log (amends 0010, 0012, 0026, 0035, 0043, 0046, 0055, 0064, 0065, 0066, 0067, 0068, 0071, 0072; accepts 0057, 0071, 0072) | Durable | Accepted |
-| 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Proposed |
+| 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted |
 
 ---
 
