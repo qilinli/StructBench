@@ -37,7 +37,7 @@ ADR-0065 left two follow-ups: a properties block with every result (clause 4) an
 - Existing benchmarks declare no element site and are unchanged; their registered rows carry an empty properties block until re-evaluated.
 - Follow-ups 2 and 4 of ADR-0065 remain open.
 
-## Notes
+---
 
 **Note (2026-11-08) — the admissible arm in two forms (clause 3).** The
 first run of the direct return-map decoder on a metal did not train (plan
