@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 from conftest import MINIMAL_TOML
 
 from structbench.datagen import archive
@@ -180,3 +181,128 @@ def test_the_licence_header_never_reaches_the_data_tree(tmp_path):
     capsys_free = archive.main(_argv(sweep, dataset, data, "--yes"))
     assert capsys_free == 0  # a re-run verifies the redacted copies, not the sources
     assert (sweep / "T-0000" / "T-0000.dat").read_text(encoding="utf-8") == _DAT
+
+
+# --- ADR-0074 (open-evaluation plan §6): withheld splits ---
+
+from structbench.core import (  # noqa: E402
+    Case,
+    ElementBlock,
+    Material,
+    Metadata,
+    Nodes,
+    Response,
+    read_case,
+    write_case,
+)
+
+_WITHHELD_TOML = (
+    MINIMAL_TOML
+    + """
+[splits.blind]
+n = 2
+seed = 9
+withheld = true
+"""
+)
+
+
+def _tiny_case(case_id: str, n_frames: int = 6) -> Case:
+    coords = np.array([[0.0, 0.0], [1e-3, 0.0], [0.0, 1e-3]])
+    t = np.arange(n_frames, dtype=float) * 1e-6
+    disp = np.zeros((n_frames, 3, 2), dtype=np.float32)
+    disp[:, :, 0] = (1e-4 * np.arange(n_frames))[:, None]
+    stress = np.zeros((n_frames, 1, 6), dtype=np.float32)
+    stress[:, 0, 0] = np.arange(n_frames, dtype=np.float32)
+    return Case(
+        metadata=Metadata(case_id=case_id, dimension=2, source_units="t-mm-s"),
+        nodes=Nodes(coords=coords, node_id=np.arange(1, 4, dtype=np.int64)),
+        elements={
+            "solid": ElementBlock(
+                connectivity=np.array([[0, 1, 2]], dtype=np.int64),
+                element_id=np.array([1], dtype=np.int64),
+                part_id=np.array([1], dtype=np.int64),
+            )
+        },
+        materials=[Material(1, "ELASTIC", {"E": 1000.0}, None)],
+        response=Response(
+            time=t,
+            node={"displacement": disp},
+            element={"solid": {"stress": stress}},
+            globals_={"kinetic_energy": np.arange(n_frames, dtype=np.float32)},
+        ),
+    )
+
+
+def test_inputs_only_cuts_every_response_field_to_the_seed():
+    cut = archive.inputs_only(_tiny_case("T-0001"), 2)
+    assert cut.response is not None
+    assert cut.response.time.shape == (2,)
+    assert cut.response.node["displacement"].shape == (2, 3, 2)
+    assert cut.response.element["solid"]["stress"].shape == (2, 1, 6)
+    assert cut.response.globals_["kinetic_energy"].shape == (2,)
+    assert cut.metadata.case_id == "T-0001" and len(cut.materials) == 1
+    with pytest.raises(ValueError, match="outside"):
+        archive.inputs_only(_tiny_case("T-0001"), 7)
+
+
+def test_a_withheld_case_publishes_inputs_only_and_keeps_the_whole_case_apart(
+    tmp_path, capsys
+):
+    sweep, dataset, data = _sweep(tmp_path, n=3)
+    (dataset / "dataset.toml").write_text(_WITHHELD_TOML, encoding="utf-8")
+    # the third case is blind: a real canonical case, provenance says so
+    cid = "T-0002"
+    prov = {"split": "blind", "units": "t-mm-s"}
+    (sweep / cid / "provenance.json").write_text(json.dumps(prov), encoding="utf-8")
+    write_case(_tiny_case(cid), sweep / "canonical" / f"{cid}.h5")
+
+    # no tag: refused before anything is written
+    rc = archive.main(_argv(sweep, dataset, data, "--yes", "--seed-frames", "2"))
+    assert rc == 2 and "--blind-tag" in capsys.readouterr().out
+    assert not (data / "canonical").exists()
+
+    # dry run names the withheld count and the private tree
+    rc = archive.main(
+        _argv(sweep, dataset, data, "--blind-tag", "blind-v1", "--seed-frames", "2")
+    )
+    out = capsys.readouterr().out
+    assert rc == 0 and "withheld: 1 cases publish 2 seed frames" in out
+    assert "h5-inputs: 1 files" in out
+
+    rc = archive.main(
+        _argv(
+            sweep,
+            dataset,
+            data,
+            "--yes",
+            "--blind-tag",
+            "blind-v1",
+            "--seed-frames",
+            "2",
+        )
+    )
+    assert rc == 0
+    public = read_case(data / "canonical" / "toy" / f"{cid}.h5")
+    assert public.response is not None and public.response.time.shape == (2,)
+    assert public.response.node["displacement"].shape == (2, 3, 2)
+    private = read_case(data / "withheld" / "toy" / "blind-v1" / f"{cid}.h5")
+    assert private.response is not None and private.response.time.shape == (6,)
+    # the other cases are copied whole, as before
+    assert (data / "canonical" / "toy" / "T-0000.h5").read_bytes() == b"h5T-0000"
+
+    # a rerun verifies the inputs-only file by reading it, writes nothing new
+    rc = archive.main(
+        _argv(
+            sweep,
+            dataset,
+            data,
+            "--yes",
+            "--blind-tag",
+            "blind-v1",
+            "--seed-frames",
+            "2",
+        )
+    )
+    assert rc == 0
+    assert "withheld=0" in capsys.readouterr().out

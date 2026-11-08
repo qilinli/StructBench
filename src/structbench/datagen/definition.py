@@ -216,6 +216,8 @@ def _placements(
                 out.setdefault(name, []).append(
                     ("set", f"the points of splits.{s.name}")
                 )
+        for name in s.grid:
+            out.setdefault(name, []).append(("set", f"the grid of splits.{s.name}"))
     return out
 
 

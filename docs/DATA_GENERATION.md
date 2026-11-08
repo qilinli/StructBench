@@ -16,6 +16,18 @@ a definition in a directory of its own, which may be private:
 - `problem.py` — how one case is built and read: `input_deck`, `feasible`,
   `mesh`, `qoi`. It may import sibling modules of its own directory.
 
+Two split fields serve open evaluation (ADR-0074; the plan of 2026-11-08,
+§6). `grid = { L = [1.2, 1.8], v0 = [12.0, 18.0] }` declares a split as the
+full factor grid of the listed levels, in list order, with no `n`, `seed` or
+`points` (string levels are categorical; `check` refuses a grid over 64
+cases): the public `test` set is such a grid. `withheld = true` marks a
+split whose reference outputs stay out of the public archive — the `blind`
+set: `archive` writes its cases to the canonical tree with inputs and seed
+frames only, and the full cases to `<data-root>/withheld/<name>/<blind
+tag>/`, so it needs `--blind-tag` and `--seed-frames` (the benchmark
+protocol's `input_frames`; `datagen` sits below `benchmarks` and does not
+read it from a `benchmark.py`). `train` and `val` are never withheld.
+
 Start from the template and check it before anything runs:
 
     structbench-datagen new my_dataset

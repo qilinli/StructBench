@@ -43,6 +43,7 @@ from pathlib import Path
 
 import numpy as np
 
+from structbench.core import Case, Response, read_case, write_case
 from structbench.datagen.definition import load_definition
 
 _RUN_FILES = (
@@ -100,9 +101,37 @@ def _payload(src: Path) -> bytes | None:
 @dataclass(frozen=True)
 class Copy:
     case_id: str
-    kind: str  # "run", "npz", "odb" or "h5"
+    kind: str  # "run", "npz", "odb", "h5" or "h5-inputs"
     src: Path
     dst: Path
+
+
+def inputs_only(case: Case, seed_frames: int) -> Case:
+    """The case with its response cut to the first ``seed_frames`` frames.
+
+    What a withheld split publishes (ADR-0074 clause 1; open-evaluation plan
+    §6): the specimen, the scenario, the solver input and the seed a model
+    observes, and none of the frames it is scored on. A stub case (no
+    response) is returned as is.
+    """
+    if case.response is None:
+        return case
+    r = case.response
+    if seed_frames < 1 or seed_frames > r.time.shape[0]:
+        raise ValueError(
+            f"{case.metadata.case_id}: seed_frames {seed_frames} outside "
+            f"1..{r.time.shape[0]}"
+        )
+    cut = Response(
+        time=r.time[:seed_frames],
+        node={k: v[:seed_frames] for k, v in r.node.items()},
+        element={
+            block: {k: v[:seed_frames] for k, v in fields.items()}
+            for block, fields in r.element.items()
+        },
+        globals_={k: v[:seed_frames] for k, v in r.globals_.items()},
+    )
+    return Case(case.metadata, case.nodes, case.elements, case.materials, cut)
 
 
 def retained(
@@ -133,23 +162,37 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _split_of(sweep: Path, cid: str) -> str | None:
+    record = json.loads((sweep / cid / "provenance.json").read_text("utf-8"))
+    split = record.get("split")
+    return str(split) if split is not None else None
+
+
 def _case_ids(sweep: Path, splits: list[str] | None) -> list[str]:
     record = json.loads((sweep / "datacheck" / "measurements.json").read_text("utf-8"))
     ids = [c["case_id"] for c in record["cases"]]
     if not splits:
         return ids
-    return [
-        cid
-        for cid in ids
-        if json.loads((sweep / cid / "provenance.json").read_text("utf-8")).get("split")
-        in splits
-    ]
+    return [cid for cid in ids if _split_of(sweep, cid) in splits]
 
 
 def plan(
-    sweep: Path, name: str, data_root: Path, case_ids: list[str], keep: set[str]
+    sweep: Path,
+    name: str,
+    data_root: Path,
+    case_ids: list[str],
+    keep: set[str],
+    *,
+    withheld: frozenset[str] = frozenset(),
+    blind_tag: str = "",
 ) -> list[Copy]:
-    """Every copy the archive makes, in case order; missing sources are left out."""
+    """Every copy the archive makes, in case order; missing sources are left out.
+
+    A case of a withheld split (ADR-0074) goes to the canonical tree as
+    ``h5-inputs`` — its inputs and seed frames — and whole to
+    ``<data-root>/withheld/<name>/<blind_tag>/``; its raw run record is
+    archived like any other (the raw tree is never published).
+    """
     copies = []
     for cid in case_ids:
         raw = data_root / "raw" / name / "abaqus" / cid
@@ -159,13 +202,55 @@ def plan(
             sources.append(("odb", sweep / cid / f"{cid}.odb"))
         copies += [Copy(cid, kind, src, raw / src.name) for kind, src in sources]
         h5 = sweep / "canonical" / f"{cid}.h5"
-        copies.append(Copy(cid, "h5", h5, data_root / "canonical" / name / h5.name))
+        public = data_root / "canonical" / name / h5.name
+        if cid in withheld:
+            copies.append(Copy(cid, "h5-inputs", h5, public))
+            private = data_root / "withheld" / name / blind_tag / h5.name
+            copies.append(Copy(cid, "h5", h5, private))
+        else:
+            copies.append(Copy(cid, "h5", h5, public))
     return [c for c in copies if c.src.is_file()]
 
 
-def _copy_case(copies: list[Copy], counts: Counter[str]) -> str | None:
+def _copy_inputs_only(c: Copy, seed_frames: int, counts: Counter[str]) -> str | None:
+    """Write the withheld case's public file; the reason it stopped, or ``None``.
+
+    HDF5 bytes are not stable across writes, so an existing destination is
+    verified by reading it: the same case id and exactly ``seed_frames``
+    frames. A file that says anything else is left alone.
+    """
+    if c.dst.exists():
+        have = read_case(c.dst)
+        frames = 0 if have.response is None else int(have.response.time.shape[0])
+        if have.metadata.case_id == c.case_id and frames == seed_frames:
+            counts["verified"] += 1
+            return None
+        return f"mismatch at {c.dst.name}: a different file is there; left as is"
+    c.dst.parent.mkdir(parents=True, exist_ok=True)
+    partial = c.dst.with_name(c.dst.name + ".partial")
+    write_case(inputs_only(read_case(c.src), seed_frames), partial)
+    check = read_case(partial)
+    frames = 0 if check.response is None else int(check.response.time.shape[0])
+    if check.metadata.case_id != c.case_id or frames != seed_frames:
+        partial.unlink()
+        return f"inputs-only copy of {c.src.name} did not verify"
+    os.replace(partial, c.dst)
+    counts["withheld"] += 1
+    return None
+
+
+def _copy_case(
+    copies: list[Copy], counts: Counter[str], *, seed_frames: int | None = None
+) -> str | None:
     """Copy one case's files; the reason it stopped, or ``None``."""
     for c in copies:
+        if c.kind == "h5-inputs":
+            if seed_frames is None:
+                return "a withheld case needs the seed-frame count"
+            reason = _copy_inputs_only(c, seed_frames, counts)
+            if reason is not None:
+                return reason
+            continue
         payload = _payload(c.src)
         if payload is None:
             want, size = _sha256(c.src), c.src.stat().st_size
@@ -210,6 +295,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--split", action="append")
     parser.add_argument("--prune-odb", action="store_true")
     parser.add_argument("--yes", action="store_true")
+    parser.add_argument(
+        "--blind-tag",
+        default="",
+        help="the blind set's tag (blind-v1, ...); required when a withheld "
+        "split is archived (ADR-0074)",
+    )
+    parser.add_argument(
+        "--seed-frames",
+        type=int,
+        default=None,
+        help="frames a withheld case publishes: the benchmark protocol's "
+        "input_frames; required when a withheld split is archived",
+    )
     args = parser.parse_args(argv)
 
     defn = load_definition(args.dataset)
@@ -221,7 +319,33 @@ def main(argv: list[str] | None = None) -> int:
         seed=int(rules.get("odb_seed", 0)),
         named=list(rules.get("odb_cases", [])),
     )
-    copies = plan(args.sweep, name, args.data_root, case_ids, keep)
+    # ADR-0074: cases of a withheld split publish their inputs only.
+    withheld_splits = {s.name for s in defn.splits if s.withheld}
+    withheld = frozenset(
+        cid for cid in case_ids if _split_of(args.sweep, cid) in withheld_splits
+    )
+    seed_frames = args.seed_frames
+    if withheld:
+        if not args.blind_tag.strip():
+            print("error: --blind-tag is required when a withheld split is archived")
+            return 2
+        # datagen sits below benchmarks (ARCHITECTURE.md layering), so the
+        # protocol's input_frames is passed in, never read from a benchmark.py.
+        if seed_frames is None or seed_frames < 1:
+            print(
+                "error: --seed-frames (the protocol's input_frames, >= 1) is "
+                "required when a withheld split is archived"
+            )
+            return 2
+    copies = plan(
+        args.sweep,
+        name,
+        args.data_root,
+        case_ids,
+        keep,
+        withheld=withheld,
+        blind_tag=args.blind_tag.strip(),
+    )
     unknown = sorted(set(rules.get("odb_cases", [])) - set(case_ids))
     if unknown:
         print(f"odb_cases not among these cases: {', '.join(unknown)}")
@@ -241,7 +365,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"dry run: {len(case_ids)} cases of {name}, {len(keep)} ODBs retained")
         print(f"  -> {args.data_root / 'raw' / name / 'abaqus'}")
         print(f"  -> {args.data_root / 'canonical' / name}")
-        for kind in ("run", "npz", "odb", "h5"):
+        if withheld:
+            print(
+                f"  withheld: {len(withheld)} cases publish {seed_frames} seed frames; "
+                f"whole cases -> {args.data_root / 'withheld' / name / args.blind_tag}"
+            )
+        for kind in ("run", "npz", "odb", "h5", "h5-inputs"):
             n = sum(c.kind == kind for c in copies)
             print(f"  {kind}: {n} files, {size[kind] / 1e9:.2f} GB")
         if args.prune_odb:
@@ -256,12 +385,12 @@ def main(argv: list[str] | None = None) -> int:
     for c in copies:
         by_case.setdefault(c.case_id, []).append(c)
     for cid in case_ids:
-        reason = _copy_case(by_case.get(cid, []), counts)
+        reason = _copy_case(by_case.get(cid, []), counts, seed_frames=seed_frames)
         if reason is not None:
             stopped[cid] = reason
     print(
         f"copied={counts['copied']} verified={counts['verified']} "
-        f"stopped={len(stopped)}"
+        f"withheld={counts['withheld']} stopped={len(stopped)}"
     )
     for cid, reason in sorted(stopped.items()):
         print(f"  {cid}: {reason}")
