@@ -175,9 +175,28 @@ def test_committed_benchmark_pages_are_up_to_date():
     for name in available_benchmarks():
         page = REPO_ROOT / "docs" / "benchmarks" / f"{name}.md"
         report = REPO_ROOT / "docs" / "datachecks" / f"{name}.md"
+        gradients = REPO_ROOT / "docs" / "gradients" / f"{name}.md"
         assert page.read_text(encoding="utf-8") == render_benchmark_page(
-            get_benchmark(name), name, verification_report=report.exists()
+            get_benchmark(name),
+            name,
+            verification_report=report.exists(),
+            gradient_record=gradients.exists(),
         ), name
+
+
+def test_taylor_page_links_its_gradient_record():
+    # ADR-0076: the page points at the committed reference sensitivities,
+    # only when the record exists and the benchmark declares a family.
+    spec = get_benchmark("taylor_impact_2d")
+    page = render_benchmark_page(spec, "taylor_impact_2d", gradient_record=True)
+    assert "[gradient record](../gradients/taylor_impact_2d.md)" in page
+    assert "impact_velocity_m_s" in page
+    assert "gradient record" not in render_benchmark_page(spec, "taylor_impact_2d")
+    wave = get_benchmark("wave_propagation_1d")
+    assert wave.gradient_family is None
+    assert "gradient record" not in render_benchmark_page(
+        wave, "wave_propagation_1d", gradient_record=True
+    )
 
 
 def test_index_links_to_each_benchmark_page():
