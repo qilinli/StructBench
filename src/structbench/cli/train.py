@@ -32,7 +32,7 @@ import logging
 import math
 import os
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -124,6 +124,68 @@ __all__ = [
 #: sits outside the ``model-*.pt`` glob so default evaluation never picks
 #: them up.
 PERIODIC_CKPT_EVERY = 10_000
+
+#: A z-scored training loss above this at the first validation is not a
+#: training run: every loss term the trainers form is a squared error of
+#: normalized quantities, O(1) by construction before any learning.
+DIVERGENCE_LOSS_CEILING = 100.0
+
+
+class TrainingDiverged(RuntimeError):
+    """A by-path run whose first validation shows it is not training.
+
+    Raised by a trainer when, at its first validation, the rollout position
+    RMSE exceeds the benchmark's own domain scale or the training loss is
+    orders of magnitude above O(1) (:data:`DIVERGENCE_LOSS_CEILING`). The
+    message is one line; :func:`main` prints it and exits with status 3.
+
+    The trainer exits rather than warns: an arm submitted to a scheduler
+    runs unattended for hours after its first validation, and a warning in a
+    log nobody reads until the end saves none of that compute. The check is
+    one-shot and scoped to benchmarks loaded by path (``spec.source`` set):
+    runs of the shipped benchmarks behave exactly as before.
+    """
+
+
+def _domain_scale(trajectories: Sequence[CaseTrajectory]) -> float:
+    """The benchmark's domain scale: the largest bounding-box diagonal of the
+    reference coordinates over ``trajectories``, in the working length unit.
+    A rollout position RMSE above it is a prediction that is not a deformed
+    configuration of the body at all."""
+    scale = 0.0
+    for tr in trajectories:
+        ref = np.asarray(
+            tr.reference_coords if tr.reference_coords is not None else tr.positions[0],
+            dtype=np.float64,
+        )
+        if ref.shape[0] == 0:
+            continue
+        scale = max(scale, float(np.linalg.norm(ref.max(axis=0) - ref.min(axis=0))))
+    return scale
+
+
+def _early_divergence(
+    train_loss: float, val_pos: float, domain_scale: float
+) -> str | None:
+    """The one-line reason a first validation shows a run is not training,
+    or ``None`` when it passes: the position RMSE exceeds ``domain_scale``
+    (when that is positive), the loss exceeds
+    :data:`DIVERGENCE_LOSS_CEILING`, or either is not finite."""
+    reasons: list[str] = []
+    if not math.isfinite(val_pos) or (domain_scale > 0 and val_pos > domain_scale):
+        reasons.append(
+            f"validation position RMSE {val_pos:.4g} exceeds the domain scale "
+            f"{domain_scale:.4g} (bounding-box diagonal of the validation cases)"
+        )
+    if not math.isfinite(train_loss) or train_loss > DIVERGENCE_LOSS_CEILING:
+        reasons.append(
+            f"train_loss {train_loss:.4g} exceeds {DIVERGENCE_LOSS_CEILING:g} "
+            "(a z-scored loss is O(1) by construction)"
+        )
+    if not reasons:
+        return None
+    return "first validation shows the run is not training: " + "; ".join(reasons)
+
 
 #: Families that consume mesh connectivity (``cells``/``reference_coords``)
 #: and therefore apply a benchmark's ``spec.mesh_transform`` at load time
@@ -2817,6 +2879,14 @@ def _train_transolver_fm(
                     val_pos,
                     best_pos,
                 )
+                if best_pos == float("inf") and spec.source is not None:
+                    # A by-path arm dies at its first validation, not hours
+                    # later (TrainingDiverged).
+                    reason = _early_divergence(
+                        float(loss.item()), val_pos, _domain_scale(val_trajs)
+                    )
+                    if reason is not None:
+                        raise TrainingDiverged(f"step {step}: {reason}")
                 if val_pos < best_pos:
                     best_pos = val_pos
                     best_ckpt = out_dir / f"model-best-{step:06d}.pt"
@@ -4500,15 +4570,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.mode == "train":
         assert run_config is not None  # guarded above
         spec = get_benchmark(run_config.train.benchmark)
-        ckpt = train(
-            spec,
-            run_config.model,
-            run_config.train,
-            data_root,
-            out_dir,
-            device,
-            family=run_config.family,
-        )
+        try:
+            ckpt = train(
+                spec,
+                run_config.model,
+                run_config.train,
+                data_root,
+                out_dir,
+                device,
+                family=run_config.family,
+            )
+        except TrainingDiverged as exc:
+            logger.error("%s", exc)
+            print(f"error: {exc}")
+            return 3
         print(f"training complete; best checkpoint: {ckpt}")
     else:
         spec, _resolved = _resolve_run_spec(out_dir)

@@ -8,6 +8,7 @@ import torch
 from structbench.models.common.two_site import (
     law_rows,
     project_elements_to_nodes,
+    return_map_decode,
     sigma_y_rows,
     von_mises4,
 )
@@ -183,3 +184,135 @@ def test_corner_mean_arm_emits_the_corner_mean_of_the_network_aux():
     expected = project_elements_to_nodes(st, CELLS, torch.tensor([1.0, 2.0]), P)
     assert torch.allclose(aux_out.double(), expected, atol=1e-5)
     assert st.shape == (E, S)
+
+
+def _train_pass(sim, decoder, accumulate):
+    positions, aux, state = _case()
+    weights = torch.tensor([1.0, 2.0])
+    out = sim.forward_train_two_site(
+        positions[3],
+        aux[3],
+        state[3],
+        PTYPE,
+        REFERENCE,
+        torch.tensor([P]),
+        torch.tensor([0.5]),
+        accumulate=accumulate,
+        cells=CELLS,
+        weights=weights,
+        law=_law() if decoder == "return_map" else None,
+        anchor_disp=positions[1] - REFERENCE,
+        anchor_vel=positions[1] - positions[0],
+        anchor_aux=aux[1],
+        anchor_state=state[1],
+        anchor_time_feature=torch.full((P, 1), 0.2),
+    )
+    return positions, aux, state, weights, out
+
+
+@pytest.mark.parametrize("decoder", ["return_map", "corner_mean"])
+def test_training_state_loss_is_formed_in_the_state_normalizer_space(decoder):
+    """Both decoders hand the trainer a z-scored element state: the target
+    is the state normalizer's image of the stored state and the prediction is
+    the same normalizer's image of the decoded PHYSICAL state (the return map's
+    output, or the corner mean of the network's raw-unit aux). Pinned so the
+    return-map arm can never enter the loss in physical units beside a
+    normalized corner-mean control."""
+    torch.manual_seed(0)
+    sim = _sim(two_site_decoder=decoder)
+    # Accumulate the normalizers on one pass, then a clean pass to inspect.
+    _train_pass(sim, decoder, accumulate=True)
+    positions, aux, state, weights, (pred, target, st_pred, st_target) = _train_pass(
+        sim, decoder, accumulate=False
+    )
+    norm = sim._state_normalizer
+    assert torch.allclose(st_target, norm(state[3]), atol=1e-6)
+    assert torch.allclose(
+        target,
+        sim._target_normalizer(torch.cat([positions[3] - REFERENCE, aux[3]], dim=-1)),
+        atol=1e-6,
+    )
+    # Recover the decoded physical state from the normalized prediction and
+    # check it against the decoder applied to the network's own query.
+    physical = norm.inverse(st_pred)
+    raw = sim._target_normalizer.inverse(pred)
+    disp_pred, aux_proj = raw[:, :DIM], raw[:, DIM:]
+    kin = PTYPE == 1
+    disp_query = torch.where(kin[:, None], positions[3] - REFERENCE, disp_pred)
+    if decoder == "return_map":
+        expected = return_map_decode(
+            state[1].double(),
+            positions[1].double(),
+            (REFERENCE + disp_query).double(),
+            CELLS,
+            _law(),
+            "plane_strain",
+            du=(disp_query - (positions[1] - REFERENCE)).double(),
+        )
+        assert torch.allclose(physical.double(), expected, rtol=1e-4, atol=1e-3)
+    else:
+        # The corner mean's state projects back to the emitted nodal aux.
+        assert torch.allclose(
+            project_elements_to_nodes(physical, CELLS, weights, P), aux_proj, atol=1e-4
+        )
+    # The nodal aux the loss sees is the projection of that same state, so the
+    # two sites are scored on one quantity in two normalizer spaces.
+    assert torch.allclose(
+        project_elements_to_nodes(physical, CELLS, weights, P), aux_proj, atol=1e-3
+    )
+    # And the scale is the stored state's: a decoded state equal to the
+    # target would score zero in the z-scored loss.
+    assert torch.allclose(norm(norm.inverse(st_target)), st_target, atol=1e-6)
+
+
+def test_state_normalizer_statistics_do_not_depend_on_the_decoder():
+    """The state normalizer accumulates the STORED state only, so the two
+    decoders z-score against identical moments on the same data."""
+    sims = {d: _sim(two_site_decoder=d) for d in ("return_map", "corner_mean")}
+    for d, sim in sims.items():
+        _train_pass(sim, d, accumulate=True)
+    a, b = (sims[d]._state_normalizer for d in ("return_map", "corner_mean"))
+    assert torch.equal(a._sum, b._sum) and torch.equal(a._sum_sq, b._sum_sq)
+    assert torch.equal(a._count, b._count)
+
+
+@pytest.mark.parametrize("decoder", ["return_map", "corner_mean"])
+def test_anchor_interface_carries_the_physical_state_unscaled(decoder):
+    """Across the anchor hand-off the element state travels in physical
+    units in double: what set_anchor receives is what the decoder reads, and
+    a return-map query at the anchor configuration returns the anchor state
+    itself (no normalizer round trip, no scale drift)."""
+    sim = _sim(two_site_decoder=decoder)
+    positions, aux, state = _bind(sim, _law() if decoder == "return_map" else None)
+    anchor = state[1].clone()
+    anchor[:, :4] = torch.tensor(
+        [[150.0, -40.0, 60.0, 12.0], [-80.0, 30.0, 10.0, -5.0]]
+    )
+    sim.set_anchor(
+        1, positions[0], positions[1], aux[1], anchor_t_norm=0.2, state=anchor
+    )
+    assert sim._anchor_state.dtype == torch.float64
+    assert torch.equal(sim._anchor_state, anchor.double())
+    if decoder == "return_map":
+        # Zero kinematic increment: the radial return is the identity on a
+        # state inside the yield surface.
+        law = _law()
+        out = return_map_decode(
+            anchor.double(),
+            positions[1].double(),
+            positions[1].double(),
+            CELLS,
+            law,
+            "plane_strain",
+        )
+        assert torch.allclose(out, anchor.double(), atol=1e-9)
+    sim.eval()
+    with torch.no_grad():
+        _pos, aux_out, st = sim.predict_two_site_at(3, 0.4)
+    # The state the rollout re-anchors on is the physical one the decoder
+    # emitted, and the nodal aux fed back is its projection in the same units.
+    assert st.dtype == torch.float64
+    expected = project_elements_to_nodes(st, CELLS, torch.tensor([1.0, 2.0]), P)
+    assert torch.allclose(aux_out.double(), expected, atol=1e-5)
+    sim.set_anchor(3, positions[2], _pos, aux_out, anchor_t_norm=0.6, state=st)
+    assert torch.equal(sim._anchor_state, st)

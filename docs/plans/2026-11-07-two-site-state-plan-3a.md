@@ -65,3 +65,48 @@ with the two-site decoder.*
 Full suite green; the off-path byte-identity of every existing flow-map
 test; on the synthetic smoke the `return_map` arm's violation rates read zero
 at tolerance 1e-5 and the `corner_mean` arm's do not by construction.
+
+## Note 2026-11-08: the return-map arm does not train; the cause is stiffness, not scale
+
+The first by-path run of the `return_map` decoder trained at a loss of
+10³–10⁴ from its first validation and a rollout position RMSE at the body's
+own scale, while the `corner_mean` control differing in the decoder alone
+trained normally. The suspected cause, the element state entering the loss
+or the anchor hand-off in physical units beside normalized channels, is
+ruled out: both decoders z-score the decoded physical state with the one
+state normalizer in `forward_train_two_site`, and both carry the physical
+state in double across `set_anchor`; `tests/models/transolver/
+test_transolver_two_site.py` now pins both. With ground-truth kinematics
+the return map reproduces the stored state (z-scored RMSE 0.02–0.3 per
+channel at one frame).
+
+The mechanism is the decoder's conditioning. The return map is the
+material law applied to the strain increment of the *predicted*
+displacements, so a displacement error `δ` on an element of edge `h` is a
+strain error `δ/h`, a trial stress error `E δ/h`, and after z-scoring an
+error of `E δ / (h · std σ)`. For a metal (`E ≈ 1.2 × 10⁵ MPa`, `std σ ≈
+10² MPa`, fine elements) that factor is ~10³ per unit of relative
+displacement error: an error of 1 % of an element edge already scores
+~10³ in the state loss, and the state loss's gradient into the
+displacement exceeds the position loss's by ~10⁷. The deviator is bounded
+by the yield surface wherever the return is active, but the mean stress
+`K tr Δε` is unbounded, so the three normal components carry the error.
+Under gradient clipping the network is trained to match the volumetric
+strain of its displacement field and not the positions, and the amplified
+mean stress fed back through the anchor's projected aux takes the rollout
+out of distribution. This is not a bug in the build; it is a property of
+deriving stress from a surrogate's kinematics at `E / std σ ≈ 10³`, and it
+needs a decision on the admissible arm's form before the arm is run again
+(the candidates: the network predicts a trial state that the radial return
+projects, keeping yield admissibility and peeq monotonicity by
+construction; or the network predicts the mean stress and the return map
+supplies the deviator and peeq). Recorded here as the finding of the
+build; the decision is the maintainer's, on ADR-0075 clause 3.
+
+Guard added with the finding: a benchmark loaded by path whose first
+validation shows a position RMSE above the domain scale (the largest
+bounding-box diagonal of the validation cases) or a train loss above 100
+exits with one line (`TrainingDiverged`, CLI status 3). It exits rather than
+warns because an arm under a scheduler runs unattended for hours after its
+first validation; it is one-shot and by-path only, so shipped-benchmark runs
+are unchanged.
