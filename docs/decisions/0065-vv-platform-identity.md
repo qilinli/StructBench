@@ -287,3 +287,10 @@ a gradient benchmark and a metal component-tier benchmark, and the crash
 benchmark moves to Later as an assembly-tier question. The two new
 benchmarks are named at this record's level of detail; each gets its own
 ADR when picked up. All four follow-ups are now decided or applied.
+
+*Amendment, later the same day (maintainer).* The metal component-tier
+benchmark is **not** part of v0.4. This record named it without saying why
+a component, why metal, or why then; the maintainer does not stand behind
+those choices today, so it is parked under the Roadmap's Later until its
+purpose is stated. Follow-up 4's v0.4 is follow-ups 1 to 3 and the gradient
+benchmark. The crash reframing stands.
