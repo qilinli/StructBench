@@ -111,6 +111,14 @@ class OnlineNormalizer(nn.Module):
         std = var.sqrt().clamp(min=self._std_epsilon)
         return mean, std
 
+    def moments(self) -> tuple[Tensor, Tensor]:
+        """The current ``(mean, std)`` per feature, float64 ``(size,)`` each
+        (the identity moments, zeros and ones, before any accumulation). A
+        decoder that needs a location and a scale for a free channel reads
+        them here (ADR-0075 admissible coordinates) rather than round-tripping
+        through :meth:`inverse`."""
+        return self._moments()
+
     def forward(self, x: Tensor, accumulate: bool = False) -> Tensor:
         """Normalize ``x`` to zero mean / unit variance using running stats.
 

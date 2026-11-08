@@ -19,7 +19,25 @@ carry that state in its decoder rather than inside its network:
   (shear and bulk moduli, ``(peeq, sigma_y)`` knots with ``np.interp``
   end-clamp semantics, ADR-0064's contract), a short Newton solve on the
   plastic multiplier that is exact for linear hardening;
-- :func:`return_map_decode` — the composition the admissible arm uses.
+- :func:`return_map_decode` — the composition the direct return-map arm
+  uses (it did not train on a metal, plan 3a note 2026-11-08: stress derived
+  from a surrogate's kinematics amplifies displacement error by
+  ``E / std sigma``);
+- :func:`admissible_decode` — the admissible arm in **admissible
+  coordinates** (ADR-0075 clause 3 note, 2026-11-08): the head's five
+  channels are read as a trace-free deviator direction and radius, a
+  plastic-strain increment and a free mean stress, so every point of the
+  head's range is an admissible state with no constitutive call — the
+  element-site port of the ADR-0064 structured heads;
+- :func:`project_trial` — the admissible arm as **trial state + projection**:
+  the head's five channels are an unconstrained element state that the
+  radial return projects onto the admissible set inside the training graph
+  (closed form, differentiable almost everywhere with the ReLU-like kink at
+  the elastic/plastic switch, non-expansive in the law's own metric).
+
+Neither admissible form reads the predicted kinematics; both read the
+CARRIED anchor state (never the network's noised anchor input), so training
+noise cannot ratchet the monotone plastic strain.
 
 Stress lives in the four-component layout ``(s11, s22, s33, s12)`` the
 ``stress_axisymmetric`` extractor stores (``s_rr, s_zz, s_tt, s_rz`` on an
@@ -34,20 +52,31 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 
 #: Element formulations the quad kinematics support.
 FORMULATIONS: tuple[str, ...] = ("axisymmetric", "plane_strain")
 
 #: The decoders a two-site simulator may carry (``TransolverConfig.two_site_decoder``).
-TWO_SITE_DECODERS: tuple[str, ...] = ("off", "return_map", "corner_mean")
+TWO_SITE_DECODERS: tuple[str, ...] = (
+    "off",
+    "return_map",
+    "corner_mean",
+    "admissible_coords",
+    "projected_trial",
+)
+
+#: The decoders that read the case's constitutive law and so need the
+#: canonical :data:`RETURN_MAP_CHANNELS` layout.
+LAW_DECODERS: tuple[str, ...] = ("return_map", "admissible_coords", "projected_trial")
 
 #: Largest displacement-gradient and hoop-strain component one increment may
 #: carry; beyond it the geometry a prediction implies is unphysical for a
 #: frame or a segment, and the clamp keeps the trial stress finite.
 INCREMENT_CAP = 1.0
 
-#: The state-channel layout the return-map decoder emits and consumes:
+#: The state-channel layout the law-reading decoders emit and consume:
 #: the four stress components then the equivalent plastic strain.
 RETURN_MAP_CHANNELS: tuple[str, ...] = (
     "stress_axisymmetric",
@@ -357,15 +386,198 @@ def return_map_decode(
             f"{RETURN_MAP_CHANNELS}; got {state_anchor.shape[-1]}"
         )
     deps, rot = quad_increment(x_anchor, x_query, cells, formulation, du=du)
-    law64 = LawRows(
+    law64 = _law64(law)
+    anchor64 = state_anchor.to(torch.float64)
+    stress, peeq, _ = radial_return(anchor64[:, :4], anchor64[:, 4], deps, rot, law64)
+    return torch.cat([stress, peeq[:, None]], dim=-1)
+
+
+def _law64(law: LawRows) -> LawRows:
+    return LawRows(
         law.shear.to(torch.float64),
         law.bulk.to(torch.float64),
         law.knots_peeq.to(torch.float64),
         law.knots_sy.to(torch.float64),
     )
-    anchor64 = state_anchor.to(torch.float64)
-    stress, peeq, _ = radial_return(anchor64[:, :4], anchor64[:, 4], deps, rot, law64)
-    return torch.cat([stress, peeq[:, None]], dim=-1)
+
+
+def deviator_from_direction(v: Tensor) -> Tensor:
+    """``(E, 3)`` ``(a, b, c)`` -> ``(E, 4)`` deviator ``(a, b, -(a + b), c)``.
+
+    The three free coordinates of a trace-free symmetric tensor in the
+    ``(s11, s22, s33, s12)`` layout; the third diagonal component is formed
+    from the first two, so the trace ``(s11 + s22) + s33`` is zero exactly,
+    not to rounding.
+    """
+    a, b, c = v.unbind(-1)
+    return torch.stack([a, b, -(a + b), c], dim=-1)
+
+
+def deviator_norm(v: Tensor) -> Tensor:
+    """Von Mises norm of the direction coordinates ``(a, b, c)``.
+
+    ``sqrt(1.5 * (a^2 + b^2 + (a + b)^2) + 3 c^2)``: the von Mises stress of
+    :func:`deviator_from_direction`. The zero point is regularised so the
+    gradient stays finite at ``v = 0``; the value error is below ``1e-12``.
+    """
+    a, b, c = v.unbind(-1)
+    q = 1.5 * (a * a + b * b + (a + b) ** 2) + 3.0 * c * c
+    return torch.sqrt(q.clamp(min=1e-24))
+
+
+def assemble_stress(deviator: Tensor, mean_stress: Tensor) -> Tensor:
+    """``(E, 4)`` deviator and ``(E,)`` mean stress -> ``(E, 4)`` stress."""
+    p = mean_stress[:, None]
+    return torch.cat([deviator[:, :3] + p, deviator[:, 3:4]], dim=-1)
+
+
+def split_stress(stress: Tensor) -> tuple[Tensor, Tensor]:
+    """``(E, 4)`` stress -> (``(E, 4)`` deviator with an exactly zero trace,
+    ``(E,)`` mean stress). The deviator's third diagonal component is formed
+    from the first two (:func:`deviator_from_direction`)."""
+    s11, s22, s33, s12 = stress.unbind(-1)
+    p = (s11 + s22 + s33) / 3.0
+    return deviator_from_direction(torch.stack([s11 - p, s22 - p, s12], dim=-1)), p
+
+
+def admissible_parts(
+    head: Tensor,
+    peeq_anchor: Tensor,
+    law: LawRows,
+    mean_stress_loc: Tensor | float,
+    mean_stress_scale: Tensor | float,
+) -> tuple[Tensor, Tensor, Tensor]:
+    """The admissible-coordinates decode as (deviator, mean stress, peeq).
+
+    Parameters
+    ----------
+    head:
+        ``(E, 5)`` the head's element values in the NETWORK's output space
+        (not stresses): ``(a, b, c)`` the deviator direction and radius,
+        ``d`` the plastic-strain increment coordinate, ``m`` the mean-stress
+        coordinate.
+    peeq_anchor:
+        ``(E,)`` the CARRIED anchor plastic strain (the state the simulator
+        hands across the anchor interface, never the network's noised aux).
+    law:
+        Per-element law rows; only the hardening knots are read.
+    mean_stress_loc, mean_stress_scale:
+        Location and scale of the free mean-stress channel, so ``m`` of
+        order one is a stress of the data's size (a scale, not a statistic:
+        the network absorbs the rest).
+
+    Returns
+    -------
+    tuple[Tensor, Tensor, Tensor]
+        ``(deviator (E, 4), mean_stress (E,), peeq (E,))`` in float64 with,
+        for ANY head value: ``peeq = peeq_anchor + softplus(d) >= peeq_anchor``
+        exactly; the deviator ``sigma_y(peeq) * tanh(|v|) / |v| * v`` with
+        von Mises ``sigma_y(peeq) * tanh(|v|) <= sigma_y(peeq)`` (the norm
+        is 1-homogeneous; smooth at ``v -> 0``); the deviator trace zero
+        exactly (:func:`deviator_from_direction`).
+    """
+    if head.shape[-1] != RETURN_MAP_WIDTH:
+        raise ValueError(
+            f"admissible_decode expects {RETURN_MAP_WIDTH} head channels; got "
+            f"{head.shape[-1]}"
+        )
+    h = head.to(torch.float64)
+    law64 = _law64(law)
+    v, d, m = h[:, :3], h[:, 3], h[:, 4]
+    peeq = peeq_anchor.to(torch.float64) + F.softplus(d)
+    sy, _ = sigma_y_rows(peeq, law64.knots_peeq, law64.knots_sy)
+    q = deviator_norm(v)
+    radius = sy * torch.tanh(q) / q
+    deviator = deviator_from_direction(radius[:, None] * v)
+    mean_stress = torch.as_tensor(mean_stress_loc, dtype=h.dtype, device=h.device) + (
+        torch.as_tensor(mean_stress_scale, dtype=h.dtype, device=h.device) * m
+    )
+    return deviator, mean_stress, peeq
+
+
+def admissible_decode(
+    head: Tensor,
+    peeq_anchor: Tensor,
+    law: LawRows,
+    mean_stress_loc: Tensor | float,
+    mean_stress_scale: Tensor | float,
+) -> Tensor:
+    """The admissible-coordinates decoder: ``(E, 5)`` head -> ``(E, 5)`` state
+    in the :data:`RETURN_MAP_CHANNELS` layout, float64 (:func:`admissible_parts`)."""
+    deviator, mean_stress, peeq = admissible_parts(
+        head, peeq_anchor, law, mean_stress_loc, mean_stress_scale
+    )
+    return torch.cat([assemble_stress(deviator, mean_stress), peeq[:, None]], dim=-1)
+
+
+def project_trial_parts(
+    state_trial: Tensor, peeq_anchor: Tensor, law: LawRows
+) -> tuple[Tensor, Tensor, Tensor]:
+    """Project an unconstrained element state onto the admissible set.
+
+    The admissible set at an anchor is ``{(sigma, peeq): peeq >= peeq_anchor,
+    vm(dev sigma) <= sigma_y(peeq)}``. The projection is the composition of
+    the plastic-strain clamp ``peeq_0 = max(peeq_trial, peeq_anchor)`` and
+    the J2 radial return of the trial stress from ``peeq_0`` with a zero
+    kinematic increment (:func:`radial_return`): its plastic multiplier
+    ``dgamma`` gives ``peeq = peeq_0 + dgamma`` and the trial deviator is
+    scaled onto the surface at that plastic strain, ``min(1, sigma_y(peeq) /
+    vm_trial)`` (the Newton residual only approaches the surface after a
+    knot crossing; the scale puts the state on it). The mean stress passes
+    through untouched.
+
+    Closed form and differentiable almost everywhere: one ReLU-like kink at
+    the elastic/plastic switch (and one at the clamp). For linear hardening
+    ``H`` it is the Euclidean projection onto a convex set in the metric
+    ``|dev|_F^2 / (2 G) + H peeq^2`` (the generalised-stress metric in which
+    the return map is a closest-point projection), hence non-expansive
+    there: its Jacobian has operator norm at most one in that metric.
+
+    Parameters
+    ----------
+    state_trial:
+        ``(E, 5)`` unconstrained state in the :data:`RETURN_MAP_CHANNELS`
+        layout, in physical units.
+    peeq_anchor:
+        ``(E,)`` the CARRIED anchor plastic strain.
+    law:
+        Per-element law rows.
+
+    Returns
+    -------
+    tuple[Tensor, Tensor, Tensor]
+        ``(deviator (E, 4), mean_stress (E,), peeq (E,))`` in float64 with,
+        for ANY trial: ``peeq >= peeq_anchor`` and ``peeq >= peeq_trial``;
+        von Mises at or below ``sigma_y(peeq)``; the deviator trace zero
+        exactly; and the identity on an admissible trial.
+    """
+    if state_trial.shape[-1] != RETURN_MAP_WIDTH:
+        raise ValueError(
+            f"project_trial expects {RETURN_MAP_WIDTH} state channels "
+            f"{RETURN_MAP_CHANNELS}; got {state_trial.shape[-1]}"
+        )
+    st = state_trial.to(torch.float64)
+    law64 = _law64(law)
+    stress_trial, peeq_trial = st[:, :4], st[:, 4]
+    peeq_0 = torch.maximum(peeq_trial, peeq_anchor.to(torch.float64))
+    n = st.shape[0]
+    deps = st.new_zeros((n, 3, 3))
+    rot = torch.eye(2, dtype=st.dtype, device=st.device).expand(n, 2, 2)
+    _, peeq, _ = radial_return(stress_trial, peeq_0, deps, rot, law64)
+    deviator_trial, mean_stress = split_stress(stress_trial)
+    q = deviator_norm(deviator_trial[:, [0, 1, 3]])
+    sy, _ = sigma_y_rows(peeq, law64.knots_peeq, law64.knots_sy)
+    scale = torch.minimum(torch.ones_like(q), sy / q)
+    deviator = deviator_from_direction(scale[:, None] * deviator_trial[:, [0, 1, 3]])
+    return deviator, mean_stress, peeq
+
+
+def project_trial(state_trial: Tensor, peeq_anchor: Tensor, law: LawRows) -> Tensor:
+    """The trial-state + projection decoder: ``(E, 5)`` unconstrained state ->
+    ``(E, 5)`` admissible state in the :data:`RETURN_MAP_CHANNELS` layout,
+    float64 (:func:`project_trial_parts`)."""
+    deviator, mean_stress, peeq = project_trial_parts(state_trial, peeq_anchor, law)
+    return torch.cat([assemble_stress(deviator, mean_stress), peeq[:, None]], dim=-1)
 
 
 def von_mises4(stress: Tensor) -> Tensor:

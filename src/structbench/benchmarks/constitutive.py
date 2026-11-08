@@ -20,15 +20,26 @@ from dataclasses import dataclass
 #: (``models.common.two_site``) support exactly these.
 ELEMENT_FORMULATIONS: tuple[str, ...] = ("axisymmetric", "plane_strain")
 
-#: The state-channel layout the return-map decoder consumes: the four stress
+#: The state-channel layout the law-reading decoders consume: the four stress
 #: components of a 2-D continuum, then the equivalent plastic strain.
 RETURN_MAP_STATE_CHANNELS: tuple[str, ...] = (
     "stress_axisymmetric",
     "effective_plastic_strain",
 )
 
-#: Valid values of ``TransolverConfig.two_site_decoder``.
-TWO_SITE_DECODERS: tuple[str, ...] = ("off", "return_map", "corner_mean")
+#: Valid values of ``TransolverConfig.two_site_decoder`` (the model-side
+#: vocabulary ``models.common.two_site.TWO_SITE_DECODERS`` is the same tuple).
+TWO_SITE_DECODERS: tuple[str, ...] = (
+    "off",
+    "return_map",
+    "corner_mean",
+    "admissible_coords",
+    "projected_trial",
+)
+
+#: The decoders that read the case's law (``BenchmarkSpec.constitutive_law``)
+#: and so need the :data:`RETURN_MAP_STATE_CHANNELS` layout.
+LAW_DECODERS: tuple[str, ...] = ("return_map", "admissible_coords", "projected_trial")
 
 
 @dataclass(frozen=True)

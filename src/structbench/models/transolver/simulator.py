@@ -30,12 +30,15 @@ from torch import Tensor
 from ..common import CaseBoundSimulator
 from ..common.two_site import (
     FORMULATIONS,
+    LAW_DECODERS,
     RETURN_MAP_WIDTH,
     TWO_SITE_DECODERS,
     LawRows,
+    admissible_decode,
     cell_weights,
     corner_mean,
     project_elements_to_nodes,
+    project_trial,
     return_map_decode,
 )
 from ..mgn.normalizers import OnlineNormalizer
@@ -298,8 +301,10 @@ class TransolverSimulator(CaseBoundSimulator):
             self._hardening_ctor = (he.clone(), hs.clone())
         # ADR-0075 clause 3: the two-site decoder. The network stays nodal;
         # the simulator carries the element-site state across the anchor
-        # interface and derives it per query (return map, or the corner-mean
-        # head), and the nodal aux the network reads and emits is that
+        # interface and derives it per query (the return map, the corner-mean
+        # head, or one of the two admissible forms of the 2026-11-08 note:
+        # admissible coordinates, or a trial state the radial return
+        # projects), and the nodal aux the network reads and emits is that
         # state's projection. Guarded at config load too.
         if two_site_decoder not in TWO_SITE_DECODERS:
             raise ValueError(
@@ -323,9 +328,9 @@ class TransolverSimulator(CaseBoundSimulator):
                     f"is the projected state block (ADR-0075); got n_state="
                     f"{n_state}, n_aux={n_aux}"
                 )
-            if two_site_decoder == "return_map" and n_state != RETURN_MAP_WIDTH:
+            if two_site_decoder in LAW_DECODERS and n_state != RETURN_MAP_WIDTH:
                 raise ValueError(
-                    "two_site_decoder='return_map' needs the canonical "
+                    f"two_site_decoder={two_site_decoder!r} needs the canonical "
                     f"{RETURN_MAP_WIDTH}-channel state block (four stress "
                     f"components + peeq; ADR-0075); got n_state={n_state}"
                 )
@@ -409,9 +414,10 @@ class TransolverSimulator(CaseBoundSimulator):
 
     @property
     def two_site(self) -> str:
-        """The ADR-0075 two-site decoder: ``"off"``, ``"return_map"`` or
-        ``"corner_mean"``. ``structbench.eval`` reads it to carry the element
-        state through a re-anchoring rollout."""
+        """The ADR-0075 two-site decoder: ``"off"``, ``"return_map"``,
+        ``"corner_mean"``, ``"admissible_coords"`` or ``"projected_trial"``
+        (``models.common.two_site.TWO_SITE_DECODERS``). ``structbench.eval``
+        reads it to carry the element state through a re-anchoring rollout."""
         return self._two_site
 
     def bind_case(
@@ -427,17 +433,17 @@ class TransolverSimulator(CaseBoundSimulator):
     ) -> None:
         """Bind a case (see the base class); a two-site simulator also takes
         the case's element-site state ``gt_state`` ``(T, E, S)`` (the first
-        and the oracle anchors read it) and, for the return-map decoder, its
-        law rows ``law`` (ADR-0075)."""
+        and the oracle anchors read it) and, for a law-reading decoder
+        (``LAW_DECODERS``), its law rows ``law`` (ADR-0075)."""
         if self._two_site != "off":
             if gt_state is None:
                 raise ValueError(
                     "a two-site simulator needs gt_state (T, E, S) at bind_case "
                     "(ADR-0075)"
                 )
-            if self._two_site == "return_map" and law is None:
+            if self._two_site in LAW_DECODERS and law is None:
                 raise ValueError(
-                    "the return-map decoder needs the case's law rows at "
+                    f"the {self._two_site!r} decoder needs the case's law rows at "
                     "bind_case (ADR-0075)"
                 )
         self._gt_state = gt_state
@@ -732,12 +738,32 @@ class TransolverSimulator(CaseBoundSimulator):
             # beside the mean stress across every hand-off.
             self._anchor_state = state.detach().to(torch.float64)
 
+    def _two_site_head(self, net_out: Tensor, raw: Tensor) -> Tensor:
+        """The nodal slice ``(P, S)`` the two-site decoder reads.
+
+        ``admissible_coords`` reads the network's OWN output space (its
+        channels are coordinates, not stresses, and the target normalizer's
+        inverse would only rescale them); every other decoder reads the
+        raw-unit aux (the target normalizer's inverse of the same slice).
+        """
+        source = net_out if self._two_site == "admissible_coords" else raw
+        return source[..., self._dim :]
+
+    def _mean_stress_moments(self) -> tuple[Tensor, Tensor]:
+        """Location and scale of the free mean-stress channel of the
+        admissible-coordinates decoder: the mean of the three normal
+        channels' means and the root-mean-square of their standard
+        deviations under the state normalizer (a scale, not a statistic; the
+        identity moments before warm-up)."""
+        mean, std = self._state_normalizer.moments()
+        return mean[:3].mean(), (std[:3] ** 2).mean().sqrt()
+
     def _two_site_state(
         self,
         anchor_state: Tensor,
         x_anchor: Tensor,
         x_query: Tensor,
-        aux_net: Tensor,
+        head: Tensor,
         cells: Tensor,
         weights: Tensor,
         law: LawRows | None,
@@ -747,19 +773,32 @@ class TransolverSimulator(CaseBoundSimulator):
 
         ``return_map`` advances the carried ``anchor_state`` by the material
         class's radial return from the kinematic increment between the two
-        configurations (the case's law rows); ``corner_mean`` takes the
-        network's raw-unit nodal aux ``aux_net`` to the elements as the
-        corner mean. Either way the nodal view is the area-weighted
-        projection the loader applies, so the network's next anchor input is
-        the projection of the state it carries.
+        configurations (the case's law rows); the three head decoders take
+        the network's nodal slice ``head`` (:meth:`_two_site_head`) to the
+        elements as the corner mean and read it as the element state
+        (``corner_mean``), as admissible coordinates against the carried
+        anchor plastic strain (``admissible_coords``), or as a trial state
+        the radial return projects (``projected_trial``). Either way the
+        nodal view is the area-weighted projection the loader applies, so the
+        network's next anchor input is the projection of the state it
+        carries. Only ``return_map`` reads the predicted kinematics.
         """
         if self._two_site == "return_map":
             assert law is not None and self._formulation is not None
             state = return_map_decode(
                 anchor_state, x_anchor, x_query, cells, law, self._formulation, du=du
             )
+        elif self._two_site == "admissible_coords":
+            assert law is not None
+            loc, scale = self._mean_stress_moments()
+            state = admissible_decode(
+                corner_mean(head, cells), anchor_state[:, 4], law, loc, scale
+            )
+        elif self._two_site == "projected_trial":
+            assert law is not None
+            state = project_trial(corner_mean(head, cells), anchor_state[:, 4], law)
         else:
-            state = corner_mean(aux_net, cells).to(torch.float64)
+            state = corner_mean(head, cells).to(torch.float64)
         projection = project_elements_to_nodes(state, cells, weights, x_query.shape[0])
         return state, projection.to(x_query.dtype)
 
@@ -830,17 +869,20 @@ class TransolverSimulator(CaseBoundSimulator):
         net_out = self._net(node_feats, n_particles_per_example, t=t_norm)
         raw = self._target_normalizer.inverse(net_out)
         disp_pred = raw[..., : self._dim]
-        aux_net = raw[..., self._dim :]
+        head = self._two_site_head(net_out, raw)
         # Kinematic rows are prescribed: the query configuration the decoder
         # sees carries their ground truth, as the rollout override does.
         disp_query = torch.where(
             kin_mask[:, None], gt_position - reference_coords, disp_pred
         )
+        # The anchor state is the CARRIED one (clean); the noised anchor aux
+        # is the network's input only, so no training noise reaches the
+        # monotone plastic strain of the admissible forms.
         state_pred, aux_proj = self._two_site_state(
             anchor_state,
             reference_coords + anchor_disp,
             reference_coords + disp_query,
-            aux_net,
+            head,
             cells,
             weights,
             law,
@@ -1500,15 +1542,15 @@ class TransolverSimulator(CaseBoundSimulator):
             dtype=reference_coords.dtype,
             device=reference_coords.device,
         )
-        out = self._net(node_feats, None, t=t)  # (P, dim+C)
+        net_out = self._net(node_feats, None, t=t)  # (P, dim+C)
         if self._structured_heads:
             # ADR-0064: the emitted state is the structured decode itself
             # (exact softplus/tanh guarantees — no normalize/inverse round
             # trip), against the CACHED anchor's fed peeq.
             assert self._anchor_aux is not None  # structured heads need a bound anchor
-            out = self._decode_structured(out, self._anchor_aux[..., 3])
+            out = self._decode_structured(net_out, self._anchor_aux[..., 3])
         else:
-            out = self._target_normalizer.inverse(out)
+            out = self._target_normalizer.inverse(net_out)
         displacement = out[:, : self._dim]
         stress = out[:, self._dim :]
         positions = (reference_coords + displacement).clone()
@@ -1525,7 +1567,7 @@ class TransolverSimulator(CaseBoundSimulator):
                 anchor_state,
                 reference_coords + anchor_disp,
                 positions,
-                stress,
+                self._two_site_head(net_out, out),
                 cells,
                 weights,
                 self._law,

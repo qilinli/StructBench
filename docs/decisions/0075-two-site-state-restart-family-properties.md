@@ -36,3 +36,44 @@ ADR-0065 left two follow-ups: a properties block with every result (clause 4) an
 - Surface: `datasets/canonical.py` (element block), `benchmarks/registry.py` (site declaration, per-case law, anchors and horizons), `eval/` (state-site metrics, restart rollouts, property kernels shared with `verification/`), `cli/train.py`, the results registries and landing pages, and the model families that opt in, Transolver first. Design, metric keys and build order: `docs/plans/2026-11-07-two-site-state-design.md`.
 - Existing benchmarks declare no element site and are unchanged; their registered rows carry an empty properties block until re-evaluated.
 - Follow-ups 2 and 4 of ADR-0065 remain open.
+
+## Notes
+
+**Note (2026-11-08) — the admissible arm in two forms (clause 3).** The
+first run of the direct return-map decoder on a metal did not train (plan
+3a, note 2026-11-08): stress derived from a surrogate's *predicted*
+kinematics amplifies a displacement error by `E / (h · std σ) ≈ 10³`, so the
+state loss trains the volumetric strain of the displacement field and not the
+positions. The maintainer's decision (2026-11-08, in session): the direct
+return map is not repaired; the admissible arm is tested in two forms that
+both abandon deriving stress from predicted kinematics, and the results
+choose the final form.
+
+1. **Admissible coordinates** (`two_site_decoder = "admissible_coords"`):
+   the head predicts the element state in coordinates where every point is
+   admissible — the equivalent plastic strain as the *carried* anchor value
+   plus a softplus increment (monotone by construction); the deviator as a
+   trace-free direction times a radius in `[0, 1)` times the yield stress of
+   the case's own law at the updated plastic strain (on or inside the
+   surface, trace-free, by construction); the mean stress a free channel. No
+   constitutive call in the training loop: the element-site port of
+   ADR-0064's structured heads.
+2. **Trial state + projection** (`"projected_trial"`): the head predicts an
+   unconstrained element state and the radial return projects it onto the
+   admissible set inside the training graph — closed form, differentiable
+   almost everywhere with the ReLU-like kink at the elastic/plastic switch,
+   and non-expansive in the law's own metric (`|dev|²_F / 2G + H ε̄ᵖ²`), in
+   which it is a closest-point projection.
+
+Both forms read the carried anchor state and never the network's noised
+anchor input, so training noise cannot ratchet the monotone plastic strain
+(the 2026-09 structured-heads lesson); plan 3a's rejection of the
+pushforward chains and the first-validation divergence guard apply unchanged.
+Clause 3 is read accordingly: an admissible arm derives the element state
+from the carried state and the case's own law — by the return map from the
+kinematic increment (the direct form, kept as `return_map`), or from a head
+read in admissible coordinates or projected by the return map. The
+unconstrained arm (`corner_mean`) is unchanged. Invariants are pinned for any
+head output in `tests/models/common/test_two_site.py` and
+`tests/models/transolver/test_transolver_two_site.py`; the build is recorded
+in plan 3a's note of the same date.

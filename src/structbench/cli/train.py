@@ -86,7 +86,7 @@ from ..eval import (
 from ..models.cgn import LearnedSimulator
 from ..models.cgn.simulator import time_diff
 from ..models.common import CaseBoundSimulator
-from ..models.common.two_site import LawRows, law_rows
+from ..models.common.two_site import LAW_DECODERS, LawRows, law_rows
 from ..models.geoflare import GeoFlareSimulator
 from ..models.mgn import (
     MeshSimulator,
@@ -644,7 +644,7 @@ def _law_tuple(law: ConstitutiveLaw) -> LawTuple:
 def _case_law_rows(
     spec: BenchmarkSpec, trajectory: CaseTrajectory, device: str
 ) -> LawRows | None:
-    """The per-element law rows of one case for the return-map decoder
+    """The per-element law rows of one case for a law-reading two-site decoder
     (ADR-0075), or ``None`` when the benchmark declares no law."""
     if spec.constitutive_law is None or trajectory.state is None:
         return None
@@ -2336,7 +2336,8 @@ def _train_transolver_fm(
 
     statics = [mesh_static_from_trajectory(tr) for tr in train_trajs]
     # ADR-0075: the two-site decoder carries the element-site state block
-    # (loaded by _state_fields_for) and, for the return map, each case's law.
+    # (loaded by _state_fields_for) and, for a law-reading decoder, each
+    # case's law.
     two_site = cfg.two_site_decoder != "off"
     laws: list[LawTuple] | None = None
     if two_site:
@@ -2348,12 +2349,12 @@ def _train_transolver_fm(
                 f"(first: {missing[0]!r}); does benchmark {spec.card.name!r} "
                 "declare state_site='element'? (ADR-0075)"
             )
-        if cfg.two_site_decoder == "return_map":
+        if cfg.two_site_decoder in LAW_DECODERS:
             if spec.constitutive_law is None:
                 raise ValueError(
-                    "two_site_decoder='return_map' needs the benchmark's "
-                    f"constitutive_law; benchmark {spec.card.name!r} has none "
-                    "(ADR-0075)"
+                    f"two_site_decoder={cfg.two_site_decoder!r} needs the "
+                    f"benchmark's constitutive_law; benchmark {spec.card.name!r} "
+                    "has none (ADR-0075)"
                 )
             laws = [_law_tuple(spec.constitutive_law(tr.case_id)) for tr in train_trajs]
             if len({len(law[2]) for law in laws}) != 1:

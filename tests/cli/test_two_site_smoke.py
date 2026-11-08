@@ -1,9 +1,10 @@
 """End-to-end two-site smoke (ADR-0075 plan 3a): a synthetic plane-strain quad
 mesh benchmark with an element-site state block, trained with the anchored
-flow map under both two-site decoders, then evaluated. The gate: the
-return-map arm's violation rates read zero at tolerance along the rollout,
-the corner-mean arm's state is scored the same way, and every record and
-artifact carries the state beside the nodal view."""
+flow map under every two-site decoder, then evaluated. The gate: the
+law-reading arms' (return map, admissible coordinates, projected trial)
+violation rates read zero at tolerance along the rollout, the corner-mean
+arm's state is scored the same way, and every record and artifact carries
+the state beside the nodal view."""
 
 import json
 from dataclasses import replace
@@ -28,7 +29,14 @@ from structbench.core import (
     write_case,
 )
 from structbench.eval import terminal_peak_displacement
-from structbench.models.common.two_site import sigma_y_rows, von_mises4
+from structbench.models.common.two_site import (
+    LAW_DECODERS,
+    TWO_SITE_DECODERS,
+    sigma_y_rows,
+    von_mises4,
+)
+
+DECODERS = tuple(d for d in TWO_SITE_DECODERS if d != "off")
 
 T, NX, NY = 8, 3, 2  # frames; a 3 x 2 quad grid: 12 nodes, 6 elements
 STATE_CHANNELS = ("stress_axisymmetric", "effective_plastic_strain")
@@ -163,7 +171,7 @@ def _run(tmp_path, decoder: str):
     return spec, data_root, out, ids
 
 
-@pytest.mark.parametrize("decoder", ["return_map", "corner_mean"])
+@pytest.mark.parametrize("decoder", DECODERS)
 def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
     import structbench.cli.train as cli_train
 
@@ -197,9 +205,10 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
     state = npz["predicted_state"]
     assert state.shape == (T, NX * NY, 5)
     assert npz["state_rmse"].shape == (T - 2,)
-    if decoder == "return_map":
+    if decoder in LAW_DECODERS:
         # By construction along the whole rollout: von Mises at or below
-        # sigma_y(peeq) and peeq never below the seed state.
+        # sigma_y(peeq) and peeq never below the seed state (the return map
+        # and both admissible forms; the corner mean holds nothing).
         st = torch.from_numpy(state)
         knots_x = torch.tensor([LAW.hardening[0]] * (NX * NY))
         knots_y = torch.tensor([LAW.hardening[1]] * (NX * NY))

@@ -6,13 +6,19 @@ import pytest
 import torch
 
 from structbench.models.common.two_site import (
+    LAW_DECODERS,
+    TWO_SITE_DECODERS,
     law_rows,
     project_elements_to_nodes,
     return_map_decode,
     sigma_y_rows,
+    split_stress,
     von_mises4,
 )
 from structbench.models.transolver import TransolverSimulator
+
+DECODERS = tuple(d for d in TWO_SITE_DECODERS if d != "off")
+ADMISSIBLE_FORMS = ("admissible_coords", "projected_trial")
 
 DIM = 2
 S = 5  # (s11, s22, s33, s12, peeq)
@@ -84,6 +90,10 @@ def test_ctor_guards():
         _sim(n_state=4)
     with pytest.raises(ValueError, match="5-channel"):
         _sim(n_aux=4, n_state=4)
+    for form in ADMISSIBLE_FORMS:
+        with pytest.raises(ValueError, match="5-channel"):
+            _sim(two_site_decoder=form, n_aux=4, n_state=4)
+        assert _sim(two_site_decoder=form).two_site == form
     with pytest.raises(ValueError, match="element_formulation"):
         _sim(element_formulation="shell")
     with pytest.raises(ValueError, match="two_site_decoder must be one of"):
@@ -114,10 +124,18 @@ def test_bind_and_anchor_need_the_state_and_the_law():
     # corner_mean needs the state but no law.
     sim2 = _sim(two_site_decoder="corner_mean")
     _bind(sim2)
+    # The two admissible forms read the law too.
+    for form in ADMISSIBLE_FORMS:
+        sim3 = _sim(two_site_decoder=form)
+        with pytest.raises(ValueError, match="law rows"):
+            sim3.bind_case(
+                CELLS, REFERENCE, PTYPE, positions, gt_aux=aux, gt_state=state
+            )
+        _bind(sim3, _law())
 
 
 def test_forward_train_two_site_shapes_and_gradients():
-    for decoder in ("return_map", "corner_mean"):
+    for decoder in DECODERS:
         sim = _sim(two_site_decoder=decoder)
         positions, aux, state = _case()
         weights = torch.tensor([1.0, 2.0])
@@ -132,7 +150,7 @@ def test_forward_train_two_site_shapes_and_gradients():
             accumulate=True,
             cells=CELLS,
             weights=weights,
-            law=_law() if decoder == "return_map" else None,
+            law=_law() if decoder in LAW_DECODERS else None,
             anchor_disp=positions[1] - REFERENCE,
             anchor_vel=positions[1] - positions[0],
             anchor_aux=aux[1],
@@ -186,7 +204,7 @@ def test_corner_mean_arm_emits_the_corner_mean_of_the_network_aux():
     assert st.shape == (E, S)
 
 
-def _train_pass(sim, decoder, accumulate):
+def _train_pass(sim, decoder, accumulate, anchor_aux=None):
     positions, aux, state = _case()
     weights = torch.tensor([1.0, 2.0])
     out = sim.forward_train_two_site(
@@ -200,24 +218,24 @@ def _train_pass(sim, decoder, accumulate):
         accumulate=accumulate,
         cells=CELLS,
         weights=weights,
-        law=_law() if decoder == "return_map" else None,
+        law=_law() if decoder in LAW_DECODERS else None,
         anchor_disp=positions[1] - REFERENCE,
         anchor_vel=positions[1] - positions[0],
-        anchor_aux=aux[1],
+        anchor_aux=anchor_aux if anchor_aux is not None else aux[1],
         anchor_state=state[1],
         anchor_time_feature=torch.full((P, 1), 0.2),
     )
     return positions, aux, state, weights, out
 
 
-@pytest.mark.parametrize("decoder", ["return_map", "corner_mean"])
+@pytest.mark.parametrize("decoder", DECODERS)
 def test_training_state_loss_is_formed_in_the_state_normalizer_space(decoder):
-    """Both decoders hand the trainer a z-scored element state: the target
+    """Every decoder hands the trainer a z-scored element state: the target
     is the state normalizer's image of the stored state and the prediction is
     the same normalizer's image of the decoded PHYSICAL state (the return map's
-    output, or the corner mean of the network's raw-unit aux). Pinned so the
-    return-map arm can never enter the loss in physical units beside a
-    normalized corner-mean control."""
+    output, the corner mean of the network's raw-unit aux, or an admissible
+    form's decode). Pinned so no arm can enter the loss in physical units
+    beside a normalized control."""
     torch.manual_seed(0)
     sim = _sim(two_site_decoder=decoder)
     # Accumulate the normalizers on one pass, then a clean pass to inspect.
@@ -250,6 +268,13 @@ def test_training_state_loss_is_formed_in_the_state_normalizer_space(decoder):
             du=(disp_query - (positions[1] - REFERENCE)).double(),
         )
         assert torch.allclose(physical.double(), expected, rtol=1e-4, atol=1e-3)
+    elif decoder in ADMISSIBLE_FORMS:
+        # An admissible form's physical state obeys its invariants against the
+        # CARRIED anchor state, whatever the network emitted.
+        law = _law()
+        sy, _ = sigma_y_rows(physical[:, 4].double(), law.knots_peeq, law.knots_sy)
+        assert bool((physical[:, 4].double() >= state[1][:, 4].double() - 1e-6).all())
+        assert bool((von_mises4(physical[:, :4].double()) <= sy * (1 + 1e-4)).all())
     else:
         # The corner mean's state projects back to the emitted nodal aux.
         assert torch.allclose(
@@ -266,24 +291,27 @@ def test_training_state_loss_is_formed_in_the_state_normalizer_space(decoder):
 
 
 def test_state_normalizer_statistics_do_not_depend_on_the_decoder():
-    """The state normalizer accumulates the STORED state only, so the two
-    decoders z-score against identical moments on the same data."""
-    sims = {d: _sim(two_site_decoder=d) for d in ("return_map", "corner_mean")}
+    """The state normalizer accumulates the STORED state only, so every
+    decoder z-scores against identical moments on the same data."""
+    sims = {d: _sim(two_site_decoder=d) for d in DECODERS}
     for d, sim in sims.items():
         _train_pass(sim, d, accumulate=True)
-    a, b = (sims[d]._state_normalizer for d in ("return_map", "corner_mean"))
-    assert torch.equal(a._sum, b._sum) and torch.equal(a._sum_sq, b._sum_sq)
-    assert torch.equal(a._count, b._count)
+    ref = sims["corner_mean"]._state_normalizer
+    for d in DECODERS:
+        other = sims[d]._state_normalizer
+        assert torch.equal(ref._sum, other._sum), d
+        assert torch.equal(ref._sum_sq, other._sum_sq), d
+        assert torch.equal(ref._count, other._count), d
 
 
-@pytest.mark.parametrize("decoder", ["return_map", "corner_mean"])
+@pytest.mark.parametrize("decoder", DECODERS)
 def test_anchor_interface_carries_the_physical_state_unscaled(decoder):
     """Across the anchor hand-off the element state travels in physical
     units in double: what set_anchor receives is what the decoder reads, and
     a return-map query at the anchor configuration returns the anchor state
     itself (no normalizer round trip, no scale drift)."""
     sim = _sim(two_site_decoder=decoder)
-    positions, aux, state = _bind(sim, _law() if decoder == "return_map" else None)
+    positions, aux, state = _bind(sim, _law() if decoder in LAW_DECODERS else None)
     anchor = state[1].clone()
     anchor[:, :4] = torch.tensor(
         [[150.0, -40.0, 60.0, 12.0], [-80.0, 30.0, 10.0, -5.0]]
@@ -316,3 +344,147 @@ def test_anchor_interface_carries_the_physical_state_unscaled(decoder):
     assert torch.allclose(aux_out.double(), expected, atol=1e-5)
     sim.set_anchor(3, positions[2], _pos, aux_out, anchor_t_norm=0.6, state=st)
     assert torch.equal(sim._anchor_state, st)
+
+
+# --- The admissible arm in two forms (ADR-0075 clause 3 note, 2026-11-08) ---
+
+
+class _WildNet(torch.nn.Module):
+    """Stands in for the network: emits large random values of the right
+    width, so the invariants are checked for ANY head output."""
+
+    def __init__(self, width: int, scale: float, seed: int):
+        super().__init__()
+        self.width, self.scale = width, scale
+        self.g = torch.Generator().manual_seed(seed)
+        self.p = torch.nn.Parameter(torch.zeros(()))
+
+    def forward(self, feats, n_particles_per_example=None, t=None):
+        out = torch.randn((feats.shape[0], self.width), generator=self.g) * self.scale
+        return out + self.p
+
+
+def _exact_trace(dev):
+    return (dev[:, 0] + dev[:, 1]) + dev[:, 2]
+
+
+@pytest.mark.parametrize("decoder", ADMISSIBLE_FORMS)
+@pytest.mark.parametrize("scale", [0.0, 1.0, 40.0])
+def test_admissible_forms_hold_the_invariants_for_any_network_output(decoder, scale):
+    """Whatever the network emits (zero, order one, wild), the emitted element
+    state has peeq at or above the carried anchor's, von Mises at or below
+    sigma_y(peeq) under the case's law, and an exactly trace-free deviator,
+    at a rollout query and in the training forward."""
+    sim = _sim(two_site_decoder=decoder)
+    sim._net = _WildNet(DIM + S, scale, seed=int(scale) + 1)
+    positions, aux, state = _case()
+    anchor = state[1].clone()
+    anchor[:, 4] = torch.tensor([0.05, 0.30])
+    anchor[:, :4] = torch.tensor(
+        [[150.0, -40.0, 60.0, 12.0], [-80.0, 30.0, 10.0, -5.0]]
+    )
+    law = _law()
+    sim.bind_case(
+        CELLS, REFERENCE, PTYPE, positions, gt_aux=aux, gt_state=state, law=law
+    )
+    sim.set_anchor(
+        1, positions[0], positions[1], aux[1], anchor_t_norm=0.2, state=anchor
+    )
+    sim.eval()
+    with torch.no_grad():
+        _pos, aux_out, st = sim.predict_two_site_at(3, 0.4)
+    assert st.dtype == torch.float64 and st.shape == (E, S)
+    sy, _ = sigma_y_rows(st[:, 4], law.knots_peeq.double(), law.knots_sy.double())
+    assert bool((st[:, 4] >= anchor[:, 4].double()).all())
+    assert bool((von_mises4(st[:, :4]) <= sy * (1 + 1e-12)).all())
+    dev, _p = split_stress(st[:, :4])
+    assert bool((_exact_trace(dev) == 0.0).all())
+    expected = project_elements_to_nodes(st, CELLS, torch.tensor([1.0, 2.0]), P)
+    assert torch.allclose(aux_out.double(), expected, atol=1e-5)
+    # The training forward emits the same invariants (checked in physical units).
+    sim.train()
+    _pos2, _aux2, _st2, _w, (pred, target, st_pred, st_target) = _train_pass(
+        sim, decoder, accumulate=True
+    )
+    physical = sim._state_normalizer.inverse(st_pred).double()
+    sy2, _ = sigma_y_rows(
+        physical[:, 4], law.knots_peeq.double(), law.knots_sy.double()
+    )
+    assert bool((physical[:, 4] >= state[1][:, 4].double() - 1e-6).all())
+    assert bool((von_mises4(physical[:, :4]) <= sy2 * (1 + 1e-4)).all())
+
+
+@pytest.mark.parametrize("decoder", ADMISSIBLE_FORMS)
+def test_admissible_forms_read_the_carried_anchor_not_the_noised_aux(decoder):
+    """Training noise rides the anchor AUX the network reads (ADR-0061), never
+    the carried anchor STATE the decoder reads: a wildly noised anchor aux
+    changes the network's output but not the plastic-strain floor, so noise
+    through the monotone gate cannot ratchet peeq (the 2026-09 lesson)."""
+    sim = _sim(two_site_decoder=decoder)
+    positions, aux, state = _case()
+    noised = aux[1].clone()
+    noised[:, 4] += 10.0  # a peeq "noise" far above anything the state holds
+    _p, _a, state_, _w, (pred, target, st_pred, st_target) = _train_pass(
+        sim, decoder, accumulate=True, anchor_aux=noised
+    )
+    physical = sim._state_normalizer.inverse(st_pred).double()
+    floor = state[1][:, 4].double()
+    assert bool((physical[:, 4] >= floor - 1e-6).all())
+    # The floor is the state's, not the aux's: the emitted peeq stays far
+    # below the noised aux value (a fresh network's increment is order one).
+    assert bool((physical[:, 4] < floor + 5.0).all())
+    # And the sequence of the state path is deterministic in the anchor state:
+    # the same head against a higher carried peeq lifts the floor with it.
+    torch.manual_seed(0)
+    sim2 = _sim(two_site_decoder=decoder)
+    sim2.load_state_dict(sim.state_dict())
+    higher = state.clone()
+    higher[1, :, 4] += 0.2
+    weights = torch.tensor([1.0, 2.0])
+    out2 = sim2.forward_train_two_site(
+        positions[3],
+        aux[3],
+        state[3],
+        PTYPE,
+        REFERENCE,
+        torch.tensor([P]),
+        torch.tensor([0.5]),
+        accumulate=False,
+        cells=CELLS,
+        weights=weights,
+        law=_law(),
+        anchor_disp=positions[1] - REFERENCE,
+        anchor_vel=positions[1] - positions[0],
+        anchor_aux=noised,
+        anchor_state=higher[1],
+        anchor_time_feature=torch.full((P, 1), 0.2),
+    )
+    physical2 = sim2._state_normalizer.inverse(out2[2]).double()
+    assert bool((physical2[:, 4] >= floor + 0.2 - 1e-6).all())
+
+
+def test_admissible_coordinates_read_the_network_space_not_the_raw_aux():
+    """The admissible-coordinates head is the network's own output slice: the
+    target normalizer's inverse plays no part in it, so the decode is the
+    same whatever the target normalizer's moments."""
+    sim = _sim(two_site_decoder="admissible_coords")
+    sim._net = _WildNet(DIM + S, 1.0, seed=3)
+    positions, aux, state = _case()
+    law = _law()
+    sim.bind_case(
+        CELLS, REFERENCE, PTYPE, positions, gt_aux=aux, gt_state=state, law=law
+    )
+    sim.set_anchor(
+        1, positions[0], positions[1], aux[1], anchor_t_norm=0.2, state=state[1]
+    )
+    sim.eval()
+    with torch.no_grad():
+        sim._net.g.manual_seed(3)
+        _, _, st_a = sim.predict_two_site_at(3, 0.4)
+        # Shift the target normalizer's aux moments wildly; the state is unchanged.
+        sim._target_normalizer._sum[DIM:] += 1e6
+        sim._target_normalizer._sum_sq[DIM:] += 1e13
+        sim._target_normalizer._count.fill_(10.0)
+        sim._net.g.manual_seed(3)
+        _, _, st_b = sim.predict_two_site_at(3, 0.4)
+    assert torch.equal(st_a, st_b)

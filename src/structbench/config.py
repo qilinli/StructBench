@@ -402,12 +402,27 @@ class TransolverConfig:
         plastic-strain monotonicity and a traceless deviator hold by
         construction. ``"corner_mean"`` is the unconstrained two-site arm:
         the element state is the mean of the corner nodes' predicted state
-        channels. Both score the element state against the stored one and
-        report the projected nodal view beside it. Requires ``flow_map =
-        true``, a benchmark with an element site, and ``train.aux_fields``
-        equal to the benchmark's ``state_channels`` (the nodal view is the
-        projection of exactly the state block); ``return_map`` also requires
-        the benchmark's ``constitutive_law`` and the canonical layout
+        channels. The direct return map did not train on a metal (plan 3a
+        note 2026-11-08: stress derived from predicted kinematics amplifies
+        displacement error by ``E / std sigma``), so the admissible arm is
+        tested in two further forms that read no predicted kinematics
+        (ADR-0075 clause 3 note, 2026-11-08): ``"admissible_coords"`` reads
+        the corner mean of the network's state slice as coordinates in which
+        every point is admissible (plastic strain = the carried anchor value
+        + softplus; the deviator a trace-free direction times a radius in
+        ``[0, 1)`` times the yield stress of the case's law at the updated
+        plastic strain; the mean stress a free channel), with no
+        constitutive call; ``"projected_trial"`` reads it as an
+        unconstrained trial state that the radial return projects onto the
+        admissible set inside the training graph (closed form, non-expansive
+        in the law's metric). All four score the element state against the
+        stored one and report the projected nodal view beside it. Requires
+        ``flow_map = true``, a benchmark with an element site, and
+        ``train.aux_fields`` equal to the benchmark's ``state_channels`` (the
+        nodal view is the projection of exactly the state block); the three
+        law-reading decoders (``return_map``, ``admissible_coords``,
+        ``projected_trial``) also require the benchmark's
+        ``constitutive_law`` and the canonical layout
         ``("stress_axisymmetric", "effective_plastic_strain")``.
         Incompatible with ``flow_map_pushforward``,
         ``flow_map_structured_heads`` and ``flow_map_consistency_hinge``
@@ -1299,7 +1314,11 @@ def _validate_two_site(
     model: Any, train_cfg: TrainConfig, spec: Any, bench: str
 ) -> None:
     """ADR-0075 clause 3 load-time rules for ``two_site_decoder`` (flow map on)."""
-    from .benchmarks.constitutive import RETURN_MAP_STATE_CHANNELS, TWO_SITE_DECODERS
+    from .benchmarks.constitutive import (
+        LAW_DECODERS,
+        RETURN_MAP_STATE_CHANNELS,
+        TWO_SITE_DECODERS,
+    )
 
     decoder = getattr(model, "two_site_decoder", "off")
     if decoder not in TWO_SITE_DECODERS:
@@ -1336,16 +1355,16 @@ def _validate_two_site(
             f"nodal view is the projection of the state block; ADR-0075); got "
             f"{layout}"
         )
-    if decoder == "return_map":
+    if decoder in LAW_DECODERS:
         if tuple(spec.state_channels) != RETURN_MAP_STATE_CHANNELS:
             raise ConfigError(
-                "[model] two_site_decoder='return_map' requires the state layout "
+                f"[model] two_site_decoder={decoder!r} requires the state layout "
                 f"{RETURN_MAP_STATE_CHANNELS}; benchmark {bench!r} declares "
                 f"{tuple(spec.state_channels)} (ADR-0075)"
             )
         if spec.constitutive_law is None:
             raise ConfigError(
-                "[model] two_site_decoder='return_map' requires the benchmark's "
+                f"[model] two_site_decoder={decoder!r} requires the benchmark's "
                 f"constitutive_law; benchmark {bench!r} has none (ADR-0075)"
             )
 
