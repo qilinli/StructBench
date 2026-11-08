@@ -167,7 +167,7 @@ assets/            # figures embedded in the docs + landing pages
      docs/decisions/, not here. Platform work only: the maintainer's research
      plans stay outside the repository (ADR-0065). -->
 
-*Last revised: 2026-09-29.*
+*Last revised: 2026-11-08.*
 
 ### Shipped
 
@@ -255,6 +255,19 @@ assets/            # figures embedded in the docs + landing pages
         conditions (maintainer's call).
   - [ ] A figure in the reference companion.
   - [ ] A `/2` record format for time-resolved measurements.
+- **Open evaluation** (ADR-0074, Accepted 2026-11-08) — two scored sets, `test`
+  (public outputs) and `blind` (outputs withheld by the platform), each case read
+  by coverage computed from its parameters (within the declared box or beyond
+  it, distance to the nearest training point); external results in two tiers,
+  self-reported and verified, in a results registry without a rank.
+  - [ ] The plan under `docs/plans/`: prediction format, set sizes, cadence,
+        rate limit, the coverage kernel, `withheld` splits and a `grid`
+        shorthand in the contract, the container contract, the intake.
+  - [ ] Registry fields (tier, division, blind tag, provenance, per-case rows)
+        and the rendering: properties block first, headline by coverage bin.
+  - [ ] `CONTRIBUTING.md`; the wording sweep *leaderboard* → *results registry*.
+  - [ ] The first blind set (an Abaqus dataset at admission); the card's
+        compliance table (ADR-0065 follow-up 2) to show the status elsewhere.
 - **The decision log** (ADR-0073, 2026-10-01) — the maintainer's review of
   all 71 records; its decisions are applied.
   - [x] ~~Re-run `tools/blessing_pooled_rmse.py` (von Mises pooling added
