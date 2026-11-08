@@ -28,6 +28,7 @@ table maps those names to files.
 | `2026-11-06-benchmark-by-path-design.md` | design | benchmark by path | executed on `feat/benchmark-by-path` (2026-11-06); recorded as notes on ADR-0032 and ADR-0039 |
 | `2026-11-07-two-site-state-design.md` | design | two-site state | the design behind ADR-0075 (Proposed); 3a built on `feat/two-site-state-3a` (2026-11-07), 3b and 3c not started |
 | `2026-11-07-two-site-state-plan-3a.md` | plan | plan 3a | executed on `feat/two-site-state-3a` (2026-11-07): flow-map scheme only; the AR scheme and the pushforward chains are follow-ups; note 2026-11-08: the `return_map` arm does not train (stiffness, not scale); note (2) of the same date: the admissible arm built in two forms, `admissible_coords` and `projected_trial` (ADR-0075 note 2026-11-08) |
+| `2026-11-08-card-fields-and-compliance-table.md` | plan | card fields and compliance table | executed 2026-11-08 (ADR-0065 follow-up 2, a plan not an ADR by the maintainer's ruling): the V&V card fields, the compliance table, the four shipped cards filled, both generated views; notes on ADR-0027, 0065 and 0074 |
 
 No plan is in flight. What ADR-0071's part three still owes has no plan yet
 (README Roadmap).

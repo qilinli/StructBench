@@ -1,7 +1,13 @@
 """Benchmark card for the notch-beam impact benchmark (ADR-0027)."""
 
 from ...core import UnitsAnchor
-from ..card import BenchmarkCard, BenchmarkFigure
+from ..card import (
+    BenchmarkCard,
+    BenchmarkFigure,
+    ComplianceRow,
+    GroundTruth,
+    ParameterSpace,
+)
 from .benchmark import AUX_FIELD, PROBE, QOIS, TEST_INTERP, TRAIN, VAL
 
 # Landing-page narrative (ADR-0036). Non-derivable prose; the structured facts,
@@ -235,5 +241,86 @@ CARD = BenchmarkCard(
     data_access_label=(
         "public on Hugging Face — [StructBench/notch-beam-2d-impact]"
         "(https://huggingface.co/datasets/StructBench/notch-beam-2d-impact)"
+    ),
+    # V&V identity and the data-standards table (ADR-0065 follow-up 2, plan of
+    # 2026-11-08). A numerical campaign, not a validated model (overview); it
+    # has none of the standard's items and is grandfathered (ADR-0065).
+    structural_scale="specimen",
+    load_type="drop-weight impact of a notched concrete beam",
+    autonomy=(
+        "partly driven: the steel impactor and the two support blocks follow "
+        "ground truth through the rollout (protocol-kinematic, ADR-0026); the "
+        "concrete beam is autonomous after the 6 seed frames"
+    ),
+    parameter_space=ParameterSpace(
+        design=(
+            "full factor grid, 3 beam widths x 3 impactor shapes x 3 notch "
+            "positions x 4 velocities (108 cases); val and test_interp are "
+            "interior combinations with every level in training; the 2 probe "
+            "cases lie off the grid on up to four axes at once (ADR-0026)"
+        ),
+        box={
+            "beam_width_mm": (320.0, 640.0),
+            "beam_height_mm": (80.0, 80.0),
+            "impact_velocity_m_s": (40.0, 160.0),
+            "impact_offset_mm": (0.0, 0.0),
+        },
+        categorical={
+            "impactor_shape": ("plate", "disk", "rod"),
+            "notch_position": ("a", "b", "c"),
+        },
+    ),
+    ground_truth=GroundTruth(
+        regime=(
+            "explicit dynamic SPH in LS-DYNA with the K&C concrete model, one "
+            "run per case, no repeats; the verification record is "
+            "`docs/datachecks/notch_beam_2d_impact.md`."
+        ),
+        uncertainty=(
+            "not measured: no convergence case, no repeat run, no "
+            "smoothing-floor analysis on the strain field."
+        ),
+    ),
+    compliance=(
+        ComplianceRow(
+            "convergence_run",
+            "missing",
+            "the sweep has no case re-run at a second particle spacing.",
+        ),
+        ComplianceRow(
+            "noise_floor",
+            "missing",
+            "no floor has been measured on the max-principal-strain field; one "
+            "run per case.",
+        ),
+        ComplianceRow(
+            "survivor_log",
+            "missing",
+            "the sweep predates the platform; no record of discarded or failed "
+            "runs was kept.",
+        ),
+        ComplianceRow(
+            "constitutive_sensitivity",
+            "missing",
+            "no study of the response's sensitivity to the "
+            "*MAT_CONCRETE_DAMAGE_REL3 parameters exists.",
+        ),
+        ComplianceRow(
+            "physical_test_anchor",
+            "missing",
+            "none exists: the campaign is a numerical example, not a model "
+            "validated against a physical drop-weight test (ADR-0073 D1).",
+        ),
+        ComplianceRow(
+            "second_solver_reproduction",
+            "missing",
+            "no case has been reproduced in a second solver.",
+        ),
+        ComplianceRow(
+            "blind_evaluation",
+            "missing",
+            "a blind set follows when LS-DYNA access allows (ADR-0074); until "
+            "then every scored case is on the public grid or the two probes.",
+        ),
     ),
 )

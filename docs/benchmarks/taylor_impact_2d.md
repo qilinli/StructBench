@@ -84,6 +84,11 @@ on this benchmark.
 - Cases: 33 (train 21, val 3, test_interp 6, test_extrap 3)
 - Particles per case: 4800-8000; 152 frames at 0.002 ms; 2.4 GB on disk
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, shell/stress, shell/effective_plastic_strain, shell/internal_energy, shell/thickness, shell/is_alive, global/kinetic_energy, global/internal_energy, global/total_energy
+- Structural scale: specimen
+- Load type: impact: a bar striking a rigid wall at high strain rate
+- Autonomy: autonomous: after the 6 seed frames the model receives nothing; the rigid wall is a fixed plane, not a driven body
+- Parameter space: full factor grid of the LS-DYNA sweep, 3 bar lengths x 11 impact velocities; 3 x 7 velocity levels train, val and test_interp are interior velocities, test_extrap the 200 m/s level beyond the training box (ADR-0019 clause 4). training box: bar_length_mm 60–100; impact_velocity_m_s 100–190. margin: none declared.
+- Ground truth: explicit dynamic SPH in LS-DYNA, one run per case, no repeats; the verification record is `docs/datachecks/taylor_impact_2d.md`. Uncertainty: measured on the von Mises field only: a particle-scale floor of ~0.12 relative L2 (the raw field against its own 12-neighbour smoothing) and ~0.27 relative L2 against the held-aside 4x-finer re-run of one case; displacement has no measured floor.
 - Provenance: LS-DYNA parametric sweep (3 bar lengths x 11 impact velocities) produced by Curtin collaborators; benchmark protocol per ADR-0019. One extra Convergence run is held aside for a mesh-resolution check.
 - Verification: what was checked about these simulation runs, and what was found — [verification report](../datachecks/taylor_impact_2d.md)
 - License: CC BY 4.0
@@ -105,6 +110,20 @@ autoregressive transition (ADR-0019). Auxiliary target: `von_mises_stress` (MPa)
 input_frames = 6 gives the model C = 5 input velocities (input_frames - 1), the GNS reference history length (Sanchez-Gonzalez et al. 2023); under ADR-0035 the model observes exactly these 6 ground-truth frames to seed the rollout, with no constant-velocity history backfill. GT timeline analysis over all 33 cases (2026-07-05, python -m structbench.benchmarks.timeline; evidence table in docs/timelines/taylor_impact_2d.md): the rod is in free flight until first wall contact near frame 7, so a 6-frame observed prefix takes in 0.0% of the impact in every case, while the historical init = 11 handed models the shock onset (up to 10.6% of total KE already dissipated; nonzero in every case above 100 m/s). 99% displacement settlement lands as late as 296 us of the 300 us record and the last fifth of the horizon retains 1.6-8.1% of peak mean acceleration (elastic ringing), so the full horizon is dynamically active. n_frames = 152 counts stored frames; the working trajectory drops the terminal solver-output artifact frame (ADR-0028), giving a 151-frame / 300 us protocol horizon and a scored span of frames [6, 151) -- 145 predicted frames. Predictions are scored at the native 2 us output times; peak_von_mises/t_peak_von_mises (peak of the particle-mean field, e.g. 191 MPa at 44 us in T-20-80-150 ground truth) penalize temporally coarse surrogates.
 
 </details>
+
+## Data standard
+
+Where this benchmark's reference data stands against the platform's data standard. A benchmark admitted after 2026-10-01 must have a convergence run, measured noise floor, survivor log of discarded cases, constitutive sensitivity study (ADR-0073 D14); a physical-test anchor and a second-solver reproduction are recorded where they exist and not required; the blind evaluation set is ADR-0074's. The benchmarks shipped before that date are grandfathered (ADR-0065): their rows show what exists, and a *missing* row is a fact about the data, not a verdict on it. Status: *pass* — the item exists and is recorded; *missing* — it does not exist yet; *not applicable* — the item has no meaning for this data; *never* — it cannot be produced.
+
+| Item | Status | Reason |
+|---|---|---|
+| Convergence run | pass | the held-aside `T-20-80-Convergence` case re-runs one case at 4x finer resolution (ADR-0019 clause 4); von Mises differs by ~0.27 relative L2 — one refinement level, one case; the verification engine's two-grid row is still owed (README Roadmap). |
+| Measured noise floor | pass | the particle-scale von Mises floor, ~0.12 relative L2, measured 2026-08-20 and recorded on the card; no repeat-run floor exists (one run per case). |
+| Survivor log of discarded cases | missing | the sweep predates the platform; no record of discarded or failed runs was kept. |
+| Constitutive sensitivity study | missing | no study of the response's sensitivity to the *MAT_ELASTIC_PLASTIC_HYDRO / *EOS_GRUNEISEN parameters exists. |
+| Physical-test anchor | missing | the reference-experiment set `taylor_copper` exists (ADR-0072) but no record against this dataset: runs at the experiments' conditions are owed (maintainer's call). |
+| Second-solver reproduction | missing | no case has been reproduced in a second solver. |
+| Blind evaluation set | missing | a blind set follows when LS-DYNA access allows (ADR-0074); until then every scored case is on the public grid. |
 
 ## Leaderboard
 

@@ -1,6 +1,12 @@
 """Benchmark card for the wave-1d benchmark (ADR-0027)."""
 
-from ..card import BenchmarkCard, BenchmarkFigure
+from ..card import (
+    BenchmarkCard,
+    BenchmarkFigure,
+    ComplianceRow,
+    GroundTruth,
+    ParameterSpace,
+)
 from .benchmark import AUX_FIELD, QOIS, TEST_INTERP, TRAIN, VAL
 
 # Landing-page narrative (ADR-0036). Non-derivable prose; the structured facts,
@@ -173,5 +179,74 @@ CARD = BenchmarkCard(
     data_access_label=(
         "public on Hugging Face — [StructBench/wave-propagation-1d]"
         "(https://huggingface.co/datasets/StructBench/wave-propagation-1d)"
+    ),
+    # V&V identity and the data-standards table (ADR-0065 follow-up 2, plan of
+    # 2026-11-08). The entry-tier sweep has none of the standard's items; it
+    # is grandfathered (ADR-0065), and the rows say so.
+    structural_scale="specimen",
+    load_type="stress wave: an elastic bar arrested from an initial axial velocity",
+    autonomy=(
+        "autonomous: after the 6 seed frames the model receives nothing; the "
+        "arrested end is a fixed boundary"
+    ),
+    parameter_space=ParameterSpace(
+        design=(
+            "full factor grid, 4 bar lengths x 4 initial velocities; val and "
+            "test_interp are interior grid points, every level is in training "
+            "(ADR-0025)"
+        ),
+        box={"bar_length_mm": (200.0, 500.0), "initial_velocity_m_s": (1.0, 8.0)},
+    ),
+    ground_truth=GroundTruth(
+        regime=(
+            "explicit dynamic SPH in LS-DYNA with scaled toy elastic constants, "
+            "one run per case, no repeats; no verification record is published "
+            "for this archive."
+        ),
+        uncertainty=(
+            "not measured: no convergence case, no repeat run, no "
+            "smoothing-floor analysis."
+        ),
+    ),
+    compliance=(
+        ComplianceRow(
+            "convergence_run",
+            "missing",
+            "the sweep has no case re-run at a second resolution.",
+        ),
+        ComplianceRow(
+            "noise_floor",
+            "missing",
+            "no floor has been measured on the axial-stress field; one run per "
+            "case, no smoothing-floor analysis.",
+        ),
+        ComplianceRow(
+            "survivor_log",
+            "missing",
+            "the sweep predates the platform; no record of discarded or failed "
+            "runs was kept.",
+        ),
+        ComplianceRow(
+            "constitutive_sensitivity",
+            "missing",
+            "no study of the response's sensitivity to the *MAT_ELASTIC "
+            "constants exists (they are scaled toy values).",
+        ),
+        ComplianceRow(
+            "physical_test_anchor",
+            "missing",
+            "none exists; the toy constants correspond to no physical bar.",
+        ),
+        ComplianceRow(
+            "second_solver_reproduction",
+            "missing",
+            "no case has been reproduced in a second solver.",
+        ),
+        ComplianceRow(
+            "blind_evaluation",
+            "missing",
+            "a blind set follows when LS-DYNA access allows (ADR-0074); until "
+            "then every scored case is on the public grid.",
+        ),
     ),
 )

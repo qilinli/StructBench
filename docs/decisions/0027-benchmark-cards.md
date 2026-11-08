@@ -90,3 +90,12 @@ truth — hand-maintained copies drift.
 - The card is Python-only at source; any non-Python consumer reads the
   generated `card.json`. This is judged acceptable because every
   source-level consumer (pipeline, docs generator, tests) is Python.
+
+---
+
+**Extended by the plan of 2026-11-08** (`docs/plans/2026-11-08-card-fields-and-compliance-table.md`,
+ADR-0065 follow-up 2): clause 1's field list gains a *V&V* group — structural
+scale, load type, autonomy, parameter space, ground-truth regime with its
+uncertainty — and a typed data-standards compliance table, all optional,
+rendered in both generated views. No ADR: the judgments were already recorded
+(ADR-0073 D14, ADR-0065, ADR-0074).

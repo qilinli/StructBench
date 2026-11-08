@@ -1,6 +1,12 @@
 """Benchmark card for the deforming_plate benchmark (ADR-0027, ADR-0043)."""
 
-from ..card import BenchmarkCard, BenchmarkFigure
+from ..card import (
+    BenchmarkCard,
+    BenchmarkFigure,
+    ComplianceRow,
+    GroundTruth,
+    ParameterSpace,
+)
 from .benchmark import AUX_FIELD, QOIS, TEST, TRAIN, VAL
 
 # Landing-page narrative (ADR-0036). Non-derivable prose; the structured facts,
@@ -175,4 +181,75 @@ CARD = BenchmarkCard(
         "shared on request (ADR-0040)."
     ),
     data_access_label=("public source — download + convert (see Dataset access below)"),
+    # V&V identity and the data-standards table (ADR-0065 follow-up 2, plan of
+    # 2026-11-08). Published data with no solver input and no generator: the
+    # platform can add none of the standard's items itself, and a blind set
+    # is never possible (ADR-0074). Grandfathered (ADR-0065).
+    structural_scale="specimen",
+    load_type=(
+        "quasi-static contact: a scripted rigid actuator indenting a hyperelastic plate"
+    ),
+    autonomy=(
+        "partly driven: the actuator (OBSTACLE) and handle nodes are prescribed "
+        "from ground truth at every load step (ADR-0043); the plate is "
+        "autonomous after the 2 seed frames"
+    ),
+    parameter_space=ParameterSpace(
+        design=(
+            "the source authors' sampling (Pfaff et al. 2021): 1,200 "
+            "trajectories with per-case plate geometry, mesh and actuator path, "
+            "of which the first 1,000 train; the sampling distribution and the "
+            "parameter ranges are not published, so no box is declared"
+        ),
+    ),
+    ground_truth=GroundTruth(
+        regime=(
+            "quasi-static FEM in COMSOL, one solve per load step, as published "
+            "by the source authors; no solver input ships with the data."
+        ),
+        uncertainty=(
+            "not measured: the source publishes no mesh study, repeat or "
+            "tolerance, and the platform cannot re-run the solver."
+        ),
+    ),
+    compliance=(
+        ComplianceRow(
+            "convergence_run",
+            "missing",
+            "the source authors published no mesh-refinement study, and the "
+            "platform holds no solver input to produce one.",
+        ),
+        ComplianceRow(
+            "noise_floor",
+            "missing",
+            "no floor has been measured on the published fields.",
+        ),
+        ComplianceRow(
+            "survivor_log",
+            "missing",
+            "the source does not say whether any trajectory was discarded.",
+        ),
+        ComplianceRow(
+            "constitutive_sensitivity",
+            "missing",
+            "the hyperelastic constants are not published; no study exists.",
+        ),
+        ComplianceRow(
+            "physical_test_anchor",
+            "missing",
+            "none exists; the source publishes no experiment.",
+        ),
+        ComplianceRow(
+            "second_solver_reproduction",
+            "missing",
+            "no case has been reproduced in a second solver; the material "
+            "constants a reproduction needs are not published.",
+        ),
+        ComplianceRow(
+            "blind_evaluation",
+            "never",
+            "no generator: the data is published whole by its authors and the "
+            "platform cannot produce withheld cases (ADR-0074).",
+        ),
+    ),
 )

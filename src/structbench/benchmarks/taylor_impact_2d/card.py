@@ -1,7 +1,13 @@
 """Benchmark card for the Taylor 2D impact benchmark (ADR-0027)."""
 
 from ...core import UnitsAnchor
-from ..card import BenchmarkCard, BenchmarkFigure
+from ..card import (
+    BenchmarkCard,
+    BenchmarkFigure,
+    ComplianceRow,
+    GroundTruth,
+    ParameterSpace,
+)
 from .benchmark import AUX_FIELD, QOIS, TEST_EXTRAP, TEST_INTERP, TRAIN, VAL
 
 # Landing-page narrative (ADR-0036). Non-derivable prose; the structured facts,
@@ -216,5 +222,82 @@ CARD = BenchmarkCard(
     data_access_label=(
         "public on Hugging Face — [StructBench/taylor-impact-2d]"
         "(https://huggingface.co/datasets/StructBench/taylor-impact-2d)"
+    ),
+    # V&V identity and the data-standards table (ADR-0065 follow-up 2, plan of
+    # 2026-11-08). Statuses are what exists, not what is hoped for: the sweep
+    # is grandfathered (ADR-0065) and would not be admitted under ADR-0073 D14.
+    structural_scale="specimen",
+    load_type="impact: a bar striking a rigid wall at high strain rate",
+    autonomy=(
+        "autonomous: after the 6 seed frames the model receives nothing; the "
+        "rigid wall is a fixed plane, not a driven body"
+    ),
+    parameter_space=ParameterSpace(
+        design=(
+            "full factor grid of the LS-DYNA sweep, 3 bar lengths x 11 impact "
+            "velocities; 3 x 7 velocity levels train, val and test_interp are "
+            "interior velocities, test_extrap the 200 m/s level beyond the "
+            "training box (ADR-0019 clause 4)"
+        ),
+        box={"bar_length_mm": (60.0, 100.0), "impact_velocity_m_s": (100.0, 190.0)},
+    ),
+    ground_truth=GroundTruth(
+        regime=(
+            "explicit dynamic SPH in LS-DYNA, one run per case, no repeats; the "
+            "verification record is `docs/datachecks/taylor_impact_2d.md`."
+        ),
+        uncertainty=(
+            "measured on the von Mises field only: a particle-scale floor of "
+            "~0.12 relative L2 (the raw field against its own 12-neighbour "
+            "smoothing) and ~0.27 relative L2 against the held-aside 4x-finer "
+            "re-run of one case; displacement has no measured floor."
+        ),
+    ),
+    compliance=(
+        ComplianceRow(
+            "convergence_run",
+            "pass",
+            "the held-aside `T-20-80-Convergence` case re-runs one case at 4x "
+            "finer resolution (ADR-0019 clause 4); von Mises differs by ~0.27 "
+            "relative L2 — one refinement level, one case; the verification "
+            "engine's two-grid row is still owed (README Roadmap).",
+        ),
+        ComplianceRow(
+            "noise_floor",
+            "pass",
+            "the particle-scale von Mises floor, ~0.12 relative L2, measured "
+            "2026-08-20 and recorded on the card; no repeat-run floor exists "
+            "(one run per case).",
+        ),
+        ComplianceRow(
+            "survivor_log",
+            "missing",
+            "the sweep predates the platform; no record of discarded or failed "
+            "runs was kept.",
+        ),
+        ComplianceRow(
+            "constitutive_sensitivity",
+            "missing",
+            "no study of the response's sensitivity to the "
+            "*MAT_ELASTIC_PLASTIC_HYDRO / *EOS_GRUNEISEN parameters exists.",
+        ),
+        ComplianceRow(
+            "physical_test_anchor",
+            "missing",
+            "the reference-experiment set `taylor_copper` exists (ADR-0072) but "
+            "no record against this dataset: runs at the experiments' "
+            "conditions are owed (maintainer's call).",
+        ),
+        ComplianceRow(
+            "second_solver_reproduction",
+            "missing",
+            "no case has been reproduced in a second solver.",
+        ),
+        ComplianceRow(
+            "blind_evaluation",
+            "missing",
+            "a blind set follows when LS-DYNA access allows (ADR-0074); until "
+            "then every scored case is on the public grid.",
+        ),
     ),
 )

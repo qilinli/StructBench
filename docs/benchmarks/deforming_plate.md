@@ -70,6 +70,11 @@ The leaderboard is below.
 - Cases: 1200 (train 1000, val 100, test 100)
 - Particles per case: 672-2189; 400 frames at 1.0 ms; 6.1 GB on disk
 - Fields: node/displacement, node/von_mises_stress
+- Structural scale: specimen
+- Load type: quasi-static contact: a scripted rigid actuator indenting a hyperelastic plate
+- Autonomy: partly driven: the actuator (OBSTACLE) and handle nodes are prescribed from ground truth at every load step (ADR-0043); the plate is autonomous after the 2 seed frames
+- Parameter space: the source authors' sampling (Pfaff et al. 2021): 1,200 trajectories with per-case plate geometry, mesh and actuator path, of which the first 1,000 train; the sampling distribution and the parameter ranges are not published, so no box is declared. margin: none declared.
+- Ground truth: quasi-static FEM in COMSOL, one solve per load step, as published by the source authors; no solver input ships with the data. Uncertainty: not measured: the source publishes no mesh study, repeat or tolerance, and the platform cannot re-run the solver.
 - Provenance: MeshGraphNets dataset (Pfaff et al., ICLR 2021; COMSOL ground truth), downloaded from the DeepMind source bucket and converted locally to canonical HDF5 (ADR-0042; not redistributed).
 - License: None stated by the source; downloaded from source, not redistributed (ADR-0042)
 - Data: public source — download + convert (see Dataset access below)
@@ -90,6 +95,20 @@ quasi-static load-stepping autoregressive rollout (ADR-0043). Auxiliary target: 
 input_frames=2 is the floor (a velocity needs two frames) and the faithful value: the source model uses h=0 history — node inputs are the one-hot node type only — so no window tuning question exists and no ground-truth timeline analysis can move it (ADR-0043 §3). Pseudo-time: dt=0 in the source (quasi-static); time is the frame index and output_dt_ms=1.0 is nominal, not milliseconds. Units MEASURED on the full dataset (2026-08-08, ADR-0042 §2b): positions are metres, stress is Pa — so aux_unit MPa holds and kg-m-s is the identity source convention. Two measured caveats (ADR-0043 dated note): the hosted train.tfrecord carries 1,200 trajectories — the protocol's 1,000 are the first 1,000 in file order; and HANDLE (type-3) nodes are not strictly stationary in the data (max drift ~0.02 m train / ~0.06 m valid+test) — both kinematic types are GT-prescribed and excluded from scoring either way. Scored span is [2, 400), exclusive end (ADR-0043 §6).
 
 </details>
+
+## Data standard
+
+Where this benchmark's reference data stands against the platform's data standard. A benchmark admitted after 2026-10-01 must have a convergence run, measured noise floor, survivor log of discarded cases, constitutive sensitivity study (ADR-0073 D14); a physical-test anchor and a second-solver reproduction are recorded where they exist and not required; the blind evaluation set is ADR-0074's. The benchmarks shipped before that date are grandfathered (ADR-0065): their rows show what exists, and a *missing* row is a fact about the data, not a verdict on it. Status: *pass* — the item exists and is recorded; *missing* — it does not exist yet; *not applicable* — the item has no meaning for this data; *never* — it cannot be produced.
+
+| Item | Status | Reason |
+|---|---|---|
+| Convergence run | missing | the source authors published no mesh-refinement study, and the platform holds no solver input to produce one. |
+| Measured noise floor | missing | no floor has been measured on the published fields. |
+| Survivor log of discarded cases | missing | the source does not say whether any trajectory was discarded. |
+| Constitutive sensitivity study | missing | the hyperelastic constants are not published; no study exists. |
+| Physical-test anchor | missing | none exists; the source publishes no experiment. |
+| Second-solver reproduction | missing | no case has been reproduced in a second solver; the material constants a reproduction needs are not published. |
+| Blind evaluation set | never | no generator: the data is published whole by its authors and the platform cannot produce withheld cases (ADR-0074). |
 
 ## Leaderboard
 

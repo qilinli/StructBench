@@ -266,8 +266,11 @@ assets/            # figures embedded in the docs + landing pages
   - [ ] Registry fields (tier, division, blind tag, provenance, per-case rows)
         and the rendering: properties block first, headline by coverage bin.
   - [ ] `CONTRIBUTING.md`; the wording sweep *leaderboard* → *results registry*.
-  - [ ] The first blind set (an Abaqus dataset at admission); the card's
-        compliance table (ADR-0065 follow-up 2) to show the status elsewhere.
+  - [ ] The first blind set (an Abaqus dataset at admission).
+  - [x] ~~The card's compliance table (2026-11-08) — ADR-0065 follow-up 2,
+        built by a plan, not an ADR: the V&V card fields and a typed
+        data-standards table with the blind-evaluation row, on every landing
+        page and archive README; the four shipped cards declare what exists.~~
 - **The decision log** (ADR-0073, 2026-10-01) — the maintainer's review of
   all 71 records; its decisions are applied.
   - [x] ~~Re-run `tools/blessing_pooled_rmse.py` (von Mises pooling added

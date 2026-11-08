@@ -5,9 +5,16 @@ from dataclasses import replace
 from pathlib import Path
 
 from structbench.benchmarks import available_benchmarks, get_benchmark
+from structbench.benchmarks.card import (
+    STANDARD_ITEMS,
+    ComplianceRow,
+    GroundTruth,
+    ParameterSpace,
+)
 from structbench.benchmarks.render import (
     _baseline_line,
     _col_label,
+    _compliance_lines,
     _leaderboard,
     _quickstart_family,
     card_json,
@@ -773,3 +780,133 @@ def test_the_archive_readme_says_what_total_energy_is_not():
     assert "docs/datachecks" not in bare
     assert "no verification record is published" in bare
     assert "kinetic + internal" in bare  # the warning itself is unconditional
+
+
+# --- the V&V identity bullets and the compliance table (ADR-0065 follow-up 2,
+# plan of 2026-11-08) ---
+
+_PRE_PLAN_PAGE_HEADINGS = [
+    "## Data at a glance",
+    "## Task",
+    "## Evaluation criteria",
+    "## Leaderboard",
+    "## Baseline details",
+    "## Quickstart",
+]
+_VV_BULLETS = (
+    "- Structural scale",
+    "- Load type",
+    "- Autonomy",
+    "- Parameter space",
+    "- Ground truth",
+)
+
+
+def _legacy_spec():
+    """A registered spec with every post-plan card field cleared: the shape
+    a card had before 2026-11-08, rendered through today's renderer."""
+    spec = _bare_spec()
+    card = replace(
+        spec.card,
+        structural_scale="",
+        load_type="",
+        autonomy="",
+        parameter_space=None,
+        ground_truth=None,
+        compliance=(),
+    )
+    return replace(spec, card=card)
+
+
+def test_a_card_without_the_vv_fields_renders_as_before():
+    spec = _legacy_spec()
+    page = render_benchmark_page(spec, "taylor_impact_2d")
+    assert "## Data standard" not in page
+    for bullet in _VV_BULLETS:
+        assert bullet not in page
+    headings = [ln for ln in page.splitlines() if ln.startswith("## ")]
+    assert headings == _PRE_PLAN_PAGE_HEADINGS
+    readme = render_archive_readme(spec, "taylor_impact_2d")
+    assert "## Data standard" not in readme
+    for bullet in _VV_BULLETS:
+        assert bullet not in readme
+
+
+def test_compliance_table_sits_above_the_results_on_the_page():
+    spec = get_benchmark("taylor_impact_2d")
+    page = render_benchmark_page(spec, "taylor_impact_2d")
+    assert "## Data standard" in page
+    assert (
+        page.index("## Evaluation criteria")
+        < page.index("## Data standard")
+        < page.index("## Leaderboard")
+    )
+    # the grandfathering sentence and the status legend are on the page
+    assert "grandfathered (ADR-0065)" in page
+    assert "ADR-0073 D14" in page
+    assert "| Item | Status | Reason |" in page
+
+
+def test_compliance_table_precedes_the_protocol_pointer_in_the_readme():
+    spec = get_benchmark("taylor_impact_2d")
+    readme = render_archive_readme(spec, "taylor_impact_2d")
+    assert "## Data standard" in readme
+    assert readme.index("## Loading") < readme.index("## Data standard")
+    assert readme.index("## Data standard") < readme.index("## Benchmark protocol")
+    # the results still never reach the dataset page
+    assert "## Leaderboard" not in readme
+
+
+def test_compliance_rows_render_in_standard_order_with_spoken_statuses():
+    card = replace(
+        _legacy_spec().card,
+        compliance=(
+            ComplianceRow("blind_evaluation", "never", "no generator"),
+            ComplianceRow("noise_floor", "not_applicable", "no field noise"),
+            ComplianceRow("convergence_run", "pass", "held-aside case"),
+        ),
+    )
+    lines = _compliance_lines(card)
+    rows = [ln for ln in lines if ln.startswith("| ") and "Status" not in ln]
+    assert rows == [
+        "| Convergence run | pass | held-aside case |",
+        "| Measured noise floor | not applicable | no field noise |",
+        "| Blind evaluation set | never | no generator |",
+    ]
+    assert _compliance_lines(replace(card, compliance=())) == []
+
+
+def test_vv_bullets_render_in_both_views_when_declared():
+    card = replace(
+        _legacy_spec().card,
+        structural_scale="specimen",
+        load_type="impact",
+        autonomy="autonomous after the seed",
+        parameter_space=ParameterSpace(
+            design="grid 3 x 7",
+            box={"impact_velocity_m_s": (100.0, 190.0)},
+            categorical={"shape": ("plate", "rod")},
+        ),
+        ground_truth=GroundTruth(regime="SPH, one run per case.", uncertainty="none."),
+    )
+    spec = replace(_legacy_spec(), card=card)
+    for text in (
+        render_benchmark_page(spec, "taylor_impact_2d"),
+        render_archive_readme(spec, "taylor_impact_2d"),
+    ):
+        assert "- Structural scale: specimen" in text
+        assert "- Load type: impact" in text
+        assert "- Autonomy: autonomous after the seed" in text
+        assert (
+            "- Parameter space: grid 3 x 7. training box: impact_velocity_m_s "
+            "100–190. margin: none declared. categorical: shape {plate, rod}."
+        ) in text
+        assert "- Ground truth: SPH, one run per case. Uncertainty: none." in text
+
+
+def test_every_registered_page_carries_a_full_compliance_table():
+    for name in available_benchmarks():
+        page = render_benchmark_page(get_benchmark(name), name)
+        section = page.split("## Data standard", 1)[1].split("\n## ", 1)[0]
+        for label in STANDARD_ITEMS.values():
+            assert f"| {label} |" in section, (name, label)
