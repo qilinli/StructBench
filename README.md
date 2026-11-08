@@ -360,7 +360,7 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
   - *Crash — an assembly-tier question* (ADR-0065 follow-up 4, 2026-11-08;
     was "v0.4 candidate") — the question is not whether public crash data
     exists but whether the platform can say anything trustworthy about an
-    assembly: a component-tier benchmark with its properties block comes
+    assembly: the properties block reporting on the shipped benchmarks comes
     first, and the scale infrastructure (cell-list `radius_graph`, TB-scale
     hosting) and the data (CarCrashNet's release, or open-licence LS-DYNA
     data generated through the pipeline) remain its gates; its methods
