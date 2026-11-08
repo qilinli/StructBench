@@ -142,15 +142,22 @@ class GroundTruth:
         What is measured about the reference's own error — a noise floor, a
         refinement difference — or the statement that nothing is. Never
         blank: an unmeasured uncertainty is said, not implied.
+    floors : mapping of str to float
+        The measured noise floors as numbers, per scored field (the loader's
+        aux-field name, or ``"displacement"``), as pooled relative L2: what
+        the regeneration guard reads (ADR-0074 clause 5; the open-evaluation
+        plan §5). Empty where nothing is measured; a field without a floor is
+        not guarded. Each floor lies in (0, 1].
 
     Raises
     ------
     ValueError
-        If either field is blank.
+        If either text field is blank, or a floor is outside (0, 1].
     """
 
     regime: str
     uncertainty: str
+    floors: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.regime.strip():
@@ -159,6 +166,9 @@ class GroundTruth:
             raise ValueError(
                 "ground truth must state its uncertainty, or that it is unmeasured"
             )
+        for name, floor in self.floors.items():
+            if not 0.0 < floor <= 1.0:
+                raise ValueError(f"floor for {name!r} must lie in (0, 1], got {floor}")
 
 
 @dataclass(frozen=True)

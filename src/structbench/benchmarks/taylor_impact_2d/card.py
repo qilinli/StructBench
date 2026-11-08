@@ -252,6 +252,10 @@ CARD = BenchmarkCard(
             "smoothing) and ~0.27 relative L2 against the held-aside 4x-finer "
             "re-run of one case; displacement has no measured floor."
         ),
+        # The guard's number (ADR-0074 clause 5): a submission whose pooled
+        # von Mises relative L2 lies below this is flagged. Displacement has
+        # no floor and is not guarded.
+        floors={"von_mises_stress": 0.12},
     ),
     compliance=(
         ComplianceRow(

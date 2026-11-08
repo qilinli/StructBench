@@ -299,9 +299,12 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
         sizes, cadence, rate limit, the coverage kernel (built,
         `eval/coverage.py`), `withheld` splits and a `grid` shorthand in the
         contract, the container contract, the intake.~~
-  - [ ] The plan's tasks 2–7: case parameters on the spec and in `cases.csv`;
-        the contract's `withheld` and `grid`; the scoring tool and the guard;
-        the container contract; `CONTRIBUTING.md`.
+  - [x] ~~The plan's tasks 2–7 (2026-11-08): case parameters on the spec and
+        coverage in `cases.csv` and on the pages; the registry fields and the
+        results registry; the contract's `withheld` and `grid` and the
+        inputs-only archive; `tools/score_submission.py` with the guard and
+        the rate limit; `tools/verify_submission.py` and the container
+        contract; `CONTRIBUTING.md` with its generated admission list.~~
   - [x] ~~Registry fields (tier, division, blind tag, submitter, write-up,
         data, per-case rows) and the rendering: unranked registration order,
         tier and division columns where a result is external, the headline

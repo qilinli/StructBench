@@ -4,6 +4,8 @@ import re
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from structbench.benchmarks import available_benchmarks, get_benchmark
 from structbench.benchmarks.card import (
     STANDARD_ITEMS,
@@ -12,15 +14,19 @@ from structbench.benchmarks.card import (
     ParameterSpace,
 )
 from structbench.benchmarks.render import (
+    ADMISSION_END,
+    ADMISSION_START,
     _baseline_line,
     _col_label,
     _compliance_lines,
     _quickstart_family,
     _results_registry,
     card_json,
+    render_admission_list,
     render_archive_readme,
     render_benchmark_page,
     render_index,
+    splice_admission_list,
 )
 from structbench.benchmarks.results import BaselineResult
 
@@ -929,3 +935,33 @@ def test_every_registered_page_carries_a_full_compliance_table():
         section = page.split("## Data standard", 1)[1].split("\n## ", 1)[0]
         for label in STANDARD_ITEMS.values():
             assert f"| {label} |" in section, (name, label)
+
+
+# --- the admission list of CONTRIBUTING.md (ADR-0074; open-evaluation plan §10) ---
+
+
+def test_admission_list_has_one_row_per_benchmark_from_the_cards():
+    text = render_admission_list(_all_specs())
+    rows = [ln for ln in text.splitlines() if ln.startswith("| [")]
+    assert len(rows) == len(available_benchmarks())
+    taylor = next(r for r in rows if "Taylor2D-Impact" in r)
+    assert "`test_interp` (within, ≤ 1: 6)" in taylor
+    assert "`test_extrap` (beyond, ≤ 1: 3)" in taylor
+    assert "| missing |" in taylor  # the blind row of the card
+    assert "`von_mises_stress` 0.12" in taylor
+    assert "2 of 4 required items; grandfathered" in taylor
+    plate = next(r for r in rows if "DeformingPlate" in r)
+    assert "no coverage" in plate and "| never |" in plate and "none measured" in plate
+
+
+def test_committed_contributing_admission_list_is_up_to_date():
+    text = (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    assert text == splice_admission_list(text, render_admission_list(_all_specs()))
+
+
+def test_splice_needs_both_markers():
+    with pytest.raises(ValueError, match="markers"):
+        splice_admission_list("no markers here", "block")
+    before = f"a\n{ADMISSION_START}\nold\n{ADMISSION_END}\nz"
+    spliced = splice_admission_list(before, "new\n")
+    assert spliced == f"a\n{ADMISSION_START}\n\nnew\n{ADMISSION_END}\nz"
