@@ -157,4 +157,9 @@ decoder reads; nothing else in the trainer, the rollout or the metrics
 changes. Tests: the invariants for ANY head output (pure functions and the
 simulator with a wild network), the Jacobian bound, the noised-aux test
 (the plastic-strain floor is the carried state's), and the normalizer pins
-and the synthetic smoke extended to all four decoders.
+and the synthetic smoke extended to all four decoders. The first GPU smoke
+of each form on a by-path metal benchmark (the A3 pattern: 600 steps, a
+validation at 300) trained at a loss below one from its first validation,
+with a position RMSE at a few percent of the domain scale and falling by the
+second — the divergence guard stayed silent where it had killed the direct
+return map at the same step.
