@@ -195,7 +195,7 @@ v0.3 shipped a cross-method comparison. v0.4 is the first release whose
 headline is whether a surrogate can be trusted (ADR-0065): a registered
 result reports its properties before its accuracy, the reference data
 declares what is known of its own error, scored cases are read by coverage,
-and two new benchmarks test what the shipped four cannot. It is built from:
+and a new benchmark tests what the shipped four cannot. It is built from:
 
 - [ ] **The properties block** in the results registries and landing pages
       (ADR-0075 part 3c) and **the restart task family** (part 3b) — the
@@ -211,18 +211,13 @@ and two new benchmarks test what the shipped four cannot. It is built from:
       consumes and the first of ADR-0065's trust properties no shipped
       benchmark reaches. Its own ADR when picked up: the problem, the
       reference sensitivities and how they are verified, the metric.
-- [ ] **A metal component-tier benchmark** — the first benchmark above
-      specimen scale (every shipped card reads `structural scale: specimen`),
-      generated through `structbench-datagen` so that it meets the data
-      standard at admission (ADR-0073 D14) and carries a blind set from the
-      start (ADR-0074). Its own ADR when picked up: the component, the
-      parameter box, the material class.
 - [ ] **Release mechanics**: the `leaderboard` → `results registry` wording
       sweep (ADR-0074); blessed checkpoints published with the release
       (ADR-0074 clause 8); the v0.4 record in this section.
 
-The crash benchmark is no longer a v0.4 candidate: under ADR-0065 it is an
-assembly-tier question (Later, below).
+Two benchmarks ADR-0065 named are not in v0.4: the crash benchmark is an
+assembly-tier question, and the metal component-tier benchmark is parked
+until its purpose is stated (maintainer, 2026-11-08; both under Later).
 
 ### In progress
 
@@ -348,8 +343,16 @@ assembly-tier question (Later, below).
 
 ### Later (each becomes an ADR/spec when picked up)
 
-- **Benchmarks to add** — beyond the two v0.4 names above, three more, each
+- **Benchmarks to add** — beyond the gradient benchmark above, four, each
   becoming its own ADR when picked up:
+  - *A component-tier benchmark* — the first above specimen scale (every
+    shipped card reads `structural scale: specimen`). ADR-0065 follow-up 4
+    named it as metal and for v0.4; the maintainer parked it on 2026-11-08:
+    the case for it — why a component, why metal, why before the gradient
+    benchmark has shown what the properties block can say — is not made, and
+    it enters a release only once it is. If picked up, it would be generated
+    through `structbench-datagen` so it meets the data standard at admission
+    (ADR-0073 D14) with a blind set from the start (ADR-0074)
   - *RC beam bending test* — flexural loading, not the impact regime the
     parked RC beam item assumed (erosion was that one's gate, ADR-0024/0041);
     a bending test may not need erosion at all, which is the first thing to
