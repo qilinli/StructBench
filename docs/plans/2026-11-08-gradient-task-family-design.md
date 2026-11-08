@@ -134,6 +134,22 @@ conservative stand-in for the averaged particle floor), one output interval
 (0.002 ms) on the time of the peak. Assumptions, revisited when the
 convergence case is measured.
 
+## Probe 2026-11-08: one case, the blessed CGN, on a laptop CPU
+
+`evaluate_gradient` on `T-20-60-100` alone with the blessed CGN checkpoint
+(`cgn-7be9d4b`, `model-best-096000.pt`) took 1271 s on CPU: four rollouts
+of the smallest bar, about five minutes each. The full family (33 cases,
+132 rollouts, bars up to 8000 particles) is 15–20 CPU-hours here and
+minutes on a DUG GPU, so the registered run is a job there, not a session
+here. At that one point (100 m/s, a training case, one-sided reference):
+final length −0.238 against −0.169 reference (judged), mushroom width
+−0.404 against +0.441 (judged; the sign is wrong), and the model's own
+two-delta floor exceeds its sensitivity on every quantity (0.32 and 0.64
+mm per m/s on the extents against sensitivities of 0.2–0.4). One point is
+not a result; it is the shape the family exists to see: the accuracy
+baseline's quantities are not smooth in the impact velocity at the 1–2 m/s
+scale. The run decides.
+
 ## Build plan (after the record is Accepted)
 
 1. The free-flight verification of the stored seeds, as a test over the
