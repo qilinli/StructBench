@@ -17,6 +17,7 @@ from .benchmark import (
     WALL_NODE_TYPE,
     WALL_SPAN_MM,
     WALL_X_MM,
+    case_parameters,
     native_mesh_transform,
     wall_distance_feature,
 )
@@ -461,6 +462,7 @@ SPEC = BenchmarkSpec(
     qois=dict(QOIS),
     boundary_feature_fn=wall_distance_feature,
     dataset_id="2D-Copper-Bar-Taylor-Impact",
+    case_parameters=case_parameters,
     kinematic_types=(WALL_NODE_TYPE,),
     mesh_transform=native_mesh_transform,
     scripted_types=(WALL_NODE_TYPE,),

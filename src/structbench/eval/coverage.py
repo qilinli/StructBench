@@ -18,7 +18,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 __all__ = ["DISTANCE_BINS", "Coverage", "coverage", "coverage_bin", "median_spacing"]
 
@@ -73,10 +73,17 @@ def _normalise(
 
 
 def median_spacing(train_unit: NDArray[np.float64]) -> float:
-    """The training set's median nearest-neighbour distance (unit cube)."""
+    """The training set's median nearest-neighbour distance (unit cube).
+
+    Over the *distinct* numeric points: a design whose cases differ only in
+    a categorical level (notch-impact's impactor shapes at one width and
+    velocity) repeats its numeric coordinates, and a repeat is not a
+    neighbour at distance zero.
+    """
+    train_unit = np.unique(np.asarray(train_unit, dtype=float), axis=0)
     n = train_unit.shape[0]
     if n < 2:
-        raise ValueError("a training design needs at least two points")
+        raise ValueError("a training design needs at least two distinct points")
     d = np.linalg.norm(train_unit[:, None, :] - train_unit[None, :, :], axis=-1)
     np.fill_diagonal(d, np.inf)
     nearest = d.min(axis=1)
@@ -87,8 +94,8 @@ def median_spacing(train_unit: NDArray[np.float64]) -> float:
 
 
 def coverage(
-    train: NDArray,
-    scored: NDArray,
+    train: ArrayLike,
+    scored: ArrayLike,
     box: Sequence[tuple[float, float]],
     *,
     novelty: Sequence[bool] | None = None,

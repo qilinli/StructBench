@@ -14,8 +14,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
+
+#: Who produced a result's numbers (ADR-0074 clause 6; open-evaluation plan §8).
+TIERS: tuple[str, ...] = ("platform", "verified", "self_reported")
+
+#: What a result was trained on (ADR-0074 clause 4).
+DIVISIONS: tuple[str, ...] = ("closed", "open")
 
 
 @dataclass(frozen=True)
@@ -48,7 +54,7 @@ class BaselineResult:
     scheme : str
         Prediction scheme this result was produced under, e.g.
         ``"autoregressive"``, ``"time-conditioned"``, ``"one-shot"``. Surfaced
-        as the leaderboard's Scheme column; ``""`` (default, unknown) renders
+        as the results registry's Scheme column; ``""`` (default, unknown) renders
         ``"—"``. Purely descriptive — no validation.
     provisional : bool
         ``False`` (default) = blessed — validated against its published
@@ -78,11 +84,43 @@ class BaselineResult:
     scheme: str = ""
     reference: str = ""
     pending: bool = False
+    # ADR-0074 (open-evaluation plan §8): additive, defaults are the
+    # platform-run values so every existing row is unchanged.
+    tier: str = "platform"
+    """Who produced the numbers: ``"platform"`` (the maintainer ran it;
+    blessed or provisional as before), ``"verified"`` (the platform executed
+    the submitter's container) or ``"self_reported"`` (ADR-0074 clause 6)."""
+    division: str = "closed"
+    """``"closed"`` (trained on the published train set only) or ``"open"``
+    (any data, declared in ``data``; ADR-0074 clause 4)."""
+    blind_tag: str = ""
+    """The blind set the result was scored under (``"blind-v1"``), or empty
+    when it was scored on public sets alone."""
+    submitter: str = ""
+    """Who submitted an external result; empty for a platform run."""
+    writeup: str = ""
+    """URL or DOI of the submitter's write-up."""
+    data: str = ""
+    """The open division's declared training data."""
+    case_metrics: Mapping[str, Mapping[str, float]] = field(default_factory=dict)
+    """Case id -> metric -> value for the scored cases, from which the
+    registry renders the headline by coverage bin (ADR-0074 clause 7). Case
+    ids are validated against the owning spec's scored splits."""
 
     def __post_init__(self) -> None:
         for name in ("family", "label", "run_commit", "run_date"):
             if not getattr(self, name).strip():
                 raise ValueError(f"{name} must be non-empty")
+        if self.tier not in TIERS:
+            raise ValueError(f"tier must be one of {TIERS}, got {self.tier!r}")
+        if self.division not in DIVISIONS:
+            raise ValueError(
+                f"division must be one of {DIVISIONS}, got {self.division!r}"
+            )
+        if self.division == "open" and not self.data.strip():
+            raise ValueError("an open-division result must declare its data")
+        if self.tier != "platform" and not self.submitter.strip():
+            raise ValueError("an external result must name its submitter")
         if self.checkpoint_sha256 is not None:
             if self.checkpoint is None:
                 raise ValueError("checkpoint_sha256 requires checkpoint")
@@ -90,7 +128,7 @@ class BaselineResult:
                 raise ValueError("checkpoint_sha256 must be 64 lowercase hex chars")
         # A ``pending`` entry is a placeholder for a still-training baseline
         # (its run hasn't produced numbers yet), so empty metrics are allowed;
-        # the leaderboard renders its row as "—". Every other entry must carry
+        # the results registry renders its row as "—". Every other entry must carry
         # metrics.
         if not self.metrics and not self.pending:
             raise ValueError("metrics must record at least one split")
@@ -100,3 +138,10 @@ class BaselineResult:
         # Read-only proxies, matching the BenchmarkSpec mapping convention.
         frozen = {k: MappingProxyType(dict(v)) for k, v in self.metrics.items()}
         object.__setattr__(self, "metrics", MappingProxyType(frozen))
+        for case_id, values in self.case_metrics.items():
+            if not values:
+                raise ValueError(f"case_metrics[{case_id!r}] must not be empty")
+        frozen_cases = {
+            k: MappingProxyType(dict(v)) for k, v in self.case_metrics.items()
+        }
+        object.__setattr__(self, "case_metrics", MappingProxyType(frozen_cases))

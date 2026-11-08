@@ -201,7 +201,7 @@ class BenchmarkCard:
     Parameters
     ----------
     name, version, description, provenance, data_license : str
-        Identity block: leaderboard name, benchmark version, one-line
+        Identity block: registry name, benchmark version, one-line
         description, data provenance (paper / who ran the simulations),
         and the data license.
     units_anchors : tuple of UnitsAnchor

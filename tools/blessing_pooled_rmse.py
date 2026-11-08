@@ -1,7 +1,7 @@
 """ADR-0043 SS8 blessing aggregator: paper-convention pooled rollout RMSE.
 
 Since ADR-0073 D6 (2026-10-01) the pooled statistic is also DeformingPlate's
-leaderboard RMSE: the registry's ``rollout_pos_rmse_mm`` is the pooled
+results-registry RMSE: the registry's ``rollout_pos_rmse_mm`` is the pooled
 position number below, and ``rollout_vm_rmse_mpa`` is the same pooling of the
 von Mises field over the non-kinematic rows (kinematic rows carry no aux
 prediction; ADR-0026 masking), which this tool also computes.
@@ -13,7 +13,7 @@ corrected by its 2026-08-08 dated note): sqrt(sum of squared position error
 (kinematic rows included -- they are GT-prescribed so contribute zero
 error) x all steps of a trajectory (including the GT-seeded input frames,
 also zero error) x all cases of the split. This is a different statistic
-from the StructBench leaderboard's mean-of-per-step-RMSE (ADR-0019 SS5);
+from the StructBench registries' mean-of-per-step-RMSE (ADR-0019 SS5);
 this tool exists precisely to keep the two from being conflated.
 
 Reads, per case, the predicted rollout trajectory written by

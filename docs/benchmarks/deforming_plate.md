@@ -49,7 +49,7 @@ next. MGN's pooled position RMSE (15.45 mm) reproduces the published
 reference (15.1 +/- 4.0); a 2026-08-20 training-noise fix (noise_std corrected to
 the working frame, ~1000x stronger) repaired MGN's previously-collapsed von Mises
 field (relative L2 4.21 -> 0.36), so the cross-method stress gap is now narrow.
-The leaderboard is below.
+The results registry is below.
 
 ## Figures
 
@@ -110,9 +110,9 @@ Where this benchmark's reference data stands against the platform's data standar
 | Second-solver reproduction | missing | no case has been reproduced in a second solver; the material constants a reproduction needs are not published. |
 | Blind evaluation set | never | no generator: the data is published whole by its authors and the platform cannot produce withheld cases (ADR-0074). |
 
-## Leaderboard
+## Results registry
 
-The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. RMSE and quantities of interest are shown for the in-distribution `test` split.
+Rows are in registration order and are not ranked (ADR-0074): a result is read beside the coverage of the set it was scored on (the Scored sets above) and, where reported, its properties. The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. RMSE and quantities of interest are shown for the in-distribution `test` split.
 
 _Headline — pooled relative L2 (↓ better)_
 

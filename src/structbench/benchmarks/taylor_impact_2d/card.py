@@ -101,7 +101,7 @@ _FIGURES = (
             "228 / 300 us. Transolver tracks the mushroom-head stress band most "
             "closely (rollout von Mises RMSE 30 MPa); CGN is slightly diffuse "
             "(49.5 MPa); MGN smears and fragments the field (62.4 MPa) - the "
-            "ranking the leaderboard reports. Transolver and MGN are provisional "
+            "order the results registry shows. Transolver and MGN are provisional "
             "(ADR-0044/0045)."
         ),
         alt=(

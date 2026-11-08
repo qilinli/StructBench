@@ -59,7 +59,7 @@ next. MGN's pooled position RMSE (15.45 mm) reproduces the published
 reference (15.1 +/- 4.0); a 2026-08-20 training-noise fix (noise_std corrected to
 the working frame, ~1000x stronger) repaired MGN's previously-collapsed von Mises
 field (relative L2 4.21 -> 0.36), so the cross-method stress gap is now narrow.
-The leaderboard is below."""  # noqa: E501 - a markdown image line cannot wrap
+The results registry is below."""  # noqa: E501 - a markdown image line cannot wrap
 
 _FIGURES = (
     BenchmarkFigure(
