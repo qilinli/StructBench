@@ -1,5 +1,6 @@
 """Evaluation: autoregressive rollout, one-step eval, and benchmark metrics."""
 
+from .coverage import Coverage, coverage, coverage_bin
 from .metrics import (
     QoiFn,
     QoiInputs,
@@ -41,6 +42,9 @@ from .sensitivity import (
 )
 
 __all__ = [
+    "Coverage",
+    "coverage",
+    "coverage_bin",
     "GradientFamily",
     "QoiNoise",
     "SensitivityPoint",

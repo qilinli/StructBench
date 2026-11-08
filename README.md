@@ -295,9 +295,13 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
   by coverage computed from its parameters (within the declared box or beyond
   it, distance to the nearest training point); external results in two tiers,
   self-reported and verified, in a results registry without a rank.
-  - [ ] The plan under `docs/plans/`: prediction format, set sizes, cadence,
-        rate limit, the coverage kernel, `withheld` splits and a `grid`
-        shorthand in the contract, the container contract, the intake.
+  - [x] ~~The plan under `docs/plans/` (2026-11-08): prediction format, set
+        sizes, cadence, rate limit, the coverage kernel (built,
+        `eval/coverage.py`), `withheld` splits and a `grid` shorthand in the
+        contract, the container contract, the intake.~~
+  - [ ] The plan's tasks 2–7: case parameters on the spec and in `cases.csv`;
+        the contract's `withheld` and `grid`; the scoring tool and the guard;
+        the container contract; `CONTRIBUTING.md`.
   - [ ] Registry fields (tier, division, blind tag, provenance, per-case rows)
         and the rendering: properties block first, headline by coverage bin.
   - [ ] `CONTRIBUTING.md`; the wording sweep *leaderboard* → *results registry*.
