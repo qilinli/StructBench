@@ -68,6 +68,11 @@ are below.
 - Cases: 16 (train 12, val 2, test_interp 2)
 - Particles per case: 500-1250; 302 frames at 0.1 ms; 0.23 GB on disk
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
+- Structural scale: specimen
+- Load type: stress wave: an elastic bar arrested from an initial axial velocity
+- Autonomy: autonomous: after the 6 seed frames the model receives nothing; the arrested end is a fixed boundary
+- Parameter space: full factor grid, 4 bar lengths x 4 initial velocities; val and test_interp are interior grid points, every level is in training (ADR-0025). training box: bar_length_mm 200–500; initial_velocity_m_s 1–8. margin: none declared.
+- Ground truth: explicit dynamic SPH in LS-DYNA with scaled toy elastic constants, one run per case, no repeats; no verification record is published for this archive. Uncertainty: not measured: no convergence case, no repeat run, no smoothing-floor analysis.
 - Provenance: LS-DYNA parametric sweep (4 bar lengths x 4 initial velocities) produced by Curtin collaborators; benchmark protocol per ADR-0025.
 - License: CC BY 4.0
 - Data: public on Hugging Face — [StructBench/wave-propagation-1d](https://huggingface.co/datasets/StructBench/wave-propagation-1d)
@@ -88,6 +93,20 @@ autoregressive transition (ADR-0025). Auxiliary target: `axial_stress` (MPa). Mo
 input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS reference history length; the model observes exactly these 6 ground-truth frames (indices 0-5) to seed the rollout, with no constant-velocity backfill. GT timeline analysis run 2026-07-06 (docs/timelines/wave_propagation_1d.md): a 6-frame observed prefix takes in 14.8% of initial KE worst-case (3.7% at 3 frames), and at the measured front speed ~70.7 m/s the wave reaches the first (25%) gauge about 7 frames in -- after the observed prefix -- so the arrival_time QoI is predicted, not observed. 6 is near the ceiling for this benchmark: a larger input_frames would risk seeding past first arrival.
 
 </details>
+
+## Data standard
+
+Where this benchmark's reference data stands against the platform's data standard. A benchmark admitted after 2026-10-01 must have a convergence run, measured noise floor, survivor log of discarded cases, constitutive sensitivity study (ADR-0073 D14); a physical-test anchor and a second-solver reproduction are recorded where they exist and not required; the blind evaluation set is ADR-0074's. The benchmarks shipped before that date are grandfathered (ADR-0065): their rows show what exists, and a *missing* row is a fact about the data, not a verdict on it. Status: *pass* — the item exists and is recorded; *missing* — it does not exist yet; *not applicable* — the item has no meaning for this data; *never* — it cannot be produced.
+
+| Item | Status | Reason |
+|---|---|---|
+| Convergence run | missing | the sweep has no case re-run at a second resolution. |
+| Measured noise floor | missing | no floor has been measured on the axial-stress field; one run per case, no smoothing-floor analysis. |
+| Survivor log of discarded cases | missing | the sweep predates the platform; no record of discarded or failed runs was kept. |
+| Constitutive sensitivity study | missing | no study of the response's sensitivity to the *MAT_ELASTIC constants exists (they are scaled toy values). |
+| Physical-test anchor | missing | none exists; the toy constants correspond to no physical bar. |
+| Second-solver reproduction | missing | no case has been reproduced in a second solver. |
+| Blind evaluation set | missing | a blind set follows when LS-DYNA access allows (ADR-0074); until then every scored case is on the public grid. |
 
 ## Leaderboard
 

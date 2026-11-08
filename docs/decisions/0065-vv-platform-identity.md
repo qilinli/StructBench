@@ -269,3 +269,14 @@ flow-map and structured-head code (ADR-0060 to ADR-0064) is reference-baseline
 infrastructure under clause 3 and stays in the repository, inside a model
 family or as a module shared by several; it is not a scientific contribution
 hosted here.
+
+---
+
+**Note (2026-11-08, maintainer + agent).** Follow-up 2 is built by the plan
+`docs/plans/2026-11-08-card-fields-and-compliance-table.md`, not by an ADR:
+under the 2026-10-01 bar no judgment was left open — the standard's items
+are ADR-0073 D14, grandfathering is this record, the blind row is ADR-0074,
+the field names are the Consequences above. The card carries the five
+fields and a typed compliance table; the four shipped cards declare what
+exists (Taylor's convergence run and noise floor; nothing else), rendered
+above the results on every landing page and in the archive README.

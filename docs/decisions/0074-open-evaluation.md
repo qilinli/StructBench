@@ -39,3 +39,11 @@ The public test splits are downloaded hundreds of times a month and the grids ar
 - `CONTRIBUTING.md`: submission contract, admission list, challenges (which may rank for their duration); a result changing task, split or protocol is another benchmark.
 - Split labels in `cases.csv` and the loaders do not change; outward words: *test*, *blind*, *within*, *beyond*.
 - Legacy LS-DYNA benchmarks get blind sets when solver access allows, DeformingPlate never, Abaqus datasets at admission; the card's compliance table (ADR-0065 follow-up 2, the next record drafted) shows the status.
+
+---
+
+**Note (2026-11-08).** The last Consequence's "the next record drafted" reads
+"the plan of 2026-11-08" (`docs/plans/2026-11-08-card-fields-and-compliance-table.md`):
+the maintainer ruled follow-up 2 a plan plus a card change, not an ADR. The
+compliance table is built; its blind-evaluation row reads *missing* on the
+three LS-DYNA benchmarks and *never* on DeformingPlate, as this record says.

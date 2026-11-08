@@ -1,6 +1,15 @@
 """Benchmark problem definitions (ARCHITECTURE.md; registry per ADR-0024)."""
 
-from .card import BenchmarkCard
+from .card import (
+    COMPLIANCE_STATUSES,
+    REQUIRED_ITEMS,
+    STANDARD_ITEMS,
+    STRUCTURAL_SCALES,
+    BenchmarkCard,
+    ComplianceRow,
+    GroundTruth,
+    ParameterSpace,
+)
 from .constitutive import (
     ELEMENT_FORMULATIONS,
     LAW_DECODERS,
@@ -19,14 +28,21 @@ from .registry import (
 )
 
 __all__ = [
+    "COMPLIANCE_STATUSES",
     "ELEMENT_FORMULATIONS",
     "LAW_DECODERS",
+    "REQUIRED_ITEMS",
     "RETURN_MAP_STATE_CHANNELS",
+    "STANDARD_ITEMS",
+    "STRUCTURAL_SCALES",
     "TWO_SITE_DECODERS",
     "BenchmarkCard",
     "BenchmarkSource",
     "BenchmarkSpec",
+    "ComplianceRow",
     "ConstitutiveLaw",
+    "GroundTruth",
+    "ParameterSpace",
     "available_benchmarks",
     "get_benchmark",
     "is_benchmark_definition",

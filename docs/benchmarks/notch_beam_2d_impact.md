@@ -79,6 +79,11 @@ numbers, and the cross-method comparison, are below.
 - Cases: 110 (train 88, val 8, test_interp 12, probe 2)
 - Particles per case: 4264-12966; 502 frames at 0.001 ms; 24.9 GB on disk
 - Fields: node/displacement, node/velocity, node/acceleration, sph/stress, sph/strain, sph/strain_rate, sph/effective_plastic_strain, sph/pressure, sph/density, sph/internal_energy, sph/mass, sph/radius, sph/n_neighbors, sph/deletion, global/kinetic_energy, global/internal_energy, global/total_energy
+- Structural scale: specimen
+- Load type: drop-weight impact of a notched concrete beam
+- Autonomy: partly driven: the steel impactor and the two support blocks follow ground truth through the rollout (protocol-kinematic, ADR-0026); the concrete beam is autonomous after the 6 seed frames
+- Parameter space: full factor grid, 3 beam widths x 3 impactor shapes x 3 notch positions x 4 velocities (108 cases); val and test_interp are interior combinations with every level in training; the 2 probe cases lie off the grid on up to four axes at once (ADR-0026). training box: beam_width_mm 320–640; beam_height_mm 80 (fixed); impact_velocity_m_s 40–160; impact_offset_mm 0 (fixed). margin: none declared. categorical: impactor_shape {plate, disk, rod}; notch_position {a, b, c}.
+- Ground truth: explicit dynamic SPH in LS-DYNA with the K&C concrete model, one run per case, no repeats; the verification record is `docs/datachecks/notch_beam_2d_impact.md`. Uncertainty: not measured: no convergence case, no repeat run, no smoothing-floor analysis on the strain field.
 - Provenance: LS-DYNA parametric sweep (3 widths x 3 shapes x 3 notches x 4 velocities) produced by Curtin collaborators — extends the published 81-specimen drop-weight study (plate/disk/rod impactors at 80/120/160 m/s) with a 40 m/s velocity level; benchmark protocol per ADR-0026.
 - Verification: what was checked about these simulation runs, and what was found — [verification report](../datachecks/notch_beam_2d_impact.md)
 - License: CC BY 4.0
@@ -100,6 +105,20 @@ autoregressive transition (ADR-0026). Auxiliary target: `max_principal_strain` (
 Confirmed (maintainer, 2026-07-20): input_frames = 6 gives C = 5 input velocities (input_frames - 1), the GNS reference history length — the velocity budget is the criterion, not a rigid prefix. The timeline analysis (2026-07-20, on the DUG data copy) shows impact contact from frame 0, so the observed window takes in the first 6 us of contact; accepted. Scored horizon (ADR-0039): rollout metrics and QoIs are scored on frames [input_frames, 250) (250 µs). Internal energy reaches 99% of its final value by frame 77-213 (width-dependent); the remaining frames are ballistic separation and elastic ringing, which dominated full-horizon RMSE (half the final error accrued after frame 301 in baseline rollouts) while adding no fracture physics. The full 502-frame error curve remains a non-leaderboard long-horizon diagnostic. The cracked_fraction QoI threshold 0.01 is a declared protocol definition (ADR-0029, amended 2026-08-06): the SPH source model has no erosion or crack criterion; a 221-case sweep shows the GT fraction shifts ~0.05 mean per case across the factor-2 band [0.005, 0.02], and frame-249 vs frame-501 fractions are nearly identical (0.305 vs 0.317 mean), corroborating the 250 us horizon. Probe split (characterisation, 2026-08-15; height axis added 2026-08-27): the probe cases are out-of-distribution on up to FOUR axes at once — beam width (400/800 mm) and impactor velocity (140/60 m/s) both off the training grids ({320,480,640} mm; {40,80,120,160} m/s), beam height H=100 mm on the 800 mm case (every grid case is H=80; verified from canonical frame-0 extents, 2026-08-27), and, decisively, an OFF-CENTRE impact. All 108 train/val/test_interp cases are struck exactly at midspan (impact offset 0.0 mm, every notch a/b/c variant and width); the probe impacts land ~6% off-centre — a loading mode absent from training entirely. Probe scores therefore measure graceful failure on a genuinely new loading configuration, not ordinary interpolation, and a probe score locates no single cause (the cases differ from training on several axes at once). Observed: the global-attention operators placed the response at midspan on the probe cases, while relative-position message passing (MGN/CGN) degraded more gracefully (ADR-0073 D8).
 
 </details>
+
+## Data standard
+
+Where this benchmark's reference data stands against the platform's data standard. A benchmark admitted after 2026-10-01 must have a convergence run, measured noise floor, survivor log of discarded cases, constitutive sensitivity study (ADR-0073 D14); a physical-test anchor and a second-solver reproduction are recorded where they exist and not required; the blind evaluation set is ADR-0074's. The benchmarks shipped before that date are grandfathered (ADR-0065): their rows show what exists, and a *missing* row is a fact about the data, not a verdict on it. Status: *pass* — the item exists and is recorded; *missing* — it does not exist yet; *not applicable* — the item has no meaning for this data; *never* — it cannot be produced.
+
+| Item | Status | Reason |
+|---|---|---|
+| Convergence run | missing | the sweep has no case re-run at a second particle spacing. |
+| Measured noise floor | missing | no floor has been measured on the max-principal-strain field; one run per case. |
+| Survivor log of discarded cases | missing | the sweep predates the platform; no record of discarded or failed runs was kept. |
+| Constitutive sensitivity study | missing | no study of the response's sensitivity to the *MAT_CONCRETE_DAMAGE_REL3 parameters exists. |
+| Physical-test anchor | missing | none exists: the campaign is a numerical example, not a model validated against a physical drop-weight test (ADR-0073 D1). |
+| Second-solver reproduction | missing | no case has been reproduced in a second solver. |
+| Blind evaluation set | missing | a blind set follows when LS-DYNA access allows (ADR-0074); until then every scored case is on the public grid or the two probes. |
 
 ## Leaderboard
 
