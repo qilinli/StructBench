@@ -2879,7 +2879,7 @@ def _train_transolver_fm(
                     val_pos,
                     best_pos,
                 )
-                if best_pos == float("inf") and spec.source is not None:
+                if best_pos == float("inf") and spec.source is not None and val_trajs:
                     # A by-path arm dies at its first validation, not hours
                     # later (TrainingDiverged).
                     reason = _early_divergence(
