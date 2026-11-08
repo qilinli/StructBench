@@ -47,3 +47,11 @@ The public test splits are downloaded hundreds of times a month and the grids ar
 the maintainer ruled follow-up 2 a plan plus a card change, not an ADR. The
 compliance table is built; its blind-evaluation row reads *missing* on the
 three LS-DYNA benchmarks and *never* on DeformingPlate, as this record says.
+
+**Note (2026-11-08).** The one plan the Consequences call for is
+`docs/plans/2026-11-08-open-evaluation-plan.md`: sets and sizes, the blind
+tag's cadence, the margin, the coverage kernel (built with the plan as
+`eval/coverage.py`), the prediction format and rate limit, the contract's
+`withheld` and `grid`, the container contract, the registry fields and their
+rendering, the steward processes and `CONTRIBUTING.md`'s shape. Its numbers
+are choices the plan names as such; changing one is a note there.
