@@ -108,7 +108,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0007 | CORRECTIONS.md mechanism for small corrections | Durable | Accepted |
 | 0008 | Principle/mechanism separation between HARNESS and CLAUDE | Durable | Accepted |
 | 0009 | Session-start reading list | Ephemeral | Accepted |
-| 0010 | FEM solver code lives outside the importable package | Durable | Accepted (amended by 0073) |
+| 0010 | FEM solver code lives outside the importable package | Durable | Accepted (amended by 0071, 0073) |
 | 0011 | Case vocabulary for the data record | Durable | Accepted |
 | 0012 | Case schema field-level structure | Durable | Accepted (amended by 0073) |
 | 0013 | HDF5 persistence layout for the case schema | Durable | Accepted |
@@ -117,34 +117,34 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0016 | LS-DYNA d3plot is the canonical ingestion path; general adapter on lasso-python | Durable | Accepted |
 | 0017 | Relationship to NVIDIA PhysicsNeMo: independent substrate, opt-in model-edge interop | Durable | Accepted |
 | 0018 | PyTorch + PyG are hard runtime dependencies of the ML layer | Durable | Accepted |
-| 0019 | v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol | Durable | Accepted (amended by 0032, 0035, 0055) |
+| 0019 | v0.1 Taylor 2D benchmark: autoregressive surrogate task, split, and eval protocol | Durable | Accepted (amended by 0032, 0035, 0055, 0074; a task family added by 0075) |
 | 0020 | Native radius_graph; no graph-backend binary dependency | Durable | Accepted |
 | 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
 | 0022 | FEM-convention visualization harness (`viz/`, matplotlib as optional extra) | Durable | Accepted |
 | 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted (amended 2026-08-28: Hugging Face data-release actions are on-instruction) |
 | 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Ephemeral | Accepted (amended 2026-08-06: notch-bend parked; v0.3 scope superseded by 0041, 2026-08-07; notch-bend excluded and removed by 0056) |
-| 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted (amended by 0055) |
-| 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted (amended by 0029, 0039, 0055, 0056; amendments finalised by 0073) |
-| 0027 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Accepted (amended by 0032) |
+| 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted (amended by 0055, 0074; a task family added by 0075) |
+| 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted (amended by 0029, 0039, 0055, 0056, 0074; amendments finalised by 0073; a task family added by 0075) |
+| 0027 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Accepted (amended by 0032; extended by 0036 and by the plan of 2026-11-08) |
 | 0028 | GNS baseline training-recipe rework after the first full run | Ephemeral | Accepted |
 | 0029 | Notch-beam aux is max principal strain, not K&C damage (amends 0026) | Durable | Accepted (amended in place 2026-08-06: 0.01 threshold declared, provisional flag resolved) |
 | 0030 | Concrete-Beam decks are kg-mm-ms; canonical data patched in place | Durable | Accepted |
 | 0031 | Data archive layout: canonical/raw mirrors named by benchmark | Ephemeral | Accepted (amended by 0037; the bend archive removed by 0056) |
-| 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted (amended by 0035; note 2026-11-06: the benchmark field accepts a definition directory) |
-| 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted (amended by 0037; extended by 0046) |
+| 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted (amended by 0035, 0074, 0075; note 2026-11-06: the benchmark field accepts a definition directory) |
+| 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted (amended by 0037, 0074, 0075; extended by 0046) |
 | 0034 | The reference baseline is CGN (Concrete Graph Network, Li et al. 2023) | Durable | Accepted |
 | 0035 | The model input window is the rollout init; no history backfill (amends 0019, 0032) | Durable | Accepted (amended by 0053; confirmed by 0073) |
-| 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted (extended by 0046) |
+| 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted (extended by 0046; amended by 0074) |
 | 0037 | Blessed runs archive: `models/` mirror and registry checkpoint pointers (amends 0031, 0033) | Durable | Accepted |
 | 0038 | Auxiliary-channel training knobs: target-space transform and tail weight | Ephemeral | Accepted |
 | 0039 | Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe | Durable | Accepted (note 2026-11-06: the bound may be per case) |
-| 0040 | Dataset hosting: maintainer's OneDrive stays the master; archives public on Hugging Face (was: shared on request) | Durable | Accepted (amended 2026-08-28: public Hugging Face mirror; 2026-09-23: data tag v0.1.1, and the on-request promise needs ADR-0068 clause 6 for Abaqus) |
-| 0041 | v0.3 pivots to a public multi-method benchmark: DeformingPlate with native MGN/Transolver/GeoFLARE (supersedes ADR-0024's v0.3 scope) | Durable | Accepted (amends 0034; corrected in place 2026-08-07 re schema, see 0042; comparison reframed as a use, not the purpose, by 0065) |
+| 0040 | Dataset hosting: maintainer's OneDrive stays the master; archives public on Hugging Face (was: shared on request) | Durable | Accepted (amended 2026-08-28: public Hugging Face mirror; 2026-09-23: data tag v0.1.1, and the on-request promise needs ADR-0068 clause 6 for Abaqus; notes by 0074) |
+| 0041 | v0.3 pivots to a public multi-method benchmark: DeformingPlate with native MGN/Transolver/GeoFLARE (supersedes ADR-0024's v0.3 scope) | Durable | Accepted (amends 0034; corrected in place 2026-08-07 re schema, see 0042; clause 4 closed by 0046; comparison reframed as a use, not the purpose, by 0065) |
 | 0042 | Schema 0.2.0 adds per-node fields; nodal-FE ingestion via download-and-convert (deforming_plate) | Durable | Accepted (corrects 0041) |
-| 0043 | DeformingPlate benchmark protocol: task, split, eval, and the MGN blessing gate | Durable | Accepted (narrowed by 0046; amended by 0073) |
+| 0043 | DeformingPlate benchmark protocol: task, split, eval, and the MGN blessing gate | Durable | Accepted (narrowed by 0046; amended by 0073, 0074, 0075) |
 | 0044 | Transolver provisional adaptation: native Physics-Attention on the DeformingPlate rollout | Durable | Accepted (AR superseded as Transolver's native scheme by 0054; clause 14 settled by 0073) |
 | 0045 | GeoFLARE provisional adaptation: native GALE_FA (GeoTransolver + FLARE) on the DeformingPlate rollout | Durable | Accepted |
-| 0046 | Provisional results and the method-comparison table (closes ADR-0041 clause 4) | Durable | Accepted (amended by 0073) |
+| 0046 | Provisional results and the method-comparison table (closes ADR-0041 clause 4) | Durable | Accepted (amended by 0073, 0074) |
 | 0047 | Taylor 2D multi-method extension: native MGN/Transolver/GeoFLARE on the SPH benchmark | Ephemeral | Accepted |
 | 0048 | Notch-impact multi-method extension: native MGN/Transolver/GeoFLARE on the notched-beam SPH benchmark | Ephemeral | Accepted |
 | 0049 | Taylor native recipe repair: noise rescale, velocity history, MGN stretch gate | Ephemeral | Accepted |
@@ -152,27 +152,27 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0051 | k-frames-per-call implementation (Transolver): resolved decisions, neural-CFL, pushforward | Durable | Accepted (amended 2026-08-15: one-shot impact-velocity conditioning; time-query scheme recorded) |
 | 0053 | Decouple model history (`history_frames`) from the `input_frames` seed / scored-span protocol | Durable | Accepted |
 | 0054 | Transolver time-conditioning: the native non-autoregressive prediction scheme | Durable | Accepted |
-| 0055 | Relative-L2 as the headline metric (amended: headline, RMSE retained secondary) | Durable | Accepted (amended by 0073) |
+| 0055 | Relative-L2 as the headline metric (amended: headline, RMSE retained secondary) | Durable | Accepted (amended by 0073, 0075) |
 | 0056 | Descope notch-bend: the notch-beam benchmark narrows to notch-impact (redundant with impact; amends 0024/0026) | Durable | Accepted (amended 2026-09-23: excluded, not parked) |
 | 0057 | Transolver++ eidetic-state adaptation (adaptive temperature + train-only Gumbel Rep-Slice) on the Transolver family | Durable | Accepted (0073) |
 | 0058 | `huggingface_hub` as an optional `data` extra | Durable | Accepted (2026-10-01) |
-| 0059 | Auxiliary state channels: `aux` generalises from `(T, P)` to `(T, P, C)` | Durable | Accepted |
-| 0060 | Aux channels as model inputs: the state-feedback surface (Transolver AR) | Durable | Accepted (2026-10-01; narrowed by 0062; line closed by 0064) |
+| 0059 | Auxiliary state channels: `aux` generalises from `(T, P)` to `(T, P, C)` | Durable | Accepted (amended by 0075) |
+| 0060 | Aux channels as model inputs: the state-feedback surface (Transolver AR) | Durable | Accepted (2026-10-01; narrowed by 0062; line closed by 0064; amended by 0075) |
 | 0061 | State-feedback stability: input noise and pushforward on the state channel | Ephemeral | Accepted |
-| 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Ephemeral | Accepted (verdict note 2026-09-12) |
+| 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Ephemeral | Accepted (verdict note 2026-09-12; amended by 0075) |
 | 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Ephemeral | Accepted (amended 2026-09-10; verdict note 2026-09-12) |
-| 0064 | Constitutively-structured admissible heads: return-map decoder structure (D2/D3 by construction) + consistency-hinge comparator | Ephemeral | Accepted (note by 0073) |
-| 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session; data standard fixed by 0073) |
+| 0064 | Constitutively-structured admissible heads: return-map decoder structure (D2/D3 by construction) + consistency-hinge comparator | Ephemeral | Accepted (note by 0073; amended by 0075) |
+| 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session; data standard fixed by 0073; clause 1 amended by 0074; follow-ups 1 and 3 by 0075, follow-up 2 by the plan of 2026-11-08) |
 | 0066 | Reference-data verification: the `verification/` module | Durable | Accepted (reviewed by 0073) |
 | 0067 | Material classes for the notch sweep: K&C concrete and bilinear steel | Durable | Accepted (note by 0073) |
 | 0068 | Abaqus is the second solver; the deferred abstraction question is answered (amends 0066 clause 3) | Durable | Accepted (2026-10-01; clause 8 lifted for one row by 0073) |
 | 0069 | The Abaqus data-generation pipeline (four stages, shared scripts, `abaqus-npz/1`, `datagen` extra) | Durable | Accepted (2026-10-01; amended by 0071) |
 | 0070 | Material class `elastic_plastic_isotropic` (Abaqus `*PLASTIC`, isotropic, no EOS) | Durable | Accepted (2026-10-01) |
-| 0071 | The Abaqus data-generation pipeline becomes a StructBench capability: `structbench.datagen`, the dataset template and `check`, the preflight gate, the convergence engine in `verification`, runner budget and `follow` (amends ADR-0069) | Durable | Accepted (0073) |
+| 0071 | The Abaqus data-generation pipeline becomes a StructBench capability: `structbench.datagen`, the dataset template and `check`, the preflight gate, the convergence engine in `verification`, runner budget and `follow` (amends ADR-0069) | Durable | Accepted (0073; amended by 0074) |
 | 0072 | Validation against experiments: `structbench.validation`, reference-experiment sets with provenance, measures shared by experiment and simulation, a record that reports deviations and never judges; the datagen stage `validate` renamed `verify` | Durable | Accepted (0073) |
 | 0073 | Decisions from the maintainer's review of the decision log (amends 0010, 0012, 0026, 0035, 0043, 0046, 0055, 0064, 0065, 0066, 0067, 0068, 0071, 0072; accepts 0057, 0071, 0072) | Durable | Accepted |
 | 0074 | Open evaluation: blind sets, computed coverage, a results registry for external results (amends 0019, 0025, 0026, 0032, 0033, 0036, 0040, 0043, 0046, 0065, 0071, 0075) | Durable | Accepted (2026-11-08) |
-| 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted |
+| 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted (amended by 0074) |
 
 ---
 
