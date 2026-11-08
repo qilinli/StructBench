@@ -162,7 +162,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Ephemeral | Accepted (verdict note 2026-09-12; amended by 0075) |
 | 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Ephemeral | Accepted (amended 2026-09-10; verdict note 2026-09-12) |
 | 0064 | Constitutively-structured admissible heads: return-map decoder structure (D2/D3 by construction) + consistency-hinge comparator | Ephemeral | Accepted (note by 0073; amended by 0075) |
-| 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session; data standard fixed by 0073; clause 1 amended by 0074; follow-ups 1 and 3 by 0075, follow-up 2 by the plan of 2026-11-08) |
+| 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session; data standard fixed by 0073; clause 1 amended by 0074; follow-ups 1 and 3 by 0075, follow-up 2 by the plan of 2026-11-08, follow-up 4 by the README Roadmap of 2026-11-08) |
 | 0066 | Reference-data verification: the `verification/` module | Durable | Accepted (reviewed by 0073) |
 | 0067 | Material classes for the notch sweep: K&C concrete and bilinear steel | Durable | Accepted (note by 0073) |
 | 0068 | Abaqus is the second solver; the deferred abstraction question is answered (amends 0066 clause 3) | Durable | Accepted (2026-10-01; clause 8 lifted for one row by 0073) |

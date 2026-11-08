@@ -280,3 +280,10 @@ the field names are the Consequences above. The card carries the five
 fields and a typed compliance table; the four shipped cards declare what
 exists (Taylor's convergence run and noise floor; nothing else), rendered
 above the results on every landing page and in the archive README.
+
+Follow-up 4 is applied the same day, also without an ADR: the README Roadmap
+gains a *v0.4 — trust before accuracy* section built from follow-ups 1 to 3,
+a gradient benchmark and a metal component-tier benchmark, and the crash
+benchmark moves to Later as an assembly-tier question. The two new
+benchmarks are named at this record's level of detail; each gets its own
+ADR when picked up. All four follow-ups are now decided or applied.

@@ -185,6 +185,45 @@ assets/            # figures embedded in the docs + landing pages
       cross-method leaderboards, the prediction-scheme axis, relative-L2
       headline metric (ADRs 0041–0057).~~
 
+### Next release: v0.4 — trust before accuracy
+
+<!-- ADR-0065 follow-up 4, applied here 2026-11-08 (a Roadmap change, not an
+     ADR: the identity it rests on is recorded). The frame for what v0.4 is;
+     the strands below carry the open items. -->
+
+v0.3 shipped a cross-method comparison. v0.4 is the first release whose
+headline is whether a surrogate can be trusted (ADR-0065): a registered
+result reports its properties before its accuracy, the reference data
+declares what is known of its own error, scored cases are read by coverage,
+and two new benchmarks test what the shipped four cannot. It is built from:
+
+- [ ] **The properties block** in the results registries and landing pages
+      (ADR-0075 part 3c) and **the restart task family** (part 3b) — the
+      follow-ups 1 and 3 of ADR-0065, decided, owed as builds (strand *The
+      two-site state*, Inbox).
+- [x] ~~**The benchmark card's V&V fields and compliance table**
+      (2026-11-08) — follow-up 2.~~
+- [ ] **Open evaluation** (ADR-0074): the plan, the registry fields and
+      tiers, `CONTRIBUTING.md`, the first blind set (strand *Open
+      evaluation*).
+- [ ] **A gradient benchmark** — a problem whose tested property is that the
+      surrogate's sensitivities are right, the quantity a design optimiser
+      consumes and the first of ADR-0065's trust properties no shipped
+      benchmark reaches. Its own ADR when picked up: the problem, the
+      reference sensitivities and how they are verified, the metric.
+- [ ] **A metal component-tier benchmark** — the first benchmark above
+      specimen scale (every shipped card reads `structural scale: specimen`),
+      generated through `structbench-datagen` so that it meets the data
+      standard at admission (ADR-0073 D14) and carries a blind set from the
+      start (ADR-0074). Its own ADR when picked up: the component, the
+      parameter box, the material class.
+- [ ] **Release mechanics**: the `leaderboard` → `results registry` wording
+      sweep (ADR-0074); blessed checkpoints published with the release
+      (ADR-0074 clause 8); the v0.4 record in this section.
+
+The crash benchmark is no longer a v0.4 candidate: under ADR-0065 it is an
+assembly-tier question (Later, below).
+
 ### In progress
 
 - **Reference-data verification** (ADR-0066; first work under the ADR-0065
@@ -309,15 +348,20 @@ assets/            # figures embedded in the docs + landing pages
 
 ### Later (each becomes an ADR/spec when picked up)
 
-- **Benchmarks to add** — three, each becoming its own ADR when picked up:
+- **Benchmarks to add** — beyond the two v0.4 names above, three more, each
+  becoming its own ADR when picked up:
   - *RC beam bending test* — flexural loading, not the impact regime the
     parked RC beam item assumed (erosion was that one's gate, ADR-0024/0041);
     a bending test may not need erosion at all, which is the first thing to
     settle
-  - *Crash (v0.4 candidate)* — gated on public crash data existing
-    (CarCrashNet's release, or maintainer-generated open-licence LS-DYNA
-    data) plus the scale infrastructure it needs (cell-list `radius_graph`,
-    TB-scale hosting); its methods already ship in v0.3 (ADR-0041)
+  - *Crash — an assembly-tier question* (ADR-0065 follow-up 4, 2026-11-08;
+    was "v0.4 candidate") — the question is not whether public crash data
+    exists but whether the platform can say anything trustworthy about an
+    assembly: a component-tier benchmark with its properties block comes
+    first, and the scale infrastructure (cell-list `radius_graph`, TB-scale
+    hosting) and the data (CarCrashNet's release, or open-licence LS-DYNA
+    data generated through the pipeline) remain its gates; its methods
+    already ship (ADR-0041)
   - *Segmented beam* — parked since ADR-0015
 - **An agent driving data generation** — `structbench-datagen` (In
   progress, above) is the pipeline; what remains is an agent that runs it end
