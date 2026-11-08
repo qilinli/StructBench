@@ -3,6 +3,7 @@
 from .card import BenchmarkCard
 from .constitutive import (
     ELEMENT_FORMULATIONS,
+    LAW_DECODERS,
     RETURN_MAP_STATE_CHANNELS,
     TWO_SITE_DECODERS,
     ConstitutiveLaw,
@@ -19,6 +20,7 @@ from .registry import (
 
 __all__ = [
     "ELEMENT_FORMULATIONS",
+    "LAW_DECODERS",
     "RETURN_MAP_STATE_CHANNELS",
     "TWO_SITE_DECODERS",
     "BenchmarkCard",

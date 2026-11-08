@@ -279,12 +279,13 @@ assets/            # figures embedded in the docs + landing pages
       map, state metrics); owed: 3b (the restart task family and the
       composition sweep), 3c (the properties block in the registries and
       landing pages), the AR scheme and the pushforward chains under the
-      two-site decoder. **Open decision (2026-11-08):** the `return_map`
-      decoder does not train on a metal — stress derived from predicted
-      kinematics amplifies displacement error by `E / std σ ≈ 10³` (plan 3a,
-      note 2026-11-08); the admissible arm's form (a predicted trial state
-      projected by the radial return, or a predicted mean stress) is the
-      maintainer's call on ADR-0075 clause 3 before the arm runs again.
+      two-site decoder. **Decided (2026-11-08):** the `return_map` decoder
+      does not train on a metal — stress derived from predicted kinematics
+      amplifies displacement error by `E / std σ ≈ 10³` (plan 3a, note
+      2026-11-08) — so the admissible arm is tested in two forms that read
+      no predicted kinematics, `admissible_coords` and `projected_trial`
+      (ADR-0075 note 2026-11-08; plan 3a note (2)); the results choose the
+      final form.
 
 ### Later (each becomes an ADR/spec when picked up)
 

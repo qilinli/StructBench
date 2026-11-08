@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from structbench.benchmarks import (
+    LAW_DECODERS,
     RETURN_MAP_STATE_CHANNELS,
     TWO_SITE_DECODERS,
     ConstitutiveLaw,
@@ -15,6 +16,7 @@ from structbench.config import (
     TransolverConfig,
     _validate_two_site,
 )
+from structbench.models.common.two_site import LAW_DECODERS as MODEL_LAW_DECODERS
 from structbench.models.common.two_site import TWO_SITE_DECODERS as MODEL_DECODERS
 
 
@@ -37,6 +39,8 @@ def _train(aux_fields=RETURN_MAP_STATE_CHANNELS):
 
 def test_the_two_decoder_vocabularies_agree():
     assert TWO_SITE_DECODERS == MODEL_DECODERS
+    assert LAW_DECODERS == MODEL_LAW_DECODERS
+    assert set(LAW_DECODERS) == {"return_map", "admissible_coords", "projected_trial"}
 
 
 def test_off_passes_without_a_spec():
@@ -85,3 +89,24 @@ def test_needs_an_element_site_and_the_state_layout():
     # corner_mean needs the layout match but no law.
     cm = TransolverConfig(two_site_decoder="corner_mean")
     _validate_two_site(cm, _train(), _spec(constitutive_law=None), "x")
+
+
+@pytest.mark.parametrize("decoder", ["admissible_coords", "projected_trial"])
+def test_the_admissible_forms_need_the_law_and_the_layout(decoder):
+    cfg = TransolverConfig(two_site_decoder=decoder)
+    _validate_two_site(cfg, _train(), _spec(), "x")
+    with pytest.raises(ConfigError, match="constitutive_law"):
+        _validate_two_site(cfg, _train(), _spec(constitutive_law=None), "x")
+    other = ("von_mises_stress", "effective_plastic_strain")
+    with pytest.raises(ConfigError, match="state layout"):
+        _validate_two_site(
+            cfg, _train(aux_fields=other), _spec(state_channels=other), "x"
+        )
+    for knob in ("flow_map_pushforward", "flow_map_structured_heads"):
+        with pytest.raises(ConfigError, match="incompatible"):
+            _validate_two_site(
+                TransolverConfig(two_site_decoder=decoder, **{knob: True}),
+                _train(),
+                _spec(),
+                "x",
+            )

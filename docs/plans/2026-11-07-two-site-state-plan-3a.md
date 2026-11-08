@@ -110,3 +110,56 @@ exits with one line (`TrainingDiverged`, CLI status 3). It exits rather than
 warns because an arm under a scheduler runs unattended for hours after its
 first validation; it is one-shot and by-path only, so shipped-benchmark runs
 are unchanged.
+
+## Note 2026-11-08 (2): the admissible arm in two forms
+
+The maintainer's decision on the finding above (ADR-0075, note 2026-11-08):
+the direct return map is not repaired; two further `two_site_decoder` forms
+beside `corner_mean` are built, both reading no predicted kinematics, and
+the results choose the final form.
+
+- **`admissible_coords`** — `models.common.two_site.admissible_decode`. The
+  network's five state channels are read in its OWN output space (the target
+  normalizer's inverse plays no part), taken to the element as the corner
+  mean, and decoded: `peeq = peeq_anchor + softplus(d)`; the deviator
+  `σ_y(peeq) · tanh(|v|) / |v| · v` with `v` the raw 3-vector `(a, b, c)` in
+  the trace-free basis `(a, b, −(a + b), c)` (the von Mises norm is
+  1-homogeneous, so the composed von Mises is `σ_y(peeq) · tanh(|v|) <
+  σ_y(peeq)`; smooth at `v → 0`); the mean stress `loc + scale · m`, with the
+  location and scale taken from the state normalizer's three normal channels
+  (`OnlineNormalizer.moments`, new) — a scale, not a statistic. `peeq_anchor`
+  is the CARRIED anchor state's, never the noised anchor aux the network
+  reads.
+- **`projected_trial`** — `models.common.two_site.project_trial`. The
+  network's five channels are read as raw-unit state (as `corner_mean`
+  does), taken to the element as the corner mean, and projected: the plastic
+  strain clamped to the anchor's (`max(peeq_trial, peeq_anchor)`), then the
+  existing `radial_return` with a zero kinematic increment gives the plastic
+  multiplier and the updated `peeq`; the trial deviator is scaled onto the
+  surface at that `peeq` (`min(1, σ_y(peeq) / vm_trial)`), the mean stress
+  passes through. The deviator is reassembled with the third diagonal
+  component formed from the first two, so its trace is zero exactly.
+
+The non-expansiveness of the projection is a theorem in the generalised-
+stress metric of linear hardening, `|dev|²_F / (2G) + H peeq²`, where the
+radial return is a closest-point projection onto a convex set; the test pins
+the Jacobian's operator norm at or below one in that metric on random inputs
+covering both branches (identity on elastic rows; one zero singular value,
+the surface normal, on plastic rows). In raw units the norm is ~`H` MPa per
+unit plastic strain through the hardening coupling, which is the law and not
+a defect, and the test says so.
+
+Wiring: `LAW_DECODERS = (return_map, admissible_coords, projected_trial)` in
+both vocabularies (`benchmarks.constitutive`, `models.common.two_site`) gates
+the law requirement and the five-channel layout at config load, at `bind_case`
+and in the trainer; `_two_site_head` on the simulator picks the slice each
+decoder reads; nothing else in the trainer, the rollout or the metrics
+changes. Tests: the invariants for ANY head output (pure functions and the
+simulator with a wild network), the Jacobian bound, the noised-aux test
+(the plastic-strain floor is the carried state's), and the normalizer pins
+and the synthetic smoke extended to all four decoders. The first GPU smoke
+of each form on a by-path metal benchmark (the A3 pattern: 600 steps, a
+validation at 300) trained at a loss below one from its first validation,
+with a position RMSE at a few percent of the domain scale and falling by the
+second — the divergence guard stayed silent where it had killed the direct
+return map at the same step.
