@@ -206,11 +206,12 @@ and a new benchmark tests what the shipped four cannot. It is built from:
 - [ ] **Open evaluation** (ADR-0074): the plan, the registry fields and
       tiers, `CONTRIBUTING.md`, the first blind set (strand *Open
       evaluation*).
-- [ ] **A gradient benchmark** — a problem whose tested property is that the
-      surrogate's sensitivities are right, the quantity a design optimiser
-      consumes and the first of ADR-0065's trust properties no shipped
-      benchmark reaches. Its own ADR when picked up: the problem, the
-      reference sensitivities and how they are verified, the metric.
+- [ ] **The gradient task family** (ADR-0076, Proposed 2026-11-08) — the
+      surrogate's sensitivities, the quantity a design optimiser consumes and
+      the first of ADR-0065's trust properties no shipped benchmark reaches,
+      scored on Taylor's own velocity sweep by central differences with their
+      declared error; no new dataset. Design in `docs/plans/`; built once the
+      record is Accepted.
 - [ ] **Release mechanics**: the `leaderboard` → `results registry` wording
       sweep (ADR-0074); blessed checkpoints published with the release
       (ADR-0074 clause 8); the v0.4 record in this section.
