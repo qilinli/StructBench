@@ -34,6 +34,12 @@
 # itself excluded), so `sha256sum -c MANIFEST.sha256` verifies a copy of the
 # run on another machine.
 #
+# A job that exits non-zero (the trainer's exit 3 when its first validation
+# shows a by-path run is not training, or any other failure) is not left
+# FAILED on this cluster: slurm requeues it HELD (RequeueExitHold covers
+# 1-199 and 202-255; state SPECIAL_EXIT, ExitCode kept). Read the run's log,
+# then `scancel` the job; `scontrol release` would only rerun the same arm.
+#
 # ONE A100 80G per job; nodes carry gpu:a100:2 so jobs pack two-per-node
 # automatically (no exclusive flags). 2-day ceiling covers the notch 250k /
 # one-shot budgets; override --time / --mem via sbatch if needed.
