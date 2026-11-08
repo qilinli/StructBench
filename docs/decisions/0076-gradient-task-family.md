@@ -1,6 +1,6 @@
 # 0076 — The gradient task family: a surrogate's sensitivities scored against the sweep's own differences
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-11-08)
 **Type**: Durable
 **Date**: 2026-11-08
 **Amends**: 0019 (a task family is added; the task stands), 0032 and 0033 (a metric group), 0055 (the relative form extends to sensitivities), 0075 (a second task family); constrains 0074 (gradient rows are read by coverage)
@@ -30,7 +30,7 @@ The data to test this exists. Taylor's sweep is a line of eleven impact velociti
 
 - **A generated dataset with paired perturbation runs or solver sensitivities.** Clean gradients in any parameter; a dataset project. The route if this instance shows the question is worth it.
 - **Autodiff as the required measurement.** A model-interface change for every family, meaningless where the parameter enters only through the seed. Kept optional.
-- **Scoring the gradient field.** Dominated by the von Mises discretisation noise; the quantities of interest are what an optimiser reads.
+- **Scoring the gradient field.** Dominated by von Mises discretisation noise; an optimiser reads the quantities of interest.
 
 ## Consequences
 

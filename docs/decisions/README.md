@@ -173,7 +173,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0073 | Decisions from the maintainer's review of the decision log (amends 0010, 0012, 0026, 0035, 0043, 0046, 0055, 0064, 0065, 0066, 0067, 0068, 0071, 0072; accepts 0057, 0071, 0072) | Durable | Accepted |
 | 0074 | Open evaluation: blind sets, computed coverage, a results registry for external results (amends 0019, 0025, 0026, 0032, 0033, 0036, 0040, 0043, 0046, 0065, 0071, 0075) | Durable | Accepted (2026-11-08) |
 | 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted (amended by 0074; a second task family by 0076) |
-| 0076 | The gradient task family: a surrogate's sensitivities scored against the sweep's own differences (amends 0019, 0032, 0033, 0055, 0075; constrains 0074) | Durable | Proposed |
+| 0076 | The gradient task family: a surrogate's sensitivities scored against the sweep's own differences (amends 0019, 0032, 0033, 0055, 0075; constrains 0074) | Durable | Accepted (2026-11-08) |
 
 ---
 
