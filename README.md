@@ -279,9 +279,13 @@ assets/            # figures embedded in the docs + landing pages
   - [ ] The GeoFLARE time-conditioned run (`deforming-geoflare-tc-s1`) is not
         under `runs/` on DUG nor in the `models/` mirror; find it or mark the
         registry row's pooled values unverified.
-  - [ ] The housekeeping the review listed: index rows that miss later
-        amendments, stale text, Durable labels on experiment records, verdict
-        notes never written (0061, 0064).
+  - [x] ~~The verdict notes never written (0061, 0064) — written 2026-10-01;
+        index rows that missed later amendments (0074, 0075, 0036, 0046,
+        0071) — named 2026-11-08.~~
+  - [ ] Still from the review: Durable labels on experiment records (which
+        records, the maintainer's call: the provisional adaptations 0044 and
+        0045 and the Transolver++ record 0057 are the candidates), and stale
+        text in the older records.
   - [x] ~~0058, 0060, 0068, 0069 and 0070 accepted from their summaries
         (2026-10-01).~~
 
@@ -333,8 +337,10 @@ assets/            # figures embedded in the docs + landing pages
   independent questions, not one ranking: accuracy against the reference,
   physics-consistency (does it violate laws it cannot legitimately violate,
   however close it is), and fitness for a downstream use (design
-  optimisation, digital twin). ADR-0065 follow-up 1 is where it starts; see
-  the 2026-09-23 note there for why the three do not collapse
+  optimisation, digital twin). ADR-0075 decided the first piece, the
+  properties block, and its part 3c (the block in the registries and landing
+  pages) is the open build; see ADR-0065's 2026-09-23 note for why the three
+  do not collapse
 - Eval: leaderboard submission validator · per-region probe metrics ·
   convergence check · cross-benchmark utilities
 - Data & scale: checkpoint-publishing workflow · second aux target (plastic

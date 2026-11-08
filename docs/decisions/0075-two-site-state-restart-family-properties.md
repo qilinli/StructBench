@@ -39,6 +39,11 @@ ADR-0065 left two follow-ups: a properties block with every result (clause 4) an
 
 ---
 
+**Note (2026-11-08).** The last Consequence is now half true: follow-up 2 of
+ADR-0065 is built by the plan of 2026-11-08 (the card fields and the
+compliance table, no ADR); follow-up 4, the v0.4 roadmap reframe, alone
+remains open.
+
 **Note (2026-11-08) — the admissible arm in two forms (clause 3).** The
 first run of the direct return-map decoder on a metal did not train (plan
 3a, note 2026-11-08): stress derived from a surrogate's *predicted*
