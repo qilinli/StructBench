@@ -6,6 +6,8 @@ the corner-mean arm's state is scored the same way, and every record and
 artifact carries the state beside the nodal view."""
 
 import json
+from dataclasses import replace
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -205,3 +207,74 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
             sy, _ = sigma_y_rows(st[f, :, 4], knots_x, knots_y)
             assert bool((von_mises4(st[f, :, :4]) <= sy * (1 + 1e-5)).all()), f
             assert bool((st[f, :, 4] >= st[1, :, 4] - 1e-7).all()), f
+
+
+def _huge_rollout(*args, **kwargs):
+    """A flow_map_rollout stand-in whose position RMSE is not a deformation
+    of the body at all (kilometres on a millimetre mesh)."""
+    return SimpleNamespace(position_rmse=np.full((T - 2,), 1e6))
+
+
+def test_by_path_arm_dies_at_its_first_validation_when_not_training(
+    tmp_path, monkeypatch
+):
+    """The guard (TrainingDiverged): a benchmark loaded by path whose first
+    validation exceeds the domain scale exits there; the same run against a
+    registered benchmark (no source) is left to run, as before."""
+    import structbench.cli.train as cli_train
+    from structbench.benchmarks.registry import BenchmarkSource
+    from structbench.cli.train import TrainingDiverged
+
+    monkeypatch.setattr(cli_train, "flow_map_rollout", _huge_rollout)
+    ids = {"train": [f"train_{i:04d}" for i in range(3)], "val": ["val_0000"]}
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    _write_cases(data_root, [c for v in ids.values() for c in v])
+    cfg = TransolverConfig(
+        dim=2,
+        node_type_size=2,
+        hidden_dim=16,
+        n_layers=2,
+        n_heads=2,
+        slice_num=8,
+        normalizer_warmup_steps=5,
+        noise_std=0.0,
+        time_conditioned=True,
+        aux_input=True,
+        flow_map=True,
+        flow_map_eval_intervals=(1, 3),
+        flow_map_canonical_interval=3,
+        two_site_decoder="corner_mean",
+    )
+    tcfg = TrainConfig(
+        benchmark="TwoSiteSmoke",
+        batch_size=2,
+        training_steps=20,
+        val_every=10,
+        aux_fields=STATE_CHANNELS,
+    )
+    by_path = replace(
+        _spec(ids), source=BenchmarkSource(path=tmp_path, files={"benchmark.py": "0"})
+    )
+    torch.manual_seed(0)
+    with pytest.raises(TrainingDiverged, match="step 10: .*domain scale"):
+        train(
+            by_path,
+            cfg,
+            tcfg,
+            data_root,
+            tmp_path / "run-by-path",
+            "cpu",
+            family="transolver",
+        )
+    torch.manual_seed(0)
+    ckpt = train(
+        _spec(ids),
+        cfg,
+        tcfg,
+        data_root,
+        tmp_path / "run-registered",
+        "cpu",
+        family="transolver",
+    )
+    assert ckpt is not None and ckpt.exists()
