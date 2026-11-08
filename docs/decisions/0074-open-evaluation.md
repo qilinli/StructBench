@@ -1,6 +1,6 @@
 # 0074 — Open evaluation: blind sets, computed coverage, a results registry
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-11-08)
 **Type**: Durable
 **Date**: 2026-11-08 (first draft 2026-11-06)
 **Amends**: ADR-0019, 0025, 0026, 0043 (blind set, coverage; split names grandfathered); 0032 §4 (blind tags); 0033, 0036, 0046 (two tiers, no leaderboard); 0065 clause 1 (no rank); 0071 (scored splits; platform-generated designs); 0075 (rendering; clause 4 waits on its plan); 0040 (notes)
@@ -38,4 +38,4 @@ The public test splits are downloaded hundreds of times a month and the grids ar
 - One plan fixes the prediction format, set sizes, cadence, rate limit, coverage kernel, the contract's `withheld` splits and `grid` shorthand, the container contract and the steward processes; card and registry fields are additive, flag-first.
 - `CONTRIBUTING.md`: submission contract, admission list, challenges (which may rank for their duration); a result changing task, split or protocol is another benchmark.
 - Split labels in `cases.csv` and the loaders do not change; outward words: *test*, *blind*, *within*, *beyond*.
-- Legacy LS-DYNA benchmarks get blind sets when solver access allows, DeformingPlate never, Abaqus datasets at admission; the card's compliance table (ADR-0065 follow-up 2, drafted before or with this record) shows the status.
+- Legacy LS-DYNA benchmarks get blind sets when solver access allows, DeformingPlate never, Abaqus datasets at admission; the card's compliance table (ADR-0065 follow-up 2, the next record drafted) shows the status.
