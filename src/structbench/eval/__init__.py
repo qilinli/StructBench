@@ -26,8 +26,32 @@ from .rollout import (
     rollout,
     time_conditioned_rollout,
 )
+from .sensitivity import (
+    GradientFamily,
+    QoiNoise,
+    SensitivityPoint,
+    free_flight_seed,
+    gradient_floor,
+    gradient_metrics,
+    model_sensitivity,
+    reference_record,
+    reference_sensitivities,
+    render_reference_markdown,
+    sensitivities_from_record,
+)
 
 __all__ = [
+    "GradientFamily",
+    "QoiNoise",
+    "SensitivityPoint",
+    "free_flight_seed",
+    "gradient_floor",
+    "gradient_metrics",
+    "model_sensitivity",
+    "reference_record",
+    "reference_sensitivities",
+    "render_reference_markdown",
+    "sensitivities_from_record",
     "position_rmse",
     "field_rmse",
     "relative_l2",

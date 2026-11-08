@@ -33,7 +33,7 @@ import math
 import os
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
@@ -76,10 +76,15 @@ from ..datasets import (
     load_case_trajectory,
 )
 from ..eval import (
+    QoiInputs,
     RolloutResult,
     flow_map_rollout,
+    gradient_floor,
+    gradient_metrics,
+    model_sensitivity,
     one_step_aux_rmse,
     one_step_position_rmse,
+    reference_sensitivities,
     rollout,
     time_conditioned_rollout,
 )
@@ -3816,96 +3821,38 @@ def _model_config_from_record(
     return model_cls(**model_table)
 
 
-def evaluate(
-    case_ids: list[str],
-    data_root: Path,
-    out_dir: Path,
-    device: str,
-    *,
-    split_name: str = "eval",
-    save_artifacts: bool = True,
-    checkpoint: str | Path | None = None,
-) -> dict[str, Any]:
-    """Roll out the run's checkpoint over ``case_ids`` and report ADR-0019 §5.
+@dataclass(frozen=True)
+class _RunSimulator:
+    """A run directory's simulator, rebuilt from its own record, with the
+    run-level facts :func:`evaluate` and :func:`evaluate_gradient` share."""
 
-    The simulator is rebuilt entirely from the run directory's own record —
-    architecture and ``n_particle_types`` from ``config.json``, model family
-    from ``config.json["model"]["family"]`` via
-    :func:`_model_config_from_record` — so evaluation always matches the
-    trained checkpoint; no caller-supplied architecture is accepted. A
-    ``cgn``-family run additionally rebuilds its normalizer from
-    ``normalization_stats.npz`` (both files are written by :func:`train`); an
-    ``mgn``-, ``transolver``-, or ``geoflare``-family run needs no stats file
-    at all, since its normalizer buffers live in the checkpoint's own
-    ``state_dict`` (ADR-0043 §8, verified in ①-c1; extended to
-    ``transolver``/``geoflare`` in ADR-0041).
+    spec: BenchmarkSpec
+    record: dict[str, Any]
+    model_cfg: CGNConfig | MGNConfig | TransolverConfig | GeoFlareConfig
+    family: str
+    simulator: (
+        LearnedSimulator | MeshSimulator | TransolverSimulator | GeoFlareSimulator
+    )
+    ckpt_path: Path
+    aux_fields: tuple[str, ...]
+    aux_labels: tuple[str, ...]
+    aux_in_run: bool
+    qoi_aux_channel: int | None
 
-    Per case, reports the one-step (teacher-forced) position RMSE, the
-    full-rollout position RMSE (mm), the rollout auxiliary-field RMSE (in the
-    card's aux unit), and the
-    benchmark QoIs with signed errors; the split mean aggregates each metric
-    (QoIs as mean absolute error). When ``save_artifacts`` is true the report
-    is written to ``out_dir/metrics-<split_name>.json`` and each predicted
-    trajectory to ``out_dir/rollouts/<split_name>-<case_id>.npz``.
 
-    Parameters
-    ----------
-    case_ids : list of str
-        Cases to roll out over (validation or test split); must be non-empty.
-    data_root : pathlib.Path
-        Directory containing ``<case_id>.h5`` canonical cases.
-    out_dir : pathlib.Path
-        Run directory holding the checkpoint, resolved config, and (for a
-        ``cgn``-family run) normalization stats.
-    device : str
-        Torch device string.
-    split_name : str
-        Label recorded in the report and used in artifact filenames.
-    save_artifacts : bool
-        Write the metrics JSON and per-case rollout ``.npz`` files.
-    checkpoint : str, pathlib.Path or None
-        Explicit checkpoint file to evaluate (e.g. a periodic
-        ``ckpt-<step>.pt``); a relative path is resolved against ``out_dir``.
-        When given, the metrics file is suffixed
-        (``metrics-<split_name>@<checkpoint stem>.json``) and rollout ``.npz``
-        artifacts are skipped, so the canonical selected-checkpoint artifacts
-        are never overwritten. ``None`` evaluates the run's selected
-        checkpoint (highest-step ``model-*.pt``).
+def _rebuild_run_simulator(
+    out_dir: Path, device: str, checkpoint: str | Path | None
+) -> _RunSimulator:
+    """Rebuild a run's simulator entirely from its run directory.
 
-    Notes
-    -----
-    Rollouts seed with the checkpoint's ``input_frames`` (recorded in
-    ``config.json``; pre-0035 runs recorded it as ``window``, normalized by
-    :func:`~structbench.config.read_run_record`), so checkpoints are always
-    evaluated as trained (ADR-0035). For an ``mgn``-, ``transolver``-, or
-    ``geoflare``-family run, each case's mesh (cells, reference coordinates,
-    and full ground-truth trajectory) is bound to the simulator before its
-    three eval passes (rollout, one-step position, one-step aux), and the
-    rollout pointer is reset before each pass, per
-    :class:`~structbench.models.common.CaseBoundSimulator`'s statefulness
-    contract.
-
-    Returns
-    -------
-    dict
-        ``{"split", "checkpoint", "checkpoint_path", "cases": {case_id: ...},
-        "mean": ...}`` with plain JSON-serializable values.
-
-    Raises
-    ------
-    FileNotFoundError
-        If ``config.json`` or a checkpoint is missing from ``out_dir``; for a
-        ``cgn``-family run, also if ``normalization_stats.npz`` is missing
-        (an ``mgn``-, ``transolver``-, or ``geoflare``-family run needs no
-        stats file).
-    ValueError
-        If ``case_ids`` is empty, or an ``mgn``-, ``transolver``-, or
-        ``geoflare``-family run is evaluated against a benchmark whose cases
-        carry no mesh connectivity (``cells``/``reference_coords`` are
-        ``None``).
+    Architecture and ``n_particle_types`` come from ``config.json``, the
+    family from ``config.json["model"]["family"]``; a ``cgn`` run also reads
+    ``normalization_stats.npz``, the other families carry their normalizers
+    in the checkpoint. The checkpoint is the run's selected one unless
+    ``checkpoint`` names a file (a relative path resolves against ``out_dir``
+    only, never the CWD: fleet arms hold identically named snapshots).
+    Loaded, moved to ``device`` and in eval mode on return.
     """
-    if not case_ids:
-        raise ValueError("case_ids must be non-empty")
     spec, record = _resolve_run_spec(out_dir)
     family = record["model"]["family"]
     model_cfg = _model_config_from_record(record)
@@ -3998,6 +3945,425 @@ def evaluate(
     simulator.load(str(ckpt_path))
     simulator.to(device)
     simulator.eval()
+    return _RunSimulator(
+        spec=spec,
+        record=record,
+        model_cfg=model_cfg,
+        family=family,
+        simulator=simulator,
+        ckpt_path=ckpt_path,
+        aux_fields=run_aux_fields,
+        aux_labels=run_aux_labels,
+        aux_in_run=aux_in_run,
+        qoi_aux_channel=qoi_aux_channel,
+    )
+
+
+def _predict_case(
+    run: _RunSimulator, trajectory: CaseTrajectory, case_id: str, device: str
+) -> RolloutResult:
+    """The run's canonical prediction of one case under the benchmark's
+    protocol: the self-fed rollout, or the time-conditioned query, or the
+    anchored flow map's canonical self-anchored pass (ADR-0054, ADR-0062).
+
+    Mirrors the canonical pass of :func:`evaluate` without its diagnostics
+    (oracle rollouts, one-step sweeps, per-interval flow-map metrics), for
+    callers that need the predicted quantities of interest alone — the
+    gradient task family (ADR-0076). ``trajectory`` is the case as the model
+    sees it (mesh-transformed where the family needs it); the stored frames
+    past the seed are not scored here, so a perturbed seed is legitimate.
+    """
+    spec, model_cfg, simulator = run.spec, run.model_cfg, run.simulator
+    mesh_sim = simulator if isinstance(simulator, CaseBoundSimulator) else None
+    if mesh_sim is not None:
+        if trajectory.cells is None or trajectory.reference_coords is None:
+            raise ValueError(
+                f"benchmark {spec.card.name!r} has no mesh connectivity "
+                f"(cells/reference_coords); {run.family} evaluation requires "
+                "a mesh benchmark"
+            )
+        two_site_bind: dict[str, Any] = {}
+        if _state_fields_for(run.family, model_cfg, spec) is not None:
+            two_site_bind = {
+                "gt_state": (
+                    None
+                    if trajectory.state is None
+                    else torch.from_numpy(trajectory.state).to(device)
+                ),
+                "law": _case_law_rows(spec, trajectory, device),
+            }
+        mesh_sim.bind_case(
+            torch.from_numpy(trajectory.cells).to(device),
+            torch.from_numpy(trajectory.reference_coords).to(device),
+            torch.from_numpy(trajectory.particle_type).to(device),
+            torch.from_numpy(trajectory.positions).to(device),
+            loading_scalar=(
+                spec.loading_scalar(case_id)
+                if getattr(model_cfg, "impact_velocity_feature", False)
+                and spec.loading_scalar
+                else None
+            ),
+            gt_aux=(
+                torch.from_numpy(trajectory.aux).to(device) if run.aux_in_run else None
+            ),
+            **two_site_bind,
+        )
+        mesh_sim.reset_rollout()
+    scored = spec.scored_frames_for(trajectory.case_id)
+    if getattr(model_cfg, "time_conditioned", False):
+        assert isinstance(simulator, (TransolverSimulator, GeoFlareSimulator))
+        time_ref = _tc_time_ref_frames(
+            spec.scored_frames_fixed,
+            run.record["train"].get("train_frames", 0),
+            len(trajectory.time),
+        )
+        if run.family == "transolver" and bool(getattr(model_cfg, "flow_map", False)):
+            assert isinstance(simulator, TransolverSimulator)
+            _, canonical = _fm_intervals_and_canonical(model_cfg)
+            return flow_map_rollout(
+                simulator,
+                trajectory,
+                model_cfg.input_frames,
+                time_ref,
+                canonical,
+                "self",
+                device,
+                qois=spec.qois,
+                kinematic_types=spec.kinematic_types,
+                scored_frames=scored,
+                qoi_aux_channel=run.qoi_aux_channel,
+            )
+        return time_conditioned_rollout(
+            simulator,
+            trajectory,
+            model_cfg.input_frames,
+            time_ref,
+            device,
+            qois=spec.qois,
+            kinematic_types=spec.kinematic_types,
+            scored_frames=scored,
+            qoi_aux_channel=run.qoi_aux_channel,
+        )
+    if run.aux_in_run:
+        simulator.aux_feedback = "self"
+    return rollout(
+        simulator,
+        trajectory,
+        model_cfg.input_frames,
+        device,
+        qois=spec.qois,
+        kinematic_types=spec.kinematic_types,
+        scored_frames=scored,
+        qoi_aux_channel=run.qoi_aux_channel,
+    )
+
+
+def evaluate_gradient(
+    data_root: Path,
+    out_dir: Path,
+    device: str,
+    *,
+    case_ids: list[str] | None = None,
+    save_artifacts: bool = True,
+    checkpoint: str | Path | None = None,
+) -> dict[str, Any]:
+    """The gradient task family (ADR-0076): the run's sensitivities against
+    the sweep's own differences.
+
+    For every case on the benchmark's sweep (``case_ids`` narrows it, for a
+    smoke or a line), the model is rolled out from seeds the family
+    constructs at ``v ± δ`` for both declared deltas, its quantities of
+    interest are differenced (:func:`~structbench.eval.sensitivity.model_sensitivity`),
+    and the disagreement of the two deltas is its floor. The reference
+    sensitivities are recomputed here from the stored cases with the same
+    estimator the committed record uses (``docs/gradients/``), so a report
+    never depends on a file outside the archive. Per quantity, the metrics
+    pool the judged points of the scored sets (every split but ``train`` and
+    ``val``) as the headline and every judged point as a diagnostic.
+
+    Returns
+    -------
+    dict
+        ``{"benchmark", "parameter", "deltas", "checkpoint", "lines": {line:
+        {"values", "cases", "sets", "reference": {qoi: [...]}, "model": {qoi:
+        [...]}, "floor": {qoi: [...]}}}, "metrics": {...}, "metrics_all":
+        {...}}``; written to ``out_dir/metrics-gradient.json`` when
+        ``save_artifacts`` (suffixed by the checkpoint stem when one is
+        named).
+
+    Raises
+    ------
+    ValueError
+        If the benchmark declares no gradient family, or the family has no
+        seed construction.
+    """
+    run = _rebuild_run_simulator(out_dir, device, checkpoint)
+    spec, model_cfg = run.spec, run.model_cfg
+    family = spec.gradient_family
+    if family is None:
+        raise ValueError(f"benchmark {spec.card.name!r} declares no gradient family")
+    if family.perturb_seed is None:
+        raise ValueError(
+            f"benchmark {spec.card.name!r} gradient family has no seed construction"
+        )
+    mesh_sim = isinstance(run.simulator, CaseBoundSimulator)
+    all_cases = [c for s in spec.splits.values() for c in s]
+    set_of = {c: s for s, cs in spec.splits.items() for c in cs}
+    chosen = list(case_ids) if case_ids is not None else all_cases
+    unknown = sorted(set(chosen) - set(all_cases))
+    if unknown:
+        raise ValueError(f"cases not on the benchmark's sweep: {unknown}")
+    qoi_names = tuple(family.noise)
+    scored_sets = {s for s in spec.splits if s not in ("train", "val")}
+
+    # Per case: the reference quantities from the stored trajectory and the
+    # model's quantities at the perturbed seeds.
+    ref_q: dict[str, dict[str, float]] = {}
+    model_s: dict[str, dict[str, dict[float, float]]] = {}
+    for case_id in chosen:
+        trajectory = load_case_trajectory(
+            data_root / f"{case_id}.h5",
+            aux_field=run.aux_fields,
+            state_fields=_state_fields_for(run.family, model_cfg, spec),
+        )
+        value = family.parameter_of(case_id)
+        gt = QoiInputs(
+            time=trajectory.time,
+            positions=trajectory.positions,
+            aux=trajectory.aux[..., run.qoi_aux_channel or 0],
+            particle_type=trajectory.particle_type,
+            init=model_cfg.input_frames,
+        )
+        ref_q[case_id] = {name: float(spec.qois[name](gt)) for name in qoi_names}
+        model_s[case_id] = {name: {} for name in qoi_names}
+        for delta in family.deltas:
+            q_at: dict[float, dict[str, float]] = {}
+            for signed in (-delta, delta):
+                seed = family.perturb_seed(
+                    trajectory, value, value + signed, model_cfg.input_frames
+                )
+                if mesh_sim and spec.mesh_transform is not None:
+                    seed = spec.mesh_transform(seed)
+                result = _predict_case(run, seed, case_id, device)
+                q_at[signed] = {
+                    name: float(result.qoi_pred[name]) for name in qoi_names
+                }
+            for name in qoi_names:
+                model_s[case_id][name][delta] = model_sensitivity(
+                    q_at[-delta][name], q_at[delta][name], delta
+                )
+        logger.info("gradient: %s done", case_id)
+
+    # Lines: reference sensitivities need the whole line, so they come from
+    # every stored case on it (the archive), model values where computed.
+    lines_out: dict[str, Any] = {}
+    pooled: dict[str, dict[str, list[Any]]] = {
+        name: {
+            "ref": [],
+            "model": [],
+            "floor": [],
+            "ref_all": [],
+            "model_all": [],
+            "floor_all": [],
+        }
+        for name in qoi_names
+    }
+    by_line: dict[str, list[str]] = {}
+    for c in all_cases:
+        by_line.setdefault(family.line_of(c), []).append(c)
+    d_small, d_large = family.deltas
+    for line, cids in sorted(by_line.items()):
+        cids = sorted(cids, key=family.parameter_of)
+        if not any(c in model_s for c in cids):
+            continue
+        values = [family.parameter_of(c) for c in cids]
+        line_ref: dict[str, dict[str, float]] = {}
+        for c in cids:
+            if c in ref_q:
+                line_ref[c] = ref_q[c]
+            else:
+                traj = load_case_trajectory(
+                    data_root / f"{c}.h5", aux_field=run.aux_fields
+                )
+                gt = QoiInputs(
+                    time=traj.time,
+                    positions=traj.positions,
+                    aux=traj.aux[..., run.qoi_aux_channel or 0],
+                    particle_type=traj.particle_type,
+                    init=model_cfg.input_frames,
+                )
+                line_ref[c] = {name: float(spec.qois[name](gt)) for name in qoi_names}
+        entry: dict[str, Any] = {
+            "cases": cids,
+            "values": values,
+            "sets": [set_of[c] for c in cids],
+            "reference": {},
+            "model": {},
+            "floor": {},
+        }
+        for name in qoi_names:
+            pts = reference_sensitivities(
+                values, [line_ref[c][name] for c in cids], noise=family.noise[name]
+            )
+            entry["reference"][name] = [asdict(p) | {"judged": p.judged} for p in pts]
+            model_vals: list[float | None] = []
+            floor_vals: list[float | None] = []
+            for c, p in zip(cids, pts, strict=True):
+                if c in model_s:
+                    s1 = model_s[c][name][d_small]
+                    s2 = model_s[c][name][d_large]
+                    model_vals.append(s1)
+                    floor_vals.append(gradient_floor(s1, s2))
+                    pooled[name]["ref_all"].append(p)
+                    pooled[name]["model_all"].append(s1)
+                    pooled[name]["floor_all"].append(gradient_floor(s1, s2))
+                    if set_of[c] in scored_sets:
+                        pooled[name]["ref"].append(p)
+                        pooled[name]["model"].append(s1)
+                        pooled[name]["floor"].append(gradient_floor(s1, s2))
+                else:
+                    model_vals.append(None)
+                    floor_vals.append(None)
+            entry["model"][name] = model_vals
+            entry["floor"][name] = floor_vals
+        lines_out[line] = entry
+
+    def _metrics(suffix: str) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for name in qoi_names:
+            ref = pooled[name]["ref" + suffix]
+            if not ref:
+                continue
+            m = gradient_metrics(
+                ref, pooled[name]["model" + suffix], pooled[name]["floor" + suffix]
+            )
+            out[f"gradient_rel_l2_{name}"] = m["rel_l2"]
+            out[f"gradient_sign_{name}"] = m["sign"]
+            out[f"gradient_floor_{name}"] = m["floor"]
+            out[f"gradient_n_judged_{name}"] = m["n_judged"]
+            out[f"gradient_n_reported_{name}"] = m["n_reported"]
+        return out
+
+    report: dict[str, Any] = {
+        "benchmark": spec.card.name,
+        "parameter": family.parameter,
+        "deltas": list(family.deltas),
+        "checkpoint": run.ckpt_path.name,
+        "checkpoint_path": str(run.ckpt_path),
+        "scored_sets": sorted(scored_sets),
+        "lines": lines_out,
+        "metrics": _metrics(""),
+        "metrics_all": _metrics("_all"),
+    }
+    if save_artifacts:
+        tag = "gradient" if checkpoint is None else f"gradient@{run.ckpt_path.stem}"
+        (out_dir / f"metrics-{tag}.json").write_text(
+            json.dumps(_json_safe(report), indent=2), encoding="utf-8"
+        )
+    return report
+
+
+def evaluate(
+    case_ids: list[str],
+    data_root: Path,
+    out_dir: Path,
+    device: str,
+    *,
+    split_name: str = "eval",
+    save_artifacts: bool = True,
+    checkpoint: str | Path | None = None,
+) -> dict[str, Any]:
+    """Roll out the run's checkpoint over ``case_ids`` and report ADR-0019 §5.
+
+    The simulator is rebuilt entirely from the run directory's own record —
+    architecture and ``n_particle_types`` from ``config.json``, model family
+    from ``config.json["model"]["family"]`` via
+    :func:`_model_config_from_record` — so evaluation always matches the
+    trained checkpoint; no caller-supplied architecture is accepted. A
+    ``cgn``-family run additionally rebuilds its normalizer from
+    ``normalization_stats.npz`` (both files are written by :func:`train`); an
+    ``mgn``-, ``transolver``-, or ``geoflare``-family run needs no stats file
+    at all, since its normalizer buffers live in the checkpoint's own
+    ``state_dict`` (ADR-0043 §8, verified in ①-c1; extended to
+    ``transolver``/``geoflare`` in ADR-0041).
+
+    Per case, reports the one-step (teacher-forced) position RMSE, the
+    full-rollout position RMSE (mm), the rollout auxiliary-field RMSE (in the
+    card's aux unit), and the
+    benchmark QoIs with signed errors; the split mean aggregates each metric
+    (QoIs as mean absolute error). When ``save_artifacts`` is true the report
+    is written to ``out_dir/metrics-<split_name>.json`` and each predicted
+    trajectory to ``out_dir/rollouts/<split_name>-<case_id>.npz``.
+
+    Parameters
+    ----------
+    case_ids : list of str
+        Cases to roll out over (validation or test split); must be non-empty.
+    data_root : pathlib.Path
+        Directory containing ``<case_id>.h5`` canonical cases.
+    out_dir : pathlib.Path
+        Run directory holding the checkpoint, resolved config, and (for a
+        ``cgn``-family run) normalization stats.
+    device : str
+        Torch device string.
+    split_name : str
+        Label recorded in the report and used in artifact filenames.
+    save_artifacts : bool
+        Write the metrics JSON and per-case rollout ``.npz`` files.
+    checkpoint : str, pathlib.Path or None
+        Explicit checkpoint file to evaluate (e.g. a periodic
+        ``ckpt-<step>.pt``); a relative path is resolved against ``out_dir``.
+        When given, the metrics file is suffixed
+        (``metrics-<split_name>@<checkpoint stem>.json``) and rollout ``.npz``
+        artifacts are skipped, so the canonical selected-checkpoint artifacts
+        are never overwritten. ``None`` evaluates the run's selected
+        checkpoint (highest-step ``model-*.pt``).
+
+    Notes
+    -----
+    Rollouts seed with the checkpoint's ``input_frames`` (recorded in
+    ``config.json``; pre-0035 runs recorded it as ``window``, normalized by
+    :func:`~structbench.config.read_run_record`), so checkpoints are always
+    evaluated as trained (ADR-0035). For an ``mgn``-, ``transolver``-, or
+    ``geoflare``-family run, each case's mesh (cells, reference coordinates,
+    and full ground-truth trajectory) is bound to the simulator before its
+    three eval passes (rollout, one-step position, one-step aux), and the
+    rollout pointer is reset before each pass, per
+    :class:`~structbench.models.common.CaseBoundSimulator`'s statefulness
+    contract.
+
+    Returns
+    -------
+    dict
+        ``{"split", "checkpoint", "checkpoint_path", "cases": {case_id: ...},
+        "mean": ...}`` with plain JSON-serializable values.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``config.json`` or a checkpoint is missing from ``out_dir``; for a
+        ``cgn``-family run, also if ``normalization_stats.npz`` is missing
+        (an ``mgn``-, ``transolver``-, or ``geoflare``-family run needs no
+        stats file).
+    ValueError
+        If ``case_ids`` is empty, or an ``mgn``-, ``transolver``-, or
+        ``geoflare``-family run is evaluated against a benchmark whose cases
+        carry no mesh connectivity (``cells``/``reference_coords`` are
+        ``None``).
+    """
+    if not case_ids:
+        raise ValueError("case_ids must be non-empty")
+    run = _rebuild_run_simulator(out_dir, device, checkpoint)
+    spec, record, model_cfg, simulator = (
+        run.spec,
+        run.record,
+        run.model_cfg,
+        run.simulator,
+    )
+    family, ckpt_path = run.family, run.ckpt_path
+    run_aux_fields, run_aux_labels = run.aux_fields, run.aux_labels
+    n_aux_c = len(run_aux_labels)
+    aux_in_run, qoi_aux_channel = run.aux_in_run, run.qoi_aux_channel
     # Non-None for any CaseBoundSimulator arm (mgn, transolver and geoflare, ADR-0041):
     # gates the per-case bind_case/reset_rollout calls below without
     # re-checking `family` at each site.
@@ -4509,7 +4875,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="StructBench CGN training entry")
     parser.add_argument(
         "--mode",
-        choices=["train", "valid", "rollout"],
+        choices=["train", "valid", "rollout", "gradient"],
         default="train",
         help="train, validate (VAL), or roll out (TEST).",
     )
@@ -4560,7 +4926,7 @@ def main(argv: list[str] | None = None) -> int:
         out_dir = Path("runs") / datetime.now().strftime("run-%Y%m%d-%H%M%S")
     else:
         print(
-            "error: --out is required in valid/rollout mode "
+            "error: --out is required in valid/rollout/gradient mode "
             "(the existing run directory to evaluate)"
         )
         return 2
@@ -4598,6 +4964,12 @@ def main(argv: list[str] | None = None) -> int:
                 checkpoint=args.checkpoint,
             )
             _print_split_report(metrics)
+        elif args.mode == "gradient":  # ADR-0076: the gradient task family
+            report = evaluate_gradient(
+                data_root, out_dir, device, checkpoint=args.checkpoint
+            )
+            for key, value in report["metrics"].items():
+                print(f"[gradient] {key} {value:.4f}")
         else:  # rollout: every eval split except val, in spec order
             for split_name in spec.eval_splits:
                 if split_name == "val":

@@ -91,6 +91,7 @@ on this benchmark.
 - Ground truth: explicit dynamic SPH in LS-DYNA, one run per case, no repeats; the verification record is `docs/datachecks/taylor_impact_2d.md`. Uncertainty: measured on the von Mises field only: a particle-scale floor of ~0.12 relative L2 (the raw field against its own 12-neighbour smoothing) and ~0.27 relative L2 against the held-aside 4x-finer re-run of one case; displacement has no measured floor.
 - Provenance: LS-DYNA parametric sweep (3 bar lengths x 11 impact velocities) produced by Curtin collaborators; benchmark protocol per ADR-0019. One extra Convergence run is held aside for a mesh-resolution check.
 - Verification: what was checked about these simulation runs, and what was found — [verification report](../datachecks/taylor_impact_2d.md)
+- Sensitivities: the reference sensitivities of the quantities of interest to `impact_velocity_m_s`, with their errors — [gradient record](../gradients/taylor_impact_2d.md) (ADR-0076)
 - License: CC BY 4.0
 - Data: public on Hugging Face — [StructBench/taylor-impact-2d](https://huggingface.co/datasets/StructBench/taylor-impact-2d)
 

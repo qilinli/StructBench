@@ -1,5 +1,7 @@
 """v0.1 Taylor 2D impact benchmark (ADR-0019)."""
 
+from ...datasets.canonical import CaseTrajectory
+from ...eval.sensitivity import GradientFamily, QoiNoise, free_flight_seed
 from ..registry import BenchmarkSpec
 from ..results import BaselineResult
 from .benchmark import (
@@ -385,6 +387,66 @@ def _impact_velocity(case_id: str) -> float:
     return float(case_id.rsplit("-", 1)[1])
 
 
+def _bar_length_line(case_id: str) -> str:
+    """The sweep line a case lies on: its bar length, ``"L60"`` etc."""
+    return f"L{case_id.split('-')[2]}"
+
+
+def _free_flight_at(
+    trajectory: CaseTrajectory, v_from: float, v_to: float, seed_frames: int
+) -> CaseTrajectory:
+    """Taylor's perturbed seed: the stored lattice in free flight at ``v_to``.
+
+    Verified on every benchmark case (2026-11-08, design note of ADR-0076):
+    frames 0–5 are exact free flight, zero stress, and the bar is still
+    0.26 mm short of the wall at frame 5 even at 200 m/s, so a perturbed
+    seed stays contact-free for any ``|v_to − v_from|`` up to ~25 m/s.
+    """
+    return free_flight_seed(
+        trajectory,
+        velocity_from=v_from,
+        velocity_to=v_to,
+        seed_frames=seed_frames,
+        kinematic_types=(WALL_NODE_TYPE,),
+    )
+
+
+#: ADR-0076, first instance: sensitivities to the impact velocity along each
+#: bar-length line, the four ADR-0019 quantities. The noise terms are declared
+#: assumptions, revisited when the convergence case is measured (README
+#: Roadmap); each `basis` says where its number comes from.
+GRADIENT_FAMILY = GradientFamily(
+    parameter="impact_velocity_m_s",
+    parameter_of=_impact_velocity,
+    line_of=_bar_length_line,
+    noise={
+        "final_length": QoiNoise(
+            absolute=0.5,
+            basis="an extent read from particle centres is uncertain by about "
+            "one SPH lattice spacing, 0.5 mm at the benchmark resolution",
+        ),
+        "mushroom_width": QoiNoise(
+            absolute=0.5,
+            basis="as final_length: one lattice spacing, 0.5 mm",
+        ),
+        "peak_von_mises": QoiNoise(
+            relative=0.01,
+            basis="the card declares a particle-scale floor of ~0.12 relative L2 "
+            "on the von Mises field; the particle mean averages that jitter "
+            "down, and 1 % of the peak is declared as a conservative stand-in "
+            "until the convergence case is measured",
+        ),
+        "t_peak_von_mises": QoiNoise(
+            absolute=0.002,
+            basis="the time of a peak is read at the 2 µs output interval; one "
+            "interval is the least it can be wrong by",
+        ),
+    },
+    deltas=(1.0, 2.0),
+    perturb_seed=_free_flight_at,
+)
+
+
 SPEC = BenchmarkSpec(
     card=CARD,
     results=RESULTS,
@@ -443,6 +505,7 @@ SPEC = BenchmarkSpec(
         ),
     ),
     loading_scalar=_impact_velocity,
+    gradient_family=GRADIENT_FAMILY,
 )
 
 __all__ = [

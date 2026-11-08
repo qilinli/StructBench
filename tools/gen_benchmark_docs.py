@@ -36,8 +36,12 @@ def _targets() -> dict[Path, str]:
     out = {INDEX: render_index(list(specs.values()))}
     for name, spec in specs.items():
         report = REPO_ROOT / "docs" / "datachecks" / f"{name}.md"
+        gradients = REPO_ROOT / "docs" / "gradients" / f"{name}.md"
         out[PAGES_DIR / f"{name}.md"] = render_benchmark_page(
-            spec, name, verification_report=report.exists()
+            spec,
+            name,
+            verification_report=report.exists(),
+            gradient_record=gradients.exists(),
         )
     return out
 

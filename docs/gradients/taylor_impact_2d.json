@@ -1,0 +1,1372 @@
+{
+ "benchmark": "taylor_impact_2d",
+ "parameter": "impact_velocity_m_s",
+ "deltas": [
+  1.0,
+  2.0
+ ],
+ "judged_fraction": 0.5,
+ "noise": {
+  "final_length": {
+   "absolute": 0.5,
+   "relative": 0.0,
+   "basis": "an extent read from particle centres is uncertain by about one SPH lattice spacing, 0.5 mm at the benchmark resolution"
+  },
+  "mushroom_width": {
+   "absolute": 0.5,
+   "relative": 0.0,
+   "basis": "as final_length: one lattice spacing, 0.5 mm"
+  },
+  "peak_von_mises": {
+   "absolute": 0.0,
+   "relative": 0.01,
+   "basis": "the card declares a particle-scale floor of ~0.12 relative L2 on the von Mises field; the particle mean averages that jitter down, and 1 % of the peak is declared as a conservative stand-in until the convergence case is measured"
+  },
+  "t_peak_von_mises": {
+   "absolute": 0.002,
+   "relative": 0.0,
+   "basis": "the time of a peak is read at the 2 \u00b5s output interval; one interval is the least it can be wrong by"
+  }
+ },
+ "source": {
+  "archive": "canonical/taylor_impact_2d",
+  "revision": "v0.1.0",
+  "generated": "2026-11-08",
+  "tool": "tools/gradient_reference.py",
+  "input_frames": 6
+ },
+ "lines": {
+  "L100": {
+   "cases": [
+    "T-20-100-100",
+    "T-20-100-110",
+    "T-20-100-120",
+    "T-20-100-130",
+    "T-20-100-140",
+    "T-20-100-150",
+    "T-20-100-160",
+    "T-20-100-170",
+    "T-20-100-180",
+    "T-20-100-190",
+    "T-20-100-200"
+   ],
+   "values": [
+    100.0,
+    110.0,
+    120.0,
+    130.0,
+    140.0,
+    150.0,
+    160.0,
+    170.0,
+    180.0,
+    190.0,
+    200.0
+   ],
+   "quantities": {
+    "final_length": [
+     85.04438304901123,
+     82.35021924972534,
+     79.63945174217224,
+     77.05013656616211,
+     74.48384380340576,
+     71.84301662445068,
+     69.26221060752869,
+     66.79958987236023,
+     64.13318657875061,
+     61.578426361083984,
+     58.99770545959473
+    ],
+    "mushroom_width": [
+     48.02134704589844,
+     53.45804023742676,
+     58.41677665710449,
+     62.88201713562012,
+     67.10152435302734,
+     71.30284881591797,
+     75.47997665405273,
+     79.65279006958008,
+     84.05109024047852,
+     88.58955001831055,
+     94.23845672607422
+    ],
+    "peak_von_mises": [
+     181.23537804520132,
+     181.90988679614662,
+     183.73154528665543,
+     181.20112224334477,
+     183.36445559191705,
+     186.24130187165738,
+     187.46550266593695,
+     190.65364715766907,
+     191.62128713315727,
+     193.82336565887928,
+     196.53865495598316
+    ],
+    "t_peak_von_mises": [
+     0.05797534151208614,
+     0.05597962292787903,
+     0.05398014120550331,
+     0.04394554690884283,
+     0.05199019503180983,
+     0.04198380058426483,
+     0.04992438048629641,
+     0.03797780354960969,
+     0.03793290827422578,
+     0.03798547712251024,
+     0.03795318481890357
+    ]
+   },
+   "sensitivities": {
+    "final_length": [
+     {
+      "value": 100.0,
+      "sensitivity": -0.26941637992858886,
+      "truncation_error": 0.0008301854133606068,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     },
+     {
+      "value": 110.0,
+      "sensitivity": -0.27024656534194946,
+      "truncation_error": 0.006902801990509022,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 120.0,
+      "sensitivity": -0.2650041341781616,
+      "truncation_error": 0.000990653038024869,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 130.0,
+      "sensitivity": -0.257780396938324,
+      "truncation_error": 0.004899668693542469,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 140.0,
+      "sensitivity": -0.2603559970855713,
+      "truncation_error": 0.0009249687194823886,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 150.0,
+      "sensitivity": -0.2610816597938538,
+      "truncation_error": 0.004817992448806763,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 160.0,
+      "sensitivity": -0.2521713376045227,
+      "truncation_error": 0.006595093011856068,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 170.0,
+      "sensitivity": -0.2564512014389038,
+      "truncation_error": 0.00016355514526367188,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 180.0,
+      "sensitivity": -0.2610581755638123,
+      "truncation_error": 0.004445546865463279,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 190.0,
+      "sensitivity": -0.2567740559577942,
+      "truncation_error": 0.006880187988281272,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 200.0,
+      "sensitivity": -0.2580720901489258,
+      "truncation_error": 0.001298034191131614,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     }
+    ],
+    "mushroom_width": [
+     {
+      "value": 100.0,
+      "sensitivity": 0.543669319152832,
+      "truncation_error": 0.023897838592529252,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     },
+     {
+      "value": 110.0,
+      "sensitivity": 0.5197714805603028,
+      "truncation_error": 0.0007769584655761275,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 120.0,
+      "sensitivity": 0.47119884490966796,
+      "truncation_error": 0.005805587768554721,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 130.0,
+      "sensitivity": 0.4342373847961426,
+      "truncation_error": 0.011882829666137684,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 140.0,
+      "sensitivity": 0.42104158401489256,
+      "truncation_error": 0.005538415908813488,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 150.0,
+      "sensitivity": 0.41892261505126954,
+      "truncation_error": 0.0003467082977294811,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 160.0,
+      "sensitivity": 0.4174970626831055,
+      "truncation_error": 0.006242084503173817,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 170.0,
+      "sensitivity": 0.4285556793212891,
+      "truncation_error": 0.0036118507385253795,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 180.0,
+      "sensitivity": 0.4468379974365234,
+      "truncation_error": 0.022124004364013683,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 190.0,
+      "sensitivity": 0.5093683242797852,
+      "truncation_error": 0.048514366149902344,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 200.0,
+      "sensitivity": 0.5648906707763672,
+      "truncation_error": 0.05552234649658205,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     }
+    ],
+    "peak_von_mises": [
+     {
+      "value": 100.0,
+      "sensitivity": 0.06745087509453071,
+      "truncation_error": 0.05735748697817514,
+      "measurement_error": 0.2563055296133388,
+      "one_sided": true,
+      "judged": false
+     },
+     {
+      "value": 110.0,
+      "sensitivity": 0.12480836207270585,
+      "truncation_error": 0.2749615636691445,
+      "measurement_error": 0.1286297145184325,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 120.0,
+      "sensitivity": -0.035438227640092634,
+      "truncation_error": 0.088665166307986,
+      "measurement_error": 0.1299178215900773,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 130.0,
+      "sensitivity": -0.01835448473691912,
+      "truncation_error": 0.12663986162468815,
+      "measurement_error": 0.12812854229688164,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 140.0,
+      "sensitivity": 0.2520089814156307,
+      "truncation_error": 0.1586600469335927,
+      "measurement_error": 0.12965824997762412,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 150.0,
+      "sensitivity": 0.20505235370099512,
+      "truncation_error": 0.0312607691571124,
+      "measurement_error": 0.1316924874904598,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 160.0,
+      "sensitivity": 0.2206172643005843,
+      "truncation_error": 0.014196475769578859,
+      "measurement_error": 0.13255812817362883,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 170.0,
+      "sensitivity": 0.20778922336101574,
+      "truncation_error": 0.0182376286804683,
+      "measurement_error": 0.13481248676313515,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 180.0,
+      "sensitivity": 0.15848592506051062,
+      "truncation_error": 0.0683428821906446,
+      "measurement_error": 0.13549671155155002,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 190.0,
+      "sensitivity": 0.24586839114129475,
+      "truncation_error": 0.036061388942596306,
+      "measurement_error": 0.13705381620979334,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 200.0,
+      "sensitivity": 0.27152892971038795,
+      "truncation_error": 0.0256605385690932,
+      "measurement_error": 0.27794763136931755,
+      "one_sided": true,
+      "judged": false
+     }
+    ],
+    "t_peak_von_mises": [
+     {
+      "value": 100.0,
+      "sensitivity": -0.00019957185842071068,
+      "truncation_error": 1.8815690843061728e-07,
+      "measurement_error": 0.00028284271247461907,
+      "one_sided": true,
+      "judged": false
+     },
+     {
+      "value": 110.0,
+      "sensitivity": -0.0001997600153291413,
+      "truncation_error": 0.0004015674718058068,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 120.0,
+      "sensitivity": -0.0006017038009518101,
+      "truncation_error": 0.0004520751389449024,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 130.0,
+      "sensitivity": -9.949730868467413e-05,
+      "truncation_error": 0.00025039824990568077,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 140.0,
+      "sensitivity": -9.808731622889983e-05,
+      "truncation_error": 3.3067017512726905e-06,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 150.0,
+      "sensitivity": -0.00010329072727567092,
+      "truncation_error": 4.5902856705157616e-05,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 160.0,
+      "sensitivity": -0.00020029985173275721,
+      "truncation_error": 0.00015113231720684396,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 170.0,
+      "sensitivity": -0.0005995736106035314,
+      "truncation_error": 0.0004996155240596667,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 180.0,
+      "sensitivity": 3.836786450276547e-07,
+      "truncation_error": 0.00029966357032984865,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 190.0,
+      "sensitivity": 1.0138272338894305e-06,
+      "truncation_error": 9.116263777974795e-06,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 200.0,
+      "sensitivity": -3.229230360667079e-06,
+      "truncation_error": 4.243057594556509e-06,
+      "measurement_error": 0.00028284271247461907,
+      "one_sided": true,
+      "judged": false
+     }
+    ]
+   }
+  },
+  "L60": {
+   "cases": [
+    "T-20-60-100",
+    "T-20-60-110",
+    "T-20-60-120",
+    "T-20-60-130",
+    "T-20-60-140",
+    "T-20-60-150",
+    "T-20-60-160",
+    "T-20-60-170",
+    "T-20-60-180",
+    "T-20-60-190",
+    "T-20-60-200"
+   ],
+   "values": [
+    100.0,
+    110.0,
+    120.0,
+    130.0,
+    140.0,
+    150.0,
+    160.0,
+    170.0,
+    180.0,
+    190.0,
+    200.0
+   ],
+   "quantities": {
+    "final_length": [
+     51.261441469192505,
+     49.57083320617676,
+     47.75360870361328,
+     45.76681065559387,
+     43.709259033203125,
+     41.55726170539856,
+     39.29126811027527,
+     37.26132607460022,
+     35.324021100997925,
+     33.249287128448486,
+     31.300888061523438
+    ],
+    "mushroom_width": [
+     38.273488998413086,
+     42.687103271484375,
+     47.35344123840332,
+     52.26179313659668,
+     56.31884765625,
+     59.69164276123047,
+     62.55030632019043,
+     65.12842559814453,
+     68.49942016601562,
+     72.93011856079102,
+     77.65174102783203
+    ],
+    "peak_von_mises": [
+     190.1761550660928,
+     192.3190053443114,
+     195.370095047156,
+     198.2767936247587,
+     199.48473985691865,
+     201.5195879538854,
+     202.11268486519654,
+     204.55431056102117,
+     206.5233896187941,
+     208.3466204361121,
+     212.20605452537538
+    ],
+    "t_peak_von_mises": [
+     0.0399800986933674,
+     0.03792316197877089,
+     0.03594130372735233,
+     0.03395583786256341,
+     0.031977644108973455,
+     0.031932094422878005,
+     0.029958745850247184,
+     0.029971853968519403,
+     0.05595919852929122,
+     0.05599680004659112,
+     0.05392327593292976
+    ]
+   },
+   "sensitivities": {
+    "final_length": [
+     {
+      "value": 100.0,
+      "sensitivity": -0.1690608263015747,
+      "truncation_error": 0.006330811977386469,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     },
+     {
+      "value": 110.0,
+      "sensitivity": -0.17539163827896118,
+      "truncation_error": 0.0021478652954101674,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 120.0,
+      "sensitivity": -0.19020112752914428,
+      "truncation_error": 0.00139656662940979,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 130.0,
+      "sensitivity": -0.2022174835205078,
+      "truncation_error": 0.001878196001052851,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 140.0,
+      "sensitivity": -0.21047744750976563,
+      "truncation_error": 0.0010810673236846813,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 150.0,
+      "sensitivity": -0.22089954614639282,
+      "truncation_error": 0.00826243162155152,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 160.0,
+      "sensitivity": -0.214796781539917,
+      "truncation_error": 0.005165833234786976,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 170.0,
+      "sensitivity": -0.1983623504638672,
+      "truncation_error": 0.009337013959884649,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 180.0,
+      "sensitivity": -0.20060194730758668,
+      "truncation_error": 0.0008424460887909158,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 190.0,
+      "sensitivity": -0.20115665197372437,
+      "truncation_error": 0.013188195228576671,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 200.0,
+      "sensitivity": -0.1948399066925049,
+      "truncation_error": 0.006316745281219477,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     }
+    ],
+    "mushroom_width": [
+     {
+      "value": 100.0,
+      "sensitivity": 0.4413614273071289,
+      "truncation_error": 0.012636184692382812,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     },
+     {
+      "value": 110.0,
+      "sensitivity": 0.4539976119995117,
+      "truncation_error": 0.0005354881286621094,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 120.0,
+      "sensitivity": 0.47873449325561523,
+      "truncation_error": 0.027600526809692383,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 130.0,
+      "sensitivity": 0.448270320892334,
+      "truncation_error": 0.02315683364868165,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 140.0,
+      "sensitivity": 0.37149248123168943,
+      "truncation_error": 0.008429145812988315,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 150.0,
+      "sensitivity": 0.3115729331970215,
+      "truncation_error": 0.010092878341674771,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 160.0,
+      "sensitivity": 0.2718391418457031,
+      "truncation_error": 0.03267517089843752,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 170.0,
+      "sensitivity": 0.2974556922912598,
+      "truncation_error": 0.033506202697753895,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 180.0,
+      "sensitivity": 0.39008464813232424,
+      "truncation_error": 0.012548780441284213,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 190.0,
+      "sensitivity": 0.4576160430908203,
+      "truncation_error": 0.038438987731933605,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 200.0,
+      "sensitivity": 0.47216224670410156,
+      "truncation_error": 0.014546203613281239,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     }
+    ],
+    "peak_von_mises": [
+     {
+      "value": 100.0,
+      "sensitivity": 0.21428502782185888,
+      "truncation_error": 0.045411971231301584,
+      "measurement_error": 0.2689496977344373,
+      "one_sided": true,
+      "judged": false
+     },
+     {
+      "value": 110.0,
+      "sensitivity": 0.25969699905316046,
+      "truncation_error": 0.052631527493392116,
+      "measurement_error": 0.13599007283001446,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 120.0,
+      "sensitivity": 0.2978894140223659,
+      "truncation_error": 0.06517479425171974,
+      "measurement_error": 0.13814751904890435,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 130.0,
+      "sensitivity": 0.20573224048813188,
+      "truncation_error": 0.024282324751218443,
+      "measurement_error": 0.1402028653239925,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 140.0,
+      "sensitivity": 0.1621397164563348,
+      "truncation_error": 0.006425028994678422,
+      "measurement_error": 0.14105701229606155,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 150.0,
+      "sensitivity": 0.13139725041389455,
+      "truncation_error": 0.025540672992666907,
+      "measurement_error": 0.14249586718411128,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 160.0,
+      "sensitivity": 0.15173613035678812,
+      "truncation_error": 0.02423011369009842,
+      "measurement_error": 0.14291525003200017,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 170.0,
+      "sensitivity": 0.22053523767987854,
+      "truncation_error": 0.04985942562421142,
+      "measurement_error": 0.1446417401186371,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 180.0,
+      "sensitivity": 0.1896154937545461,
+      "truncation_error": 0.06271874774992484,
+      "measurement_error": 0.14603408927308076,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 190.0,
+      "sensitivity": 0.2841332453290633,
+      "truncation_error": 0.10910257562001391,
+      "measurement_error": 0.1473233081476746,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 200.0,
+      "sensitivity": 0.38594340892632883,
+      "truncation_error": 0.10181016359726552,
+      "measurement_error": 0.3001046803274704,
+      "one_sided": true,
+      "judged": false
+     }
+    ],
+    "t_peak_von_mises": [
+     {
+      "value": 100.0,
+      "sensitivity": -0.0002056936714596509,
+      "truncation_error": 3.7539231588976628e-06,
+      "measurement_error": 0.00028284271247461907,
+      "one_sided": true,
+      "judged": false
+     },
+     {
+      "value": 110.0,
+      "sensitivity": -0.00020193974830075325,
+      "truncation_error": 3.934303827415897e-06,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 120.0,
+      "sensitivity": -0.00019836620581037377,
+      "truncation_error": 1.6951587994747802e-06,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 130.0,
+      "sensitivity": -0.00019818298091894387,
+      "truncation_error": 4.8406292021621806e-05,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 140.0,
+      "sensitivity": -0.00010118717198427038,
+      "truncation_error": 4.837677494335834e-05,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 150.0,
+      "sensitivity": -0.00010094491293631356,
+      "truncation_error": 1.3453155852133385e-06,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 160.0,
+      "sensitivity": -9.801202271793007e-05,
+      "truncation_error": 0.0006975508832258741,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 170.0,
+      "sensitivity": 0.0013000226339522016,
+      "truncation_error": 0.0006984049933593737,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 180.0,
+      "sensitivity": 0.0013012473039035858,
+      "truncation_error": 0.0007021340518365214,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 190.0,
+      "sensitivity": -0.0001017961298180728,
+      "truncation_error": 0.0011919308706255332,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 200.0,
+      "sensitivity": -0.00020735241136613582,
+      "truncation_error": 0.00010555628154806302,
+      "measurement_error": 0.00028284271247461907,
+      "one_sided": true,
+      "judged": false
+     }
+    ]
+   }
+  },
+  "L80": {
+   "cases": [
+    "T-20-80-100",
+    "T-20-80-110",
+    "T-20-80-120",
+    "T-20-80-130",
+    "T-20-80-140",
+    "T-20-80-150",
+    "T-20-80-160",
+    "T-20-80-170",
+    "T-20-80-180",
+    "T-20-80-190",
+    "T-20-80-200"
+   ],
+   "values": [
+    100.0,
+    110.0,
+    120.0,
+    130.0,
+    140.0,
+    150.0,
+    160.0,
+    170.0,
+    180.0,
+    190.0,
+    200.0
+   ],
+   "quantities": {
+    "final_length": [
+     68.2083637714386,
+     65.8231270313263,
+     63.230870485305786,
+     60.6046097278595,
+     58.057509422302246,
+     55.70294499397278,
+     53.222705125808716,
+     50.93541741371155,
+     48.59505224227905,
+     46.38231182098389,
+     43.98169922828674
+    ],
+    "mushroom_width": [
+     43.52524375915527,
+     48.93259811401367,
+     54.22008514404297,
+     58.82277488708496,
+     62.602333068847656,
+     66.16141891479492,
+     69.69284439086914,
+     74.04891586303711,
+     78.44242477416992,
+     82.86272811889648,
+     88.17000198364258
+    ],
+    "peak_von_mises": [
+     184.63087218530475,
+     186.32738221384585,
+     185.3798251055181,
+     188.09792789041995,
+     193.13419789850713,
+     191.38068847261368,
+     195.14913201004268,
+     196.38054361239077,
+     199.37781472086905,
+     200.61579273670912,
+     203.08150714896618
+    ],
+    "t_peak_von_mises": [
+     0.04798982031247441,
+     0.045923696598917936,
+     0.043936965829580746,
+     0.04594452652442098,
+     0.041962649328006384,
+     0.043972816985430666,
+     0.039953004358255204,
+     0.039929159434196955,
+     0.03594534739683988,
+     0.03593427405513335,
+     0.03795272988474013
+    ]
+   },
+   "sensitivities": {
+    "final_length": [
+     {
+      "value": 100.0,
+      "sensitivity": -0.23852367401123048,
+      "truncation_error": 0.010350990295410145,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     },
+     {
+      "value": 110.0,
+      "sensitivity": -0.24887466430664062,
+      "truncation_error": 0.008650779724121094,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 120.0,
+      "sensitivity": -0.2609258651733398,
+      "truncation_error": 0.007154506444930986,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 130.0,
+      "sensitivity": -0.258668053150177,
+      "truncation_error": 0.0056635022163391,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 140.0,
+      "sensitivity": -0.24508323669433593,
+      "truncation_error": 0.005120897293090815,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 150.0,
+      "sensitivity": -0.2417402148246765,
+      "truncation_error": 1.0406970977760999e-05,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 160.0,
+      "sensitivity": -0.23837637901306152,
+      "truncation_error": 0.0018149495124816784,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 170.0,
+      "sensitivity": -0.23138264417648316,
+      "truncation_error": 0.0016331851482391246,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 180.0,
+      "sensitivity": -0.22765527963638305,
+      "truncation_error": 0.0033698678016662598,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 190.0,
+      "sensitivity": -0.23066765069961548,
+      "truncation_error": 0.015774846076965332,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 200.0,
+      "sensitivity": -0.24006125926971436,
+      "truncation_error": 0.009393608570098883,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     }
+    ],
+    "mushroom_width": [
+     {
+      "value": 100.0,
+      "sensitivity": 0.5407354354858398,
+      "truncation_error": 0.005993366241455078,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     },
+     {
+      "value": 110.0,
+      "sensitivity": 0.5347420692443847,
+      "truncation_error": 0.028246498107910134,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 120.0,
+      "sensitivity": 0.49450883865356443,
+      "truncation_error": 0.01758160591125485,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 130.0,
+      "sensitivity": 0.4191123962402344,
+      "truncation_error": 0.011608123779296875,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 140.0,
+      "sensitivity": 0.36693220138549804,
+      "truncation_error": 0.01988677978515624,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 150.0,
+      "sensitivity": 0.3545255661010742,
+      "truncation_error": 0.026127958297729514,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 160.0,
+      "sensitivity": 0.3943748474121094,
+      "truncation_error": 0.0016274452209472656,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 170.0,
+      "sensitivity": 0.43747901916503906,
+      "truncation_error": 0.01994628906250001,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 180.0,
+      "sensitivity": 0.44069061279296873,
+      "truncation_error": 0.021238327026367188,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 190.0,
+      "sensitivity": 0.4863788604736328,
+      "truncation_error": 0.04300880432128901,
+      "measurement_error": 0.035355339059327376,
+      "one_sided": false,
+      "judged": true
+     },
+     {
+      "value": 200.0,
+      "sensitivity": 0.5307273864746094,
+      "truncation_error": 0.04434852600097655,
+      "measurement_error": 0.07071067811865475,
+      "one_sided": true,
+      "judged": true
+     }
+    ],
+    "peak_von_mises": [
+     {
+      "value": 100.0,
+      "sensitivity": 0.16965100285410983,
+      "truncation_error": 0.13220335684344206,
+      "measurement_error": 0.26110748347723145,
+      "one_sided": true,
+      "judged": false
+     },
+     {
+      "value": 110.0,
+      "sensitivity": 0.037447646010667766,
+      "truncation_error": 0.3154863515049229,
+      "measurement_error": 0.13175335548414813,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 120.0,
+      "sensitivity": 0.08852728382870509,
+      "truncation_error": 0.12405585900135421,
+      "measurement_error": 0.13108333142728806,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 130.0,
+      "sensitivity": 0.38771863964945086,
+      "truncation_error": 0.261385983180255,
+      "measurement_error": 0.1330053203384542,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 140.0,
+      "sensitivity": 0.16413802910968656,
+      "truncation_error": 0.08009464350342768,
+      "measurement_error": 0.13656650101305906,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 150.0,
+      "sensitivity": 0.10074670557677763,
+      "truncation_error": 0.10631868747249272,
+      "measurement_error": 0.1353265826071353,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 160.0,
+      "sensitivity": 0.24999275698885412,
+      "truncation_error": 0.09390233642980589,
+      "measurement_error": 0.13799127458696994,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 170.0,
+      "sensitivity": 0.21143413554131882,
+      "truncation_error": 0.019443471061067197,
+      "measurement_error": 0.13886201408142207,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 180.0,
+      "sensitivity": 0.21176245621591788,
+      "truncation_error": 0.013453077742830277,
+      "measurement_error": 0.14098140480728158,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 190.0,
+      "sensitivity": 0.1851846214048564,
+      "truncation_error": 0.14935147445276162,
+      "measurement_error": 0.14185678745724195,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 200.0,
+      "sensitivity": 0.2465714412257057,
+      "truncation_error": 0.061386819820849314,
+      "measurement_error": 0.28720062167723664,
+      "one_sided": true,
+      "judged": false
+     }
+    ],
+    "t_peak_von_mises": [
+     {
+      "value": 100.0,
+      "sensitivity": -0.00020661237135564738,
+      "truncation_error": 3.9696472109641725e-06,
+      "measurement_error": 0.00028284271247461907,
+      "one_sided": true,
+      "judged": false
+     },
+     {
+      "value": 110.0,
+      "sensitivity": -0.0002026427241446832,
+      "truncation_error": 0.0001957449259979066,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 120.0,
+      "sensitivity": 1.0414962751521123e-06,
+      "truncation_error": 0.00015172077088685277,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 130.0,
+      "sensitivity": -9.871582507871811e-05,
+      "truncation_error": 4.994383474153634e-05,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 140.0,
+      "sensitivity": -9.858547694951564e-05,
+      "truncation_error": 1.0135598336229125e-06,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 150.0,
+      "sensitivity": -0.000100482248487559,
+      "truncation_error": 4.9901928768041596e-05,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 160.0,
+      "sensitivity": -0.00020218287756168553,
+      "truncation_error": 5.1750329282523026e-05,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 170.0,
+      "sensitivity": -0.00020038284807076605,
+      "truncation_error": 5.807251866668181e-07,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 180.0,
+      "sensitivity": -0.00019974426895318017,
+      "truncation_error": 0.0001497374071153034,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 190.0,
+      "sensitivity": 0.0001003691243950125,
+      "truncation_error": 9.716047621686104e-05,
+      "measurement_error": 0.00014142135623730954,
+      "one_sided": false,
+      "judged": false
+     },
+     {
+      "value": 200.0,
+      "sensitivity": 0.00020184558296067813,
+      "truncation_error": 0.00010147645856566564,
+      "measurement_error": 0.00028284271247461907,
+      "one_sided": true,
+      "judged": false
+     }
+    ]
+   }
+  }
+ }
+}

@@ -870,7 +870,11 @@ def render_archive_readme(
 
 
 def render_benchmark_page(
-    spec: BenchmarkSpec, name: str, *, verification_report: bool = False
+    spec: BenchmarkSpec,
+    name: str,
+    *,
+    verification_report: bool = False,
+    gradient_record: bool = False,
 ) -> str:
     """The committed, browsable landing page for one benchmark (ADR-0036).
 
@@ -891,6 +895,9 @@ def render_benchmark_page(
     verification_report : bool
         Whether ``docs/datachecks/<name>.md`` exists (ADR-0066); the page then
         links to it. The caller checks, so this render stays a pure function.
+    gradient_record : bool
+        Whether ``docs/gradients/<name>.md`` exists (ADR-0076) for a benchmark
+        that declares a gradient family; the page then links to it.
 
     Returns
     -------
@@ -931,6 +938,15 @@ def render_benchmark_page(
                 f" what was found — [verification report](../datachecks/{name}.md)"
             ]
             if verification_report
+            else []
+        ),
+        *(
+            [
+                "- Sensitivities: the reference sensitivities of the quantities "
+                f"of interest to `{spec.gradient_family.parameter}`, with their "
+                f"errors — [gradient record](../gradients/{name}.md) (ADR-0076)"
+            ]
+            if gradient_record and spec.gradient_family is not None
             else []
         ),
         f"- License: {c.data_license}",

@@ -109,6 +109,31 @@ rendering order against the properties block (ADR-0075's plan 3c); whether
 the gradient family ever gates anything (no, until a note says otherwise);
 a second parameter or benchmark.
 
+## Finding 2026-11-08: the stored seeds are free flight
+
+Checked on every benchmark case (33) from the archive before anything was
+scored: in frames 0–5 the stored velocities equal the nominal impact speed
+exactly, positions are linear in time to 1e-11 m, and every stress
+component is zero. The bar's leading face is still 1.25 mm (100 m/s) to
+0.26 mm (200 m/s) short of the wall at frame 5, so a perturbed seed stays
+contact-free for any perturbation up to about 25 m/s; the declared deltas
+are 1 and 2 m/s. `free_flight_seed` refuses a case whose seed is not free
+flight within 1e-3 mm, so the construction cannot silently be applied to a
+case that touches the wall inside the prefix.
+
+The quantities along the velocity lines (same run) show what the judged
+rule is for: final length and mushroom width move smoothly (about −2.6 mm
+and +4.5 mm per 10 m/s), the peak mean von Mises jitters by 1–3 MPa between
+neighbours, and its time jumps between two local peaks (0.058 → 0.044 →
+0.052 ms on the 100 mm bar). The record shows which points those leave
+judged.
+
+Noise terms declared on the Taylor family (`GRADIENT_FAMILY`): 0.5 mm on the
+two extents (one lattice spacing), 1 % of the peak on the mean von Mises (a
+conservative stand-in for the averaged particle floor), one output interval
+(0.002 ms) on the time of the peak. Assumptions, revisited when the
+convergence case is measured.
+
 ## Build plan (after the record is Accepted)
 
 1. The free-flight verification of the stored seeds, as a test over the

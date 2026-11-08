@@ -93,7 +93,7 @@ Validation against experiments (ADR-0072): whether a benchmark's reference *setu
 
 ### `eval/`
 
-Metrics and evaluation protocols. Each benchmark declares its own evaluation metrics; this module implements them in a model-agnostic way. A leaderboard submission validator and cross-benchmark evaluation utilities are planned here (see the Roadmap section of README.md) but do not exist yet.
+Metrics and evaluation protocols. Each benchmark declares its own evaluation metrics; this module implements them in a model-agnostic way. A leaderboard submission validator and cross-benchmark evaluation utilities are planned here (see the Roadmap section of README.md) but do not exist yet. `eval/sensitivity.py` is the gradient task family (ADR-0076): reference sensitivities of the quantities of interest by differences across a benchmark's sweep, with their declared errors and the judged/reported rule; the free-flight seed construction and the finite-difference measurement of a surrogate's own sensitivity; the committed reference record under `docs/gradients/`. A benchmark declares its instance as `BenchmarkSpec.gradient_family`; `structbench-train --mode gradient` evaluates a run against it.
 
 `eval/` depends on `core/` (for the case schema) and `datasets/` (for ground truth access). It does not depend on `models/` — evaluation is a property of the benchmark, not the model.
 

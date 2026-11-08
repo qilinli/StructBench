@@ -31,6 +31,7 @@ from ..core.definition_module import (
 from ..datasets import available_aux_fields
 from ..datasets.canonical import CaseTrajectory
 from ..eval import QoiFn
+from ..eval.sensitivity import GradientFamily
 from .card import BenchmarkCard
 from .constitutive import ELEMENT_FORMULATIONS, ConstitutiveLaw
 from .results import BaselineResult
@@ -160,6 +161,12 @@ class BenchmarkSpec:
     admissibility analyses. ``None`` when the benchmark has no plasticity
     (structured heads are then rejected at train time)."""
 
+    gradient_family: GradientFamily | None = None
+    """The benchmark's gradient task (ADR-0076): the swept parameter, the
+    sweep lines, the declared noise per quantity of interest and the seed
+    construction the surrogate side needs. ``None`` for a benchmark whose
+    sweep supports no instance; every quantity the family names must be one
+    of ``qois`` (validated at construction)."""
     loading_scalar: Callable[[str], float] | None = None
     """Maps a case id to its scalar loading parameter (impact velocity),
     consumed by the Transolver ``impact_velocity_feature`` (ADR-0051 B): the
@@ -236,6 +243,15 @@ class BenchmarkSpec:
         return (self.aux_field,)
 
     def __post_init__(self) -> None:
+        # ADR-0076: the gradient family scores quantities this benchmark
+        # defines, and nothing else.
+        if self.gradient_family is not None:
+            unknown = sorted(set(self.gradient_family.noise) - set(self.qois))
+            if unknown:
+                raise ValueError(
+                    f"gradient_family names quantities {unknown} that are not "
+                    f"among this benchmark's qois {sorted(self.qois)}"
+                )
         # ADR-0064: a malformed hardening curve must fail at spec
         # construction, not inside torch.bucketize (which returns wrong
         # intervals SILENTLY on unsorted knots — review finding).
