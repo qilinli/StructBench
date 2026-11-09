@@ -277,3 +277,15 @@ def test_per_case_restart_anchors_are_checked_when_read():
     assert declared.restart_anchors_for(case) == (5, 30)
     with pytest.raises(ValueError, match="restart_anchors"):
         declared.restart_anchors_for(spec.splits["test_interp"][1])
+
+
+def test_restart_anchors_stay_inside_the_scored_horizon():
+    # ADR-0039 pins notch-impact to 250 of its frames; a restart may not
+    # score the frames the protocol excludes (design §3: anchors lie inside
+    # [input_frames - 1, scored_bound)).
+    spec = get_benchmark("notch_beam_2d_impact")
+    bound = spec.scored_frames_fixed
+    assert bound is not None and bound < spec.card.n_frames
+    replace(spec, restart_anchors=(bound - 21,), restart_horizons=(20,))
+    with pytest.raises(ValueError, match="restart_anchors"):
+        replace(spec, restart_anchors=(bound - 20,), restart_horizons=(20,))

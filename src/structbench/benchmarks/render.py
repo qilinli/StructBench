@@ -355,15 +355,17 @@ def _col_label(split: str, key: str) -> str:
         return f"{s}·{_PROPERTY_LABELS.get(key, key.removeprefix('prop_'))}"
     if _is_restart_key(key):
         # restart_a10_h20_rel_l2_displacement -> a10 h20 disp;
-        # compose_T20_k2_position_rmse -> T20 k2 pos (mm)
+        # compose_T20_k2_position_rmse -> T20 k2 pos RMSE (mm). The relative
+        # L2 forms read as the quantity alone, the RMSEs say so (restart keys
+        # carry no unit suffix; positions are mm in the working frame).
         _, first, second, metric = key.split("_", 3)
         quantity = {
             "rel_l2_displacement": "disp",
             "rel_l2_aux": "aux",
             "rel_l2_state": "state",
-            "position_rmse": "pos (mm)",
-            "aux_rmse": "aux",
-            "state_rmse": "state",
+            "position_rmse": "pos RMSE (mm)",
+            "aux_rmse": "aux RMSE",
+            "state_rmse": "state RMSE",
         }.get(metric, metric)
         return f"{s}·{first} {second} {quantity}"
     k = (

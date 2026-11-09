@@ -81,3 +81,22 @@ def test_semigroup_error_is_zero_for_identical_maps_and_pooled_otherwise():
     composed = direct * 1.5  # every entry 50 % larger: pooled ratio 0.5
     assert semigroup_error(direct, composed) == pytest.approx(0.5)
     assert np.isnan(semigroup_error(np.zeros((2, P, DIM)), np.ones((2, P, DIM))))
+
+
+def test_semigroup_error_reads_displacements_from_a_reference():
+    # ADR-0055: a ratio on absolute positions is origin noise. With the
+    # reference frame given, translating both maps leaves the value alone.
+    rng = np.random.default_rng(2)
+    reference = rng.random((P, DIM))
+    direct = reference[None] + rng.random((3, P, DIM))
+    composed = direct + 0.1 * rng.random((3, P, DIM))
+    value = semigroup_error(direct, composed, reference=reference)
+    shifted = semigroup_error(direct + 1e3, composed + 1e3, reference=reference + 1e3)
+    assert shifted == pytest.approx(value, rel=1e-9)
+    assert semigroup_error(direct + 1e3, composed + 1e3) != pytest.approx(
+        value, rel=1e-3
+    )
+    # a direct map that never leaves the reference has no displacement to
+    # measure against
+    still = np.broadcast_to(reference, (3, P, DIM)).copy()
+    assert np.isnan(semigroup_error(still, still + 0.1, reference=reference))

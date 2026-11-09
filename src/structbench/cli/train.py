@@ -4193,9 +4193,11 @@ def evaluate_restart(
     reports the semigroup error between the two-step composition and the
     direct map as ``prop_semigroup_err``, a property of the block.
 
-    The report records the run's ``flow_map_max_dt`` (the longest interval
-    the flow map trained on, ``0`` meaning the recipe's default) and its
-    evaluation intervals, so a reader sees which horizons are held out.
+    The report records ``train_max_dt``, the longest interval the run trained
+    on (the flow map's ``flow_map_max_dt``; ``None`` when uncapped, every
+    interval to the horizon; ``1`` for an autoregressive scheme's unit steps)
+    and the flow map's evaluation intervals, so a reader sees which horizons
+    are held out.
     Written to ``out_dir/metrics-restart-<split_name>.json`` when
     ``save_artifacts`` (checkpoint-suffixed like :func:`evaluate`).
 
@@ -4273,14 +4275,18 @@ def evaluate_restart(
         )
         mesh_sim.reset_rollout()
 
-    def _roll(window: CaseTrajectory, offset: int, interval: int) -> RolloutResult:
+    def _roll(
+        window: CaseTrajectory, offset: int, interval: int, n_case_frames: int
+    ) -> RolloutResult:
         _bind(window)
         if fm:
             assert isinstance(simulator, TransolverSimulator)
+            # The CASE's time reference, as training and evaluate() use it;
+            # the window's own length would renormalise time per restart.
             time_ref = _tc_time_ref_frames(
                 spec.scored_frames_fixed,
                 record["train"].get("train_frames", 0),
-                offset + len(window.time),
+                n_case_frames,
             )
             return flow_map_rollout(
                 simulator,
@@ -4319,13 +4325,14 @@ def evaluate_restart(
             trajectory = spec.mesh_transform(trajectory)
         anchors = spec.restart_anchors_for(case_id)
         anchors_record[case_id] = list(anchors)
+        n_case_frames = len(trajectory.time)
         row: dict[str, Any] = {}
         semigroup: list[float] = []
         for anchor in anchors:
             for horizon in horizons:
                 window = restart_window(trajectory, anchor, horizon, input_frames)
                 offset = anchor - input_frames + 1
-                direct = _roll(window, offset, fm_canonical if fm else 1)
+                direct = _roll(window, offset, fm_canonical if fm else 1, n_case_frames)
                 for name, key in zip(
                     metric_names,
                     restart_keys(anchor, horizon, metric_names),
@@ -4338,7 +4345,7 @@ def evaluate_restart(
                 for k in spec.restart_compositions:
                     if horizon % k:
                         continue
-                    by_k[k] = _roll(window, offset, horizon // k)
+                    by_k[k] = _roll(window, offset, horizon // k, n_case_frames)
                     for name, key in zip(
                         metric_names,
                         compose_keys(horizon, k, metric_names),
@@ -4346,10 +4353,16 @@ def evaluate_restart(
                     ):
                         row[key] = getattr(by_k[k], f"mean_{name}")
                 if 1 in by_k and 2 in by_k:
+                    # The two maps share the anchor and the first T/2 queries,
+                    # which are identical by construction: compare the frames
+                    # after the re-anchor, as displacements from the case's
+                    # frame 0 (design §6; ADR-0055).
+                    composed_from = input_frames + horizon // 2
                     semigroup.append(
                         semigroup_error(
-                            by_k[1].predicted_positions[input_frames:],
-                            by_k[2].predicted_positions[input_frames:],
+                            by_k[1].predicted_positions[composed_from:],
+                            by_k[2].predicted_positions[composed_from:],
+                            reference=trajectory.positions[0],
                         )
                     )
         if fm:
@@ -4386,7 +4399,14 @@ def evaluate_restart(
         "horizons": list(horizons),
         "compositions": list(spec.restart_compositions) if fm else [],
         "anchors": anchors_record,
-        "train_max_dt": int(getattr(model_cfg, "flow_map_max_dt", 0)) if fm else 0,
+        # The longest interval the run trained on: the flow map's cap, None
+        # when uncapped (flow_map_max_dt 0 trains every interval to the
+        # horizon); an autoregressive scheme trains on unit steps.
+        "train_max_dt": (
+            (int(model_cfg.flow_map_max_dt) or None)
+            if fm and isinstance(model_cfg, TransolverConfig)
+            else 1
+        ),
         "eval_intervals": list(fm_intervals) if fm else [],
         "cases": cases,
         "mean": mean,

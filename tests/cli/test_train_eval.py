@@ -1809,7 +1809,7 @@ def test_restart_mode_rolls_a_kinematic_scheme_out_from_each_anchor(
     report = evaluate_restart(["S-2"], data_root, out_dir, "cpu", split_name="val")
     assert report["restart_kind"] == "kinematic"
     assert report["horizons"] == [2] and report["anchors"] == {"S-2": [2, 3]}
-    assert report["eval_intervals"] == [] and report["train_max_dt"] == 0
+    assert report["eval_intervals"] == [] and report["train_max_dt"] == 1
     case = report["cases"]["S-2"]
     for a in (2, 3):
         for metric in (

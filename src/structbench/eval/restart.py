@@ -105,15 +105,35 @@ def compose_keys(horizon: int, k: int, metrics: Sequence[str]) -> tuple[str, ...
     return tuple(f"compose_T{horizon}_k{k}_{m}" for m in metrics)
 
 
-def semigroup_error(direct: ArrayLike, composed: ArrayLike) -> float:
-    """``‖Φ_t(Φ_s(x)) − Φ_{s+t}(x)‖₂ / ‖Φ_{s+t}(x)‖₂`` over the predicted frames.
+def semigroup_error(
+    direct: ArrayLike, composed: ArrayLike, reference: ArrayLike | None = None
+) -> float:
+    """``‖Φ_t(Φ_s(x)) − Φ_{s+t}(x)‖₂ / ‖Φ_{s+t}(x)‖₂`` over the composed frames.
 
-    The pooled relative L2 (ADR-0055's form) of the composed map's positions
-    against the direct map's, both ``(n, P, dim)`` over the same frames;
-    ``nan`` when the direct map's positions are all zero.
+    The pooled relative L2 (ADR-0055's form) of the composed map against the
+    direct map, both ``(n, P, dim)`` positions over the same frames. With
+    ``reference`` (``(P, dim)``, the case's frame-0 positions, the house
+    convention) both are read as displacements from it, so the ratio is not
+    origin noise (ADR-0055); the caller passes the frames after the first
+    re-anchor only, where the two maps can differ (design §6). ``nan`` when
+    the direct map's displacement is all zero.
+
+    Parameters
+    ----------
+    direct, composed : array_like, shape (n, P, dim)
+        Predicted positions of the one-step and the composed map.
+    reference : array_like, shape (P, dim), optional
+        The positions displacements are measured from.
+
+    Returns
+    -------
+    float
     """
     d = np.asarray(direct, dtype=np.float64)
     c = np.asarray(composed, dtype=np.float64)
+    if reference is not None:
+        ref = np.asarray(reference, dtype=np.float64)[None]
+        d, c = d - ref, c - ref
     if not np.any(d):
         return float("nan")
     return float(relative_l2_pooled(c, d))

@@ -1101,8 +1101,8 @@ def test_restart_tier_renders_after_the_qois_with_the_kind():
     assert text.index(head) < text.index(RESTART)
     section = text.split(RESTART, 1)[1].split("## Baseline details", 1)[0]
     assert (
-        "| Method | Scheme | Kind | interp·a10 h20 disp | interp·a10 h20 pos (mm) "
-        "| interp·T20 k2 disp |"
+        "| Method | Scheme | Kind | interp·a10 h20 disp | "
+        "interp·a10 h20 pos RMSE (mm) | interp·T20 k2 disp |"
     ) in section
     assert "| baseline | — | state | 0.05000 | 1.20000 | 0.07000 |" in section
     # restart keys never leak into the accuracy tiers; the semigroup error
@@ -1139,7 +1139,11 @@ def test_col_label_names_restart_rows():
     assert _col_label("test_interp", "restart_a10_h20_rel_l2_displacement") == (
         "interp·a10 h20 disp"
     )
-    assert _col_label("test", "restart_a10_h20_aux_rmse") == "test·a10 h20 aux"
-    assert _col_label("test", "compose_T20_k2_position_rmse") == "test·T20 k2 pos (mm)"
+    assert _col_label("test", "restart_a10_h20_rel_l2_aux") == "test·a10 h20 aux"
+    assert _col_label("test", "restart_a10_h20_aux_rmse") == "test·a10 h20 aux RMSE"
+    assert _col_label("test", "compose_T20_k2_position_rmse") == (
+        "test·T20 k2 pos RMSE (mm)"
+    )
     assert _col_label("test", "compose_T20_k4_rel_l2_state") == "test·T20 k4 state"
+    assert _col_label("test", "compose_T20_k4_state_rmse") == "test·T20 k4 state RMSE"
     assert _col_label("test", "prop_semigroup_err") == "test·semigroup error"

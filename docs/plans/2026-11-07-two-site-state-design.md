@@ -183,7 +183,11 @@ flow map's absolute anchor-time feature takes a `frame_offset`. Keys are
 `restart_a{a}_h{h}_<metric>` and `compose_T{T}_k{k}_<metric>` over the
 rollout's field metrics (and the state metrics on a two-site run); the
 semigroup error is `prop_semigroup_err`, a property of the block, measured
-between the two-step composition and the direct map at each horizon. A
+between the two-step composition and the direct map at each horizon over the
+frames after the re-anchor (the first half is identical by construction), as
+displacements from the case's frame 0 (ADR-0055), averaged over anchors and
+horizons. Anchors lie inside the scored span (§3), so a restart never scores
+frames the protocol excludes. A
 registry row carries `restart_kind` (`state` or `kinematic`). Two rulings: a
 time-conditioned run without the flow map is refused (it carries nothing
 between frames, ADR-0054); held-out pairs are read from the report's
