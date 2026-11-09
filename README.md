@@ -204,13 +204,15 @@ and a new benchmark tests what the shipped four cannot. It is built from:
       state*, Inbox).
 - [x] ~~**The restart task family** (ADR-0075 part 3b; 2026-11-09) —
       follow-up 3 of ADR-0065.~~ The declaration surface, `--mode restart`
-      and the Restart tier; no shipped benchmark declares anchors, so the
-      first rows appear on the Abaqus benchmark at admission.
+      and the Restart tier; no shipped benchmark declares anchors, and no
+      contract dataset is admitted in v0.4 (maintainer, 2026-11-09), so the
+      first restart rows belong to a later release.
 - [x] ~~**The benchmark card's V&V fields and compliance table**
       (2026-11-08) — follow-up 2.~~
-- [ ] **Open evaluation** (ADR-0074): the plan, the registry fields and
-      tiers, `CONTRIBUTING.md`, the first blind set (strand *Open
-      evaluation*).
+- [x] ~~**Open evaluation** (ADR-0074): the plan, the registry fields and
+      tiers, `CONTRIBUTING.md` (2026-11-08).~~ The first blind set needs an
+      admitted contract dataset, and none is admitted in v0.4 (maintainer,
+      2026-11-09): it moves to the next release (strand *Open evaluation*).
 - [ ] **The gradient task family** (ADR-0076, Accepted 2026-11-08) — the
       surrogate's sensitivities, the quantity a design optimiser consumes and
       the first of ADR-0065's trust properties no shipped benchmark reaches,
@@ -318,7 +320,8 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
         The properties block renders first (ADR-0075 part 3c, 2026-11-09).
   - [x] ~~The wording sweep *leaderboard* → *results registry* (2026-11-08).~~
   - [x] ~~`CONTRIBUTING.md` (2026-11-08).~~
-  - [ ] The first blind set (an Abaqus dataset at admission).
+  - [ ] The first blind set — with the first contract dataset admitted, not
+        in v0.4 (maintainer, 2026-11-09).
   - [x] ~~The card's compliance table (2026-11-08) — ADR-0065 follow-up 2,
         built by a plan, not an ADR: the V&V card fields and a typed
         data-standards table with the blind-evaluation row, on every landing
@@ -356,7 +359,8 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
       declaration only); owed: the AR scheme and the pushforward chains under
       the two-site decoder, the re-evaluation of the blessed checkpoints that
       fills the shipped rows' properties, and the first restart declaration
-      (the Abaqus benchmark at admission). Finding (3c smoke): the admissible
+      (with the first admitted contract dataset, after v0.4). Finding (3c
+      smoke): the admissible
       forms hold the plastic strain monotone against the carried anchor, not
       between the query frames of one flow-map interval; the property
       reports the frame-to-frame rate. **Decided (2026-11-08):** the
