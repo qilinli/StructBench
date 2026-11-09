@@ -170,3 +170,23 @@ required with an element site. Finding from the smoke: the admissible forms
 hold `peeq` monotone against the carried anchor; between the query frames of
 one flow-map interval (`m > 1`) the frame-to-frame rate the property
 measures is non-zero, which the block reports and nothing gates.
+
+## Note 2026-11-09 (2): part 3b built; declaration only
+
+Part 3b is built (plan 3b, `2026-11-09-two-site-state-plan-3b.md`) as the
+declaration surface and the machinery, with no shipped benchmark declaring
+anchors (the maintainer's choice in session, 2026-11-09): the first restart
+rows appear on the Abaqus benchmark at admission. Of §6: a restart is the
+existing rollout on a *window* of the trajectory (`eval/restart.py`), re-bound
+to the simulator, so the autoregressive and flow-map paths run unchanged; the
+flow map's absolute anchor-time feature takes a `frame_offset`. Keys are
+`restart_a{a}_h{h}_<metric>` and `compose_T{T}_k{k}_<metric>` over the
+rollout's field metrics (and the state metrics on a two-site run); the
+semigroup error is `prop_semigroup_err`, a property of the block, measured
+between the two-step composition and the direct map at each horizon. A
+registry row carries `restart_kind` (`state` or `kinematic`). Two rulings: a
+time-conditioned run without the flow map is refused (it carries nothing
+between frames, ADR-0054); held-out pairs are read from the report's
+`train_max_dt` (the flow map's `flow_map_max_dt`) and `eval_intervals`, not
+declared. With 3b the semigroup row of §7 is built; the deviator trace stays
+deferred (note of 2026-11-09 above).

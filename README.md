@@ -202,8 +202,10 @@ and a new benchmark tests what the shipped four cannot. It is built from:
       columns lead every landing page; the shipped rows' numbers wait on a
       re-evaluation of the blessed checkpoints on DUG (strand *The two-site
       state*, Inbox).
-- [ ] **The restart task family** (ADR-0075 part 3b) — follow-up 3 of
-      ADR-0065, decided, owed as a build; the semigroup property is its row.
+- [x] ~~**The restart task family** (ADR-0075 part 3b; 2026-11-09) —
+      follow-up 3 of ADR-0065.~~ The declaration surface, `--mode restart`
+      and the Restart tier; no shipped benchmark declares anchors, so the
+      first rows appear on the Abaqus benchmark at admission.
 - [x] ~~**The benchmark card's V&V fields and compliance table**
       (2026-11-08) — follow-up 2.~~
 - [ ] **Open evaluation** (ADR-0074): the plan, the registry fields and
@@ -349,10 +351,12 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
       map, state metrics); 3c is built (2026-11-09: the properties block,
       `eval/properties.py`, rendered first on every landing page; the
       deviator-trace kernel waits for a state layout that emits a deviator;
-      the semigroup row is 3b's); owed: 3b (the restart task family and the
-      composition sweep), the AR scheme and the pushforward chains under the
-      two-site decoder, and the re-evaluation of the blessed checkpoints that
-      fills the shipped rows' properties. Finding (3c smoke): the admissible
+      the semigroup row is 3b's); 3b is built (2026-11-09: `eval/restart.py`,
+      `--mode restart`, the composition sweep and `prop_semigroup_err`,
+      declaration only); owed: the AR scheme and the pushforward chains under
+      the two-site decoder, the re-evaluation of the blessed checkpoints that
+      fills the shipped rows' properties, and the first restart declaration
+      (the Abaqus benchmark at admission). Finding (3c smoke): the admissible
       forms hold the plastic strain monotone against the carried anchor, not
       between the query frames of one flow-map interval; the property
       reports the frame-to-frame rate. **Decided (2026-11-08):** the
@@ -409,9 +413,9 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
   however close it is), and fitness for a downstream use (design
   optimisation, digital twin). ADR-0075 decided the first piece, the
   properties block, and its part 3c (the block in the registries and landing
-  pages) is built (2026-11-09); the numbers on the shipped rows and the
-  semigroup row (part 3b) are what remains; see ADR-0065's 2026-09-23 note
-  for why the three do not collapse
+  pages) and part 3b (the restart family, with the semigroup row) are built
+  (2026-11-09); the numbers on the shipped rows are what remains; see
+  ADR-0065's 2026-09-23 note for why the three do not collapse
 - Eval: submission validator for the results registry · per-region probe metrics ·
   convergence check · cross-benchmark utilities
 - Data & scale: checkpoint-publishing workflow · second aux target (plastic
