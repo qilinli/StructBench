@@ -219,7 +219,11 @@ and a new benchmark tests what the shipped four cannot. It is built from:
       `docs/plans/`); the first registered model's rows wait on a DUG run of
       the blessed CGN.
 - [ ] **Release mechanics**: blessed checkpoints published with the release
-      (ADR-0074 clause 8); the v0.4 record in this section. ~~The
+      (ADR-0074 clause 8) — ~~the staging tool `tools/publish_checkpoints.py`
+      (2026-11-09; plan in `docs/plans/`): one Hugging Face model repo per
+      benchmark, whole ADR-0037 bundles, the pointer rewritten to the
+      `resolve/<tag>` URL~~; the upload and the pointer rewrite at release,
+      from the `models/` mirror on DUG; the v0.4 record in this section. ~~The
       `leaderboard` → `results registry` wording sweep (2026-11-08).~~
 
 Two benchmarks ADR-0065 named are not in v0.4: the crash benchmark is an
@@ -418,7 +422,7 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
   ADR-0065's 2026-09-23 note for why the three do not collapse
 - Eval: submission validator for the results registry · per-region probe metrics ·
   convergence check · cross-benchmark utilities
-- Data & scale: checkpoint-publishing workflow · second aux target (plastic
+- Data & scale: second aux target (plastic
   strain) · cell-list `radius_graph` when any
   ≥10⁶-node dataset lands · other solvers (Kratos, OpenSees, OpenRadioss) ·
   SHM expansion · deployment tools · packaging extras · PhysicsNeMo interop
