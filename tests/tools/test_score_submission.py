@@ -133,6 +133,10 @@ def test_a_faithful_prediction_scores_zero_and_trips_the_guard(tmp_path):
         assert row["rollout_rel_l2_disp"] == pytest.approx(0.0, abs=1e-6)
         assert row["rollout_rel_l2_aux"] == pytest.approx(0.0, abs=1e-6)
         assert row["qoi_final_length_error"] == pytest.approx(0.0, abs=1e-5)
+        # ADR-0075 clause 6 (plan 3c): error growth is undefined on a zero
+        # error and recorded null, never a nan in the mean.
+        assert row["prop_error_growth"] is None
+    assert "prop_error_growth" not in report["mean"]
     # coverage by set from the Taylor design: interp within, extrap beyond
     assert report["cases"]["T-20-80-130"]["set"] == "test_interp"
     assert report["by_set"]["test_interp"]["within, ≤ 1"]["n"] == 2
@@ -151,6 +155,11 @@ def test_an_imperfect_prediction_is_scored_and_not_flagged(tmp_path):
     assert row["rollout_rel_l2_aux"] == pytest.approx(0.5, abs=1e-3)
     assert row["rollout_pos_rmse_mm"] > 0.0 and row["rollout_rel_l2_disp"] > 0.0
     assert set(report["mean"]) >= {"rollout_rel_l2_disp", "rollout_rel_l2_aux"}
+    # A constant displacement error does not grow: the one property a
+    # prediction file supports reads zero per frame (ADR-0075 clause 6), to
+    # the float32 rounding of the stored positions.
+    assert row["prop_error_growth"] == pytest.approx(0.0, abs=1e-5)
+    assert report["mean"]["prop_error_growth"] == pytest.approx(0.0, abs=1e-5)
 
 
 def test_prediction_contract_is_enforced(tmp_path):

@@ -19,6 +19,8 @@ from structbench.benchmarks.render import (
     _baseline_line,
     _col_label,
     _compliance_lines,
+    _headline_metric,
+    _partition_metrics,
     _quickstart_family,
     _results_registry,
     card_json,
@@ -965,3 +967,107 @@ def test_splice_needs_both_markers():
     before = f"a\n{ADMISSION_START}\nold\n{ADMISSION_END}\nz"
     spliced = splice_admission_list(before, "new\n")
     assert spliced == f"a\n{ADMISSION_START}\n\nnew\n{ADMISSION_END}\nz"
+
+
+# --- ADR-0075 clause 6 (plan 3c): the properties block leads the registry ---
+
+PROPS = "_Properties — reported before accuracy (ADR-0075)_"
+HEAD = "_Headline — pooled relative L2 (↓ better)_"
+
+
+def test_properties_tier_leads_with_empty_cells_on_a_nodal_benchmark():
+    # The shipped Taylor rows report no property yet: the tier still renders,
+    # first, with the two columns the benchmark defines and dash cells.
+    text = render_benchmark_page(get_benchmark("taylor_impact_2d"), "taylor_impact_2d")
+    assert PROPS in text and HEAD in text
+    assert text.index("## Results registry") < text.index(PROPS) < text.index(HEAD)
+    section = text.split(PROPS, 1)[1].split(HEAD, 1)[0]
+    assert (
+        "| Method | Scheme | interp·closure | interp·error growth (/frame) |" in section
+    )
+    assert "| CGN | autoregressive | — | — |" in section
+    assert "An empty cell is a property the result has not yet reported" in section
+    assert "no property gates (ADR-0075 clause 6)" in section
+
+
+def test_properties_tier_renders_reported_values():
+    result = _result(
+        metrics={
+            "test_interp": {
+                "prop_closure_ratio": 1.5,
+                "prop_error_growth": 0.0123,
+                "rollout_rel_l2_disp": 0.03,
+            }
+        }
+    )
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(result,))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    section = text.split(PROPS, 1)[1].split(HEAD, 1)[0]
+    assert "| baseline | — | 1.50000 | 0.01230 |" in section
+    head_section = text.split(HEAD, 1)[1]
+    assert "closure" not in head_section.split("_Trajectory", 1)[0]
+
+
+def test_properties_tier_shows_every_defined_column_and_any_reported_key():
+    # A key a result carries beyond the benchmark's defined set still shows.
+    result = _result(
+        metrics={
+            "test_interp": {"prop_state_sufficiency": 0.8, "rollout_rel_l2_disp": 0.03}
+        }
+    )
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(result,))
+    lines = _results_registry(spec)
+    header = next(ln for ln in lines if ln.startswith("| Method") and "closure" in ln)
+    assert header == (
+        "| Method | Scheme | interp·closure | interp·error growth (/frame) "
+        "| interp·state sufficiency |"
+    )
+
+
+def test_partition_puts_prop_keys_first_and_never_in_rmse():
+    props, rel_l2, rmse, qoi = _partition_metrics(
+        ["rollout_pos_rmse_mm", "prop_closure_ratio", "rollout_rel_l2_disp", "qoi_x"]
+    )
+    assert props == ["prop_closure_ratio"]
+    assert rmse == ["rollout_pos_rmse_mm"]
+    assert rel_l2 == ["rollout_rel_l2_disp"] and qoi == ["qoi_x"]
+
+
+def test_col_label_names_the_properties():
+    assert _col_label("test_interp", "prop_closure_ratio") == "interp·closure"
+    assert (
+        _col_label("test_interp", "prop_error_growth") == "interp·error growth (/frame)"
+    )
+    assert _col_label("test", "prop_yield_violation_rate") == "test·yield violations"
+    assert _col_label("test", "prop_peeq_decrease_rate") == "test·peeq decreases"
+    assert _col_label("test", "prop_state_sufficiency") == "test·state sufficiency"
+    assert _col_label("test", "prop_new_thing") == "test·new_thing"
+
+
+def test_headline_metric_never_picks_a_property():
+    assert _headline_metric(
+        {"prop_closure_ratio": 1.0, "rollout_pos_rmse_mm": 1.5}
+    ) == ("rollout_pos_rmse_mm")
+
+
+def test_properties_tier_absent_without_results():
+    assert PROPS not in render_benchmark_page(_bare_spec(), "taylor_impact_2d")
+
+
+def test_properties_tier_renders_a_null_property_as_a_dash():
+    # A time-conditioned run records prop_closure_ratio as null (ADR-0054);
+    # a maintainer pasting its mean block into the registry must not take
+    # the page down.
+    result = _result(
+        metrics={
+            "test_interp": {
+                "prop_closure_ratio": None,
+                "prop_error_growth": 0.01,
+                "rollout_rel_l2_disp": 0.03,
+            }
+        }
+    )
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(result,))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    section = text.split(PROPS, 1)[1].split(HEAD, 1)[0]
+    assert "| baseline | — | — | 0.01000 |" in section

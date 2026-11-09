@@ -133,6 +133,7 @@ def _spec(ids):
         state_channels=STATE_CHANNELS,
         element_formulation="plane_strain",
         constitutive_law=lambda cid: LAW,
+        property_tolerances={"yield": 1e-5, "peeq": 1e-7},
     )
 
 
@@ -200,6 +201,29 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
         assert tuple(case[f"{prefix}_rel_l2_state_channels"]) == labels
     assert np.isfinite(metrics["mean"]["rollout_rel_l2_state"])
     assert np.isfinite(metrics["mean"]["rollout_m3_state_rmse"])
+
+    # ADR-0075 clause 6 (plan 3c): the block at the element site. The
+    # law-reading decoders hold the yield bound at every emitted frame by
+    # construction, so its rate reads zero at the declared tolerance. The
+    # plastic strain they hold is monotone against the CARRIED anchor, not
+    # between the query frames of one flow-map interval (canonical m = 3
+    # here), so the frame-to-frame rate the property measures is finite and
+    # may be non-zero: that is the finding the block exists to report. The
+    # corner mean reports both and holds neither.
+    for key in (
+        "prop_closure_ratio",
+        "prop_error_growth",
+        "prop_yield_violation_rate",
+        "prop_peeq_decrease_rate",
+    ):
+        assert key in case and key in metrics["mean"], key
+    assert case["prop_closure_ratio"] is None  # flow map: no one-step sweep
+    assert np.isfinite(case["prop_error_growth"])
+    assert np.isfinite(case["prop_yield_violation_rate"])
+    assert np.isfinite(case["prop_peeq_decrease_rate"])
+    if decoder in LAW_DECODERS:
+        assert case["prop_yield_violation_rate"] == 0.0
+        assert metrics["mean"]["prop_yield_violation_rate"] == 0.0
 
     npz = np.load(out / "rollouts" / f"val-{ids['val'][0]}.npz")
     state = npz["predicted_state"]

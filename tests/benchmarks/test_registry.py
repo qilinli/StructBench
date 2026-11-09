@@ -6,10 +6,27 @@ import pytest
 
 from structbench.benchmarks import (
     BenchmarkSpec,
+    ConstitutiveLaw,
     available_benchmarks,
     get_benchmark,
 )
 from structbench.benchmarks.results import BaselineResult
+
+
+@pytest.fixture
+def two_site_spec():
+    """Taylor's card re-declared as an element-site benchmark (plane-strain
+    quads, the return-map layout), the smallest valid ADR-0075 declaration."""
+    spec = get_benchmark("taylor_impact_2d")
+    law = ConstitutiveLaw(124_000.0, 0.34, ((0.0, 10.0), (200.0, 10_200.0)))
+    return replace(
+        spec,
+        state_site="element",
+        state_channels=("stress_axisymmetric", "effective_plastic_strain"),
+        element_formulation="plane_strain",
+        constitutive_law=lambda cid: law,
+        property_tolerances={"yield": 0.01, "peeq": 0.0},
+    )
 
 
 def _result(**overrides):
@@ -144,3 +161,56 @@ def test_spec_card_aux_declaration_consistency_checked():
     spec = get_benchmark("taylor_impact_2d")
     with pytest.raises(ValueError, match="card.aux_field"):
         replace(spec, aux_field="axial_stress")
+
+
+# --- ADR-0075 clause 6 (plan 3c): the properties the benchmark defines ---
+
+
+def test_shipped_benchmarks_define_the_two_nodal_properties():
+    for name in available_benchmarks():
+        assert get_benchmark(name).defined_properties == (
+            "prop_closure_ratio",
+            "prop_error_growth",
+        ), name
+
+
+def test_property_tolerances_need_an_element_site():
+    spec = get_benchmark("taylor_impact_2d")
+    with pytest.raises(ValueError, match="property_tolerances"):
+        replace(spec, property_tolerances={"yield": 0.01, "peeq": 0.0})
+
+
+def test_element_site_requires_both_tolerances(two_site_spec):
+    with pytest.raises(ValueError, match="property_tolerances"):
+        replace(two_site_spec, property_tolerances={})
+    with pytest.raises(ValueError, match="property_tolerances"):
+        replace(two_site_spec, property_tolerances={"yield": 0.01})
+    with pytest.raises(ValueError, match="non-negative"):
+        replace(two_site_spec, property_tolerances={"yield": -0.01, "peeq": 0.0})
+    with pytest.raises(ValueError, match="property_tolerances"):
+        replace(
+            two_site_spec, property_tolerances={"yield": 0.01, "peeq": 0.0, "x": 1.0}
+        )
+
+
+def test_element_site_defines_the_constraint_properties(two_site_spec):
+    assert two_site_spec.defined_properties == (
+        "prop_closure_ratio",
+        "prop_error_growth",
+        "prop_yield_violation_rate",
+        "prop_peeq_decrease_rate",
+    )
+    assert two_site_spec.property_tolerances == {"yield": 0.01, "peeq": 0.0}
+
+
+def test_matched_pairs_are_distinct_known_cases_of_one_split():
+    spec = get_benchmark("taylor_impact_2d")
+    a, b = spec.splits["test_interp"][:2]
+    paired = replace(spec, matched_initial_state_pairs=((a, b),))
+    assert paired.defined_properties[-1] == "prop_state_sufficiency"
+    with pytest.raises(ValueError, match="matched_initial_state_pairs"):
+        replace(spec, matched_initial_state_pairs=((a, a),))
+    with pytest.raises(ValueError, match="matched_initial_state_pairs"):
+        replace(spec, matched_initial_state_pairs=((a, "nope"),))
+    with pytest.raises(ValueError, match="same split"):
+        replace(spec, matched_initial_state_pairs=((a, spec.splits["train"][0]),))

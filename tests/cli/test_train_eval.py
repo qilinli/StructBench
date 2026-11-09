@@ -11,7 +11,7 @@ checkpoint would shadow the better one).
 import json
 import os
 import shutil
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 import numpy as np
 import pytest
@@ -182,6 +182,52 @@ def test_evaluate_rebuilds_architecture_from_run_config(tmp_path):
         "peak_von_mises",
         "t_peak_von_mises",
     }
+
+
+def test_evaluate_reports_the_two_nodal_properties(tmp_path):
+    # ADR-0075 clause 6 (plan 3c): closure and error growth per case and in
+    # the mean, and nothing else of the block on a nodal benchmark.
+    case_ids = ["C-1", "C-2"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    metrics = evaluate(case_ids, data_root, out_dir, "cpu")
+    for per_case in metrics["cases"].values():
+        assert {k for k in per_case if k.startswith("prop_")} == {
+            "prop_closure_ratio",
+            "prop_error_growth",
+        }
+        assert np.isfinite(per_case["prop_closure_ratio"])
+        assert per_case["prop_closure_ratio"] > 0.0
+        assert np.isfinite(per_case["prop_error_growth"])
+    assert np.isfinite(metrics["mean"]["prop_closure_ratio"])
+    assert np.isfinite(metrics["mean"]["prop_error_growth"])
+    assert "prop_state_sufficiency" not in metrics["mean"]
+
+
+def test_evaluate_reports_state_sufficiency_for_a_declared_pair(tmp_path, monkeypatch):
+    import structbench.cli.train as train_mod
+
+    case_ids = ["S-1", "S-2", "S-3"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    spec = _local_spec()
+    spec = replace(
+        spec,
+        card=replace(spec.card, n_cases=3, splits={"train": 1, "val": 2}),
+        splits={"train": ("S-1",), "val": ("S-2", "S-3")},
+        matched_initial_state_pairs=(("S-2", "S-3"),),
+        # the run was saved with one boundary feature (_prepared_run)
+        boundary_feature_fn=get_benchmark("taylor_impact_2d").boundary_feature_fn,
+    )
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    metrics = evaluate(["S-2", "S-3"], data_root, out_dir, "cpu", split_name="val")
+    a, b = metrics["cases"]["S-2"], metrics["cases"]["S-3"]
+    # The same tiny case written twice does not diverge: the property is
+    # undefined for the pair and is recorded null on both cases, not absent.
+    assert "prop_state_sufficiency" in a and "prop_state_sufficiency" in b
+    assert a["prop_state_sufficiency"] is None
+    assert metrics["mean"]["prop_state_sufficiency"] is None
+    # A case outside every pair carries the key as null too.
+    metrics = evaluate(["S-2"], data_root, out_dir, "cpu", split_name="val")
+    assert metrics["cases"]["S-2"]["prop_state_sufficiency"] is None
 
 
 def test_evaluate_persists_metrics_json_and_rollout_artifacts(tmp_path):

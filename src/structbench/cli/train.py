@@ -32,7 +32,7 @@ import logging
 import math
 import os
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -78,16 +78,22 @@ from ..datasets import (
 from ..eval import (
     QoiInputs,
     RolloutResult,
+    closure_ratio,
+    error_growth,
     flow_map_rollout,
     gradient_floor,
     gradient_metrics,
     model_sensitivity,
     one_step_aux_rmse,
     one_step_position_rmse,
+    peeq_decrease_rate,
     reference_sensitivities,
     rollout,
+    state_sufficiency,
     time_conditioned_rollout,
+    yield_violation_rate,
 )
+from ..eval.properties import von_mises4
 from ..models.cgn import LearnedSimulator
 from ..models.cgn.simulator import time_diff
 from ..models.common import CaseBoundSimulator
@@ -3744,6 +3750,101 @@ def _find_checkpoint(out_dir: Path) -> Path | None:
     return checkpoints[-1] if checkpoints else None
 
 
+#: The element-state labels the constraint properties read (plan 3c): the
+#: four stress components of the return-map layout and the plastic strain.
+_STATE_STRESS_LABELS: tuple[str, ...] = ("s_rr", "s_zz", "s_tt", "s_rz")
+_STATE_PEEQ_LABEL = "effective_plastic_strain"
+
+
+def _defined(value: float) -> float | None:
+    """A property kernel's ``nan`` (undefined on this input) as ``None``, the
+    record's word for undefined (as ``one_step_*`` under ADR-0054), in memory
+    as on disk."""
+    return value if math.isfinite(value) else None
+
+
+def _state_constraint_properties(
+    predicted_state: np.ndarray | None,
+    state_labels: tuple[str, ...],
+    law: ConstitutiveLaw | None,
+    tolerances: Mapping[str, float],
+    input_frames: int,
+    bound: int | None,
+) -> dict[str, float | None]:
+    """The yield-bound and plastic-strain properties of one rollout's element
+    state (ADR-0075 clause 6), ``None`` where the run carries no state block,
+    the layout lacks the channel, or the case has no law.
+
+    The plastic strain is read from the last seeded frame on, so the first
+    predicted step is a step; the yield bound over the predicted frames only.
+    Both run over the scored span ``[input_frames, bound)``.
+    """
+    out: dict[str, float | None] = {
+        "prop_yield_violation_rate": None,
+        "prop_peeq_decrease_rate": None,
+    }
+    if predicted_state is None or _STATE_PEEQ_LABEL not in state_labels:
+        return out
+    labels = list(state_labels)
+    n_frames = predicted_state.shape[0]
+    stop = n_frames if bound is None else min(bound, n_frames)
+    peeq_idx = labels.index(_STATE_PEEQ_LABEL)
+    out["prop_peeq_decrease_rate"] = peeq_decrease_rate(
+        predicted_state[input_frames - 1 : stop, :, peeq_idx], tolerances["peeq"]
+    )
+    if law is not None and all(n in labels for n in _STATE_STRESS_LABELS):
+        stress_idx = [labels.index(n) for n in _STATE_STRESS_LABELS]
+        scored = predicted_state[input_frames:stop]
+        out["prop_yield_violation_rate"] = yield_violation_rate(
+            von_mises4(scored[:, :, stress_idx]),
+            scored[:, :, peeq_idx],
+            law.hardening[0],
+            law.hardening[1],
+            tolerances["yield"],
+        )
+    return out
+
+
+def _case_properties(
+    spec: BenchmarkSpec,
+    result: RolloutResult,
+    one_step: np.ndarray | None,
+    n_scored: int | None,
+    state_labels: tuple[str, ...],
+    case_id: str,
+    input_frames: int,
+    bound: int | None,
+) -> dict[str, float | None]:
+    """The properties block of one case (ADR-0075 clause 6; plan 3c): every
+    key the benchmark defines, ``None`` where it is undefined on this run
+    (closure without a one-step sweep, ADR-0054; sufficiency until the pair
+    is paired after the loop). Keys ride beside the accuracy metrics."""
+    scored = result.position_rmse[:n_scored]
+    props: dict[str, float | None] = {
+        "prop_closure_ratio": (
+            None
+            if one_step is None
+            else _defined(closure_ratio(scored, one_step[:n_scored]))
+        ),
+        "prop_error_growth": _defined(error_growth(scored)),
+    }
+    if spec.state_site == "element":
+        law = spec.constitutive_law(case_id) if spec.constitutive_law else None
+        props.update(
+            _state_constraint_properties(
+                result.predicted_state,
+                state_labels,
+                law,
+                spec.property_tolerances,
+                input_frames,
+                bound,
+            )
+        )
+    if spec.matched_initial_state_pairs:
+        props["prop_state_sufficiency"] = None
+    return props
+
+
 def _json_safe(obj: Any) -> Any:
     """Recursively map non-finite floats to ``None`` for strict JSON output.
 
@@ -4399,6 +4500,10 @@ def evaluate(
         rollout_dir.mkdir(parents=True, exist_ok=True)
 
     cases: dict[str, dict[str, Any]] = {}
+    # ADR-0075 clause 6: the scored-span positions of every case that is a
+    # member of a declared matched pair, paired after the loop.
+    pair_members = {c for pair in spec.matched_initial_state_pairs for c in pair}
+    kept_positions: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     for case_id in case_ids:
         trajectory = load_case_trajectory(
             data_root / f"{case_id}.h5",
@@ -4695,6 +4800,18 @@ def evaluate(
                     ),
                 }
             ),
+            # ADR-0075 clause 6 (plan 3c): the properties block, every key the
+            # benchmark defines, null where undefined on this run.
+            **_case_properties(
+                spec,
+                result,
+                one_step,
+                n_scored,
+                state_labels,
+                case_id,
+                model_cfg.input_frames,
+                case_bound,
+            ),
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
             # frame to trajectory end. Not a registry metric; equals the scored value
             # when the benchmark pins no horizon. Field name matches the
@@ -4704,6 +4821,12 @@ def evaluate(
             "qoi_true": result.qoi_true,
             "qoi_error": result.qoi_error,
         }
+        if case_id in pair_members:
+            stop = len(trajectory.time) if case_bound is None else case_bound
+            kept_positions[case_id] = (
+                result.predicted_positions[model_cfg.input_frames : stop],
+                trajectory.positions[model_cfg.input_frames : stop],
+            )
         one_step_str = (
             "n/a"
             if one_step is None
@@ -4755,6 +4878,21 @@ def evaluate(
                     one_step_position_rmse=one_step,
                     one_step_aux_rmse=one_step_aux,
                 )
+
+    # ADR-0075 clause 6: state sufficiency of each declared pair whose two
+    # cases were both evaluated here, written on both; the rest stay null.
+    for a, b in spec.matched_initial_state_pairs:
+        if a in kept_positions and b in kept_positions:
+            value = _defined(
+                state_sufficiency(
+                    kept_positions[a][0],
+                    kept_positions[b][0],
+                    kept_positions[a][1],
+                    kept_positions[b][1],
+                )
+            )
+            cases[a]["prop_state_sufficiency"] = value
+            cases[b]["prop_state_sufficiency"] = value
 
     def _mean_over_cases(key: str) -> float | None:
         # A time-conditioned run's one_step_* is null per case; its mean is
@@ -4843,6 +4981,8 @@ def evaluate(
             "rollout_position_rmse_full": _mean_over_cases(
                 "rollout_position_rmse_full"
             ),
+            # ADR-0075 clause 6: the split means of the properties block.
+            **{key: _mean_over_cases(key) for key in spec.defined_properties},
             "qoi_abs_error": {
                 name: float(
                     np.mean([abs(case["qoi_error"][name]) for case in cases.values()])

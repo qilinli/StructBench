@@ -214,6 +214,33 @@ class BenchmarkSpec:
     the law the admissible decoder applies, an input of the case rather than
     a table baked into a checkpoint. ``None`` when the benchmark declares no
     element site or its cases carry no return-map law."""
+    property_tolerances: Mapping[str, float] = field(default_factory=dict)
+    """ADR-0075 clause 6 (plan 3c): the tolerances of the constraint
+    properties at the element site, keyed ``"yield"`` (relative excess over
+    ``σ_y(peeq)`` a sample may show before it counts as a violation) and
+    ``"peeq"`` (absolute backward step of the plastic strain that counts as a
+    decrease). A definition takes both from the reference data's own measured
+    excess in its verification record and never declares them tighter; both
+    are required with ``state_site == "element"`` and rejected without it."""
+    matched_initial_state_pairs: tuple[tuple[str, str], ...] = ()
+    """ADR-0075 clause 6: pairs of case ids with identical kinematic seeds and
+    different stored constitutive state, for the state-sufficiency property.
+    Each pair is two distinct cases of the same split (so one evaluation sees
+    both); empty when the benchmark has no such cases."""
+
+    @property
+    def defined_properties(self) -> tuple[str, ...]:
+        """The properties-block keys this benchmark defines (ADR-0075 clause
+        6), in render order: closure and error growth always; the yield and
+        plastic-strain rates with an element site; state sufficiency with
+        declared matched pairs. The renderer shows these columns whether or
+        not a result has reported them; ``evaluate`` writes them."""
+        keys = ["prop_closure_ratio", "prop_error_growth"]
+        if self.state_site == "element":
+            keys += ["prop_yield_violation_rate", "prop_peeq_decrease_rate"]
+        if self.matched_initial_state_pairs:
+            keys.append("prop_state_sufficiency")
+        return tuple(keys)
 
     @property
     def scored_frames_fixed(self) -> int | None:
@@ -382,6 +409,44 @@ class BenchmarkSpec:
             if self.constitutive_law is not None:
                 raise ValueError("constitutive_law requires state_site='element'")
         object.__setattr__(self, "state_channels", tuple(self.state_channels))
+        # ADR-0075 clause 6 (plan 3c): the constraint properties' tolerances
+        # come with the element site, both of them, from the reference's record.
+        tol_keys = {"yield", "peeq"}
+        if self.state_site == "element":
+            if set(self.property_tolerances) != tol_keys:
+                raise ValueError(
+                    "state_site='element' needs property_tolerances with exactly "
+                    f"the keys {sorted(tol_keys)} (the reference data's measured "
+                    f"excess), got {sorted(self.property_tolerances)}"
+                )
+        elif self.property_tolerances:
+            raise ValueError("property_tolerances require state_site='element'")
+        negative = {k: v for k, v in self.property_tolerances.items() if v < 0.0}
+        if negative:
+            raise ValueError(f"property_tolerances must be non-negative: {negative}")
+        object.__setattr__(
+            self,
+            "property_tolerances",
+            MappingProxyType(dict(self.property_tolerances)),
+        )
+        split_of = {c: s for s, cs in self.splits.items() for c in cs}
+        pairs = tuple(tuple(p) for p in self.matched_initial_state_pairs)
+        for pair in pairs:
+            if len(pair) != 2 or pair[0] == pair[1]:
+                raise ValueError(
+                    f"matched_initial_state_pairs: {pair!r} is not two distinct cases"
+                )
+            unknown = [c for c in pair if c not in split_of]
+            if unknown:
+                raise ValueError(
+                    f"matched_initial_state_pairs: unknown cases {unknown} in {pair!r}"
+                )
+            if split_of[pair[0]] != split_of[pair[1]]:
+                raise ValueError(
+                    f"matched_initial_state_pairs: {pair!r} must be two cases of the "
+                    "same split"
+                )
+        object.__setattr__(self, "matched_initial_state_pairs", pairs)
         # Wrap in read-only proxies to prevent accidental mutation
         object.__setattr__(self, "splits", MappingProxyType(dict(self.splits)))
         object.__setattr__(self, "qois", MappingProxyType(dict(self.qois)))

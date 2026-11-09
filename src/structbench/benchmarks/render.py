@@ -248,35 +248,42 @@ def _compliance_lines(c: BenchmarkCard) -> list[str]:
 
 def _partition_metrics(
     names: list[str],
-) -> tuple[list[str], list[str], list[str]]:
-    """Split metric keys into ``(rel_l2, rmse, qoi)`` groups, each preserving
-    the caller's first-seen order.
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Split metric keys into ``(props, rel_l2, rmse, qoi)`` groups, each
+    preserving the caller's first-seen order.
 
-    ADR-0055 (amended 2026-08-15; pooled follow-up 2026-08-16): relative L2 is
-    the headline metric — a single pooled space+time number per quantity. It
-    leads; physical-unit RMSE is the secondary group; ``qoi_*`` keys are the
-    separate engineering axis. A key is relative-L2 iff it contains ``rel_l2``
-    (covers ``rollout_rel_l2_displacement`` and any unit-suffixed registry
-    variant); QoI iff it starts ``qoi_``; RMSE otherwise. (A per-frame-mean
-    relative-L2 secondary existed briefly but was dropped 2026-08-16 — it blew
-    up on zero-start aux fields and matched no reported convention.)
+    ADR-0075 clause 6 (plan 3c): ``prop_*`` keys are the properties block,
+    rendered before every accuracy group. ADR-0055 (amended 2026-08-15; pooled
+    follow-up 2026-08-16): relative L2 is the headline metric — a single
+    pooled space+time number per quantity. It leads the accuracy groups;
+    physical-unit RMSE is the secondary group; ``qoi_*`` keys are the
+    separate engineering axis. A key is a property iff it starts ``prop_``;
+    relative-L2 iff it contains ``rel_l2`` (covers
+    ``rollout_rel_l2_displacement`` and any unit-suffixed registry variant);
+    QoI iff it starts ``qoi_``; RMSE otherwise. (A per-frame-mean relative-L2
+    secondary existed briefly but was dropped 2026-08-16 — it blew up on
+    zero-start aux fields and matched no reported convention.)
     """
-    rel_l2 = [m for m in names if "rel_l2" in m]
-    qoi = [m for m in names if m.startswith("qoi_")]
-    rmse = [m for m in names if "rel_l2" not in m and not m.startswith("qoi_")]
-    return rel_l2, rmse, qoi
+    props = [m for m in names if m.startswith("prop_")]
+    rest = [m for m in names if not m.startswith("prop_")]
+    rel_l2 = [m for m in rest if "rel_l2" in m]
+    qoi = [m for m in rest if m.startswith("qoi_")]
+    rmse = [m for m in rest if "rel_l2" not in m and not m.startswith("qoi_")]
+    return props, rel_l2, rmse, qoi
 
 
 def _headline_metric(metrics: Mapping[str, float]) -> str:
     """The metric key quoted first in the docs-index one-liner: the pooled
     rollout relative-L2 displacement if present (ADR-0055 headline), else any
-    relative-L2 key, else the first metric (pre-amendment behaviour, and the
-    fallback for runs whose relative-L2 keys are not yet populated)."""
+    relative-L2 key, else the first accuracy metric (pre-amendment behaviour,
+    and the fallback for runs whose relative-L2 keys are not yet populated).
+    A property (``prop_*``, ADR-0075) is never the headline."""
     rel_keys = [m for m in metrics if "rel_l2" in m]
     if rel_keys:
         rollout_disp = (m for m in rel_keys if "rollout" in m and "disp" in m)
         return next(rollout_disp, rel_keys[0])
-    return next(iter(metrics))
+    accuracy = (m for m in metrics if not m.startswith("prop_"))
+    return next(accuracy, next(iter(metrics)))
 
 
 def _baseline_line(spec: BenchmarkSpec) -> str:
@@ -331,9 +338,12 @@ def _col_label(split: str, key: str) -> str:
     ``interp·disp``; ``rollout_pos_rmse_mm`` -> ``interp·pos (mm)``;
     ``rollout_vm_rmse_mpa`` -> ``interp·vm (MPa)``; ``qoi_final_length_mae_mm``
     -> ``interp·final_length (mm)``; ``qoi_t_peak_vm_mae_ms`` ->
-    ``interp·t_peak_vm (ms)``.
+    ``interp·t_peak_vm (ms)``. A property key (ADR-0075) reads by its name
+    in :data:`_PROPERTY_LABELS`, or with the ``prop_`` prefix stripped.
     """
     s = split.replace("test_", "")
+    if key.startswith("prop_"):
+        return f"{s}·{_PROPERTY_LABELS.get(key, key.removeprefix('prop_'))}"
     k = (
         key.replace("rollout_", "")
         .replace("one_step_", "1s·")
@@ -350,11 +360,27 @@ def _col_label(split: str, key: str) -> str:
 
 
 #: Results-registry metric tiers, in render order, aligned with
-#: :func:`_partition_metrics`'s ``(rel_l2, rmse, qoi)`` split (ADR-0055).
+#: :func:`_partition_metrics`'s ``(props, rel_l2, rmse, qoi)`` split (the
+#: properties block first, ADR-0075 clause 6; then ADR-0055's groups).
 _REGISTRY_TIERS: tuple[str, ...] = (
+    "Properties — reported before accuracy (ADR-0075)",
     "Headline — pooled relative L2 (↓ better)",
     "Trajectory error — RMSE",
     "Quantities of interest (MAE)",
+)
+
+#: Column labels of the properties block (ADR-0075 clause 6; plan 3c).
+_PROPERTY_LABELS: Mapping[str, str] = {
+    "prop_closure_ratio": "closure",
+    "prop_error_growth": "error growth (/frame)",
+    "prop_yield_violation_rate": "yield violations",
+    "prop_peeq_decrease_rate": "peeq decreases",
+    "prop_state_sufficiency": "state sufficiency",
+}
+
+_PROPERTIES_NOTE = (
+    "_An empty cell is a property the result has not yet reported; "
+    "no property gates (ADR-0075 clause 6)._"
 )
 
 _TIER_LABEL = {
@@ -419,13 +445,18 @@ def _results_registry(spec: BenchmarkSpec) -> list[str]:
     ADR-0055; unranked and tiered by ADR-0074).
 
     One row per ``spec.results`` entry, in registration order (the
-    maintainer's declaration order; never a rank). Three metric tiers — the
-    pooled relative-L2 headline, physical-unit RMSE, and the engineering QoIs
-    (ADR-0055) — partitioned by :func:`_partition_metrics`; an empty tier is
-    skipped. The headline tier spans every split; the RMSE and QoI tiers are
-    trimmed to the in-distribution ``test_interp`` split, and RMSE drops the
-    one-step columns, to keep the tables readable (the full numbers stay in the
-    registry and run data). A fourth table, the headline by coverage bin,
+    maintainer's declaration order; never a rank). The properties block
+    leads (ADR-0075 clause 6): its columns are every property the benchmark
+    defines (:attr:`BenchmarkSpec.defined_properties`) on the in-distribution
+    split, rendered whether or not any result has reported them, plus any
+    ``prop_*`` key a result carries; a note under it says what an empty cell
+    means. Then three accuracy tiers — the pooled relative-L2 headline,
+    physical-unit RMSE, and the engineering QoIs (ADR-0055) — partitioned by
+    :func:`_partition_metrics`; an empty accuracy tier is skipped. The
+    headline tier spans every split; the RMSE and QoI tiers are trimmed to
+    the in-distribution ``test_interp`` split, and RMSE drops the one-step
+    columns, to keep the tables readable (the full numbers stay in the
+    registry and run data). A last table, the headline by coverage bin,
     renders when a result carries per-case rows (:func:`_coverage_tier`).
 
     Within a tier the columns are ``(split, key)`` pairs kept only where some
@@ -453,7 +484,12 @@ def _results_registry(spec: BenchmarkSpec) -> list[str]:
             for metric in r.metrics.get(split, {}):
                 if metric not in metric_order:
                     metric_order.append(metric)
-    rel_l2, rmse, qoi = _partition_metrics(metric_order)
+    props, rel_l2, rmse, qoi = _partition_metrics(metric_order)
+    # ADR-0075 clause 6: the defined properties first, in their order, then
+    # any property a result reports beyond them.
+    props = list(spec.defined_properties) + [
+        k for k in props if k not in spec.defined_properties
+    ]
     # Trim (2026-08-16): headline spans all splits; RMSE and QoI show
     # the in-distribution split only, and RMSE drops the one-step diagnostics.
     rmse = [k for k in rmse if "one_step" not in k]
@@ -467,27 +503,30 @@ def _results_registry(spec: BenchmarkSpec) -> list[str]:
     lines += [
         "Rows are in registration order and are not ranked (ADR-0074): a result "
         "is read beside the coverage of the set it was scored on (the Scored "
-        "sets above) and, where reported, its properties. The headline metric "
-        "is the pooled space+time relative L2 (↓ lower is better); the Scheme "
-        "column is the prediction scheme. RMSE and quantities of interest are "
-        f"shown for the in-distribution {trimmed} split.",
+        "sets above) and its properties, which lead (ADR-0075). The headline "
+        "metric is the pooled space+time relative L2 (↓ lower is better); the "
+        "Scheme column is the prediction scheme. Properties, RMSE and "
+        f"quantities of interest are shown for the in-distribution {trimmed} "
+        "split.",
         "",
     ]
+    # (title, keys, splits, every column shown even when no result carries it)
     tiers = (
-        (_REGISTRY_TIERS[0], rel_l2, list(spec.splits)),
-        (_REGISTRY_TIERS[1], rmse, interp),
-        (_REGISTRY_TIERS[2], qoi, interp),
+        (_REGISTRY_TIERS[0], props, interp, True),
+        (_REGISTRY_TIERS[1], rel_l2, list(spec.splits), False),
+        (_REGISTRY_TIERS[2], rmse, interp, False),
+        (_REGISTRY_TIERS[3], qoi, interp, False),
     )
     lead = ["Method", "Scheme"] + (["Tier"] if show_tier else [])
     lead += ["Division"] if show_division else []
-    for title, tier_keys, tier_splits in tiers:
+    for title, tier_keys, tier_splits, always in tiers:
         if not tier_keys:
             continue
         columns = [
             (split, key)
             for split in tier_splits
             for key in tier_keys
-            if any(key in r.metrics.get(split, {}) for r in spec.results)
+            if always or any(key in r.metrics.get(split, {}) for r in spec.results)
         ]
         if not columns:
             continue
@@ -504,9 +543,14 @@ def _results_registry(spec: BenchmarkSpec) -> list[str]:
             if show_division:
                 cells.append(r.division)
             for split, key in columns:
-                vals = r.metrics.get(split, {})
-                cells.append(_fmt_value(vals[key]) if key in vals else "—")
+                # A null is a property undefined on that run (a time-
+                # conditioned run's closure, ADR-0054): a dash, like an
+                # absent key.
+                value = r.metrics.get(split, {}).get(key)
+                cells.append("—" if value is None else _fmt_value(value))
             lines.append("| " + " | ".join(cells) + " |")
+        if title == _REGISTRY_TIERS[0]:
+            lines += ["", _PROPERTIES_NOTE]
         lines.append("")
     by_coverage = _coverage_tier(spec)
     if by_coverage:
