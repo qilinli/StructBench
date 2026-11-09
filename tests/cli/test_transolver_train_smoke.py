@@ -336,6 +336,11 @@ def test_transolver_time_conditioned_train_and_evaluate_smoke(tmp_path, monkeypa
     assert per_case["one_step_aux_rmse"] is None
     assert metrics["mean"]["one_step_position_rmse"] is None
     assert np.isfinite(metrics["mean"]["rollout_position_rmse"])
+    # ADR-0075 clause 6 (plan 3c): closure needs the one-step sweep a
+    # time-conditioned run has not got -> null; error growth is defined.
+    assert per_case["prop_closure_ratio"] is None
+    assert metrics["mean"]["prop_closure_ratio"] is None
+    assert np.isfinite(per_case["prop_error_growth"])
     # QoIs still computed and finite.
     for key in ("qoi_pred", "qoi_true", "qoi_error"):
         assert set(per_case[key]) == {"peak_vm_stress", "terminal_peak_deflection"}
