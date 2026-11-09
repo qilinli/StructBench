@@ -112,7 +112,20 @@ Where this benchmark's reference data stands against the platform's data standar
 
 ## Results registry
 
-Rows are in registration order and are not ranked (ADR-0074): a result is read beside the coverage of the set it was scored on (the Scored sets above) and, where reported, its properties. The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. RMSE and quantities of interest are shown for the in-distribution `test` split.
+Rows are in registration order and are not ranked (ADR-0074): a result is read beside the coverage of the set it was scored on (the Scored sets above) and its properties, which lead (ADR-0075). The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. Properties, RMSE and quantities of interest are shown for the in-distribution `test` split.
+
+_Properties — reported before accuracy (ADR-0075)_
+
+| Method | Scheme | test·closure | test·error growth (/frame) |
+|---|---|---|---|
+| MGN | autoregressive | — | — |
+| Transolver | autoregressive | — | — |
+| Transolver | time-conditioned | — | — |
+| Transolver++ | time-conditioned | — | — |
+| GeoFLARE | autoregressive | — | — |
+| GeoFLARE | time-conditioned | — | — |
+
+_An empty cell is a property the result has not yet reported; no property gates (ADR-0075 clause 6)._
 
 _Headline — pooled relative L2 (↓ better)_
 
