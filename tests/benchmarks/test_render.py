@@ -1025,10 +1025,10 @@ def test_properties_tier_shows_every_defined_column_and_any_reported_key():
 
 
 def test_partition_puts_prop_keys_first_and_never_in_rmse():
-    props, rel_l2, rmse, qoi = _partition_metrics(
+    props, rel_l2, rmse, qoi, restart = _partition_metrics(
         ["rollout_pos_rmse_mm", "prop_closure_ratio", "rollout_rel_l2_disp", "qoi_x"]
     )
-    assert props == ["prop_closure_ratio"]
+    assert props == ["prop_closure_ratio"] and restart == []
     assert rmse == ["rollout_pos_rmse_mm"]
     assert rel_l2 == ["rollout_rel_l2_disp"] and qoi == ["qoi_x"]
 
@@ -1071,3 +1071,75 @@ def test_properties_tier_renders_a_null_property_as_a_dash():
     text = render_benchmark_page(spec, "taylor_impact_2d")
     section = text.split(PROPS, 1)[1].split(HEAD, 1)[0]
     assert "| baseline | — | — | 0.01000 |" in section
+
+
+# --- ADR-0075 clause 5 (plan 3b): the restart family tier ---
+
+RESTART = "_Restart family (ADR-0075 clause 5)_"
+
+
+def _restart_result(kind="state"):
+    return _result(
+        restart_kind=kind,
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.03,
+                "restart_a10_h20_rel_l2_displacement": 0.05,
+                "restart_a10_h20_position_rmse": 1.2,
+                "compose_T20_k2_rel_l2_displacement": 0.07,
+                "prop_semigroup_err": 0.004,
+            }
+        },
+    )
+
+
+def test_restart_tier_renders_after_the_qois_with_the_kind():
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_restart_result(),))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    assert RESTART in text
+    head = "_Headline — pooled relative L2 (↓ better)_"
+    assert text.index(head) < text.index(RESTART)
+    section = text.split(RESTART, 1)[1].split("## Baseline details", 1)[0]
+    assert (
+        "| Method | Scheme | Kind | interp·a10 h20 disp | interp·a10 h20 pos (mm) "
+        "| interp·T20 k2 disp |"
+    ) in section
+    assert "| baseline | — | state | 0.05000 | 1.20000 | 0.07000 |" in section
+    # restart keys never leak into the accuracy tiers; the semigroup error
+    # is a property and renders in the block
+    head_section = text.split(head, 1)[1].split(RESTART, 1)[0]
+    assert "a10" not in head_section
+    props_section = text.split(PROPS, 1)[1].split(head, 1)[0]
+    assert "semigroup" in props_section and "0.00400" in props_section
+
+
+def test_restart_tier_absent_without_restart_keys():
+    text = render_benchmark_page(get_benchmark("taylor_impact_2d"), "taylor_impact_2d")
+    assert RESTART not in text
+
+
+def test_partition_puts_restart_and_compose_keys_last():
+    props, rel_l2, rmse, qoi, restart = _partition_metrics(
+        [
+            "restart_a1_h2_rel_l2_displacement",
+            "rollout_rel_l2_disp",
+            "compose_T2_k2_position_rmse",
+            "prop_semigroup_err",
+        ]
+    )
+    assert restart == [
+        "restart_a1_h2_rel_l2_displacement",
+        "compose_T2_k2_position_rmse",
+    ]
+    assert rel_l2 == ["rollout_rel_l2_disp"] and rmse == [] and qoi == []
+    assert props == ["prop_semigroup_err"]
+
+
+def test_col_label_names_restart_rows():
+    assert _col_label("test_interp", "restart_a10_h20_rel_l2_displacement") == (
+        "interp·a10 h20 disp"
+    )
+    assert _col_label("test", "restart_a10_h20_aux_rmse") == "test·a10 h20 aux"
+    assert _col_label("test", "compose_T20_k2_position_rmse") == "test·T20 k2 pos (mm)"
+    assert _col_label("test", "compose_T20_k4_rel_l2_state") == "test·T20 k4 state"
+    assert _col_label("test", "prop_semigroup_err") == "test·semigroup error"

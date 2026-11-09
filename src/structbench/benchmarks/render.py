@@ -246,30 +246,39 @@ def _compliance_lines(c: BenchmarkCard) -> list[str]:
     return lines
 
 
+def _is_restart_key(name: str) -> bool:
+    """A restart-family key (ADR-0075 clause 5): a restart row or a
+    composition row."""
+    return name.startswith(("restart_", "compose_"))
+
+
 def _partition_metrics(
     names: list[str],
-) -> tuple[list[str], list[str], list[str], list[str]]:
-    """Split metric keys into ``(props, rel_l2, rmse, qoi)`` groups, each
-    preserving the caller's first-seen order.
+) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
+    """Split metric keys into ``(props, rel_l2, rmse, qoi, restart)`` groups,
+    each preserving the caller's first-seen order.
 
     ADR-0075 clause 6 (plan 3c): ``prop_*`` keys are the properties block,
     rendered before every accuracy group. ADR-0055 (amended 2026-08-15; pooled
     follow-up 2026-08-16): relative L2 is the headline metric — a single
     pooled space+time number per quantity. It leads the accuracy groups;
     physical-unit RMSE is the secondary group; ``qoi_*`` keys are the
-    separate engineering axis. A key is a property iff it starts ``prop_``;
-    relative-L2 iff it contains ``rel_l2`` (covers
-    ``rollout_rel_l2_displacement`` and any unit-suffixed registry variant);
-    QoI iff it starts ``qoi_``; RMSE otherwise. (A per-frame-mean relative-L2
-    secondary existed briefly but was dropped 2026-08-16 — it blew up on
-    zero-start aux fields and matched no reported convention.)
+    separate engineering axis. ADR-0075 clause 5 (plan 3b): ``restart_*``
+    and ``compose_*`` keys are the restart family, rendered last. A key is a
+    property iff it starts ``prop_``; a restart key iff it starts
+    ``restart_`` or ``compose_``; relative-L2 iff it contains ``rel_l2``
+    (covers ``rollout_rel_l2_displacement`` and any unit-suffixed registry
+    variant); QoI iff it starts ``qoi_``; RMSE otherwise. (A per-frame-mean
+    relative-L2 secondary existed briefly but was dropped 2026-08-16 — it
+    blew up on zero-start aux fields and matched no reported convention.)
     """
     props = [m for m in names if m.startswith("prop_")]
-    rest = [m for m in names if not m.startswith("prop_")]
+    restart = [m for m in names if _is_restart_key(m)]
+    rest = [m for m in names if not m.startswith("prop_") and not _is_restart_key(m)]
     rel_l2 = [m for m in rest if "rel_l2" in m]
     qoi = [m for m in rest if m.startswith("qoi_")]
     rmse = [m for m in rest if "rel_l2" not in m and not m.startswith("qoi_")]
-    return props, rel_l2, rmse, qoi
+    return props, rel_l2, rmse, qoi, restart
 
 
 def _headline_metric(metrics: Mapping[str, float]) -> str:
@@ -344,6 +353,19 @@ def _col_label(split: str, key: str) -> str:
     s = split.replace("test_", "")
     if key.startswith("prop_"):
         return f"{s}·{_PROPERTY_LABELS.get(key, key.removeprefix('prop_'))}"
+    if _is_restart_key(key):
+        # restart_a10_h20_rel_l2_displacement -> a10 h20 disp;
+        # compose_T20_k2_position_rmse -> T20 k2 pos (mm)
+        _, first, second, metric = key.split("_", 3)
+        quantity = {
+            "rel_l2_displacement": "disp",
+            "rel_l2_aux": "aux",
+            "rel_l2_state": "state",
+            "position_rmse": "pos (mm)",
+            "aux_rmse": "aux",
+            "state_rmse": "state",
+        }.get(metric, metric)
+        return f"{s}·{first} {second} {quantity}"
     k = (
         key.replace("rollout_", "")
         .replace("one_step_", "1s·")
@@ -367,15 +389,18 @@ _REGISTRY_TIERS: tuple[str, ...] = (
     "Headline — pooled relative L2 (↓ better)",
     "Trajectory error — RMSE",
     "Quantities of interest (MAE)",
+    "Restart family (ADR-0075 clause 5)",
 )
 
-#: Column labels of the properties block (ADR-0075 clause 6; plan 3c).
+#: Column labels of the properties block (ADR-0075 clause 6; plan 3c; the
+#: semigroup error by plan 3b).
 _PROPERTY_LABELS: Mapping[str, str] = {
     "prop_closure_ratio": "closure",
     "prop_error_growth": "error growth (/frame)",
     "prop_yield_violation_rate": "yield violations",
     "prop_peeq_decrease_rate": "peeq decreases",
     "prop_state_sufficiency": "state sufficiency",
+    "prop_semigroup_err": "semigroup error",
 }
 
 _PROPERTIES_NOTE = (
@@ -484,7 +509,7 @@ def _results_registry(spec: BenchmarkSpec) -> list[str]:
             for metric in r.metrics.get(split, {}):
                 if metric not in metric_order:
                     metric_order.append(metric)
-    props, rel_l2, rmse, qoi = _partition_metrics(metric_order)
+    props, rel_l2, rmse, qoi, restart = _partition_metrics(metric_order)
     # ADR-0075 clause 6: the defined properties first, in their order, then
     # any property a result reports beyond them.
     props = list(spec.defined_properties) + [
@@ -516,6 +541,7 @@ def _results_registry(spec: BenchmarkSpec) -> list[str]:
         (_REGISTRY_TIERS[1], rel_l2, list(spec.splits), False),
         (_REGISTRY_TIERS[2], rmse, interp, False),
         (_REGISTRY_TIERS[3], qoi, interp, False),
+        (_REGISTRY_TIERS[4], restart, interp, False),
     )
     lead = ["Method", "Scheme"] + (["Tier"] if show_tier else [])
     lead += ["Division"] if show_division else []
@@ -530,7 +556,10 @@ def _results_registry(spec: BenchmarkSpec) -> list[str]:
         ]
         if not columns:
             continue
-        header = lead + [_col_label(s, k) for s, k in columns]
+        # ADR-0075 clause 5: the restart tier says what each row restarted from.
+        restart_tier = title == _REGISTRY_TIERS[4]
+        header = lead + (["Kind"] if restart_tier else [])
+        header += [_col_label(s, k) for s, k in columns]
         lines.append(f"_{title}_")
         lines.append("")
         lines.append("| " + " | ".join(header) + " |")
@@ -542,6 +571,8 @@ def _results_registry(spec: BenchmarkSpec) -> list[str]:
                 cells.append(_TIER_LABEL[r.tier])
             if show_division:
                 cells.append(r.division)
+            if restart_tier:
+                cells.append(r.restart_kind or "—")
             for split, key in columns:
                 # A null is a property undefined on that run (a time-
                 # conditioned run's closure, ADR-0054): a dash, like an
