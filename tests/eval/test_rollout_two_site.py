@@ -103,3 +103,31 @@ def test_two_site_simulator_needs_a_state_block():
     )
     with pytest.raises(ValueError, match="element-site state"):
         flow_map_rollout(_FakeTwoSite(), bare, 2, T, 2, "self")
+
+
+class _AnchorRecorder(_FakeTwoSite):
+    """Records the anchor times the rollout passes (plan 3b ``frame_offset``)."""
+
+    def __init__(self):
+        super().__init__()
+        self.anchor_times: list[float] = []
+
+    def set_anchor(
+        self, frame, prev_positions, positions, aux, anchor_t_norm=None, state=None
+    ):
+        super().set_anchor(frame, prev_positions, positions, aux, anchor_t_norm, state)
+        self.anchor_times.append(anchor_t_norm)
+
+
+def test_frame_offset_shifts_the_anchor_time_and_nothing_else():
+    # ADR-0075 clause 5 (plan 3b): a restart rolls the flow map out on a
+    # window, so the absolute anchor-time feature must see the true anchor.
+    tr = _trajectory()
+    plain, shifted = _AnchorRecorder(), _AnchorRecorder()
+    r0 = flow_map_rollout(plain, tr, 2, 8, 3, "self")
+    r5 = flow_map_rollout(shifted, tr, 2, 8, 3, "self", frame_offset=5)
+    # anchors at window frames 1 and 4 -> times 1/7 and 4/7, shifted by 5/7
+    assert plain.anchor_times == pytest.approx([1 / 7, 4 / 7])
+    assert shifted.anchor_times == pytest.approx([6 / 7, 9 / 7])
+    np.testing.assert_array_equal(r0.predicted_positions, r5.predicted_positions)
+    np.testing.assert_array_equal(r0.predicted_state, r5.predicted_state)
