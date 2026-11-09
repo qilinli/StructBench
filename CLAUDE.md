@@ -106,7 +106,7 @@ Four tiers govern what Claude Code can do. When in doubt, default to the more re
 - Merging a feature branch into `main`.
 - Pushing to the remote.
 - Committing directly to `main`.
-- Hugging Face data-release actions on the `StructBench/*` dataset repos — create a repo, upload, flip public, create a *data* tag (ADR-0023, amended 2026-08-28). The token stays the human's: they log in, Claude only invokes the CLI.
+- Hugging Face release actions on the `StructBench/*` dataset repos — create a repo, upload, flip public, create a *data* tag (ADR-0023, amended 2026-08-28) — and on the `StructBench/*` model repos: create, upload the staged blessed bundles, flip public, tag with the code release (amended 2026-11-09). The token stays the human's: they log in, Claude only invokes the CLI.
 
 ### Forbidden — refuse even if asked in-session
 

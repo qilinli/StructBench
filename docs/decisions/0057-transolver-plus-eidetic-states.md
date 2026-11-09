@@ -1,7 +1,7 @@
 # 0057 — Transolver++ eidetic-state adaptation (adaptive temperature + Gumbel Rep-Slice)
 
 **Status**: Accepted (maintainer, in writing 2026-09-29, recorded 2026-10-01; ADR-0073 D5) — drafted by Claude Code; built and registered as provisional rows before acceptance
-**Type**: Durable
+**Type**: Ephemeral (relabelled 2026-11-09; was Durable)
 **Date**: 2026-08-18
 
 ## Context
@@ -100,3 +100,5 @@ leaderboards stand under that name, with the evaluation-time deviation from
 upstream disclosed on the pages. The released code this ADR follows is
 `github.com/thuml/Transolver_plus` (MIT License, Copyright (c) 2025 THUML @
 Tsinghua University); its notice travels with the port (ADR-0073 D4).
+
+**Relabelled Ephemeral (2026-11-09, maintainer; ADR-0073 housekeeping).** This record describes a model adaptation tried on a benchmark and the provisional rows it produced, not a protocol, a publication commitment or a schema: an experiment record. Its Type was Durable; it is Ephemeral from this date, so later changes to the recipe or the arm are dated notes here, not a superseding record. Nothing in the code, the data or any registered row changes.
