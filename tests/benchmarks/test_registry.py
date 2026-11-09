@@ -289,3 +289,40 @@ def test_restart_anchors_stay_inside_the_scored_horizon():
     replace(spec, restart_anchors=(bound - 21,), restart_horizons=(20,))
     with pytest.raises(ValueError, match="restart_anchors"):
         replace(spec, restart_anchors=(bound - 20,), restart_horizons=(20,))
+
+
+# --- review minors (plan 3c / 3b) ---
+
+
+def test_matched_pair_must_be_a_pair_not_a_string():
+    spec = get_benchmark("taylor_impact_2d")
+    with pytest.raises(ValueError, match="two case ids"):
+        replace(spec, matched_initial_state_pairs=("ab",))  # type: ignore[arg-type]
+
+
+def test_restart_anchors_accept_integral_types_and_reject_bool_and_empty():
+    import numpy as np
+
+    spec = get_benchmark("taylor_impact_2d")
+    case = spec.splits["test_interp"][0]
+    declared = replace(
+        spec, restart_anchors=lambda cid: (np.int64(5),), restart_horizons=(10,)
+    )
+    assert declared.restart_anchors_for(case) == (5,)
+    assert all(type(a) is int for a in declared.restart_anchors_for(case))
+    with pytest.raises(ValueError, match="restart_anchors"):
+        replace(spec, restart_anchors=(True,), restart_horizons=(10,))
+    with pytest.raises(ValueError, match="at least one anchor"):
+        replace(spec, restart_anchors=(), restart_horizons=(10,))
+
+
+def test_restart_keys_and_restart_kind_come_together():
+    spec = get_benchmark("taylor_impact_2d")
+    with_keys = _result(metrics={"test_interp": {"restart_a10_h20_position_rmse": 1.0}})
+    with pytest.raises(ValueError, match="restart_kind"):
+        replace(spec, results=(with_keys,))
+    kind_only = _result(restart_kind="kinematic")
+    with pytest.raises(ValueError, match="restart_kind"):
+        replace(spec, results=(kind_only,))
+    ok = replace(with_keys, restart_kind="kinematic")
+    assert replace(spec, results=(ok,)).results[0].restart_kind == "kinematic"

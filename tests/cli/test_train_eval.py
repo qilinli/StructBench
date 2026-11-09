@@ -1831,3 +1831,89 @@ def test_restart_mode_refuses_a_benchmark_without_restarts(tmp_path):
     data_root, out_dir = _prepared_run(tmp_path, case_ids)
     with pytest.raises(ValueError, match="declares no restarts"):
         evaluate_restart(case_ids, data_root, out_dir, "cpu", split_name="eval")
+
+
+# --- review minors (plan 3c / 3b) ---
+
+
+def test_evaluate_per_case_keys_are_exactly_the_registry_contract(tmp_path):
+    # Pins the per-case key set of a CGN run (plan 3c gate: nothing but the
+    # two property keys was added).
+    case_ids = ["C-1"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    metrics = evaluate(case_ids, data_root, out_dir, "cpu")
+    assert set(metrics["cases"]["C-1"]) == {
+        "one_step_position_rmse",
+        "one_step_aux_rmse",
+        "rollout_position_rmse",
+        "rollout_aux_rmse",
+        "rollout_rel_l2_displacement",
+        "rollout_rel_l2_aux",
+        "prop_closure_ratio",
+        "prop_error_growth",
+        "rollout_position_rmse_full",
+        "qoi_pred",
+        "qoi_true",
+        "qoi_error",
+    }
+
+
+def test_restart_mode_names_the_case_when_the_stored_trajectory_is_short(
+    tmp_path, monkeypatch
+):
+    import structbench.cli.train as train_mod
+
+    case_ids = ["S-1", "S-2"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)  # 6 stored frames
+    spec = _local_spec()
+    spec = replace(
+        spec,
+        card=replace(spec.card, n_frames=8),  # the card promises 8
+        boundary_feature_fn=get_benchmark("taylor_impact_2d").boundary_feature_fn,
+        restart_anchors=(5,),
+        restart_horizons=(2,),
+    )
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    with pytest.raises(ValueError, match="S-2"):
+        evaluate_restart(["S-2"], data_root, out_dir, "cpu", split_name="val")
+
+
+def test_restart_report_counts_the_cases_behind_each_mean(tmp_path, monkeypatch):
+    import structbench.cli.train as train_mod
+
+    case_ids = ["S-1", "S-2", "S-3"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    spec = _local_spec()
+    spec = replace(
+        spec,
+        card=replace(spec.card, n_cases=3, splits={"train": 1, "val": 2}),
+        splits={"train": ("S-1",), "val": ("S-2", "S-3")},
+        boundary_feature_fn=get_benchmark("taylor_impact_2d").boundary_feature_fn,
+        restart_anchors=lambda cid: (2, 3) if cid == "S-2" else (3,),
+        restart_horizons=(2,),
+    )
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    report = evaluate_restart(
+        ["S-2", "S-3"], data_root, out_dir, "cpu", split_name="val"
+    )
+    assert report["mean_n"]["restart_a2_h2_position_rmse"] == 1
+    assert report["mean_n"]["restart_a3_h2_position_rmse"] == 2
+
+
+def test_main_restart_mode_refuses_with_one_line(tmp_path, capsys):
+    case_ids = ["C-1"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    code = main(
+        [
+            "--mode",
+            "restart",
+            "--out",
+            str(out_dir),
+            "--data-root",
+            str(data_root),
+        ]
+    )
+    out = capsys.readouterr().out
+    assert code == 2
+    assert "error: " in out and "declares no restarts" in out
+    assert "Traceback" not in out

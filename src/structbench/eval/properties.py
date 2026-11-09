@@ -63,6 +63,11 @@ def closure_ratio(rollout_err: ArrayLike, one_step_err: ArrayLike) -> float:
     """
     r = np.asarray(rollout_err, dtype=np.float64)
     s = np.asarray(one_step_err, dtype=np.float64)
+    if r.shape != s.shape:
+        raise ValueError(
+            f"closure_ratio needs the two spans to have the same length, got "
+            f"{r.shape} and {s.shape}"
+        )
     denominator = float(s.sum())
     return float(r.sum() / denominator) if denominator > 0.0 else float("nan")
 

@@ -64,6 +64,22 @@ def restart_window(
     sliced; the static ones (particle types, cells, reference coordinates)
     are shared.
 
+    Parameters
+    ----------
+    trajectory : CaseTrajectory
+        The whole case in the working frame.
+    anchor : int
+        The frame the restart starts from (its state is the seed's last frame).
+    horizon : int
+        The number of frames predicted and scored after the anchor.
+    input_frames : int
+        The model's history length, the number of seed frames (ADR-0035).
+
+    Returns
+    -------
+    CaseTrajectory
+        The window, ``input_frames + horizon`` frames long.
+
     Raises
     ------
     ValueError

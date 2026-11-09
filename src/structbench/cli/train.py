@@ -3791,7 +3791,15 @@ def _state_constraint_properties(
         "prop_yield_violation_rate": None,
         "prop_peeq_decrease_rate": None,
     }
-    if predicted_state is None or _STATE_PEEQ_LABEL not in state_labels:
+    if predicted_state is None:
+        return out
+    if _STATE_PEEQ_LABEL not in state_labels:
+        logger.info(
+            "element-site layout %s has no %r channel: the yield and plastic-"
+            "strain properties are undefined on it, not unreported",
+            state_labels,
+            _STATE_PEEQ_LABEL,
+        )
         return out
     labels = list(state_labels)
     n_frames = predicted_state.shape[0]
@@ -4201,12 +4209,39 @@ def evaluate_restart(
     Written to ``out_dir/metrics-restart-<split_name>.json`` when
     ``save_artifacts`` (checkpoint-suffixed like :func:`evaluate`).
 
+    Parameters
+    ----------
+    case_ids : list of str
+        Cases to restart over; must be non-empty.
+    data_root : pathlib.Path
+        Directory containing ``<case_id>.h5`` canonical cases.
+    out_dir : pathlib.Path
+        Run directory holding the checkpoint and resolved config.
+    device : str
+        Torch device string.
+    split_name : str
+        Label recorded in the report and used in the artifact filename.
+    save_artifacts : bool
+        Write the report JSON.
+    checkpoint : str, pathlib.Path or None
+        Explicit checkpoint to evaluate, as in :func:`evaluate`.
+
+    Returns
+    -------
+    dict
+        ``{"split", "checkpoint", "checkpoint_path", "input_frames",
+        "restart_kind", "horizons", "compositions", "anchors", "train_max_dt",
+        "eval_intervals", "cases", "mean", "mean_n"}``, JSON-serialisable;
+        ``mean_n`` counts the cases behind each mean (anchors may differ per
+        case).
+
     Raises
     ------
     ValueError
-        If ``case_ids`` is empty, the benchmark declares no restarts, or the
+        If ``case_ids`` is empty, the benchmark declares no restarts, the
         run is time-conditioned without the flow map (ADR-0054: it carries
-        nothing between frames, so there is nothing to restart).
+        nothing between frames, so there is nothing to restart), or a case's
+        stored trajectory is shorter than its card admits.
     """
     if not case_ids:
         raise ValueError("case_ids must be non-empty")
@@ -4330,7 +4365,15 @@ def evaluate_restart(
         semigroup: list[float] = []
         for anchor in anchors:
             for horizon in horizons:
-                window = restart_window(trajectory, anchor, horizon, input_frames)
+                try:
+                    window = restart_window(trajectory, anchor, horizon, input_frames)
+                except ValueError as exc:
+                    # The card admitted the anchor; the stored trajectory is
+                    # shorter (an SPH case drops its terminal frame, ADR-0028).
+                    raise ValueError(
+                        f"case {case_id!r} ({len(trajectory.time)} stored frames, "
+                        f"card n_frames {spec.card.n_frames}): {exc}"
+                    ) from exc
                 offset = anchor - input_frames + 1
                 direct = _roll(window, offset, fm_canonical if fm else 1, n_case_frames)
                 for name, key in zip(
@@ -4382,14 +4425,12 @@ def evaluate_restart(
     keys: list[str] = []
     for row in cases.values():
         keys += [k for k in row if k not in keys]
-    mean = {
-        k: (
-            float(np.mean(vals))
-            if (vals := [r[k] for r in cases.values() if r.get(k) is not None])
-            else None
-        )
-        for k in keys
+    # Per-case anchors differ, so each mean says how many cases it pools.
+    values_by_key = {
+        k: [r[k] for r in cases.values() if r.get(k) is not None] for k in keys
     }
+    mean = {k: float(np.mean(v)) if v else None for k, v in values_by_key.items()}
+    mean_n = {k: len(v) for k, v in values_by_key.items()}
     report: dict[str, Any] = {
         "split": split_name,
         "checkpoint": run.ckpt_path.name,
@@ -4410,6 +4451,7 @@ def evaluate_restart(
         "eval_intervals": list(fm_intervals) if fm else [],
         "cases": cases,
         "mean": mean,
+        "mean_n": mean_n,
     }
     if save_artifacts:
         tag = split_name if checkpoint is None else f"{split_name}@{run.ckpt_path.stem}"
@@ -5376,14 +5418,20 @@ def main(argv: list[str] | None = None) -> int:
             for split_name in spec.eval_splits:
                 if split_name == "val":
                     continue
-                report = evaluate_restart(
-                    list(spec.splits[split_name]),
-                    data_root,
-                    out_dir,
-                    device,
-                    split_name=split_name,
-                    checkpoint=args.checkpoint,
-                )
+                try:
+                    report = evaluate_restart(
+                        list(spec.splits[split_name]),
+                        data_root,
+                        out_dir,
+                        device,
+                        split_name=split_name,
+                        checkpoint=args.checkpoint,
+                    )
+                except ValueError as exc:
+                    # A benchmark without restarts or a scheme that cannot
+                    # restart: one line, not a traceback.
+                    print(f"error: {exc}")
+                    return 2
                 for key, value in report["mean"].items():
                     shown = "null" if value is None else f"{value:.4f}"
                     print(f"[restart:{split_name}] {key} {shown}")
