@@ -134,6 +134,9 @@ def _spec(ids):
         element_formulation="plane_strain",
         constitutive_law=lambda cid: LAW,
         property_tolerances={"yield": 1e-5, "peeq": 1e-7},
+        restart_anchors=(3,),
+        restart_horizons=(2,),
+        restart_compositions=(1, 2),
     )
 
 
@@ -224,6 +227,27 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
     if decoder in LAW_DECODERS:
         assert case["prop_yield_violation_rate"] == 0.0
         assert metrics["mean"]["prop_yield_violation_rate"] == 0.0
+
+    # ADR-0075 clause 5 (plan 3b): the restart family from the stored state.
+    restart = cli_train.evaluate_restart(
+        ids["val"], data_root, out, "cpu", split_name="val"
+    )
+    assert restart["restart_kind"] == "state"
+    assert restart["eval_intervals"] == [1, 3]
+    assert restart["compositions"] == [1, 2]
+    rcase = restart["cases"][ids["val"][0]]
+    for metric in (
+        "rel_l2_displacement",
+        "position_rmse",
+        "rel_l2_state",
+        "state_rmse",
+    ):
+        assert np.isfinite(rcase[f"restart_a3_h2_{metric}"]), metric
+        assert np.isfinite(rcase[f"compose_T2_k1_{metric}"]), metric
+        assert np.isfinite(rcase[f"compose_T2_k2_{metric}"]), metric
+    assert np.isfinite(rcase["prop_semigroup_err"])
+    assert np.isfinite(restart["mean"]["prop_semigroup_err"])
+    assert (out / "metrics-restart-val.json").exists()
 
     npz = np.load(out / "rollouts" / f"val-{ids['val'][0]}.npz")
     state = npz["predicted_state"]

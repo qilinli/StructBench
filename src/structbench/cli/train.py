@@ -94,6 +94,14 @@ from ..eval import (
     yield_violation_rate,
 )
 from ..eval.properties import von_mises4
+from ..eval.restart import (
+    RESTART_FIELD_METRICS,
+    RESTART_STATE_METRICS,
+    compose_keys,
+    restart_keys,
+    restart_window,
+    semigroup_error,
+)
 from ..models.cgn import LearnedSimulator
 from ..models.cgn.simulator import time_diff
 from ..models.common import CaseBoundSimulator
@@ -4159,6 +4167,239 @@ def _predict_case(
     )
 
 
+def evaluate_restart(
+    case_ids: list[str],
+    data_root: Path,
+    out_dir: Path,
+    device: str,
+    *,
+    split_name: str = "eval",
+    save_artifacts: bool = True,
+    checkpoint: str | Path | None = None,
+) -> dict[str, Any]:
+    """The restart task family (ADR-0075 clause 5; plan 3b) of a run.
+
+    For every case, each declared anchor and horizon
+    (:meth:`BenchmarkSpec.restart_anchors_for`, ``restart_horizons``) is a
+    rollout on the window of the trajectory from the anchor's history to the
+    end of the horizon (:func:`~structbench.eval.restart.restart_window`),
+    re-bound to the simulator, scored over every predicted frame and keyed
+    ``restart_a{a}_h{h}_<metric>``. A two-site run restarts from the stored
+    element state the window carries (``restart_kind = "state"``); every
+    other scheme restarts from the kinematic anchor alone (``"kinematic"``).
+    A flow-map run also runs the composition sweep, each horizon ``T``
+    reached self-anchored in ``k`` steps of ``T / k`` frames for every
+    declared ``k`` that divides ``T`` (``compose_T{T}_k{k}_<metric>``), and
+    reports the semigroup error between the two-step composition and the
+    direct map as ``prop_semigroup_err``, a property of the block.
+
+    The report records the run's ``flow_map_max_dt`` (the longest interval
+    the flow map trained on, ``0`` meaning the recipe's default) and its
+    evaluation intervals, so a reader sees which horizons are held out.
+    Written to ``out_dir/metrics-restart-<split_name>.json`` when
+    ``save_artifacts`` (checkpoint-suffixed like :func:`evaluate`).
+
+    Raises
+    ------
+    ValueError
+        If ``case_ids`` is empty, the benchmark declares no restarts, or the
+        run is time-conditioned without the flow map (ADR-0054: it carries
+        nothing between frames, so there is nothing to restart).
+    """
+    if not case_ids:
+        raise ValueError("case_ids must be non-empty")
+    run = _rebuild_run_simulator(out_dir, device, checkpoint)
+    spec, record, model_cfg, simulator = (
+        run.spec,
+        run.record,
+        run.model_cfg,
+        run.simulator,
+    )
+    family = run.family
+    if not spec.defines_restarts:
+        raise ValueError(
+            f"benchmark {spec.card.name!r} declares no restarts (ADR-0075 clause 5)"
+        )
+    tc = getattr(model_cfg, "time_conditioned", False)
+    fm = family == "transolver" and bool(getattr(model_cfg, "flow_map", False))
+    if tc and not fm:
+        raise ValueError(
+            "a time-conditioned run carries nothing between frames (ADR-0054), so "
+            "there is nothing to restart from; the restart family is for "
+            "autoregressive and flow-map schemes"
+        )
+    state_fields = _state_fields_for(family, model_cfg, spec)
+    two_site_run = state_fields is not None
+    restart_kind = "state" if two_site_run else "kinematic"
+    mesh_sim = simulator if isinstance(simulator, CaseBoundSimulator) else None
+    fm_intervals, fm_canonical = _fm_intervals_and_canonical(model_cfg)
+    metric_names = RESTART_FIELD_METRICS + (
+        RESTART_STATE_METRICS if two_site_run else ()
+    )
+    input_frames = model_cfg.input_frames
+    horizons = spec.restart_horizons
+
+    def _bind(window: CaseTrajectory) -> None:
+        """Bind a case-bound simulator to the window (its frame indices are
+        the window's) and reset the rollout pointer."""
+        if mesh_sim is None:
+            return
+        assert window.cells is not None and window.reference_coords is not None
+        two_site_bind: dict[str, Any] = {}
+        if two_site_run:
+            two_site_bind = {
+                "gt_state": (
+                    None
+                    if window.state is None
+                    else torch.from_numpy(window.state).to(device)
+                ),
+                "law": _case_law_rows(spec, window, device),
+            }
+        mesh_sim.bind_case(
+            torch.from_numpy(window.cells).to(device),
+            torch.from_numpy(window.reference_coords).to(device),
+            torch.from_numpy(window.particle_type).to(device),
+            torch.from_numpy(window.positions).to(device),
+            loading_scalar=(
+                spec.loading_scalar(window.case_id)
+                if getattr(model_cfg, "impact_velocity_feature", False)
+                and spec.loading_scalar
+                else None
+            ),
+            gt_aux=(
+                torch.from_numpy(window.aux).to(device) if run.aux_in_run else None
+            ),
+            **two_site_bind,
+        )
+        mesh_sim.reset_rollout()
+
+    def _roll(window: CaseTrajectory, offset: int, interval: int) -> RolloutResult:
+        _bind(window)
+        if fm:
+            assert isinstance(simulator, TransolverSimulator)
+            time_ref = _tc_time_ref_frames(
+                spec.scored_frames_fixed,
+                record["train"].get("train_frames", 0),
+                offset + len(window.time),
+            )
+            return flow_map_rollout(
+                simulator,
+                window,
+                input_frames,
+                time_ref,
+                interval,
+                "self",
+                device,
+                qois=None,
+                kinematic_types=spec.kinematic_types,
+                qoi_aux_channel=run.qoi_aux_channel,
+                frame_offset=offset,
+            )
+        if run.aux_in_run:
+            simulator.aux_feedback = "self"  # the deployable mode (ADR-0060)
+        return rollout(
+            simulator,
+            window,
+            input_frames,
+            device,
+            qois=None,
+            kinematic_types=spec.kinematic_types,
+            qoi_aux_channel=run.qoi_aux_channel,
+        )
+
+    cases: dict[str, dict[str, Any]] = {}
+    anchors_record: dict[str, list[int]] = {}
+    for case_id in case_ids:
+        trajectory = load_case_trajectory(
+            data_root / f"{case_id}.h5",
+            aux_field=run.aux_fields,
+            state_fields=state_fields,
+        )
+        if mesh_sim is not None and spec.mesh_transform is not None:
+            trajectory = spec.mesh_transform(trajectory)
+        anchors = spec.restart_anchors_for(case_id)
+        anchors_record[case_id] = list(anchors)
+        row: dict[str, Any] = {}
+        semigroup: list[float] = []
+        for anchor in anchors:
+            for horizon in horizons:
+                window = restart_window(trajectory, anchor, horizon, input_frames)
+                offset = anchor - input_frames + 1
+                direct = _roll(window, offset, fm_canonical if fm else 1)
+                for name, key in zip(
+                    metric_names,
+                    restart_keys(anchor, horizon, metric_names),
+                    strict=True,
+                ):
+                    row[key] = getattr(direct, f"mean_{name}")
+                if not fm:
+                    continue
+                by_k: dict[int, RolloutResult] = {}
+                for k in spec.restart_compositions:
+                    if horizon % k:
+                        continue
+                    by_k[k] = _roll(window, offset, horizon // k)
+                    for name, key in zip(
+                        metric_names,
+                        compose_keys(horizon, k, metric_names),
+                        strict=True,
+                    ):
+                        row[key] = getattr(by_k[k], f"mean_{name}")
+                if 1 in by_k and 2 in by_k:
+                    semigroup.append(
+                        semigroup_error(
+                            by_k[1].predicted_positions[input_frames:],
+                            by_k[2].predicted_positions[input_frames:],
+                        )
+                    )
+        if fm:
+            row["prop_semigroup_err"] = (
+                _defined(float(np.mean(semigroup))) if semigroup else None
+            )
+        cases[case_id] = row
+        logger.info(
+            "[restart:%s] %s: %d anchors x %d horizons (%s)",
+            split_name,
+            case_id,
+            len(anchors),
+            len(horizons),
+            restart_kind,
+        )
+
+    keys: list[str] = []
+    for row in cases.values():
+        keys += [k for k in row if k not in keys]
+    mean = {
+        k: (
+            float(np.mean(vals))
+            if (vals := [r[k] for r in cases.values() if r.get(k) is not None])
+            else None
+        )
+        for k in keys
+    }
+    report: dict[str, Any] = {
+        "split": split_name,
+        "checkpoint": run.ckpt_path.name,
+        "checkpoint_path": str(run.ckpt_path),
+        "input_frames": input_frames,
+        "restart_kind": restart_kind,
+        "horizons": list(horizons),
+        "compositions": list(spec.restart_compositions) if fm else [],
+        "anchors": anchors_record,
+        "train_max_dt": int(getattr(model_cfg, "flow_map_max_dt", 0)) if fm else 0,
+        "eval_intervals": list(fm_intervals) if fm else [],
+        "cases": cases,
+        "mean": mean,
+    }
+    if save_artifacts:
+        tag = split_name if checkpoint is None else f"{split_name}@{run.ckpt_path.stem}"
+        (out_dir / f"metrics-restart-{tag}.json").write_text(
+            json.dumps(_json_safe(report), indent=2, allow_nan=False),
+            encoding="utf-8",
+        )
+    return report
+
+
 def evaluate_gradient(
     data_root: Path,
     out_dir: Path,
@@ -5015,9 +5256,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="StructBench CGN training entry")
     parser.add_argument(
         "--mode",
-        choices=["train", "valid", "rollout", "gradient"],
+        choices=["train", "valid", "rollout", "gradient", "restart"],
         default="train",
-        help="train, validate (VAL), or roll out (TEST).",
+        help="train, validate (VAL), roll out (TEST), the gradient family "
+        "(ADR-0076) or the restart family (ADR-0075 clause 5) on the TEST sets.",
     )
     parser.add_argument(
         "--config",
@@ -5110,6 +5352,21 @@ def main(argv: list[str] | None = None) -> int:
             )
             for key, value in report["metrics"].items():
                 print(f"[gradient] {key} {value:.4f}")
+        elif args.mode == "restart":  # ADR-0075 clause 5: the restart family
+            for split_name in spec.eval_splits:
+                if split_name == "val":
+                    continue
+                report = evaluate_restart(
+                    list(spec.splits[split_name]),
+                    data_root,
+                    out_dir,
+                    device,
+                    split_name=split_name,
+                    checkpoint=args.checkpoint,
+                )
+                for key, value in report["mean"].items():
+                    shown = "null" if value is None else f"{value:.4f}"
+                    print(f"[restart:{split_name}] {key} {shown}")
         else:  # rollout: every eval split except val, in spec order
             for split_name in spec.eval_splits:
                 if split_name == "val":
