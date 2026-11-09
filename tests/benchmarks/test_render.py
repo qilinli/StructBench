@@ -1052,3 +1052,22 @@ def test_headline_metric_never_picks_a_property():
 
 def test_properties_tier_absent_without_results():
     assert PROPS not in render_benchmark_page(_bare_spec(), "taylor_impact_2d")
+
+
+def test_properties_tier_renders_a_null_property_as_a_dash():
+    # A time-conditioned run records prop_closure_ratio as null (ADR-0054);
+    # a maintainer pasting its mean block into the registry must not take
+    # the page down.
+    result = _result(
+        metrics={
+            "test_interp": {
+                "prop_closure_ratio": None,
+                "prop_error_growth": 0.01,
+                "rollout_rel_l2_disp": 0.03,
+            }
+        }
+    )
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(result,))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    section = text.split(PROPS, 1)[1].split(HEAD, 1)[0]
+    assert "| baseline | — | — | 0.01000 |" in section

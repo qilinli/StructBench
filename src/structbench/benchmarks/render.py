@@ -543,8 +543,11 @@ def _results_registry(spec: BenchmarkSpec) -> list[str]:
             if show_division:
                 cells.append(r.division)
             for split, key in columns:
-                vals = r.metrics.get(split, {})
-                cells.append(_fmt_value(vals[key]) if key in vals else "—")
+                # A null is a property undefined on that run (a time-
+                # conditioned run's closure, ADR-0054): a dash, like an
+                # absent key.
+                value = r.metrics.get(split, {}).get(key)
+                cells.append("—" if value is None else _fmt_value(value))
             lines.append("| " + " | ".join(cells) + " |")
         if title == _REGISTRY_TIERS[0]:
             lines += ["", _PROPERTIES_NOTE]

@@ -156,3 +156,25 @@ def test_numpy_von_mises4_matches_the_torch_helper():
     stress = np.random.default_rng(3).normal(size=(4, 6, 4)) * 100.0
     expected = von_mises4_torch(torch.from_numpy(stress)).numpy()
     np.testing.assert_allclose(von_mises4(stress), expected, rtol=1e-12)
+
+
+# --- a non-finite prediction is undefined, never admissible --------------------
+
+
+def test_yield_rate_is_nan_on_a_non_finite_block():
+    peeq = np.zeros((2, 3))
+    vm = np.full((2, 3), np.nan)
+    assert math.isnan(yield_violation_rate(vm, peeq, KNOTS_PEEQ, KNOTS_SY, 0.0))
+    vm = np.zeros((2, 3))
+    vm[1, 1] = np.inf
+    assert math.isnan(yield_violation_rate(vm, peeq, KNOTS_PEEQ, KNOTS_SY, 0.0))
+    peeq[0, 0] = np.nan
+    assert math.isnan(
+        yield_violation_rate(np.zeros((2, 3)), peeq, KNOTS_PEEQ, KNOTS_SY, 0.0)
+    )
+
+
+def test_peeq_rate_is_nan_on_a_non_finite_block():
+    peeq = np.cumsum(np.ones((4, 3)), axis=0)
+    peeq[2, 1] = np.nan
+    assert math.isnan(peeq_decrease_rate(peeq, 0.0))

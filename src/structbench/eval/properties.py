@@ -115,6 +115,9 @@ def yield_violation_rate(
     function the reference data's yield-ratio row uses. ``tol`` is the
     benchmark's declared tolerance, the reference's own measured excess.
 
+    A block with any non-finite sample is undefined (``nan``), never
+    admissible.
+
     Parameters
     ----------
     von_mises, peeq : array_like, shape (T, E)
@@ -124,7 +127,12 @@ def yield_violation_rate(
         Relative tolerance above the surface, non-negative.
     """
     vm = np.asarray(von_mises, dtype=np.float64)
-    sy = interp_yield_stress(peeq, knots_peeq, knots_sy)
+    p = np.asarray(peeq, dtype=np.float64)
+    if not (np.isfinite(vm).all() and np.isfinite(p).all()):
+        # A diverged prediction is undefined, never admissible: a NaN compares
+        # False and would otherwise score the worst run at the block's best.
+        return float("nan")
+    sy = interp_yield_stress(p, knots_peeq, knots_sy)
     return float((vm > (1.0 + tol) * sy).mean())
 
 
@@ -133,7 +141,8 @@ def peeq_decrease_rate(peeq: ArrayLike, tol: float) -> float:
 
     Counts with :func:`~structbench.verification.kernels.decrease_max`'s
     backward-step count over the block shifted by ``tol``, so a drop within
-    the tolerance is not a decrease.
+    the tolerance is not a decrease. A block with any non-finite sample is
+    undefined (``nan``), never monotone.
 
     Parameters
     ----------
@@ -142,8 +151,8 @@ def peeq_decrease_rate(peeq: ArrayLike, tol: float) -> float:
         Absolute tolerance on a backward step, non-negative.
     """
     p = np.asarray(peeq, dtype=np.float64)
-    if p.shape[0] < 2:
-        return float("nan")
+    if p.shape[0] < 2 or not np.isfinite(p).all():
+        return float("nan")  # too short, or diverged: undefined, not monotone
     # A step d counts when d < -tol, i.e. when the step of (p + tol·t) is
     # negative: shifting each frame by tol turns the tolerance into a sign.
     shifted = p + tol * np.arange(p.shape[0], dtype=np.float64)[:, None]
