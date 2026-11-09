@@ -1,7 +1,7 @@
 # 0044 — Transolver provisional adaptation: native Physics-Attention on the DeformingPlate rollout
 
 **Status**: Accepted
-**Type**: Durable
+**Type**: Ephemeral (relabelled 2026-11-09; was Durable)
 **Date**: 2026-08-09
 
 ## Context
@@ -318,3 +318,5 @@ NOTICE file, checked 2026-09-29, so its docstring credit suffices.
 paper's data-native value copied unscaled; the working-frame value is 3.0 mm
 (CORRECTIONS 2026-08-17; ADR-0043 dated note of the same day), and the shipped
 configs carry it.
+
+**Relabelled Ephemeral (2026-11-09, maintainer; ADR-0073 housekeeping).** This record describes a model adaptation tried on a benchmark and the provisional rows it produced, not a protocol, a publication commitment or a schema: an experiment record. Its Type was Durable; it is Ephemeral from this date, so later changes to the recipe or the arm are dated notes here, not a superseding record. Nothing in the code, the data or any registered row changes.

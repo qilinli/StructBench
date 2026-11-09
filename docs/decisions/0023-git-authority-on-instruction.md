@@ -67,3 +67,5 @@ Claude only invokes the CLI against the stored login. Each data-release
 action still traces to an explicit utterance in the session ("flip them
 public", "tag v0.1.0"), never to unprompted work, and a data tag is created
 only after the human has looked at the public pages.
+
+**Amendment (2026-11-09, maintainer).** The 2026-08-28 amendment covers the Hugging Face **model** repos as well as the dataset repos: creating `StructBench/*` model repos, uploading the blessed bundles that `tools/publish_checkpoints.py` stages (ADR-0074 clause 8; plan of 2026-11-09), flipping them public and tagging them with the code release are on explicit instruction. The same limits hold: the token is the human's, each action traces to an utterance in the session, and the code release itself stays forbidden.

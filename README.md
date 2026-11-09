@@ -341,10 +341,10 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
   - [x] ~~The verdict notes never written (0061, 0064) — written 2026-10-01;
         index rows that missed later amendments (0074, 0075, 0036, 0046,
         0071) — named 2026-11-08.~~
-  - [ ] Still from the review: Durable labels on experiment records (which
-        records, the maintainer's call: the provisional adaptations 0044 and
-        0045 and the Transolver++ record 0057 are the candidates), and stale
-        text in the older records.
+  - [x] ~~Durable labels on experiment records (2026-11-09): 0044, 0045 and
+        0057 relabelled Ephemeral with a dated note each.~~
+  - [ ] Still from the review: stale text in the older records (the
+        maintainer's triage register names them).
   - [x] ~~0058, 0060, 0068, 0069 and 0070 accepted from their summaries
         (2026-10-01).~~
 

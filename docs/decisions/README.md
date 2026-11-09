@@ -121,7 +121,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0020 | Native radius_graph; no graph-backend binary dependency | Durable | Accepted |
 | 0021 | v0.1 narrows to Taylor 2D; portfolio spreads across releases (amends 0015) | Durable | Accepted |
 | 0022 | FEM-convention visualization harness (`viz/`, matplotlib as optional extra) | Durable | Accepted |
-| 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted (amended 2026-08-28: Hugging Face data-release actions are on-instruction) |
+| 0023 | Git authority: `main` moves on explicit in-session instruction (amends 0006) | Durable | Accepted (amended 2026-08-28: Hugging Face data-release actions are on-instruction; 2026-11-09: model repos too) |
 | 0024 | v0.2 ships the 1D wave and notch-beam benchmarks; RC beam moves to v0.3 | Ephemeral | Accepted (amended 2026-08-06: notch-bend parked; v0.3 scope superseded by 0041, 2026-08-07; notch-bend excluded and removed by 0056) |
 | 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted (amended by 0055, 0074; a task family added by 0075) |
 | 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted (amended by 0029, 0039, 0055, 0056, 0074; amendments finalised by 0073; a task family added by 0075) |
@@ -142,8 +142,8 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0041 | v0.3 pivots to a public multi-method benchmark: DeformingPlate with native MGN/Transolver/GeoFLARE (supersedes ADR-0024's v0.3 scope) | Durable | Accepted (amends 0034; corrected in place 2026-08-07 re schema, see 0042; clause 4 closed by 0046; comparison reframed as a use, not the purpose, by 0065) |
 | 0042 | Schema 0.2.0 adds per-node fields; nodal-FE ingestion via download-and-convert (deforming_plate) | Durable | Accepted (corrects 0041) |
 | 0043 | DeformingPlate benchmark protocol: task, split, eval, and the MGN blessing gate | Durable | Accepted (narrowed by 0046; amended by 0073, 0074, 0075) |
-| 0044 | Transolver provisional adaptation: native Physics-Attention on the DeformingPlate rollout | Durable | Accepted (AR superseded as Transolver's native scheme by 0054; clause 14 settled by 0073) |
-| 0045 | GeoFLARE provisional adaptation: native GALE_FA (GeoTransolver + FLARE) on the DeformingPlate rollout | Durable | Accepted |
+| 0044 | Transolver provisional adaptation: native Physics-Attention on the DeformingPlate rollout | Ephemeral | Accepted (AR superseded as Transolver's native scheme by 0054; clause 14 settled by 0073; relabelled Ephemeral 2026-11-09) |
+| 0045 | GeoFLARE provisional adaptation: native GALE_FA (GeoTransolver + FLARE) on the DeformingPlate rollout | Ephemeral | Accepted (relabelled Ephemeral 2026-11-09) |
 | 0046 | Provisional results and the method-comparison table (closes ADR-0041 clause 4) | Durable | Accepted (amended by 0073, 0074) |
 | 0047 | Taylor 2D multi-method extension: native MGN/Transolver/GeoFLARE on the SPH benchmark | Ephemeral | Accepted |
 | 0048 | Notch-impact multi-method extension: native MGN/Transolver/GeoFLARE on the notched-beam SPH benchmark | Ephemeral | Accepted |
@@ -154,7 +154,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0054 | Transolver time-conditioning: the native non-autoregressive prediction scheme | Durable | Accepted |
 | 0055 | Relative-L2 as the headline metric (amended: headline, RMSE retained secondary) | Durable | Accepted (amended by 0073, 0075) |
 | 0056 | Descope notch-bend: the notch-beam benchmark narrows to notch-impact (redundant with impact; amends 0024/0026) | Durable | Accepted (amended 2026-09-23: excluded, not parked) |
-| 0057 | Transolver++ eidetic-state adaptation (adaptive temperature + train-only Gumbel Rep-Slice) on the Transolver family | Durable | Accepted (0073) |
+| 0057 | Transolver++ eidetic-state adaptation (adaptive temperature + train-only Gumbel Rep-Slice) on the Transolver family | Ephemeral | Accepted (0073; relabelled Ephemeral 2026-11-09) |
 | 0058 | `huggingface_hub` as an optional `data` extra | Durable | Accepted (2026-10-01) |
 | 0059 | Auxiliary state channels: `aux` generalises from `(T, P)` to `(T, P, C)` | Durable | Accepted (amended by 0075) |
 | 0060 | Aux channels as model inputs: the state-feedback surface (Transolver AR) | Durable | Accepted (2026-10-01; narrowed by 0062; line closed by 0064; amended by 0075) |
