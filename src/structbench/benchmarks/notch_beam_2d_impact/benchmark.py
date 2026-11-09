@@ -22,6 +22,53 @@ PROBE: list[str] = [
     "S_80_400_V140_intrapolation",
 ]
 
+#: Dataset impactor names to the card's cross-section words.
+IMPACTOR_SHAPES: dict[str, str] = {
+    "Rectangular": "plate",
+    "Sphere": "disk",
+    "Bullet": "rod",
+}
+
+#: The probe cases' off-centre impact, as a fraction of the beam width: the
+#: card records "~6 % off-centre" (ADR-0026 characterisation, 2026-08-15);
+#: the exact offsets are not in the case ids, so this is approximate and the
+#: probes are declared novel regardless.
+PROBE_IMPACT_OFFSET_FRACTION = 0.06
+
+
+def case_parameters(case_id: str) -> dict[str, float | str]:
+    """Design parameters of a notch-impact case (ADR-0074), keyed as the
+    card's ``parameter_space``: ``beam_width_mm``, ``beam_height_mm``,
+    ``impact_velocity_m_s``, ``impact_offset_mm`` and the categorical
+    ``impactor_shape``, ``notch_position``.
+
+    Grid cases are ``NB-I-<W>-<Shape>-<n>-<V>`` (height 80, midspan impact);
+    the probes are ``S_<H>_<W>_V<V>_<label>`` (disk impactor, off-centre,
+    no notch code).
+    """
+    if case_id.startswith("NB-I-"):
+        _, _, width, shape, notch, speed = case_id.split("-")
+        return {
+            "beam_width_mm": float(width),
+            "beam_height_mm": 80.0,
+            "impact_velocity_m_s": float(speed),
+            "impact_offset_mm": 0.0,
+            "impactor_shape": IMPACTOR_SHAPES[shape],
+            "notch_position": notch,
+        }
+    if case_id.startswith("S_"):
+        _, height, width, v_token, _label = case_id.split("_")
+        return {
+            "beam_width_mm": float(width),
+            "beam_height_mm": float(height),
+            "impact_velocity_m_s": float(v_token.removeprefix("V")),
+            "impact_offset_mm": PROBE_IMPACT_OFFSET_FRACTION * float(width),
+            "impactor_shape": "disk",
+            "notch_position": "",
+        }
+    raise ValueError(f"not a notch-impact case id: {case_id!r}")
+
+
 #: Auxiliary per-particle target: max principal strain — the crack-pattern field
 #: (ADR-0029; supersedes ADR-0026's damage choice).
 AUX_FIELD = "max_principal_strain"

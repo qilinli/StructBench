@@ -101,7 +101,7 @@ _FIGURES = (
             "228 / 300 us. Transolver tracks the mushroom-head stress band most "
             "closely (rollout von Mises RMSE 30 MPa); CGN is slightly diffuse "
             "(49.5 MPa); MGN smears and fragments the field (62.4 MPa) - the "
-            "ranking the leaderboard reports. Transolver and MGN are provisional "
+            "order the results registry shows. Transolver and MGN are provisional "
             "(ADR-0044/0045)."
         ),
         alt=(
@@ -252,6 +252,10 @@ CARD = BenchmarkCard(
             "smoothing) and ~0.27 relative L2 against the held-aside 4x-finer "
             "re-run of one case; displacement has no measured floor."
         ),
+        # The guard's number (ADR-0074 clause 5): a submission whose pooled
+        # von Mises relative L2 lies below this is flagged. Displacement has
+        # no floor and is not guarded.
+        floors={"von_mises_stress": 0.12},
     ),
     compliance=(
         ComplianceRow(

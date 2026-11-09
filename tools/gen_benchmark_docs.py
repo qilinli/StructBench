@@ -16,14 +16,17 @@ from pathlib import Path
 from structbench.benchmarks import available_benchmarks, get_benchmark
 from structbench.benchmarks.render import (
     card_json,
+    render_admission_list,
     render_archive_readme,
     render_benchmark_page,
     render_index,
+    splice_admission_list,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INDEX = REPO_ROOT / "docs" / "benchmarks.md"
 PAGES_DIR = REPO_ROOT / "docs" / "benchmarks"
+CONTRIBUTING = REPO_ROOT / "CONTRIBUTING.md"
 
 
 def _targets() -> dict[Path, str]:
@@ -43,6 +46,12 @@ def _targets() -> dict[Path, str]:
             verification_report=report.exists(),
             gradient_record=gradients.exists(),
         )
+    # CONTRIBUTING.md is hand-written except for its admission list, spliced
+    # between markers from the cards (ADR-0074; open-evaluation plan §10).
+    out[CONTRIBUTING] = splice_admission_list(
+        CONTRIBUTING.read_text(encoding="utf-8"),
+        render_admission_list(list(specs.values())),
+    )
     return out
 
 

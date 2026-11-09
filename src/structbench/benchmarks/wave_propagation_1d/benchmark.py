@@ -14,6 +14,16 @@ def _case(length: int, velocity: int) -> str:
     return f"W1D-{length}-{velocity}"
 
 
+def case_parameters(case_id: str) -> dict[str, float | str]:
+    """Design parameters of a wave case ``W1D-<L>-<V>`` (ADR-0074), keyed as
+    the card's ``parameter_space.box``: ``bar_length_mm``,
+    ``initial_velocity_m_s``."""
+    tag, length, speed = case_id.split("-")
+    if tag != "W1D":
+        raise ValueError(f"not a wave case id: {case_id!r}")
+    return {"bar_length_mm": float(length), "initial_velocity_m_s": float(speed)}
+
+
 #: Fixed, immutable split (ADR-0025). Changing it is a new benchmark version.
 VAL: list[str] = [_case(300, 2), _case(400, 4)]
 TEST_INTERP: list[str] = [_case(300, 4), _case(400, 2)]

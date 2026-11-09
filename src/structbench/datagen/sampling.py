@@ -13,6 +13,8 @@ way ``exclude`` does.
 
 from __future__ import annotations
 
+import itertools
+import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -21,6 +23,10 @@ import numpy as np
 from scipy.stats import qmc
 
 N_DRAW_LOG2 = 10  # 1024 points per split
+
+#: The most cases a ``grid`` split may enumerate (open-evaluation plan §6): a
+#: public test grid is small by design; a larger design samples.
+GRID_MAX = 64
 
 Bounds = tuple[float, float]
 
@@ -37,6 +43,14 @@ class Split:
     variants: tuple[str, ...] = ()
     points: tuple[dict[str, float], ...] = ()
     probe: bool = False  # a pilot or probe split: the preflight gate does not guard it
+    #: ADR-0074 (open-evaluation plan §6): the split's reference outputs are
+    #: withheld from the public archive; ``archive`` publishes its inputs and
+    #: seed frames only. Never on ``train`` or ``val``.
+    withheld: bool = False
+    #: The full factor grid of the listed levels, in list order (the Cartesian
+    #: product); a grid split takes no ``n``, ``seed`` or ``points``. String
+    #: levels are categorical.
+    grid: dict[str, tuple[Any, ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -76,20 +90,48 @@ def parse_splits(sweep: Mapping[str, Any]) -> list[Split]:
             raise ValueError(
                 f"splits.{name}: points must be tables of numbers"
             ) from None
-        if points and "seed" in raw:
-            raise ValueError(f"splits.{name}: explicit points take no seed")
-        if not points and "seed" not in raw:
-            raise ValueError(f"splits.{name}: a sampled split needs a seed")
-        if not points and "n" not in raw:
-            raise ValueError(f"splits.{name}: a sampled split needs n")
+        grid: dict[str, tuple[Any, ...]] = {}
+        if "grid" in raw:
+            grid_raw = raw["grid"]
+            if not isinstance(grid_raw, Mapping) or not grid_raw:
+                raise ValueError(f"splits.{name}: grid must be a table of level lists")
+            for key, levels in grid_raw.items():
+                if not isinstance(levels, list) or not levels:
+                    raise ValueError(
+                        f"splits.{name}: grid.{key} must list at least one level"
+                    )
+                grid[key] = tuple(levels)
+            if any(k in raw for k in ("n", "seed", "points")):
+                raise ValueError(
+                    f"splits.{name}: a grid split takes no n, seed or points"
+                )
+            n = math.prod(len(levels) for levels in grid.values())
+            if n > GRID_MAX:
+                raise ValueError(
+                    f"splits.{name}: a grid of {n} cases exceeds {GRID_MAX}; a "
+                    "larger design samples"
+                )
+        else:
+            if points and "seed" in raw:
+                raise ValueError(f"splits.{name}: explicit points take no seed")
+            if not points and "seed" not in raw:
+                raise ValueError(f"splits.{name}: a sampled split needs a seed")
+            if not points and "n" not in raw:
+                raise ValueError(f"splits.{name}: a sampled split needs n")
+            try:
+                n = len(points) if points else int(raw["n"])
+            except (TypeError, ValueError):
+                raise ValueError(f"splits.{name}: n must be an integer") from None
+            if not 0 < n <= 2**N_DRAW_LOG2:
+                raise ValueError(f"splits.{name}: n must be in 1..{2**N_DRAW_LOG2}")
         if raw.get("exclude") and raw.get("within"):
             raise ValueError(f"splits.{name}: set exclude or within, not both")
-        try:
-            n = len(points) if points else int(raw["n"])
-        except (TypeError, ValueError):
-            raise ValueError(f"splits.{name}: n must be an integer") from None
-        if not 0 < n <= 2**N_DRAW_LOG2:
-            raise ValueError(f"splits.{name}: n must be in 1..{2**N_DRAW_LOG2}")
+        withheld = bool(raw.get("withheld", False))
+        if withheld and name in ("train", "val"):
+            raise ValueError(
+                f"splits.{name}: withheld is for scored splits; train and val are "
+                "published whole (ADR-0074)"
+            )
         splits.append(
             Split(
                 name=name,
@@ -104,6 +146,8 @@ def parse_splits(sweep: Mapping[str, Any]) -> list[Split]:
                 variants=tuple(raw.get("variants", ())),
                 points=points,
                 probe=bool(raw.get("probe", False)),
+                withheld=withheld,
+                grid=grid,
             )
         )
     return splits
@@ -135,7 +179,30 @@ def sample_split(
             raise KeyError(
                 f"region {region!r} names unknown variables {sorted(unknown)}"
             )
-    if split.points:
+    if split.grid:
+        # The full factor grid, in list order: numeric levels are the point's
+        # coordinates, string levels its categorical values. Deliberate, like
+        # listed points: no region filter, no feasibility filter.
+        numeric = {
+            k: tuple(float(x) for x in v)
+            for k, v in split.grid.items()
+            if all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v)
+        }
+        words = {
+            k: tuple(str(x) for x in v)
+            for k, v in split.grid.items()
+            if k not in numeric
+        }
+        missing = set(box) - set(numeric)
+        if missing:
+            raise ValueError(f"splits.{split.name}: grid missing {sorted(missing)}")
+        keys = [*numeric, *words]
+        levels: list[tuple[float | str, ...]] = [*numeric.values(), *words.values()]
+        rows = [
+            {k: v for k, v in zip(keys, combo, strict=True)}
+            for combo in itertools.product(*levels)
+        ]
+    elif split.points:
         rows = [dict(p) for p in split.points]
         for row in rows:
             missing = set(box) - set(row)
@@ -158,13 +225,18 @@ def sample_split(
         rows = [{k: float(v) for k, v in zip(names, r, strict=True)} for r in scaled]
     points: list[Point] = []
     for row in rows:
-        if any(_inside(row, regions[r]) for r in split.exclude):
+        if not split.grid and any(_inside(row, regions[r]) for r in split.exclude):
             continue
         index = len(points)
         params: dict[str, float | str] = dict(row)
         for key, values in split.categorical.items():
             params[key] = values[index % len(values)]
-        if feasible is not None and not split.points and not feasible(params):
+        if (
+            feasible is not None
+            and not split.points
+            and not split.grid
+            and not feasible(params)
+        ):
             continue
         points.append(Point(split.name, index, params))
         if len(points) == split.n:

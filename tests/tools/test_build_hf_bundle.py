@@ -200,13 +200,16 @@ def test_build_taylor_bundle_with_held_aside_run(tmp_path, capsys):
         reader = csv.DictReader(fh)
         rows = list(reader)
         columns = reader.fieldnames
-    # Parameters first, integrity columns last.
+    # Parameters first (the v0.1.0 column names), then the ADR-0074 coverage
+    # columns, integrity columns last.
     assert columns == [
         "case_id",
         "split",
         "bar_width_mm",
         "bar_length_mm",
         "impact_speed_ms",
+        "coverage",
+        "distance",
         "n_nodes",
         "n_frames",
         "file_bytes",
@@ -224,6 +227,13 @@ def test_build_taylor_bundle_with_held_aside_run(tmp_path, capsys):
     protocol = next(r for r in rows if r["case_id"] == "T-20-80-150")
     registry_split = next(s for s, ids in spec.splits.items() if "T-20-80-150" in ids)
     assert (protocol["split"], protocol["impact_speed_ms"]) == (registry_split, "150")
+    # coverage columns: blank on train/val and held-aside rows, filled on
+    # scored cases (ADR-0074) — 150 m/s is the val velocity
+    assert protocol["coverage"] == "" and held[0]["coverage"] == ""
+    extrap = next(r for r in rows if r["case_id"] == "T-20-80-200")
+    assert (extrap["coverage"], extrap["distance"]) == ("beyond", "1.000")
+    interp = next(r for r in rows if r["case_id"] == "T-20-80-130")
+    assert (interp["coverage"], interp["distance"]) == ("within", "1.000")
 
     # The held-aside run's deck ships too ("one per case").
     decks = sorted(p.name for p in (staged / "decks").iterdir())

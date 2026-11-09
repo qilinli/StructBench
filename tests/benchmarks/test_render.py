@@ -4,6 +4,8 @@ import re
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from structbench.benchmarks import available_benchmarks, get_benchmark
 from structbench.benchmarks.card import (
     STANDARD_ITEMS,
@@ -12,15 +14,19 @@ from structbench.benchmarks.card import (
     ParameterSpace,
 )
 from structbench.benchmarks.render import (
+    ADMISSION_END,
+    ADMISSION_START,
     _baseline_line,
     _col_label,
     _compliance_lines,
-    _leaderboard,
     _quickstart_family,
+    _results_registry,
     card_json,
+    render_admission_list,
     render_archive_readme,
     render_benchmark_page,
     render_index,
+    splice_admission_list,
 )
 from structbench.benchmarks.results import BaselineResult
 
@@ -92,7 +98,7 @@ def test_archive_readme_is_self_describing():
 
 def test_archive_readme_is_a_dataset_page():
     # The archive README describes the data (files, layout, loading, splits)
-    # and points at the benchmark page for protocol/baselines/leaderboard —
+    # and points at the benchmark page for protocol/baselines/results registry —
     # those tables are not duplicated into the archive.
     spec = get_benchmark("taylor_impact_2d")
     text = render_archive_readme(spec, "taylor_impact_2d")
@@ -104,7 +110,7 @@ def test_archive_readme_is_a_dataset_page():
         "## Benchmark protocol",
     ):
         assert heading in text
-    assert "## Leaderboard" not in text and "## Baseline details" not in text
+    assert "## Results registry" not in text and "## Baseline details" not in text
     assert "## Splits" not in text  # split ids live in cases.csv, counts in the summary
     # SPH layout table + both loading paths
     assert "`response/element/sph/{stress, strain, strain_rate}` | (T, P, 6)" in text
@@ -132,13 +138,13 @@ def test_benchmark_page_without_results_carries_placeholder():
     assert "No official baseline yet" in text
 
 
-def test_benchmark_page_renders_leaderboard_row():
+def test_benchmark_page_renders_results_registry_row():
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
     text = render_benchmark_page(spec, "taylor_impact_2d")
     assert "No official baseline yet" not in text
     assert "CGN baseline" in text
     assert "abc1234" in text
-    # one leaderboard row: scheme unknown -> "—". The RMSE tier is trimmed to
+    # one results registry row: scheme unknown -> "—". The RMSE tier is trimmed to
     # test_interp and drops the one_step diagnostic columns, so the row carries
     # a single value under the one surviving column, `interp·pos (mm)`.
     assert "| CGN baseline | — | 1.50000 |" in text
@@ -215,10 +221,10 @@ def test_benchmark_page_embeds_overview_numbers_and_figures():
     for fig in spec.card.figures:
         assert f"(../../{fig.path})" in text
         assert fig.caption in text
-    # the blessed baseline leaderboard + details + quickstart are present
-    assert "## Leaderboard" in text
+    # the blessed baseline results registry + details + quickstart are present
+    assert "## Results registry" in text
     assert "## Baseline details" in text
-    assert "| CGN |" in text  # the blessed method row in the leaderboard
+    assert "| CGN |" in text  # the blessed method row in the results registry
     assert "## Quickstart" in text
     assert "configs/taylor_impact_2d/cgn.toml" in text
 
@@ -266,7 +272,7 @@ def test_card_figure_paths_exist():
             assert (REPO_ROOT / fig.path).is_file(), f"{name}: missing {fig.path}"
 
 
-def test_leaderboard_splits_metrics_into_three_tiers():
+def test_results_registry_splits_metrics_into_three_tiers():
     # The blessed Taylor result carries rel-L2, RMSE, and QoI keys: three tiers,
     # in headline -> RMSE -> QoI order, each a separate labelled table.
     text = render_benchmark_page(get_benchmark("taylor_impact_2d"), "taylor_impact_2d")
@@ -306,7 +312,7 @@ def test_private_checkpoint_pointer_renders_with_marker():
 
 def test_single_metric_group_renders_only_its_tier():
     # Only RMSE metrics -> only the RMSE tier renders (still titled; the
-    # leaderboard always names its tiers, no unlabelled fallback).
+    # results registry always names its tiers, no unlabelled fallback).
     result = BaselineResult(
         family="cgn",
         label="CGN baseline",
@@ -347,7 +353,7 @@ def _rel_l2_result():
     )
 
 
-def test_leaderboard_leads_with_relative_l2_tier():
+def test_results_registry_leads_with_relative_l2_tier():
     # Headline rel-L2 tier first, RMSE second, QoI last; rel-L2 columns sit
     # under their own heading, not lumped with the RMSE tier.
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_rel_l2_result(),))
@@ -364,9 +370,9 @@ def test_leaderboard_leads_with_relative_l2_tier():
     assert "interp·pos (mm)" in rmse_section
 
 
-def test_leaderboard_orders_rel_l2_before_rmse_before_qoi():
+def test_results_registry_orders_rel_l2_before_rmse_before_qoi():
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_rel_l2_result(),))
-    lines = _leaderboard(spec)
+    lines = _results_registry(spec)
 
     def tier(title: str) -> int:
         return next(i for i, ln in enumerate(lines) if ln == f"_{title}_")
@@ -418,25 +424,25 @@ def test_landing_page_folds_protocol_rationale_but_index_does_not():
     assert "docs/benchmarks/taylor_impact_2d.md" in archive
 
 
-# --- leaderboard + provisional-aware Quickstart selection (ADR-0046, ADR-0055) ---
-# _leaderboard is unit-tested directly below, then its wiring into both
+# --- results registry + provisional-aware Quickstart selection (ADR-0046, ADR-0055) ---
+# _results_registry is unit-tested directly below, then its wiring into both
 # renderers (immediately before "## Baseline details") is covered further down
 # by the section-ordering and config-path-exists regression tests (Task 3).
 
 
-def test_leaderboard_empty_state_is_verbatim():
+def test_results_registry_empty_state_is_verbatim():
     spec = _bare_spec()
     assert spec.results == ()
-    lines = _leaderboard(spec)
+    lines = _results_registry(spec)
     assert lines == [
-        "## Leaderboard",
+        "## Results registry",
         "",
         "*No results yet — method entries land here as runs are "
         "recorded (blessed or provisional).*",
     ]
 
 
-def test_leaderboard_multi_family_rows_in_declaration_order():
+def test_results_registry_multi_family_rows_in_declaration_order():
     # one blessed + two provisional, three families, ragged metrics.
     # Rows follow registry declaration order (CGN, MGN, Transolver); no
     # provisional tag and no footnote appear. The RMSE tier is trimmed to
@@ -474,10 +480,10 @@ def test_leaderboard_multi_family_rows_in_declaration_order():
         get_benchmark("taylor_impact_2d"),
         results=(blessed, prov_mgn, prov_transolver),
     )
-    lines = _leaderboard(spec)
+    lines = _results_registry(spec)
     text = "\n".join(lines)
 
-    assert lines[0] == "## Leaderboard"
+    assert lines[0] == "## Results registry"
     # RMSE tier: header + one row per method in declaration order; the one_step
     # and test_extrap columns are trimmed to a single `interp·pos (mm)` column.
     assert "_Trajectory error — RMSE_" in lines
@@ -494,12 +500,12 @@ def test_leaderboard_multi_family_rows_in_declaration_order():
     # QoI tier: only cgn carries the QoI; the others render "—"
     assert "_Quantities of interest (MAE)_" in lines
     assert "| CGN baseline | autoregressive | 0.20000 |" in lines
-    # no provisional marker or footnote anywhere in the leaderboard
+    # no provisional marker or footnote anywhere in the results registry
     assert "*(provisional)*" not in text
     assert "Provisional entries are best-effort" not in text
 
 
-def test_leaderboard_rows_follow_declaration_order_not_metric():
+def test_results_registry_rows_follow_declaration_order_not_metric():
     # Rows are NOT ranked (ranking is gone): registry declaration order wins
     # even when the first-declared method has the worse headline number.
     worse = _result(
@@ -515,13 +521,13 @@ def test_leaderboard_rows_follow_declaration_order_not_metric():
         metrics={"test_interp": {"rollout_rel_l2_disp": 0.1}},
     )
     spec = replace(get_benchmark("taylor_impact_2d"), results=(worse, better))
-    lines = _leaderboard(spec)
+    lines = _results_registry(spec)
     rows = [ln for ln in lines if ln.startswith(("| MGN", "| Transolver"))]
     assert rows[0].startswith("| MGN")  # declared first, despite worse 0.9
     assert rows[1].startswith("| Transolver")  # declared second, despite 0.1
 
 
-def test_leaderboard_declaration_order_holds_with_ragged_metrics():
+def test_results_registry_declaration_order_holds_with_ragged_metrics():
     # The single declaration order drives every tier: a headline-less entry
     # declared first still renders first in the RMSE tier (no reordering).
     without = _result(
@@ -539,16 +545,16 @@ def test_leaderboard_declaration_order_holds_with_ragged_metrics():
         },
     )
     spec = replace(get_benchmark("taylor_impact_2d"), results=(without, with_rel))
-    lines = _leaderboard(spec)
+    lines = _results_registry(spec)
     start = lines.index("_Trajectory error — RMSE_")
     rows = [ln for ln in lines[start:] if ln.startswith(("| MGN", "| Transolver"))]
     assert rows[0].startswith("| MGN")  # declared first
     assert rows[1].startswith("| Transolver")  # declared second
 
 
-def test_leaderboard_no_footnote_or_tag_when_all_blessed():
+def test_results_registry_no_footnote_or_tag_when_all_blessed():
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
-    lines = _leaderboard(spec)
+    lines = _results_registry(spec)
     # the method row carries no provisional tag (the intro paragraph mentions
     # "*(provisional)*" for the legend, so guard the row line specifically)
     assert "| CGN baseline | — |" in "\n".join(lines)
@@ -559,14 +565,14 @@ def test_leaderboard_no_footnote_or_tag_when_all_blessed():
     assert not any("Provisional entries are best-effort" in ln for ln in lines)
 
 
-def test_leaderboard_all_provisional_carries_no_tag_or_footnote():
+def test_results_registry_all_provisional_carries_no_tag_or_footnote():
     # Even when every entry is provisional, rows carry no *(provisional)* tag
     # and no footnote is appended (the provisional field still exists, it is
-    # just no longer surfaced in the leaderboard).
+    # just no longer surfaced in the results registry).
     a = _result(family="transolver", label="Transolver", provisional=True)
     b = _result(family="geoflare", label="GeoFLARE", provisional=True)
     spec = replace(get_benchmark("taylor_impact_2d"), results=(a, b))
-    lines = _leaderboard(spec)
+    lines = _results_registry(spec)
     text = "\n".join(lines)
     assert "| Transolver | — | 1.50000 |" in lines
     assert "| GeoFLARE | — | 1.50000 |" in lines
@@ -579,7 +585,7 @@ def test_leaderboard_all_provisional_carries_no_tag_or_footnote():
 
 def test_baseline_details_has_notes_but_no_metric_table():
     # The provenance block keeps the notes but no per-split metric table —
-    # every number now lives in the leaderboard above it.
+    # every number now lives in the results registry above it.
     spec = replace(get_benchmark("taylor_impact_2d"), results=(_fake_result(),))
     text = render_benchmark_page(spec, "taylor_impact_2d")
     details = text.split("## Baseline details", 1)[1]
@@ -588,7 +594,7 @@ def test_baseline_details_has_notes_but_no_metric_table():
     assert "| test_interp |" not in details
 
 
-def test_benchmark_page_leaderboard_appears_before_baseline_details():
+def test_benchmark_page_results_registry_appears_before_baseline_details():
     # Multi-result fixture: rows render in declaration order with no provisional
     # tag and no footnote; the section precedes "## Baseline details".
     prov_mgn = replace(
@@ -598,8 +604,8 @@ def test_benchmark_page_leaderboard_appears_before_baseline_details():
         get_benchmark("taylor_impact_2d"), results=(_fake_result(), prov_mgn)
     )
     text = render_benchmark_page(spec, "taylor_impact_2d")
-    assert "## Leaderboard" in text
-    assert text.index("## Leaderboard") < text.index("## Baseline details")
+    assert "## Results registry" in text
+    assert text.index("## Results registry") < text.index("## Baseline details")
     # RMSE tier trimmed to a single test_interp column; rows in declaration
     # order (blessed CGN first, provisional MGN second), neither tagged.
     assert "| CGN baseline | — | 1.50000 |" in text
@@ -617,8 +623,8 @@ def test_benchmark_page_leaderboard_appears_before_baseline_details():
     # Empty fixture: the empty-state line, same ordering.
     empty_spec = _bare_spec()
     text = render_benchmark_page(empty_spec, "taylor_impact_2d")
-    assert "## Leaderboard" in text
-    assert text.index("## Leaderboard") < text.index("## Baseline details")
+    assert "## Results registry" in text
+    assert text.index("## Results registry") < text.index("## Baseline details")
     assert (
         "*No results yet — method entries land here as runs are "
         "recorded (blessed or provisional).*"
@@ -627,7 +633,7 @@ def test_benchmark_page_leaderboard_appears_before_baseline_details():
 
 def test_archive_readme_never_renders_result_tables():
     # Results (blessed or provisional, or none) never reach the dataset page:
-    # the leaderboard and baseline details have one home, the benchmark page.
+    # the results registry and baseline details have one home, the benchmark page.
     prov_mgn = replace(
         _fake_result(), family="mgn", label="MGN candidate", provisional=True
     )
@@ -636,7 +642,7 @@ def test_archive_readme_never_renders_result_tables():
     )
     for s in (spec, _bare_spec()):
         text = render_archive_readme(s, "taylor_impact_2d")
-        assert "## Leaderboard" not in text
+        assert "## Results registry" not in text
         assert "## Baseline details" not in text
         assert "| CGN baseline |" not in text
         assert "No results yet" not in text
@@ -751,7 +757,7 @@ def test_references_omitted_without_citations():
 
 def test_pending_baseline_renders_training_placeholder_row():
     # A pending entry (still-training baseline, empty metrics) renders a
-    # leaderboard row of "—" tagged (training), with a note; it never raises.
+    # results registry row of "—" tagged (training), with a note; it never raises.
     pending = BaselineResult(
         family="mgn",
         label="MGN",
@@ -765,7 +771,7 @@ def test_pending_baseline_renders_training_placeholder_row():
     )
     real = _rel_l2_result()
     spec = replace(get_benchmark("taylor_impact_2d"), results=(pending, real))
-    lines = _leaderboard(spec)
+    lines = _results_registry(spec)
     # pending row first (declaration order), all metric cells "—"
     row = next(ln for ln in lines if ln.startswith("| MGN *(training)*"))
     assert set(c.strip() for c in row.split("|")[3:-1]) == {"—"}
@@ -808,7 +814,7 @@ _PRE_PLAN_PAGE_HEADINGS = [
     "## Data at a glance",
     "## Task",
     "## Evaluation criteria",
-    "## Leaderboard",
+    "## Results registry",
     "## Baseline details",
     "## Quickstart",
 ]
@@ -858,7 +864,7 @@ def test_compliance_table_sits_above_the_results_on_the_page():
     assert (
         page.index("## Evaluation criteria")
         < page.index("## Data standard")
-        < page.index("## Leaderboard")
+        < page.index("## Results registry")
     )
     # the grandfathering sentence and the status legend are on the page
     assert "grandfathered (ADR-0065)" in page
@@ -873,7 +879,7 @@ def test_compliance_table_precedes_the_protocol_pointer_in_the_readme():
     assert readme.index("## Loading") < readme.index("## Data standard")
     assert readme.index("## Data standard") < readme.index("## Benchmark protocol")
     # the results still never reach the dataset page
-    assert "## Leaderboard" not in readme
+    assert "## Results registry" not in readme
 
 
 def test_compliance_rows_render_in_standard_order_with_spoken_statuses():
@@ -929,3 +935,33 @@ def test_every_registered_page_carries_a_full_compliance_table():
         section = page.split("## Data standard", 1)[1].split("\n## ", 1)[0]
         for label in STANDARD_ITEMS.values():
             assert f"| {label} |" in section, (name, label)
+
+
+# --- the admission list of CONTRIBUTING.md (ADR-0074; open-evaluation plan §10) ---
+
+
+def test_admission_list_has_one_row_per_benchmark_from_the_cards():
+    text = render_admission_list(_all_specs())
+    rows = [ln for ln in text.splitlines() if ln.startswith("| [")]
+    assert len(rows) == len(available_benchmarks())
+    taylor = next(r for r in rows if "Taylor2D-Impact" in r)
+    assert "`test_interp` (within, ≤ 1: 6)" in taylor
+    assert "`test_extrap` (beyond, ≤ 1: 3)" in taylor
+    assert "| missing |" in taylor  # the blind row of the card
+    assert "`von_mises_stress` 0.12" in taylor
+    assert "2 of 4 required items; grandfathered" in taylor
+    plate = next(r for r in rows if "DeformingPlate" in r)
+    assert "no coverage" in plate and "| never |" in plate and "none measured" in plate
+
+
+def test_committed_contributing_admission_list_is_up_to_date():
+    text = (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    assert text == splice_admission_list(text, render_admission_list(_all_specs()))
+
+
+def test_splice_needs_both_markers():
+    with pytest.raises(ValueError, match="markers"):
+        splice_admission_list("no markers here", "block")
+    before = f"a\n{ADMISSION_START}\nold\n{ADMISSION_END}\nz"
+    spliced = splice_admission_list(before, "new\n")
+    assert spliced == f"a\n{ADMISSION_START}\n\nnew\n{ADMISSION_END}\nz"

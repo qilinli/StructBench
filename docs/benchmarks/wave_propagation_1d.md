@@ -94,6 +94,14 @@ input_frames = 6 (ADR-0035): C = 5 input velocities (input_frames - 1), the GNS 
 
 </details>
 
+## Scored sets
+
+Every split but `train` and `val` is scored, and a scored case is read by its coverage, not its split's name (ADR-0074): *within* the training design's declared box or *beyond* it, and its distance to the nearest training point in units of the training set's median nearest-neighbour spacing (one grid step on a grid), binned `≤ 1`, `1–2`, `> 2`; a case with an unseen categorical level or a changed constant is *novel* and shown apart. The box is the card's parameter space.
+
+| Set | Cases | Coverage |
+|---|---|---|
+| `test_interp` | 2 | within, 1–2 (1); within, ≤ 1 (1) |
+
 ## Data standard
 
 Where this benchmark's reference data stands against the platform's data standard. A benchmark admitted after 2026-10-01 must have a convergence run, measured noise floor, survivor log of discarded cases, constitutive sensitivity study (ADR-0073 D14); a physical-test anchor and a second-solver reproduction are recorded where they exist and not required; the blind evaluation set is ADR-0074's. The benchmarks shipped before that date are grandfathered (ADR-0065): their rows show what exists, and a *missing* row is a fact about the data, not a verdict on it. Status: *pass* — the item exists and is recorded; *missing* — it does not exist yet; *not applicable* — the item has no meaning for this data; *never* — it cannot be produced.
@@ -108,9 +116,9 @@ Where this benchmark's reference data stands against the platform's data standar
 | Second-solver reproduction | missing | no case has been reproduced in a second solver. |
 | Blind evaluation set | missing | a blind set follows when LS-DYNA access allows (ADR-0074); until then every scored case is on the public grid. |
 
-## Leaderboard
+## Results registry
 
-The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. RMSE and quantities of interest are shown for the in-distribution `test_interp` split.
+Rows are in registration order and are not ranked (ADR-0074): a result is read beside the coverage of the set it was scored on (the Scored sets above) and, where reported, its properties. The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. RMSE and quantities of interest are shown for the in-distribution `test_interp` split.
 
 _Headline — pooled relative L2 (↓ better)_
 

@@ -59,7 +59,7 @@ and one protocol:
 | GeoFLARE (NVIDIA, 2025) | attention operator, time-conditioned | provisional: DeformingPlate |
 
 *Blessed* means the result passed its benchmark's acceptance bar and anchors
-the leaderboard (results registries: ADR-0033/0046; the DeformingPlate
+the results registry (ADR-0033/0046; the DeformingPlate
 published-band gate: ADR-0043); *provisional* marks best-effort native ports
 with no published number to reproduce (ADR-0046). Per-benchmark
 method-comparison tables live on the generated benchmark pages
@@ -212,9 +212,9 @@ and a new benchmark tests what the shipped four cannot. It is built from:
       scored on Taylor's own velocity sweep by central differences with their
       declared error; no new dataset. Design in `docs/plans/`; build on
       `feat/gradient-task-family`.
-- [ ] **Release mechanics**: the `leaderboard` → `results registry` wording
-      sweep (ADR-0074); blessed checkpoints published with the release
-      (ADR-0074 clause 8); the v0.4 record in this section.
+- [ ] **Release mechanics**: blessed checkpoints published with the release
+      (ADR-0074 clause 8); the v0.4 record in this section. ~~The
+      `leaderboard` → `results registry` wording sweep (2026-11-08).~~
 
 Two benchmarks ADR-0065 named are not in v0.4: the crash benchmark is an
 assembly-tier question, and the metal component-tier benchmark is parked
@@ -299,12 +299,19 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
         sizes, cadence, rate limit, the coverage kernel (built,
         `eval/coverage.py`), `withheld` splits and a `grid` shorthand in the
         contract, the container contract, the intake.~~
-  - [ ] The plan's tasks 2–7: case parameters on the spec and in `cases.csv`;
-        the contract's `withheld` and `grid`; the scoring tool and the guard;
-        the container contract; `CONTRIBUTING.md`.
-  - [ ] Registry fields (tier, division, blind tag, provenance, per-case rows)
-        and the rendering: properties block first, headline by coverage bin.
-  - [ ] `CONTRIBUTING.md`; the wording sweep *leaderboard* → *results registry*.
+  - [x] ~~The plan's tasks 2–7 (2026-11-08): case parameters on the spec and
+        coverage in `cases.csv` and on the pages; the registry fields and the
+        results registry; the contract's `withheld` and `grid` and the
+        inputs-only archive; `tools/score_submission.py` with the guard and
+        the rate limit; `tools/verify_submission.py` and the container
+        contract; `CONTRIBUTING.md` with its generated admission list.~~
+  - [x] ~~Registry fields (tier, division, blind tag, submitter, write-up,
+        data, per-case rows) and the rendering: unranked registration order,
+        tier and division columns where a result is external, the headline
+        by coverage bin, the scored sets read by coverage (2026-11-08).~~
+        The properties block renders first once ADR-0075 part 3c lands.
+  - [x] ~~The wording sweep *leaderboard* → *results registry* (2026-11-08).~~
+  - [ ] `CONTRIBUTING.md`.
   - [ ] The first blind set (an Abaqus dataset at admission).
   - [x] ~~The card's compliance table (2026-11-08) — ADR-0065 follow-up 2,
         built by a plan, not an ADR: the V&V card fields and a typed
@@ -393,7 +400,7 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
   properties block, and its part 3c (the block in the registries and landing
   pages) is the open build; see ADR-0065's 2026-09-23 note for why the three
   do not collapse
-- Eval: leaderboard submission validator · per-region probe metrics ·
+- Eval: submission validator for the results registry · per-region probe metrics ·
   convergence check · cross-benchmark utilities
 - Data & scale: checkpoint-publishing workflow · second aux target (plastic
   strain) · cell-list `radius_graph` when any

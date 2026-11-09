@@ -12,6 +12,7 @@ from .benchmark import (
     TEST_INTERP,
     TRAIN,
     VAL,
+    case_parameters,
     native_mesh_transform,
 )
 from .card import CARD
@@ -406,6 +407,8 @@ SPEC = BenchmarkSpec(
     qois=dict(QOIS),
     boundary_feature_fn=None,
     dataset_id="2D-Notched-Beam",
+    case_parameters=case_parameters,
+    novel_cases=tuple(PROBE),  # off-centre, new height: changed constants (ADR-0074)
     kinematic_types=(PIN_TYPE, SUPPORT_TYPE),
     scored_frames=250,
     mesh_transform=native_mesh_transform,

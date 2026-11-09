@@ -10,6 +10,7 @@ from .benchmark import (
     TRAIN,
     VAL,
     _initial_velocity,
+    case_parameters,
     native_mesh_transform,
 )
 from .card import CARD
@@ -42,7 +43,7 @@ __all__ = [
 #: loss, i.e. rollout instability under sustained oscillation, not a recipe
 #: artifact (the arms carry the full ADR-0049 repair, and a low-noise
 #: Transolver sibling, wave-transolver-ar-n02-s1, fails identically). They
-#: are tabled so the leaderboard shows the scheme x regime interaction
+#: are tabled so the results registry shows the scheme x regime interaction
 #: directly: time-conditioning is the only operator scheme that survives
 #: this benchmark's oscillatory physics, and CGN is the only stable
 #: autoregressive family.
@@ -335,6 +336,7 @@ SPEC = BenchmarkSpec(
     qois=dict(QOIS),
     boundary_feature_fn=None,
     dataset_id="1D-Wave-Propagation",
+    case_parameters=case_parameters,
     # Mesh-native wiring (the ADR-0047 mechanism, extended to wave for the
     # ADR-0054 time-conditioned Transolver): the cgn path is untouched by all
     # three fields. No kinematic parts exist (the arrest BC lives inside the

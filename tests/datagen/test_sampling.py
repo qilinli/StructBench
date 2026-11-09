@@ -102,3 +102,42 @@ def test_a_split_may_be_marked_as_a_probe():
     raw = {"p": {"points": [{"a": 1.0}], "probe": True}, "s": {"n": 2, "seed": 3}}
     splits = sampling.parse_splits({"splits": raw})
     assert [s.probe for s in splits] == [True, False]
+
+
+# --- ADR-0074 (open-evaluation plan §6): grid and withheld splits ---
+
+
+def test_grid_enumerates_the_full_factor_grid_in_list_order():
+    split = _split(grid={"a": [0.25, 0.75], "b": [12.0, 18.0], "kind": ["x", "y"]})
+    assert split.n == 8 and split.grid["kind"] == ("x", "y")
+    pts = sampling.sample_split(VARIABLES, REGIONS, split)
+    assert [p.params for p in pts[:3]] == [
+        {"a": 0.25, "b": 12.0, "kind": "x"},
+        {"a": 0.25, "b": 12.0, "kind": "y"},
+        {"a": 0.25, "b": 18.0, "kind": "x"},
+    ]
+    assert [p.index for p in pts] == list(range(8))
+    # a grid is deliberate: no region filter, no feasibility filter
+    corner = _split(grid={"a": [0.9], "b": [19.0]}, exclude=["corner"])
+    assert len(sampling.sample_split(VARIABLES, REGIONS, corner, lambda p: False)) == 1
+
+
+def test_grid_refusals():
+    with pytest.raises(ValueError, match="takes no n, seed or points"):
+        _split(grid={"a": [0.5], "b": [15.0]}, n=3)
+    with pytest.raises(ValueError, match="exceeds 64"):
+        _split(grid={"a": list(range(9)), "b": list(range(8))})
+    with pytest.raises(ValueError, match="at least one level"):
+        _split(grid={"a": [], "b": [15.0]})
+    with pytest.raises(ValueError, match="grid missing"):
+        sampling.sample_split(VARIABLES, REGIONS, _split(grid={"a": [0.5]}))
+
+
+def test_withheld_is_recorded_and_refused_on_train_and_val():
+    assert _split(n=4, seed=1, withheld=True).withheld is True
+    assert _split(n=4, seed=1).withheld is False
+    for name in ("train", "val"):
+        with pytest.raises(ValueError, match="published whole"):
+            sampling.parse_splits(
+                {"splits": {name: {"n": 4, "seed": 1, "withheld": True}}}
+            )

@@ -89,12 +89,26 @@ def test_kernel_refuses_malformed_inputs():
         )
     with pytest.raises(ValueError, match="at least two"):
         coverage(TAYLOR_TRAIN[:1], np.array([(80, 130)], float), TAYLOR_BOX)
-    with pytest.raises(ValueError, match="coincide"):
+    # repeated numeric points (categorical twins) are one distinct point
+    with pytest.raises(ValueError, match="at least two distinct"):
         coverage(
             np.array([(80, 100), (80, 100)], float),
             np.array([(80, 130)], float),
             TAYLOR_BOX,
         )
+
+
+def test_categorical_twins_do_not_collapse_the_spacing():
+    # Two impactor shapes at every grid point: the numeric points repeat, the
+    # spacing is still the grid step, and a scored case sharing a grid point
+    # with a training case of another shape reads distance 0, within.
+    grid = [(w, v) for w in (320, 480, 640) for v in (40, 80, 120, 160)]
+    train = np.array(grid + grid, float)
+    box = [(320.0, 640.0), (40.0, 160.0)]
+    cov = coverage(train, np.array([(480, 80), (480, 100)], float), box)
+    assert cov[0].within and cov[0].distance == 0.0
+    # the unit is the velocity step (40 of 120); 100 m/s is half a step off
+    assert cov[1].within and cov[1].distance == pytest.approx(0.5)
     with pytest.raises(ValueError, match="novelty"):
         coverage(
             TAYLOR_TRAIN,

@@ -62,8 +62,10 @@ from pathlib import Path
 
 import h5py
 
+from structbench.benchmarks.notch_beam_2d_impact.benchmark import IMPACTOR_SHAPES
 from structbench.benchmarks.registry import get_benchmark
 from structbench.benchmarks.render import card_json, render_archive_readme
+from structbench.eval.coverage import Coverage
 
 _LOG = logging.getLogger("build_hf_bundle")
 #: <repo>/tools/build_hf_bundle.py -> the repo root.
@@ -89,13 +91,10 @@ HELD_ASIDE: dict[str, tuple[str, ...]] = {
     "taylor_impact_2d": ("T-20-80-Convergence",),
 }
 
-#: Dataset impactor names -> the published cross-section terms (paper H/W
-#: notation; verified against canonical frame-0 extents, 2026-08-27).
-_NOTCH_CROSS_SECTIONS = {
-    "Rectangular": "plate",
-    "Sphere": "disk",
-    "Bullet": "rod",
-}
+#: The published cross-section terms -> dataset impactor names (the package's
+#: ``IMPACTOR_SHAPES`` reversed; paper H/W notation, verified against
+#: canonical frame-0 extents, 2026-08-27).
+_NOTCH_IMPACTOR_NAMES = {shape: name for name, shape in IMPACTOR_SHAPES.items()}
 
 #: How to read a case id, per benchmark — the prose twin of ``_case_params``
 #: for the HF README's manifest section.
@@ -116,43 +115,49 @@ _CASE_ID_GRAMMAR: dict[str, str] = {
 
 
 def _case_params(benchmark: str, case_id: str) -> dict[str, object]:
-    """Loading/geometry parameters parsed from a case id (per-benchmark)."""
+    """Loading/geometry parameters parsed from a case id, in the hosted
+    ``cases.csv`` column names.
+
+    The parsers live in the package (``BenchmarkSpec.case_parameters``,
+    ADR-0074); this maps their card-named keys onto the column names the
+    ``v0.1.0`` bundles published, in the published order, so a rebuilt
+    ``cases.csv`` differs from the hosted one only by added columns.
+    """
+    spec = get_benchmark(benchmark)
+    if spec.case_parameters is None:
+        raise ValueError(f"no case-id parser for benchmark {benchmark!r}")
+    p = spec.case_parameters(case_id)
+
+    def whole(value: object) -> object:
+        number = float(value)  # type: ignore[arg-type]
+        return int(number) if number.is_integer() else number
+
     if benchmark == "taylor_impact_2d":
-        # T-20-<L>-<V>
-        _, width, length, speed = case_id.split("-")
         return {
-            "bar_width_mm": int(width),
-            "bar_length_mm": int(length),
-            "impact_speed_ms": int(speed),
+            "bar_width_mm": whole(p["bar_width_mm"]),
+            "bar_length_mm": whole(p["bar_length_mm"]),
+            "impact_speed_ms": whole(p["impact_velocity_m_s"]),
         }
     if benchmark == "wave_propagation_1d":
-        # W1D-<L>-<V>
-        _, length, speed = case_id.split("-")
-        return {"bar_length_mm": int(length), "initial_speed_ms": int(speed)}
-    if benchmark == "notch_beam_2d_impact":
-        if case_id.startswith("NB-I-"):
-            # NB-I-<W>-<Shape>-<n>-<V>
-            _, _, width, shape, notch, speed = case_id.split("-")
-            return {
-                "beam_height_mm": 80,
-                "beam_width_mm": int(width),
-                "impactor": shape,
-                "impactor_cross_section": _NOTCH_CROSS_SECTIONS[shape],
-                "notch_position": notch,
-                "impact_speed_ms": int(speed),
-            }
-        # Probe: S_<H>_<W>_V<V>_<label> (off-grid, off-centre; ADR-0026)
-        _, height, width, v_token, label = case_id.split("_")
         return {
-            "beam_height_mm": int(height),
-            "beam_width_mm": int(width),
-            "impactor": "Sphere",
-            "impactor_cross_section": "disk",
-            "notch_position": "",
-            "impact_speed_ms": int(v_token.removeprefix("V")),
-            "probe_label": label,
+            "bar_length_mm": whole(p["bar_length_mm"]),
+            "initial_speed_ms": whole(p["initial_velocity_m_s"]),
         }
-    raise ValueError(f"no case-id parser for benchmark {benchmark!r}")
+    if benchmark == "notch_beam_2d_impact":
+        shape = str(p["impactor_shape"])
+        row: dict[str, object] = {
+            "beam_height_mm": whole(p["beam_height_mm"]),
+            "beam_width_mm": whole(p["beam_width_mm"]),
+            "impactor": _NOTCH_IMPACTOR_NAMES[shape],
+            "impactor_cross_section": shape,
+            "notch_position": p["notch_position"],
+            "impact_speed_ms": whole(p["impact_velocity_m_s"]),
+        }
+        if case_id.startswith("S_"):
+            # Probe: S_<H>_<W>_V<V>_<label> (off-grid, off-centre; ADR-0026)
+            row["probe_label"] = case_id.rsplit("_", 1)[1]
+        return row
+    raise ValueError(f"no column mapping for benchmark {benchmark!r}")
 
 
 def _deck_path(benchmark: str, case_id: str, raw_root: Path) -> Path:
@@ -287,7 +292,7 @@ def _hf_readme(spec, name: str, repo: str) -> str:
             f'tag (`revision="{DATA_TAG}"` — a data release, independent of the code',
             "version) for reproducible pipelines. Point",
             "`structbench-train --data-root` at the snapshot directory.",
-            "Code, benchmark protocol, and leaderboards:",
+            "Code, benchmark protocol, and results registries:",
             "<https://github.com/qilinli/StructBench>.",
             "",
         ]
@@ -401,6 +406,13 @@ def build(args: argparse.Namespace) -> int:
     # cases.csv — parameters first (first-seen union across rows keeps the
     # notch grid + probe columns in one flat table), integrity columns last.
     stats_keys = ["n_nodes", "n_frames", "file_bytes", "sha256"]
+    # ADR-0074: a scored case's coverage by the training design, two columns
+    # (`coverage`: within | beyond | novel; `distance` in training spacings),
+    # blank for train, val and held-aside rows.
+    try:
+        coverage_of: dict[str, Coverage] = spec.coverage()
+    except ValueError:
+        coverage_of = {}
     rows: list[dict[str, object]] = []
     for cid in expected + extras:
         path = data_root / f"{cid}.h5"
@@ -412,6 +424,12 @@ def build(args: argparse.Namespace) -> int:
         }
         if cid in split_of:
             row.update(_case_params(args.benchmark, cid))
+            if cid in coverage_of:
+                cov = coverage_of[cid]
+                row["coverage"] = (
+                    "novel" if cov.novelty else "within" if cov.within else "beyond"
+                )
+                row["distance"] = f"{cov.distance:.3f}"
         else:
             try:
                 row.update(_case_params(args.benchmark, cid))

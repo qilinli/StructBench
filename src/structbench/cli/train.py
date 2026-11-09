@@ -4618,7 +4618,7 @@ def evaluate(
             "one_step_aux_rmse": (
                 None if one_step_aux is None else float(one_step_aux[:n_scored].mean())
             ),
-            # NB: this is the StructBench leaderboard's MEAN-OF-PER-STEP RMSE
+            # NB: this is the StructBench registries' MEAN-OF-PER-STEP RMSE
             # (ADR-0019 SS5), NOT the paper's pooled space+time RMSE. For any
             # benchmark with a published pooled anchor (e.g. DeformingPlate's
             # 15.1+/-4.0, ADR-0043), gate/register against the pooled statistic
@@ -4696,7 +4696,7 @@ def evaluate(
                 }
             ),
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
-            # frame to trajectory end. Non-leaderboard; equals the scored value
+            # frame to trajectory end. Not a registry metric; equals the scored value
             # when the benchmark pins no horizon. Field name matches the
             # 2026-07-20 bless-fleet rescore (metrics-rescore-adr0039.json).
             "rollout_position_rmse_full": float(result.position_rmse.mean()),

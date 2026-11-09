@@ -35,6 +35,23 @@ ALL_BENCHMARK_CASES: list[str] = TRAIN + VAL + TEST_INTERP + TEST_EXTRAP
 #: Auxiliary per-particle target field (named correctly, not "strain").
 AUX_FIELD = "von_mises_stress"
 
+
+def case_parameters(case_id: str) -> dict[str, float | str]:
+    """Design parameters of a Taylor case ``T-20-<L>-<V>`` (ADR-0074).
+
+    Keys follow the card's ``parameter_space.box``: ``bar_length_mm`` and
+    ``impact_velocity_m_s``; ``bar_width_mm`` is the constant 20.
+    """
+    tag, width, length, speed = case_id.split("-")
+    if tag != "T":
+        raise ValueError(f"not a Taylor case id: {case_id!r}")
+    return {
+        "bar_width_mm": float(width),
+        "bar_length_mm": float(length),
+        "impact_velocity_m_s": float(speed),
+    }
+
+
 #: Rigidwall plane position in the model's mm working frame.
 WALL_X_MM = -2.0
 

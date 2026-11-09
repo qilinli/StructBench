@@ -31,6 +31,7 @@ from ..core.definition_module import (
 from ..datasets import available_aux_fields
 from ..datasets.canonical import CaseTrajectory
 from ..eval import QoiFn
+from ..eval.coverage import Coverage, coverage
 from ..eval.sensitivity import GradientFamily
 from .card import BenchmarkCard
 from .constitutive import ELEMENT_FORMULATIONS, ConstitutiveLaw
@@ -161,6 +162,17 @@ class BenchmarkSpec:
     admissibility analyses. ``None`` when the benchmark has no plasticity
     (structured heads are then rejected at train time)."""
 
+    case_parameters: Callable[[str], Mapping[str, float | str]] | None = None
+    """Case id to its design parameters, numeric and categorical, keyed as
+    the card's ``parameter_space`` names them (ADR-0074 clause 2; the
+    open-evaluation plan §4). ``None`` for a benchmark whose parameters are
+    not known per case (DeformingPlate); :meth:`coverage` then has nothing to
+    read."""
+    novel_cases: tuple[str, ...] = ()
+    """Scored cases declared *novel* (ADR-0074 clause 2): an unseen
+    categorical level or a changed constant, which no distance expresses.
+    Shown apart from the coverage bins. Every id must be a case of a scored
+    split (validated at construction)."""
     gradient_family: GradientFamily | None = None
     """The benchmark's gradient task (ADR-0076): the swept parameter, the
     sweep lines, the declared noise per quantity of interest and the seed
@@ -243,6 +255,13 @@ class BenchmarkSpec:
         return (self.aux_field,)
 
     def __post_init__(self) -> None:
+        # ADR-0074: a novel case is a scored case.
+        scored_ids = {
+            c for s, cs in self.splits.items() if s not in ("train", "val") for c in cs
+        }
+        unknown_novel = sorted(set(self.novel_cases) - scored_ids)
+        if unknown_novel:
+            raise ValueError(f"novel_cases are not scored cases: {unknown_novel}")
         # ADR-0076: the gradient family scores quantities this benchmark
         # defines, and nothing else.
         if self.gradient_family is not None:
@@ -295,6 +314,13 @@ class BenchmarkSpec:
             if unknown:
                 raise ValueError(
                     f"result {result.label!r} references unknown splits {unknown}"
+                )
+            # ADR-0074: per-case rows belong to scored cases of this benchmark.
+            stray = sorted(set(result.case_metrics) - scored_ids)
+            if stray:
+                raise ValueError(
+                    f"result {result.label!r} has case_metrics for cases that are "
+                    f"not scored cases of this benchmark: {stray[:5]}"
                 )
         # One row per (family, scheme): a benchmark may table the same model
         # family under several prediction schemes (the DeformingPlate scheme
@@ -361,6 +387,53 @@ class BenchmarkSpec:
         object.__setattr__(self, "qois", MappingProxyType(dict(self.qois)))
         # NB: dataclasses.asdict(spec) would raise on these proxies;
         # use spec.card.to_json_dict() for serialization.
+
+    @property
+    def scored_splits(self) -> tuple[str, ...]:
+        """Every split but ``train`` and ``val``, in declaration order: the
+        scored sets (ADR-0074 clause 2), whatever their legacy names."""
+        return tuple(s for s in self.splits if s not in ("train", "val"))
+
+    def coverage(self) -> dict[str, Coverage]:
+        """Coverage of every scored case by the training design (ADR-0074).
+
+        Reads each case's numeric parameters through :attr:`case_parameters`
+        in the order of the card's ``parameter_space.box`` and runs the
+        kernel (:func:`structbench.eval.coverage.coverage`) against the
+        ``train`` split's points; :attr:`novel_cases` carry the declared
+        novelty flag.
+
+        Raises
+        ------
+        ValueError
+            If the benchmark declares no ``case_parameters`` or no
+            ``parameter_space`` box, or a case lacks a box parameter.
+        """
+        space = self.card.parameter_space
+        if self.case_parameters is None or space is None or not space.box:
+            raise ValueError(
+                f"benchmark {self.card.name!r} declares no case parameters or no "
+                "training box; coverage cannot be computed"
+            )
+        keys = list(space.box)
+
+        def point(case_id: str) -> list[float]:
+            params = self.case_parameters(case_id)  # type: ignore[misc]
+            missing = [k for k in keys if k not in params]
+            if missing:
+                raise ValueError(f"case {case_id!r} lacks box parameters {missing}")
+            return [float(params[k]) for k in keys]
+
+        train = [point(c) for c in self.splits["train"]]
+        scored = [c for s in self.scored_splits for c in self.splits[s]]
+        novel = set(self.novel_cases)
+        covs = coverage(
+            train,
+            [point(c) for c in scored],
+            [space.box[k] for k in keys],
+            novelty=[c in novel for c in scored],
+        )
+        return dict(zip(scored, covs, strict=True))
 
     @property
     def blessed_results(self) -> tuple[BaselineResult, ...]:

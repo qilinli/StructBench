@@ -26,7 +26,7 @@ __all__ = [
 #: one-entry-per-family convention — ADR-0046 amendment, 2026-08-27): this benchmark
 #: tables one row per family x prediction scheme, because the scheme axis
 #: (autoregressive vs time-conditioned, ADR-0054) is itself a v0.3 finding
-#: worth reading off the leaderboard. All autoregressive rows are the
+#: worth reading off the results registry. All autoregressive rows are the
 #: working-frame NOISE-FIXED refits (noise_std 3.0 mm, CORRECTIONS
 #: 2026-08-17; runs deforming-*-n3) — the earlier pre-fix operator entries
 #: (run 84df162) trained with the same ~1000x-too-weak noise as the pre-fix
@@ -46,7 +46,7 @@ __all__ = [
 #: kinematic rows excluded (they carry no aux prediction; ADR-0026 masking). This is
 #: DELIBERATELY a different statistic from the mean-of-per-step-RMSE the
 #: evaluator reports as ``rollout_position_rmse`` and that the other
-#: benchmarks' leaderboards use (ADR-0019 SS5); conflating the two destroys
+#: benchmarks' results registries use (ADR-0019 SS5); conflating the two destroys
 #: comparability with the paper (ADR-0043 SS8). The 2026-08-21 pass found the
 #: earlier time-conditioned rows had been transcribed under the evaluator's
 #: mean-of-per-step statistic in violation of this header (Transolver TC

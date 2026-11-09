@@ -42,6 +42,19 @@ v0 = [1.0e5, 2.0e5]             # mm/s (100-200 m/s)
 n = 8
 seed = 1
 
+# Two more split forms serve open evaluation (ADR-0074). A grid split is the
+# full factor grid of listed levels, in list order, with no n, seed or points
+# (string levels are categorical; at most 64 cases) -- the public test set:
+#   [splits.test]
+#   grid = { v0 = [1.25e5, 1.75e5] }
+# A withheld split's reference outputs stay out of the public archive -- the
+# blind set; `archive` publishes its inputs and seed frames only, under a
+# --blind-tag. Never on train or val:
+#   [splits.blind]
+#   n = 32
+#   seed = 97
+#   withheld = true
+
 [splits.pilot]                  # an explicit split: the preflight's cases; probe splits are not gated
 points = [
   { v0 = 1.0e5 },
