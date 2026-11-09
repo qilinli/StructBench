@@ -167,7 +167,7 @@ assets/            # figures embedded in the docs + landing pages
      docs/decisions/, not here. Platform work only: the maintainer's research
      plans stay outside the repository (ADR-0065). -->
 
-*Last revised: 2026-11-08.*
+*Last revised: 2026-11-09.*
 
 ### Shipped
 
@@ -197,10 +197,13 @@ result reports its properties before its accuracy, the reference data
 declares what is known of its own error, scored cases are read by coverage,
 and a new benchmark tests what the shipped four cannot. It is built from:
 
-- [ ] **The properties block** in the results registries and landing pages
-      (ADR-0075 part 3c) and **the restart task family** (part 3b) — the
-      follow-ups 1 and 3 of ADR-0065, decided, owed as builds (strand *The
-      two-site state*, Inbox).
+- [x] ~~**The properties block** in the results registries and landing
+      pages (ADR-0075 part 3c; 2026-11-09) — follow-up 1 of ADR-0065.~~ The
+      columns lead every landing page; the shipped rows' numbers wait on a
+      re-evaluation of the blessed checkpoints on DUG (strand *The two-site
+      state*, Inbox).
+- [ ] **The restart task family** (ADR-0075 part 3b) — follow-up 3 of
+      ADR-0065, decided, owed as a build; the semigroup property is its row.
 - [x] ~~**The benchmark card's V&V fields and compliance table**
       (2026-11-08) — follow-up 2.~~
 - [ ] **Open evaluation** (ADR-0074): the plan, the registry fields and
@@ -210,8 +213,9 @@ and a new benchmark tests what the shipped four cannot. It is built from:
       surrogate's sensitivities, the quantity a design optimiser consumes and
       the first of ADR-0065's trust properties no shipped benchmark reaches,
       scored on Taylor's own velocity sweep by central differences with their
-      declared error; no new dataset. Design in `docs/plans/`; build on
-      `feat/gradient-task-family`.
+      declared error; no new dataset. Built 2026-11-08 (design in
+      `docs/plans/`); the first registered model's rows wait on a DUG run of
+      the blessed CGN.
 - [ ] **Release mechanics**: blessed checkpoints published with the release
       (ADR-0074 clause 8); the v0.4 record in this section. ~~The
       `leaderboard` → `results registry` wording sweep (2026-11-08).~~
@@ -309,9 +313,9 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
         data, per-case rows) and the rendering: unranked registration order,
         tier and division columns where a result is external, the headline
         by coverage bin, the scored sets read by coverage (2026-11-08).~~
-        The properties block renders first once ADR-0075 part 3c lands.
+        The properties block renders first (ADR-0075 part 3c, 2026-11-09).
   - [x] ~~The wording sweep *leaderboard* → *results registry* (2026-11-08).~~
-  - [ ] `CONTRIBUTING.md`.
+  - [x] ~~`CONTRIBUTING.md` (2026-11-08).~~
   - [ ] The first blind set (an Abaqus dataset at admission).
   - [x] ~~The card's compliance table (2026-11-08) — ADR-0065 follow-up 2,
         built by a plan, not an ADR: the V&V card fields and a typed
@@ -342,10 +346,17 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
 
 - [ ] ADR-0075 (Accepted 2026-11-07): the two-site state. Part 3a is built
       (the element-site state block, `two_site_decoder` on the Transolver flow
-      map, state metrics); owed: 3b (the restart task family and the
-      composition sweep), 3c (the properties block in the registries and
-      landing pages), the AR scheme and the pushforward chains under the
-      two-site decoder. **Decided (2026-11-08):** the `return_map` decoder
+      map, state metrics); 3c is built (2026-11-09: the properties block,
+      `eval/properties.py`, rendered first on every landing page; the
+      deviator-trace kernel waits for a state layout that emits a deviator;
+      the semigroup row is 3b's); owed: 3b (the restart task family and the
+      composition sweep), the AR scheme and the pushforward chains under the
+      two-site decoder, and the re-evaluation of the blessed checkpoints that
+      fills the shipped rows' properties. Finding (3c smoke): the admissible
+      forms hold the plastic strain monotone against the carried anchor, not
+      between the query frames of one flow-map interval; the property
+      reports the frame-to-frame rate. **Decided (2026-11-08):** the
+      `return_map` decoder
       does not train on a metal — stress derived from predicted kinematics
       amplifies displacement error by `E / std σ ≈ 10³` (plan 3a, note
       2026-11-08) — so the admissible arm is tested in two forms that read
@@ -398,8 +409,9 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
   however close it is), and fitness for a downstream use (design
   optimisation, digital twin). ADR-0075 decided the first piece, the
   properties block, and its part 3c (the block in the registries and landing
-  pages) is the open build; see ADR-0065's 2026-09-23 note for why the three
-  do not collapse
+  pages) is built (2026-11-09); the numbers on the shipped rows and the
+  semigroup row (part 3b) are what remains; see ADR-0065's 2026-09-23 note
+  for why the three do not collapse
 - Eval: submission validator for the results registry · per-region probe metrics ·
   convergence check · cross-benchmark utilities
 - Data & scale: checkpoint-publishing workflow · second aux target (plastic

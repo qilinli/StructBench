@@ -150,3 +150,23 @@ results without the block show it empty.
 
 Each part is a feature branch with the full suite as its gate; the ADR is
 accepted or withdrawn in the session that merges 3a.
+
+## Note 2026-11-09: part 3c built; the deviator trace deferred
+
+Part 3c is built before 3b (plan 3c, `2026-11-09-two-site-state-plan-3c.md`;
+the maintainer's choice in session: the block is what v0.4 is named for, and
+3b has no benchmark to exercise it until an Abaqus dataset is admitted). Of
+§7's table: closure, error growth, the yield bound, plastic-strain
+monotonicity and state sufficiency are built as `eval/properties.py`; the
+semigroup row waits for 3b's restart machinery; the **deviator trace is
+deferred** — the one element-site layout stores four stress components and
+`peeq`, so its deviator is derived and its trace is zero for every arm by
+definition, and the kernel is written when a layout emits a deviator
+separately (CORRECTIONS 2026-09-21). Keys ride in the split-keyed metrics as
+`prop_*` (as `gradient_*` do, ADR-0076), not in a new field. The yield and
+plastic-strain tolerances are declared by the definition
+(`BenchmarkSpec.property_tolerances`) from its verification record, both
+required with an element site. Finding from the smoke: the admissible forms
+hold `peeq` monotone against the carried anchor; between the query frames of
+one flow-map interval (`m > 1`) the frame-to-frame rate the property
+measures is non-zero, which the block reports and nothing gates.
