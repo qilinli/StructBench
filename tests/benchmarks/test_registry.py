@@ -214,3 +214,66 @@ def test_matched_pairs_are_distinct_known_cases_of_one_split():
         replace(spec, matched_initial_state_pairs=((a, "nope"),))
     with pytest.raises(ValueError, match="same split"):
         replace(spec, matched_initial_state_pairs=((a, spec.splits["train"][0]),))
+
+
+# --- ADR-0075 clause 5 (plan 3b): the restart declaration ---
+
+
+def test_shipped_benchmarks_declare_no_restarts():
+    for name in available_benchmarks():
+        spec = get_benchmark(name)
+        assert spec.restart_anchors is None and not spec.defines_restarts, name
+        assert spec.restart_horizons == ()
+        assert spec.restart_compositions == (1, 2, 4)
+
+
+def test_fixed_restart_anchors_are_validated_against_the_card():
+    spec = get_benchmark("taylor_impact_2d")  # input_frames 6, n_frames per card
+    declared = replace(spec, restart_anchors=(5, 20), restart_horizons=(10, 20))
+    assert declared.defines_restarts
+    assert declared.restart_anchors_for(spec.splits["test_interp"][0]) == (5, 20)
+    with pytest.raises(ValueError, match="restart_anchors"):
+        replace(spec, restart_anchors=(4,), restart_horizons=(10,))  # no history
+    with pytest.raises(ValueError, match="restart_anchors"):
+        replace(
+            spec,
+            restart_anchors=(spec.card.n_frames - 5,),
+            restart_horizons=(10,),  # runs past the end
+        )
+
+
+def test_restart_horizons_and_compositions_are_validated():
+    spec = get_benchmark("taylor_impact_2d")
+    with pytest.raises(ValueError, match="restart_horizons"):
+        replace(spec, restart_anchors=(5,))  # anchors without horizons
+    with pytest.raises(ValueError, match="restart_horizons"):
+        replace(spec, restart_horizons=(10,))  # horizons without anchors
+    with pytest.raises(ValueError, match="restart_horizons"):
+        replace(spec, restart_anchors=(5,), restart_horizons=(20, 10))
+    with pytest.raises(ValueError, match="restart_compositions"):
+        replace(
+            spec,
+            restart_anchors=(5,),
+            restart_horizons=(10,),
+            restart_compositions=(2, 4),
+        )
+    with pytest.raises(ValueError, match="restart_compositions"):
+        replace(
+            spec,
+            restart_anchors=(5,),
+            restart_horizons=(10,),
+            restart_compositions=(1, 1),
+        )
+
+
+def test_per_case_restart_anchors_are_checked_when_read():
+    spec = get_benchmark("taylor_impact_2d")
+    case = spec.splits["test_interp"][0]
+    declared = replace(
+        spec,
+        restart_anchors=lambda cid: (5, 30) if cid == case else (3,),
+        restart_horizons=(10,),
+    )
+    assert declared.restart_anchors_for(case) == (5, 30)
+    with pytest.raises(ValueError, match="restart_anchors"):
+        declared.restart_anchors_for(spec.splits["test_interp"][1])
