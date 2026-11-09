@@ -185,6 +185,16 @@ When the maintainer blesses a run, the full mechanical checklist lives here
    again (the pointer renders with a private-archive marker until it is a
    public URL).
 
+8. **At the next code release, publish** (ADR-0074 clause 8): stage the
+   benchmark's blessed bundles from the mirror, run the generated script,
+   then rewrite each `checkpoint=` to the URL in `pointers.json` and
+   regenerate the views (the marker disappears):
+
+   ```bash
+   python tools/publish_checkpoints.py --benchmark <benchmark>      --models-root <path-to>/data/StructBench/models      --out scratch/hf-models --tag v0.4.0
+   bash scratch/hf-models/<benchmark>/publish.sh   # the human's hf session
+   ```
+
 ---
 
 ## Wave-1D baseline (v0.2)
