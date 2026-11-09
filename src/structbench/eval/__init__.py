@@ -19,6 +19,14 @@ from .metrics import (
     t_peak_mean_aux,
     terminal_peak_displacement,
 )
+from .properties import (
+    PROPERTY_KEYS,
+    closure_ratio,
+    error_growth,
+    peeq_decrease_rate,
+    state_sufficiency,
+    yield_violation_rate,
+)
 from .rollout import (
     RolloutResult,
     flow_map_rollout,
@@ -42,6 +50,12 @@ from .sensitivity import (
 )
 
 __all__ = [
+    "PROPERTY_KEYS",
+    "closure_ratio",
+    "error_growth",
+    "peeq_decrease_rate",
+    "state_sufficiency",
+    "yield_violation_rate",
     "Coverage",
     "coverage",
     "coverage_bin",
