@@ -178,3 +178,8 @@ def test_peeq_rate_is_nan_on_a_non_finite_block():
     peeq = np.cumsum(np.ones((4, 3)), axis=0)
     peeq[2, 1] = np.nan
     assert math.isnan(peeq_decrease_rate(peeq, 0.0))
+
+
+def test_closure_requires_spans_of_equal_length():
+    with pytest.raises(ValueError, match="same length"):
+        closure_ratio(np.ones(3), np.ones(2))

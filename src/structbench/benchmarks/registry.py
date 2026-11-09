@@ -16,6 +16,7 @@ produced it.
 from __future__ import annotations
 
 import importlib
+import numbers
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -261,11 +262,26 @@ class BenchmarkSpec:
         """
         if self.restart_anchors is None:
             raise ValueError(f"benchmark {self.card.name!r} declares no restarts")
-        anchors = (
+        raw = (
             self.restart_anchors
             if isinstance(self.restart_anchors, tuple)
             else tuple(self.restart_anchors(case_id))
         )
+        if not raw:
+            raise ValueError(
+                f"restart_anchors({case_id!r}) must declare at least one anchor"
+            )
+        # Any integral type (a numpy int from a per-case callable) is an
+        # anchor; a bool is not, whatever Python says.
+        bad_type = [
+            a for a in raw if isinstance(a, bool) or not isinstance(a, numbers.Integral)
+        ]
+        if bad_type:
+            raise ValueError(
+                f"restart_anchors({case_id!r}) = {raw!r}: anchors {bad_type} must "
+                "be integers"
+            )
+        anchors = tuple(int(a) for a in raw)
         lo = self.card.input_frames - 1
         scored = (
             self.scored_frames_fixed
@@ -276,11 +292,11 @@ class BenchmarkSpec:
             self.card.n_frames if scored is None else min(scored, self.card.n_frames)
         )
         hi = bound - max(self.restart_horizons)
-        bad = [a for a in anchors if not isinstance(a, int) or not lo <= a < hi]
+        bad = [a for a in anchors if not lo <= a < hi]
         if bad:
             raise ValueError(
                 f"restart_anchors({case_id!r}) = {anchors!r}: anchors {bad} must "
-                f"be ints in [{lo}, {hi}) (input_frames - 1 <= anchor < scored "
+                f"lie in [{lo}, {hi}) (input_frames - 1 <= anchor < scored "
                 "bound - max horizon)"
             )
         return anchors
@@ -406,6 +422,19 @@ class BenchmarkSpec:
                     f"result {result.label!r} has case_metrics for cases that are "
                     f"not scored cases of this benchmark: {stray[:5]}"
                 )
+            # ADR-0075 clause 5: restart rows say what they restarted from, and
+            # a kind without rows is a claim with nothing behind it.
+            has_restart_keys = any(
+                k.startswith(("restart_", "compose_"))
+                for values in result.metrics.values()
+                for k in values
+            )
+            if has_restart_keys != bool(result.restart_kind):
+                raise ValueError(
+                    f"result {result.label!r}: restart_* / compose_* metrics and "
+                    f"restart_kind come together (keys: {has_restart_keys}, kind: "
+                    f"{result.restart_kind!r})"
+                )
         # One row per (family, scheme): a benchmark may table the same model
         # family under several prediction schemes (the DeformingPlate scheme
         # matrix, 2026-08-21, extending ADR-0046) but never two rows for the
@@ -487,6 +516,12 @@ class BenchmarkSpec:
             MappingProxyType(dict(self.property_tolerances)),
         )
         split_of = {c: s for s, cs in self.splits.items() for c in cs}
+        for p in self.matched_initial_state_pairs:
+            if isinstance(p, str) or not isinstance(p, (tuple, list)):
+                raise ValueError(
+                    f"matched_initial_state_pairs: {p!r} must be a pair of two case "
+                    "ids, not a string"
+                )
         pairs = tuple(tuple(p) for p in self.matched_initial_state_pairs)
         for pair in pairs:
             if len(pair) != 2 or pair[0] == pair[1]:

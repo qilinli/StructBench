@@ -333,7 +333,8 @@ def score(
     metric_keys = sorted(
         {k for r in cases.values() for k in r if isinstance(r[k], float)}
     )
-    # A null (an undefined property) is left out of its mean, as evaluate does.
+    # A null (an undefined property) is left out of its mean; a key null on
+    # every case is omitted here, where evaluate writes it as null.
     mean = {
         k: float(np.mean([r[k] for r in cases.values() if r.get(k) is not None]))
         for k in metric_keys
