@@ -133,6 +133,7 @@ def _spec(ids):
         state_channels=STATE_CHANNELS,
         element_formulation="plane_strain",
         constitutive_law=lambda cid: LAW,
+        property_tolerances={"yield": 1e-5, "peeq": 1e-7},
     )
 
 
