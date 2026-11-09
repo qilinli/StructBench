@@ -227,6 +227,63 @@ class BenchmarkSpec:
     different stored constitutive state, for the state-sufficiency property.
     Each pair is two distinct cases of the same split (so one evaluation sees
     both); empty when the benchmark has no such cases."""
+    restart_anchors: tuple[int, ...] | Callable[[str], tuple[int, ...]] | None = None
+    """ADR-0075 clause 5 (plan 3b): the frames a restart task starts from,
+    fixed for every case or a callable from case id, like ``scored_frames``;
+    ``None`` when the benchmark declares no restart family. Each anchor
+    needs ``input_frames - 1`` frames of history before it and every declared
+    horizon after it within the trajectory (:meth:`restart_anchors_for`)."""
+    restart_horizons: tuple[int, ...] = ()
+    """The horizons, in frames, scored after each anchor; non-empty exactly
+    when ``restart_anchors`` is declared, strictly increasing."""
+    restart_compositions: tuple[int, ...] = (1, 2, 4)
+    """The composition counts ``k`` of the sweep: each horizon ``T`` is also
+    reached by the flow map in ``k`` self-anchored steps of ``T / k`` frames,
+    for every ``k`` that divides ``T``. Strictly increasing from 1."""
+
+    @property
+    def defines_restarts(self) -> bool:
+        """Whether the benchmark declares a restart family (clause 5)."""
+        return self.restart_anchors is not None
+
+    def restart_anchors_for(self, case_id: str) -> tuple[int, ...]:
+        """The anchors of one case, each validated to have ``input_frames - 1``
+        frames before it and the longest horizon after it inside the scored
+        span (the case's scored bound where the benchmark pins one, ADR-0039,
+        else ``card.n_frames``): a restart never scores frames the protocol
+        excludes (design §3).
+
+        Raises
+        ------
+        ValueError
+            If the benchmark declares no restarts, or an anchor lies outside
+            ``[input_frames - 1, bound - max(horizons))``.
+        """
+        if self.restart_anchors is None:
+            raise ValueError(f"benchmark {self.card.name!r} declares no restarts")
+        anchors = (
+            self.restart_anchors
+            if isinstance(self.restart_anchors, tuple)
+            else tuple(self.restart_anchors(case_id))
+        )
+        lo = self.card.input_frames - 1
+        scored = (
+            self.scored_frames_fixed
+            if case_id == _FIXED_ANCHORS_CASE
+            else self.scored_frames_for(case_id)
+        )
+        bound = (
+            self.card.n_frames if scored is None else min(scored, self.card.n_frames)
+        )
+        hi = bound - max(self.restart_horizons)
+        bad = [a for a in anchors if not isinstance(a, int) or not lo <= a < hi]
+        if bad:
+            raise ValueError(
+                f"restart_anchors({case_id!r}) = {anchors!r}: anchors {bad} must "
+                f"be ints in [{lo}, {hi}) (input_frames - 1 <= anchor < scored "
+                "bound - max horizon)"
+            )
+        return anchors
 
     @property
     def defined_properties(self) -> tuple[str, ...]:
@@ -447,6 +504,29 @@ class BenchmarkSpec:
                     "same split"
                 )
         object.__setattr__(self, "matched_initial_state_pairs", pairs)
+        # ADR-0075 clause 5 (plan 3b): the restart declaration, all or nothing.
+        horizons = tuple(self.restart_horizons)
+        if (self.restart_anchors is None) != (not horizons):
+            raise ValueError(
+                "restart_anchors and restart_horizons are declared together: "
+                f"got anchors={self.restart_anchors!r}, horizons={horizons!r}"
+            )
+        if horizons and (horizons[0] < 1 or not _strictly_increasing(horizons)):
+            raise ValueError(
+                f"restart_horizons must be positive and strictly increasing: {horizons}"
+            )
+        comps = tuple(self.restart_compositions)
+        if not comps or comps[0] != 1 or not _strictly_increasing(comps):
+            raise ValueError(
+                f"restart_compositions must be strictly increasing from 1: {comps}"
+            )
+        object.__setattr__(self, "restart_horizons", horizons)
+        object.__setattr__(self, "restart_compositions", comps)
+        if isinstance(self.restart_anchors, tuple):
+            object.__setattr__(self, "restart_anchors", tuple(self.restart_anchors))
+            # Validates against the card and a fixed scored bound; a per-case
+            # bound is checked when the case's anchors are read.
+            self.restart_anchors_for(_FIXED_ANCHORS_CASE)
         # Wrap in read-only proxies to prevent accidental mutation
         object.__setattr__(self, "splits", MappingProxyType(dict(self.splits)))
         object.__setattr__(self, "qois", MappingProxyType(dict(self.qois)))
@@ -510,6 +590,15 @@ class BenchmarkSpec:
         for comparison only.
         """
         return tuple(r for r in self.results if not r.provisional)
+
+
+#: The pseudo case id under which fixed restart anchors are validated at
+#: construction (against the card and a fixed scored bound).
+_FIXED_ANCHORS_CASE = "<fixed>"
+
+
+def _strictly_increasing(values: tuple[int, ...]) -> bool:
+    return all(b > a for a, b in zip(values, values[1:], strict=False))
 
 
 def available_benchmarks() -> tuple[str, ...]:

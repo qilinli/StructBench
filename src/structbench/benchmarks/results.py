@@ -17,6 +17,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
+from ..eval.restart import RESTART_KINDS
+
 #: Who produced a result's numbers (ADR-0074 clause 6; open-evaluation plan §8).
 TIERS: tuple[str, ...] = ("platform", "verified", "self_reported")
 
@@ -106,6 +108,11 @@ class BaselineResult:
     """Case id -> metric -> value for the scored cases, from which the
     registry renders the headline by coverage bin (ADR-0074 clause 7). Case
     ids are validated against the owning spec's scored splits."""
+    restart_kind: str = ""
+    """What the result's restart rows restarted from (ADR-0075 clause 5):
+    ``"state"`` (the stored two-site state), ``"kinematic"`` (the kinematic
+    anchor alone, a scheme that carries no constitutive state), or ``""``
+    when the result carries no restart rows."""
 
     def __post_init__(self) -> None:
         for name in ("family", "label", "run_commit", "run_date"):
@@ -113,6 +120,11 @@ class BaselineResult:
                 raise ValueError(f"{name} must be non-empty")
         if self.tier not in TIERS:
             raise ValueError(f"tier must be one of {TIERS}, got {self.tier!r}")
+        if self.restart_kind not in RESTART_KINDS:
+            raise ValueError(
+                f"restart_kind must be one of {RESTART_KINDS}, "
+                f"got {self.restart_kind!r}"
+            )
         if self.division not in DIVISIONS:
             raise ValueError(
                 f"division must be one of {DIVISIONS}, got {self.division!r}"

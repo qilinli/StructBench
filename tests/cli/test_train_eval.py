@@ -32,6 +32,7 @@ from structbench.cli.train import (
     build_simulator,
     build_transolver_simulator,
     evaluate,
+    evaluate_restart,
     main,
     train,
 )
@@ -1785,3 +1786,48 @@ def test_train_geoflare_wiring_adamw_cosine_clip(
         for name, p in sim.named_parameters()
     )
     assert changed, "no model parameter changed -- gradient flow is broken"
+
+
+# --- ADR-0075 clause 5 (plan 3b): the restart task family ---
+
+
+def test_restart_mode_rolls_a_kinematic_scheme_out_from_each_anchor(
+    tmp_path, monkeypatch
+):
+    import structbench.cli.train as train_mod
+
+    case_ids = ["S-1", "S-2"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    spec = _local_spec()
+    spec = replace(
+        spec,
+        boundary_feature_fn=get_benchmark("taylor_impact_2d").boundary_feature_fn,
+        restart_anchors=(2, 3),  # input_frames 3, n_frames 6: anchors in [2, 4)
+        restart_horizons=(2,),
+    )
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    report = evaluate_restart(["S-2"], data_root, out_dir, "cpu", split_name="val")
+    assert report["restart_kind"] == "kinematic"
+    assert report["horizons"] == [2] and report["anchors"] == {"S-2": [2, 3]}
+    assert report["eval_intervals"] == [] and report["train_max_dt"] == 1
+    case = report["cases"]["S-2"]
+    for a in (2, 3):
+        for metric in (
+            "rel_l2_displacement",
+            "rel_l2_aux",
+            "position_rmse",
+            "aux_rmse",
+        ):
+            assert np.isfinite(case[f"restart_a{a}_h2_{metric}"]), (a, metric)
+    # a kinematic scheme composes nothing and has no semigroup error
+    assert not any(k.startswith("compose_") or k == "prop_semigroup_err" for k in case)
+    assert np.isfinite(report["mean"]["restart_a3_h2_position_rmse"])
+    on_disk = json.loads((out_dir / "metrics-restart-val.json").read_text("utf-8"))
+    assert on_disk == report
+
+
+def test_restart_mode_refuses_a_benchmark_without_restarts(tmp_path):
+    case_ids = ["C-1"]
+    data_root, out_dir = _prepared_run(tmp_path, case_ids)
+    with pytest.raises(ValueError, match="declares no restarts"):
+        evaluate_restart(case_ids, data_root, out_dir, "cpu", split_name="eval")

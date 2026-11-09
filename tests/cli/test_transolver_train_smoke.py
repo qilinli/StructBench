@@ -11,8 +11,10 @@ evaluate() gate). Mirrors ``tests/cli/test_mgn_train_smoke.py`` (ADR-0043
 import json
 import logging
 import math
+from dataclasses import replace
 
 import numpy as np
+import pytest
 import torch
 
 from structbench.benchmarks.card import BenchmarkCard
@@ -341,6 +343,12 @@ def test_transolver_time_conditioned_train_and_evaluate_smoke(tmp_path, monkeypa
     assert per_case["prop_closure_ratio"] is None
     assert metrics["mean"]["prop_closure_ratio"] is None
     assert np.isfinite(per_case["prop_error_growth"])
+    # ADR-0075 clause 5 (plan 3b): a time-conditioned run carries nothing
+    # between frames, so there is nothing to restart; the mode refuses.
+    restart_spec = replace(spec, restart_anchors=(3,), restart_horizons=(2,))
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: restart_spec)
+    with pytest.raises(ValueError, match="time-conditioned"):
+        cli_train.evaluate_restart(ids["val"], data_root, out, "cpu", split_name="val")
     # QoIs still computed and finite.
     for key in ("qoi_pred", "qoi_true", "qoi_error"):
         assert set(per_case[key]) == {"peak_vm_stress", "terminal_peak_deflection"}

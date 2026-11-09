@@ -134,6 +134,9 @@ def _spec(ids):
         element_formulation="plane_strain",
         constitutive_law=lambda cid: LAW,
         property_tolerances={"yield": 1e-5, "peeq": 1e-7},
+        restart_anchors=(3,),
+        restart_horizons=(2,),
+        restart_compositions=(1, 2),
     )
 
 
@@ -224,6 +227,60 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
     if decoder in LAW_DECODERS:
         assert case["prop_yield_violation_rate"] == 0.0
         assert metrics["mean"]["prop_yield_violation_rate"] == 0.0
+
+    # ADR-0075 clause 5 (plan 3b): the restart family from the stored state.
+    # The flow map must see the CASE's time reference (T = 8 frames, as
+    # evaluate and training do) and the true anchor through frame_offset,
+    # not the window's length.
+    seen: list[tuple[int, int, int]] = []
+    real_fm_rollout = cli_train.flow_map_rollout
+
+    def _recording(sim, window, input_frames, time_ref, interval, mode, *a, **kw):
+        seen.append((time_ref, kw["frame_offset"], interval))
+        return real_fm_rollout(
+            sim, window, input_frames, time_ref, interval, mode, *a, **kw
+        )
+
+    monkeypatch.setattr(cli_train, "flow_map_rollout", _recording)
+    # The semigroup error pools the frames AFTER the first re-anchor only:
+    # the first T/2 queries of the k = 2 map share the anchor and the Δt of
+    # the direct map and are identical by construction (design §6).
+    spans: list[int] = []
+    real_semigroup = cli_train.semigroup_error
+
+    def _recording_semigroup(direct, composed, **kw):
+        spans.append(np.asarray(direct).shape[0])
+        return real_semigroup(direct, composed, **kw)
+
+    monkeypatch.setattr(cli_train, "semigroup_error", _recording_semigroup)
+    restart = cli_train.evaluate_restart(
+        ids["val"], data_root, out, "cpu", split_name="val"
+    )
+    assert seen and all(t == T and off == 3 - 2 + 1 for t, off, _ in seen), seen
+    assert sorted(i for _, _, i in seen) == [1, 2, 3]  # canonical 3, then T/k
+    assert restart["restart_kind"] == "state"
+    assert restart["eval_intervals"] == [1, 3]
+    assert restart["compositions"] == [1, 2]
+    rcase = restart["cases"][ids["val"][0]]
+    for metric in (
+        "rel_l2_displacement",
+        "position_rmse",
+        "rel_l2_state",
+        "state_rmse",
+    ):
+        assert np.isfinite(rcase[f"restart_a3_h2_{metric}"]), metric
+        assert np.isfinite(rcase[f"compose_T2_k1_{metric}"]), metric
+        assert np.isfinite(rcase[f"compose_T2_k2_{metric}"]), metric
+    assert np.isfinite(rcase["prop_semigroup_err"])
+    assert np.isfinite(restart["mean"]["prop_semigroup_err"])
+    # The k = 1 composition IS the single-anchor map on the window: with the
+    # canonical interval 3 >= horizon 2, the restart row equals it bit for bit
+    # (plan 3b gate), which also shows no state leaks between rollouts.
+    for metric in ("rel_l2_displacement", "position_rmse", "rel_l2_state"):
+        assert rcase[f"restart_a3_h2_{metric}"] == rcase[f"compose_T2_k1_{metric}"]
+    assert restart["train_max_dt"] is None  # flow_map_max_dt 0: uncapped
+    assert spans == [2 - 2 // 2]  # horizon 2: one composed frame
+    assert (out / "metrics-restart-val.json").exists()
 
     npz = np.load(out / "rollouts" / f"val-{ids['val'][0]}.npz")
     state = npz["predicted_state"]

@@ -27,6 +27,15 @@ from .properties import (
     state_sufficiency,
     yield_violation_rate,
 )
+from .restart import (
+    RESTART_FIELD_METRICS,
+    RESTART_KINDS,
+    RESTART_STATE_METRICS,
+    compose_keys,
+    restart_keys,
+    restart_window,
+    semigroup_error,
+)
 from .rollout import (
     RolloutResult,
     flow_map_rollout,
@@ -50,6 +59,13 @@ from .sensitivity import (
 )
 
 __all__ = [
+    "RESTART_FIELD_METRICS",
+    "RESTART_KINDS",
+    "RESTART_STATE_METRICS",
+    "compose_keys",
+    "restart_keys",
+    "restart_window",
+    "semigroup_error",
     "PROPERTY_KEYS",
     "closure_ratio",
     "error_growth",

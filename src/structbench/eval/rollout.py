@@ -537,6 +537,7 @@ def flow_map_rollout(
     kinematic_types: tuple[int, ...] = (),
     scored_frames: int | None = None,
     qoi_aux_channel: int | None = 0,
+    frame_offset: int = 0,
 ) -> RolloutResult:
     """Re-anchoring rollout for the anchored flow map (ADR-0062).
 
@@ -569,6 +570,13 @@ def flow_map_rollout(
         The re-anchoring interval ``m`` (frames per segment); ``>= 1``.
     anchor_mode:
         ``"self"`` or ``"oracle"`` (above).
+    frame_offset:
+        The trajectory's first frame as a frame of the full case (ADR-0075
+        clause 5, plan 3b): a restart rolls out on a window, and the absolute
+        anchor-time feature ``anchor_t_norm`` must name the true anchor,
+        ``(t0 + frame_offset) / (time_ref_frames - 1)``. The query offsets
+        ``Δt`` are relative to the anchor and unchanged. ``0`` for a whole
+        trajectory.
 
     Returns
     -------
@@ -621,7 +629,7 @@ def flow_map_rollout(
             pos[t0 - 1],
             pos[t0],
             aux_true[t0],
-            anchor_t_norm=t0 / (time_ref_frames - 1),
+            anchor_t_norm=(t0 + frame_offset) / (time_ref_frames - 1),
             **_anchor_kwargs(None if state_true is None else state_true[t0]),
         )
         for f in range(input_frames, n_frames):
@@ -653,7 +661,7 @@ def flow_map_rollout(
                     prev_a,
                     pos_a,
                     aux_a,
-                    anchor_t_norm=f / (time_ref_frames - 1),
+                    anchor_t_norm=(f + frame_offset) / (time_ref_frames - 1),
                     **_anchor_kwargs(state_a),
                 )
                 t0 = f

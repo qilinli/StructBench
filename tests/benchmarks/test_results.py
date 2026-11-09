@@ -175,3 +175,14 @@ def test_spec_accepts_result_with_known_splits():
     )
     wired = replace(spec, results=(good,))
     assert wired.results[0].label == "CGN baseline"
+
+
+# --- ADR-0075 clause 5 (plan 3b): what a result restarted from ---
+
+
+def test_restart_kind_defaults_blank_and_is_validated():
+    assert _result().restart_kind == ""
+    assert _result(restart_kind="state").restart_kind == "state"
+    assert _result(restart_kind="kinematic").restart_kind == "kinematic"
+    with pytest.raises(ValueError, match="restart_kind"):
+        _result(restart_kind="oracle")
