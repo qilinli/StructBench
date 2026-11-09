@@ -24,7 +24,10 @@ SI — ``response/element/sph/<aux_field>`` ``(n, P)`` for an SPH benchmark,
 else is read. Metrics follow the registry's: pooled relative L2 of the
 displacement (frame-0 reference) and of the aux field, mean per-frame RMSEs,
 the quantities of interest, each over the benchmark's scored span with its
-kinematic particles masked (ADR-0035, ADR-0039, ADR-0055).
+kinematic particles masked (ADR-0035, ADR-0039, ADR-0055), and the one
+property of ADR-0075's block a prediction file supports, the error growth
+(``prop_error_growth``; closure needs a one-step sweep and the constraint
+properties an element-site submission, which no benchmark has yet).
 
 The regeneration guard (clause 5) flags a set whose mean pooled relative L2
 on a field lies below the floor the card measured for it
@@ -51,6 +54,7 @@ from structbench.datasets import CaseTrajectory, load_case_trajectory
 from structbench.eval import (
     QoiInputs,
     coverage_bin,
+    error_growth,
     field_rmse,
     position_rmse,
     relative_l2_pooled,
@@ -151,8 +155,9 @@ def score_case(
     pred_pos: np.ndarray,
     pred_aux: np.ndarray,
     input_frames: int,
-) -> dict[str, float]:
-    """The registry's metrics for one case (mirrors the rollout's scoring)."""
+) -> dict[str, float | None]:
+    """The registry's metrics for one case (mirrors the rollout's scoring),
+    with ``prop_error_growth`` (ADR-0075 clause 6), ``None`` where undefined."""
     T = reference.time.shape[0]
     keep = ~np.isin(reference.particle_type, np.asarray(spec.kinematic_types))
     bound = spec.scored_frames_for(reference.case_id)
@@ -164,7 +169,14 @@ def score_case(
     true_aux = reference.aux[:, :, 0]
     u_pred = (full_pos - full_pos[0])[input_frames:][:n_scored]
     u_true = (true_pos - true_pos[0])[input_frames:][:n_scored]
-    out: dict[str, float] = {
+    pos_rmse = position_rmse(
+        full_pos[input_frames:][:n_scored],
+        true_pos[input_frames:][:n_scored],
+        keep=keep,
+    )
+    growth = error_growth(pos_rmse)
+    out: dict[str, float | None] = {
+        "prop_error_growth": growth if np.isfinite(growth) else None,
         "rollout_rel_l2_disp": float(relative_l2_pooled(u_pred, u_true, mask=keep)),
         "rollout_rel_l2_aux": float(
             relative_l2_pooled(
@@ -173,13 +185,7 @@ def score_case(
                 mask=keep,
             )
         ),
-        "rollout_pos_rmse_mm": float(
-            position_rmse(
-                full_pos[input_frames:][:n_scored],
-                true_pos[input_frames:][:n_scored],
-                keep=keep,
-            ).mean()
-        ),
+        "rollout_pos_rmse_mm": float(pos_rmse.mean()),
         "rollout_aux_rmse": float(
             field_rmse(
                 full_aux[input_frames:][:n_scored],
@@ -327,10 +333,10 @@ def score(
     metric_keys = sorted(
         {k for r in cases.values() for k in r if isinstance(r[k], float)}
     )
+    # A null (an undefined property) is left out of its mean, as evaluate does.
     mean = {
-        k: float(np.mean([r[k] for r in cases.values() if k in r]))
+        k: float(np.mean([r[k] for r in cases.values() if r.get(k) is not None]))
         for k in metric_keys
-        if any(k in r for r in cases.values())
     }
     by_set: dict[str, dict[str, dict[str, float]]] = {}
     for row in cases.values():
