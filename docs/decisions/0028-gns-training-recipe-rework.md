@@ -108,3 +108,10 @@ canonical artifacts of the selected checkpoint are never overwritten). This
 enables post-hoc SMOOTHED selection applied identically across recipe-fleet
 arms. The in-run selection rule this ADR set — best checkpoint on rollout
 position RMSE alone — is unchanged.*
+
+---
+
+*2026-11-10 — the selection rule is superseded by ADR-0077: `model-best` is
+selected on validation relative L2 of displacement, not on position RMSE in
+millimetres. Selection on position alone, never a sum with stress, stands.
+Runs before that record were selected as this one says.*

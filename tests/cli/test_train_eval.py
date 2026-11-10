@@ -621,6 +621,63 @@ def test_train_rejects_empty_windowed_dataset(tmp_path):
         )
 
 
+def test_training_validation_equals_the_evaluator(tmp_path, monkeypatch, caplog):
+    """The number the CGN loop selects a checkpoint on is the evaluator's
+    mean ``rollout_rel_l2_displacement`` for that checkpoint on the
+    validation split (ADR-0077), with a per-case scored bound (S-2 -> 5,
+    S-3 -> 6 of 6 frames). The millimetre number logged beside it is the
+    evaluator's ``rollout_position_rmse``, and the run record names the
+    selector. Mirrors the mesh-family tests of the same name.
+    """
+    import logging
+
+    import structbench.cli.train as train_mod
+
+    caplog.set_level(logging.INFO, logger="structbench.cli.train")
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for cid in ("S-1", "S-2", "S-3"):
+        _write_tiny_case(data_root, cid)
+    base = _local_spec()
+    spec = replace(
+        base,
+        card=replace(base.card, n_cases=3, splits={"train": 1, "val": 2}),
+        splits={"train": ("S-1",), "val": ("S-2", "S-3")},
+        scored_frames=lambda case_id: {"S-2": 5}.get(case_id, 6),
+    )
+    out_dir = tmp_path / "run"
+    train(
+        spec,
+        CGNConfig(**SMALL_CGN),
+        TrainConfig(
+            benchmark="seed-test-local",
+            batch_size=2,
+            training_steps=2,
+            val_every=2,
+            seed=1,
+        ),
+        data_root,
+        out_dir,
+        "cpu",
+    )
+    # CGN's line: step, train_loss, train_mean, val_rel_l2, val_pos, ...
+    ((val_rel, val_pos),) = [
+        (float(r.args[3]), float(r.args[4]))
+        for r in caplog.records
+        if r.name == "structbench.cli.train" and "val_rel_l2" in str(r.msg)
+    ]
+    # One validation pass, so the one checkpoint is the one it scored.
+    assert [p.name for p in out_dir.glob("model-*.pt")] == ["model-best-000002.pt"]
+
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    metrics = evaluate(["S-2", "S-3"], data_root, out_dir, "cpu", split_name="val")
+    mean = metrics["mean"]
+    assert mean["rollout_rel_l2_displacement"] == pytest.approx(val_rel, rel=1e-6)
+    assert mean["rollout_position_rmse"] == pytest.approx(val_pos, rel=1e-6)
+    record = json.loads((out_dir / "config.json").read_text(encoding="utf-8"))
+    assert record["run"]["checkpoint_selector"] == "val_rollout_rel_l2_displacement"
+
+
 def test_train_writes_periodic_checkpoints_outside_selection_glob(
     tmp_path, monkeypatch
 ):

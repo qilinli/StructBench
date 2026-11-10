@@ -317,3 +317,10 @@ chain: scratch/2026-09-08-flowmap-fleet-results.md,
 2026-09-09-flowmap-budget-fleet-results.md,
 2026-09-10-anchor-contraction-fleet-results.md,
 2026-09-12-pfkn-followup-fleet-results.md.
+
+---
+
+*2026-11-10 — the selection sentence of the in-training validation paragraph
+is superseded by ADR-0077: `model-best` is selected on validation relative L2
+of displacement. The mode it is measured in (self-anchored, canonical
+interval) stands. Runs before that record were selected on position RMSE.*

@@ -126,7 +126,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0025 | Wave 1D benchmark: task, split, and eval protocol | Durable | Accepted (amended by 0055, 0074; a task family added by 0075) |
 | 0026 | Notch-beam 2D benchmark pair: two benchmarks, tasks, splits, eval | Durable | Accepted (amended by 0029, 0039, 0055, 0056, 0074; amendments finalised by 0073; a task family added by 0075) |
 | 0027 | Benchmark cards: typed per-benchmark metadata with generated views | Durable | Accepted (amended by 0032; extended by 0036 and by the plan of 2026-11-08) |
-| 0028 | GNS baseline training-recipe rework after the first full run | Ephemeral | Accepted |
+| 0028 | GNS baseline training-recipe rework after the first full run | Ephemeral | Accepted (selection clause superseded by 0077) |
 | 0029 | Notch-beam aux is max principal strain, not K&C damage (amends 0026) | Durable | Accepted (amended in place 2026-08-06: 0.01 threshold declared, provisional flag resolved) |
 | 0030 | Concrete-Beam decks are kg-mm-ms; canonical data patched in place | Durable | Accepted |
 | 0031 | Data archive layout: canonical/raw mirrors named by benchmark | Ephemeral | Accepted (amended by 0037; the bend archive removed by 0056) |
@@ -159,7 +159,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0059 | Auxiliary state channels: `aux` generalises from `(T, P)` to `(T, P, C)` | Durable | Accepted (amended by 0075) |
 | 0060 | Aux channels as model inputs: the state-feedback surface (Transolver AR) | Durable | Accepted (2026-10-01; narrowed by 0062; line closed by 0064; amended by 0075) |
 | 0061 | State-feedback stability: input noise and pushforward on the state channel | Ephemeral | Accepted |
-| 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Ephemeral | Accepted (verdict note 2026-09-12; amended by 0075) |
+| 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Ephemeral | Accepted (verdict note 2026-09-12; amended by 0075; selection sentence superseded by 0077) |
 | 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Ephemeral | Accepted (amended 2026-09-10; verdict note 2026-09-12) |
 | 0064 | Constitutively-structured admissible heads: return-map decoder structure (D2/D3 by construction) + consistency-hinge comparator | Ephemeral | Accepted (note by 0073; amended by 0075) |
 | 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session; data standard fixed by 0073; clause 1 amended by 0074; follow-ups 1 and 3 by 0075, follow-up 2 by the plan of 2026-11-08, follow-up 4 by the README Roadmap of 2026-11-08) |
@@ -174,6 +174,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0074 | Open evaluation: blind sets, computed coverage, a results registry for external results (amends 0019, 0025, 0026, 0032, 0033, 0036, 0040, 0043, 0046, 0065, 0071, 0075) | Durable | Accepted (2026-11-08) |
 | 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted (amended by 0074; a second task family by 0076) |
 | 0076 | The gradient task family: a surrogate's sensitivities scored against the sweep's own differences (amends 0019, 0032, 0033, 0055, 0075; constrains 0074) | Durable | Accepted (2026-11-08) |
+| 0077 | Checkpoint selection on the reported metric: validation relative L2 of displacement (supersedes the selection clause of 0028 and the selection sentence of 0062) | Ephemeral | Accepted (2026-11-10) |
 
 ---
 

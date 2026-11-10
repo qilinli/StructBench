@@ -150,6 +150,12 @@ PERIODIC_CKPT_EVERY = 10_000
 DIVERGENCE_LOSS_CEILING = 100.0
 
 
+#: The validation line of the mesh-family loops. ``val_rel_l2`` selects
+#: ``model-best`` (ADR-0077); the millimetre number stays beside it,
+#: unselected, so logs from before the change compare.
+_VAL_LOG = "step %d: train_loss %.6f val_rel_l2 %.6f val_pos %.4f mm (best_rel_l2 %.6f)"
+
+
 class TrainingDiverged(RuntimeError):
     """A by-path run whose first validation shows it is not training.
 
@@ -746,13 +752,15 @@ def _validate(
     input_frames: int,
     device: str,
     kinematic_types: tuple[int, ...] = (),
-) -> tuple[float, float]:
-    """Mean rollout position RMSE (mm) and von Mises RMSE (MPa) over VAL.
+) -> tuple[float, float, float]:
+    """Mean rollout displacement relative L2, position RMSE (mm) and aux
+    RMSE (aux unit) over VAL, in that order.
 
-    The two channels are kept separate (ADR-0028): summing mm + MPa made the
-    in-training score 98% stress and let checkpoint selection ignore position
-    quality entirely. Selection uses the position channel; the ADR-0019
-    reported metrics come from :func:`evaluate`.
+    Selection reads the first (ADR-0077): the pooled relative L2 of
+    displacement, the number :func:`evaluate` writes as
+    ``rollout_rel_l2_displacement``. The other two are logged, unselected,
+    and kept apart (ADR-0028): a mm + MPa sum was 98% stress and let
+    selection ignore position quality entirely.
 
     Parameters
     ----------
@@ -761,9 +769,10 @@ def _validate(
         (ADR-0035); the benchmark card's protocol value.
     kinematic_types:
         Forwarded to :func:`rollout`; kinematic particles are excluded from
-        the reported RMSE (ADR-0026).
+        the reported numbers (ADR-0026).
     """
     simulator.eval()
+    rel_losses: list[float] = []
     pos_losses: list[float] = []
     aux_losses: list[float] = []
     for tr in trajectories:
@@ -774,11 +783,13 @@ def _validate(
             device,
             kinematic_types=kinematic_types,
         )
+        rel_losses.append(float(result.mean_rel_l2_displacement))
         pos_losses.append(float(result.position_rmse.mean()))
         aux_losses.append(float(result.aux_rmse.mean()))
     if not pos_losses:
-        return float("inf"), float("inf")
+        return float("inf"), float("inf"), float("inf")
     return (
+        sum(rel_losses) / len(rel_losses),
         sum(pos_losses) / len(pos_losses),
         sum(aux_losses) / len(aux_losses),
     )
@@ -869,7 +880,8 @@ def train(
     ``w_pos * ||Δacc||^2 + w_aux * (Δaux)^2``, where both the acceleration and
     the auxiliary targets are normalized so the two terms are O(1) and balanced.
     Every ``val_every`` steps it runs a validation rollout over the spec's val
-    split and saves the model when the mean RMSE improves. The resolved config
+    split and saves the model when the mean displacement relative L2 improves
+    (ADR-0077). The resolved config
     and normalization stats are written under ``out_dir``.
 
     Parameters
@@ -1128,7 +1140,7 @@ def train(
     )
 
     step = 0
-    best_pos = float("inf")
+    best_rel = float("inf")
     best_ckpt: Path | None = None
     window_loss_sum: torch.Tensor | None = None
     window_loss_n = 0
@@ -1212,7 +1224,7 @@ def train(
                 train_mean = (window_loss_sum / window_loss_n).item()
                 window_loss_sum = None
                 window_loss_n = 0
-                val_pos, val_aux = _validate(
+                val_rel, val_pos, val_aux = _validate(
                     simulator,
                     val_trajs,
                     cgn.input_frames,
@@ -1220,18 +1232,19 @@ def train(
                     spec.kinematic_types,
                 )
                 logger.info(
-                    "step %d: train_loss %.6f train_mean %.6f val_pos %.4f mm "
-                    "val_aux %.4f %s (best_pos %.4f)",
+                    "step %d: train_loss %.6f train_mean %.6f val_rel_l2 %.6f "
+                    "val_pos %.4f mm val_aux %.4f %s (best_rel_l2 %.6f)",
                     step,
                     loss.item(),
                     train_mean,
+                    val_rel,
                     val_pos,
                     val_aux,
                     spec.card.aux_unit,
-                    best_pos,
+                    best_rel,
                 )
-                if val_pos < best_pos:
-                    best_pos = val_pos
+                if val_rel < best_rel:
+                    best_rel = val_rel
                     best_ckpt = out_dir / f"model-best-{step:06d}.pt"
                     simulator.save(str(best_ckpt))
                     logger.info("saved improved checkpoint: %s", best_ckpt)
@@ -1287,7 +1300,8 @@ def _train_mgn(
     steps the simulator is switched to eval mode and rolled out (via
     :func:`~structbench.eval.rollout`, after :meth:`bind_case`/
     :meth:`reset_rollout` per trajectory) over ``val_trajs``; the model is
-    saved as ``model-best-<step>.pt`` when the mean position RMSE improves.
+    saved as ``model-best-<step>.pt`` when the mean displacement relative L2
+    improves (ADR-0077).
     Every :data:`PERIODIC_CKPT_EVERY` steps it additionally snapshots
     ``ckpt-<step>.pt`` for post-hoc analysis (never read by default
     evaluation), mirroring the CGN loop.
@@ -1387,7 +1401,7 @@ def _train_mgn(
     )
 
     step = 0
-    best_pos = float("inf")
+    best_rel = float("inf")
     best_ckpt: Path | None = None
     sim.train()
     while step < train_cfg.training_steps:
@@ -1446,6 +1460,7 @@ def _train_mgn(
             if step % train_cfg.val_every == 0:
                 sim.eval()
                 pos_losses: list[float] = []
+                rel_losses: list[float] = []
                 with torch.no_grad():
                     for tr in val_trajs:
                         sim.bind_case(
@@ -1464,18 +1479,17 @@ def _train_mgn(
                             scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
+                        rel_losses.append(float(result.mean_rel_l2_displacement))
                 val_pos = (
                     sum(pos_losses) / len(pos_losses) if pos_losses else float("inf")
                 )
-                logger.info(
-                    "step %d: train_loss %.6f val_pos %.4f mm (best_pos %.4f)",
-                    step,
-                    loss.item(),
-                    val_pos,
-                    best_pos,
+                # ADR-0077: the selector, the evaluator's headline number.
+                val_rel = (
+                    sum(rel_losses) / len(rel_losses) if rel_losses else float("inf")
                 )
-                if val_pos < best_pos:
-                    best_pos = val_pos
+                logger.info(_VAL_LOG, step, loss.item(), val_rel, val_pos, best_rel)
+                if val_rel < best_rel:
+                    best_rel = val_rel
                     best_ckpt = out_dir / f"model-best-{step:06d}.pt"
                     sim.save(str(best_ckpt))
                     logger.info("saved improved checkpoint: %s", best_ckpt)
@@ -1762,7 +1776,8 @@ def _train_transolver(
     eval mode and rolled out (via :func:`~structbench.eval.rollout`, after
     :meth:`bind_case`/:meth:`reset_rollout` per trajectory) over
     ``val_trajs``; the model is saved as ``model-best-<step>.pt`` when the
-    mean position RMSE improves. Every :data:`PERIODIC_CKPT_EVERY` steps it
+    mean displacement relative L2 improves (ADR-0077). Every
+    :data:`PERIODIC_CKPT_EVERY` steps it
     additionally snapshots ``ckpt-<step>.pt`` for post-hoc analysis (never
     read by default evaluation), mirroring the CGN/MGN loops.
 
@@ -1950,7 +1965,7 @@ def _train_transolver(
     )
 
     step = 0
-    best_pos = float("inf")
+    best_rel = float("inf")
     best_ckpt: Path | None = None
     sim.train()
     while step < train_cfg.training_steps:
@@ -2109,6 +2124,7 @@ def _train_transolver(
             if step % train_cfg.val_every == 0:
                 sim.eval()
                 pos_losses: list[float] = []
+                rel_losses: list[float] = []
                 with torch.no_grad():
                     for tr in val_trajs:
                         sim.bind_case(
@@ -2138,18 +2154,17 @@ def _train_transolver(
                             scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
+                        rel_losses.append(float(result.mean_rel_l2_displacement))
                 val_pos = (
                     sum(pos_losses) / len(pos_losses) if pos_losses else float("inf")
                 )
-                logger.info(
-                    "step %d: train_loss %.6f val_pos %.4f mm (best_pos %.4f)",
-                    step,
-                    loss.item(),
-                    val_pos,
-                    best_pos,
+                # ADR-0077: the selector, the evaluator's headline number.
+                val_rel = (
+                    sum(rel_losses) / len(rel_losses) if rel_losses else float("inf")
                 )
-                if val_pos < best_pos:
-                    best_pos = val_pos
+                logger.info(_VAL_LOG, step, loss.item(), val_rel, val_pos, best_rel)
+                if val_rel < best_rel:
+                    best_rel = val_rel
                     best_ckpt = out_dir / f"model-best-{step:06d}.pt"
                     sim.save(str(best_ckpt))
                     logger.info("saved improved checkpoint: %s", best_ckpt)
@@ -2330,7 +2345,8 @@ def _train_transolver_fm(
     queries only. Targets, loss shape, optimizer recipe, and normalizer
     warmup mirror :func:`_train_transolver_tc`; validation runs the
     SELF-ANCHORED re-anchoring rollout at the canonical interval (the
-    deployable mode, ADR-0062) and selects on its mean position RMSE.
+    deployable mode, ADR-0062) and selects on its mean displacement relative
+    L2 (ADR-0077).
     """
     if cfg.noise_std:
         logger.warning(
@@ -2502,7 +2518,7 @@ def _train_transolver_fm(
     )
 
     step = 0
-    best_pos = float("inf")
+    best_rel = float("inf")
     best_ckpt: Path | None = None
     sim.train()
     while step < train_cfg.training_steps:
@@ -2856,6 +2872,7 @@ def _train_transolver_fm(
             if step % train_cfg.val_every == 0:
                 sim.eval()
                 pos_losses: list[float] = []
+                rel_losses: list[float] = []
                 with torch.no_grad():
                     for tr in val_trajs:
                         sim.bind_case(
@@ -2894,17 +2911,16 @@ def _train_transolver_fm(
                             scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
+                        rel_losses.append(float(result.mean_rel_l2_displacement))
                 val_pos = (
                     sum(pos_losses) / len(pos_losses) if pos_losses else float("inf")
                 )
-                logger.info(
-                    "step %d: train_loss %.6f val_pos %.4f mm (best_pos %.4f)",
-                    step,
-                    loss.item(),
-                    val_pos,
-                    best_pos,
+                # ADR-0077: the selector, the evaluator's headline number.
+                val_rel = (
+                    sum(rel_losses) / len(rel_losses) if rel_losses else float("inf")
                 )
-                if best_pos == float("inf") and spec.source is not None and val_trajs:
+                logger.info(_VAL_LOG, step, loss.item(), val_rel, val_pos, best_rel)
+                if best_rel == float("inf") and spec.source is not None and val_trajs:
                     # A by-path arm dies at its first validation, not hours
                     # later (TrainingDiverged).
                     reason = _early_divergence(
@@ -2912,8 +2928,8 @@ def _train_transolver_fm(
                     )
                     if reason is not None:
                         raise TrainingDiverged(f"step {step}: {reason}")
-                if val_pos < best_pos:
-                    best_pos = val_pos
+                if val_rel < best_rel:
+                    best_rel = val_rel
                     best_ckpt = out_dir / f"model-best-{step:06d}.pt"
                     sim.save(str(best_ckpt))
                     logger.info("saved improved checkpoint: %s", best_ckpt)
@@ -2956,7 +2972,7 @@ def _train_transolver_tc(
     grad-norm clip) and the online-normalizer warmup mirror
     :func:`_train_transolver`; validation rolls out the independent-query
     :func:`~structbench.eval.time_conditioned_rollout` per case and selects on
-    its mean position RMSE.
+    its mean displacement relative L2 (ADR-0077).
 
     The normalized query time is ``t = frame / (time_ref_frames - 1)``, with
     ``time_ref_frames`` fixed via :func:`_tc_time_ref_frames` so train and eval
@@ -3078,7 +3094,7 @@ def _train_transolver_tc(
     )
 
     step = 0
-    best_pos = float("inf")
+    best_rel = float("inf")
     best_ckpt: Path | None = None
     sim.train()
     while step < train_cfg.training_steps:
@@ -3172,6 +3188,7 @@ def _train_transolver_tc(
             if step % train_cfg.val_every == 0:
                 sim.eval()
                 pos_losses: list[float] = []
+                rel_losses: list[float] = []
                 with torch.no_grad():
                     for tr in val_trajs:
                         sim.bind_case(
@@ -3198,18 +3215,17 @@ def _train_transolver_tc(
                             scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
+                        rel_losses.append(float(result.mean_rel_l2_displacement))
                 val_pos = (
                     sum(pos_losses) / len(pos_losses) if pos_losses else float("inf")
                 )
-                logger.info(
-                    "step %d: train_loss %.6f val_pos %.4f mm (best_pos %.4f)",
-                    step,
-                    loss.item(),
-                    val_pos,
-                    best_pos,
+                # ADR-0077: the selector, the evaluator's headline number.
+                val_rel = (
+                    sum(rel_losses) / len(rel_losses) if rel_losses else float("inf")
                 )
-                if val_pos < best_pos:
-                    best_pos = val_pos
+                logger.info(_VAL_LOG, step, loss.item(), val_rel, val_pos, best_rel)
+                if val_rel < best_rel:
+                    best_rel = val_rel
                     best_ckpt = out_dir / f"model-best-{step:06d}.pt"
                     sim.save(str(best_ckpt))
                     logger.info("saved improved checkpoint: %s", best_ckpt)
@@ -3252,7 +3268,7 @@ def _train_geoflare_tc(
     grad-norm clip) and the online-normalizer warmup mirror
     :func:`_train_geoflare`; validation rolls out the independent-query
     :func:`~structbench.eval.time_conditioned_rollout` per case and selects on
-    its mean position RMSE.
+    its mean displacement relative L2 (ADR-0077).
 
     The normalized query time is ``t = frame / (time_ref_frames - 1)``, with
     ``time_ref_frames`` fixed via :func:`_tc_time_ref_frames` so train and eval
@@ -3351,7 +3367,7 @@ def _train_geoflare_tc(
     )
 
     step = 0
-    best_pos = float("inf")
+    best_rel = float("inf")
     best_ckpt: Path | None = None
     sim.train()
     while step < train_cfg.training_steps:
@@ -3406,6 +3422,7 @@ def _train_geoflare_tc(
             if step % train_cfg.val_every == 0:
                 sim.eval()
                 pos_losses: list[float] = []
+                rel_losses: list[float] = []
                 with torch.no_grad():
                     for tr in val_trajs:
                         sim.bind_case(
@@ -3432,18 +3449,17 @@ def _train_geoflare_tc(
                             scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
+                        rel_losses.append(float(result.mean_rel_l2_displacement))
                 val_pos = (
                     sum(pos_losses) / len(pos_losses) if pos_losses else float("inf")
                 )
-                logger.info(
-                    "step %d: train_loss %.6f val_pos %.4f mm (best_pos %.4f)",
-                    step,
-                    loss.item(),
-                    val_pos,
-                    best_pos,
+                # ADR-0077: the selector, the evaluator's headline number.
+                val_rel = (
+                    sum(rel_losses) / len(rel_losses) if rel_losses else float("inf")
                 )
-                if val_pos < best_pos:
-                    best_pos = val_pos
+                logger.info(_VAL_LOG, step, loss.item(), val_rel, val_pos, best_rel)
+                if val_rel < best_rel:
+                    best_rel = val_rel
                     best_ckpt = out_dir / f"model-best-{step:06d}.pt"
                     sim.save(str(best_ckpt))
                     logger.info("saved improved checkpoint: %s", best_ckpt)
@@ -3513,7 +3529,8 @@ def _train_geoflare(
     out (via :func:`~structbench.eval.rollout`, after
     :meth:`bind_case`/:meth:`reset_rollout` per trajectory) over
     ``val_trajs``; the model is saved as ``model-best-<step>.pt`` when the
-    mean position RMSE improves. Every :data:`PERIODIC_CKPT_EVERY` steps it
+    mean displacement relative L2 improves (ADR-0077). Every
+    :data:`PERIODIC_CKPT_EVERY` steps it
     additionally snapshots ``ckpt-<step>.pt`` for post-hoc analysis (never
     read by default evaluation), mirroring the CGN/MGN/Transolver loops.
 
@@ -3626,7 +3643,7 @@ def _train_geoflare(
     )
 
     step = 0
-    best_pos = float("inf")
+    best_rel = float("inf")
     best_ckpt: Path | None = None
     sim.train()
     while step < train_cfg.training_steps:
@@ -3685,6 +3702,7 @@ def _train_geoflare(
             if step % train_cfg.val_every == 0:
                 sim.eval()
                 pos_losses: list[float] = []
+                rel_losses: list[float] = []
                 with torch.no_grad():
                     for tr in val_trajs:
                         sim.bind_case(
@@ -3709,18 +3727,17 @@ def _train_geoflare(
                             scored_frames=spec.scored_frames_for(tr.case_id),
                         )
                         pos_losses.append(float(result.position_rmse.mean()))
+                        rel_losses.append(float(result.mean_rel_l2_displacement))
                 val_pos = (
                     sum(pos_losses) / len(pos_losses) if pos_losses else float("inf")
                 )
-                logger.info(
-                    "step %d: train_loss %.6f val_pos %.4f mm (best_pos %.4f)",
-                    step,
-                    loss.item(),
-                    val_pos,
-                    best_pos,
+                # ADR-0077: the selector, the evaluator's headline number.
+                val_rel = (
+                    sum(rel_losses) / len(rel_losses) if rel_losses else float("inf")
                 )
-                if val_pos < best_pos:
-                    best_pos = val_pos
+                logger.info(_VAL_LOG, step, loss.item(), val_rel, val_pos, best_rel)
+                if val_rel < best_rel:
+                    best_rel = val_rel
                     best_ckpt = out_dir / f"model-best-{step:06d}.pt"
                     sim.save(str(best_ckpt))
                     logger.info("saved improved checkpoint: %s", best_ckpt)

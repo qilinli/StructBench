@@ -367,12 +367,13 @@ def _per_case_bound(case_id: str) -> int:
     return 5 + int(case_id.rsplit("_", 1)[1]) if case_id.startswith("val") else 8
 
 
-def _logged_val_pos(caplog) -> list[float]:
-    """The validation numbers the training loop selected on, unrounded."""
+def _logged_validation(caplog) -> list[tuple[float, float]]:
+    """Each validation pass's (selection number, position RMSE in mm) as the
+    training loop logged them, unrounded."""
     return [
-        float(r.args[2])
+        (float(r.args[2]), float(r.args[3]))
         for r in caplog.records
-        if r.name == "structbench.cli.train" and "val_pos" in str(r.msg)
+        if r.name == "structbench.cli.train" and "val_rel_l2" in str(r.msg)
     ]
 
 
@@ -395,8 +396,10 @@ def test_training_validation_equals_the_evaluator(
     tmp_path, monkeypatch, caplog, scheme
 ):
     """The number the training loop selects a checkpoint on is the
-    evaluator's ``rollout_position_rmse`` for that checkpoint, on the same
-    split and protocol, in every Transolver loop.
+    evaluator's mean ``rollout_rel_l2_displacement`` for that checkpoint, on
+    the same split and protocol, in every Transolver loop (ADR-0077). The
+    millimetre number logged beside it is the evaluator's
+    ``rollout_position_rmse``, and the run record names the selector.
 
     The benchmark scores each case to its own bound, shorter than the
     trajectories the run trains on, so in-training validation holds
@@ -415,13 +418,17 @@ def test_training_validation_equals_the_evaluator(
         val_every=25,
         **scheme,
     )
-    (val_pos,) = _logged_val_pos(caplog)
+    ((val_rel, val_pos),) = _logged_validation(caplog)
     # One validation pass, so the one checkpoint is the one it scored.
     assert [p.name for p in out.glob("model-*.pt")] == ["model-best-000025.pt"]
 
     monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
-    assert metrics["mean"]["rollout_position_rmse"] == pytest.approx(val_pos, rel=1e-6)
+    mean = metrics["mean"]
+    assert mean["rollout_rel_l2_displacement"] == pytest.approx(val_rel, rel=1e-6)
+    assert mean["rollout_position_rmse"] == pytest.approx(val_pos, rel=1e-6)
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    assert record["run"]["checkpoint_selector"] == "val_rollout_rel_l2_displacement"
 
 
 def test_transolver_pushforward_helper_shapes_and_grad_through_bundle2():
