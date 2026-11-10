@@ -1384,6 +1384,13 @@ def _git_commit() -> str:
     return result.stdout.strip() if result.returncode == 0 else "unknown"
 
 
+#: What ``model-best`` is selected on, recorded as ``run.checkpoint_selector``
+#: (ADR-0077): the mean over validation cases of the pooled relative L2 of
+#: displacement. A run record without the key was selected on validation
+#: rollout position RMSE in millimetres (ADR-0028).
+CHECKPOINT_SELECTOR = "val_rollout_rel_l2_displacement"
+
+
 def resolved_config_dict(
     family: str,
     model: Any,
@@ -1424,6 +1431,7 @@ def resolved_config_dict(
         "benchmark": train.benchmark,
         "seed": train.seed,
         "commit": _git_commit(),
+        "checkpoint_selector": CHECKPOINT_SELECTOR,
     }
     if definition is not None:
         run["definition"] = dict(definition)

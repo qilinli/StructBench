@@ -302,7 +302,9 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
 def _huge_rollout(*args, **kwargs):
     """A flow_map_rollout stand-in whose position RMSE is not a deformation
     of the body at all (kilometres on a millimetre mesh)."""
-    return SimpleNamespace(position_rmse=np.full((T - 2,), 1e6))
+    return SimpleNamespace(
+        position_rmse=np.full((T - 2,), 1e6), mean_rel_l2_displacement=1e6
+    )
 
 
 def test_by_path_arm_dies_at_its_first_validation_when_not_training(

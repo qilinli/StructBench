@@ -241,11 +241,13 @@ def test_training_validation_equals_the_evaluator(
     tmp_path, monkeypatch, caplog, time_conditioned
 ):
     """The number the training loop selects a checkpoint on is the
-    evaluator's ``rollout_position_rmse`` for that checkpoint (same split,
-    same protocol) on a benchmark whose per-case scored bound is shorter
-    than the trajectories the run trains on. Mirrors the Transolver test of
-    the same name; the time-conditioned loop once re-derived its time
-    reference from the truncated validation trajectory.
+    evaluator's mean ``rollout_rel_l2_displacement`` for that checkpoint
+    (ADR-0077; same split, same protocol) on a benchmark whose per-case
+    scored bound is shorter than the trajectories the run trains on. The
+    millimetre number logged beside it is the evaluator's
+    ``rollout_position_rmse``. Mirrors the Transolver test of the same name;
+    the time-conditioned loop once re-derived its time reference from the
+    truncated validation trajectory.
     """
     import structbench.cli.train as cli_train
 
@@ -258,13 +260,17 @@ def test_training_validation_equals_the_evaluator(
         training_steps=25,
         val_every=25,
     )
-    (val_pos,) = [
-        float(r.args[2])
+    ((val_rel, val_pos),) = [
+        (float(r.args[2]), float(r.args[3]))
         for r in caplog.records
-        if r.name == "structbench.cli.train" and "val_pos" in str(r.msg)
+        if r.name == "structbench.cli.train" and "val_rel_l2" in str(r.msg)
     ]
     assert [p.name for p in out.glob("model-*.pt")] == ["model-best-000025.pt"]
 
     monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
-    assert metrics["mean"]["rollout_position_rmse"] == pytest.approx(val_pos, rel=1e-6)
+    mean = metrics["mean"]
+    assert mean["rollout_rel_l2_displacement"] == pytest.approx(val_rel, rel=1e-6)
+    assert mean["rollout_position_rmse"] == pytest.approx(val_pos, rel=1e-6)
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    assert record["run"]["checkpoint_selector"] == "val_rollout_rel_l2_displacement"

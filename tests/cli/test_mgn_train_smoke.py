@@ -7,9 +7,13 @@ run directory (Task 4a's no-stats-file / per-case bind-reset branch, the only
 end-to-end coverage it has).
 """
 
+import json
+import logging
 import math
+from dataclasses import replace
 
 import numpy as np
+import pytest
 import torch
 
 from structbench.benchmarks.card import BenchmarkCard
@@ -81,7 +85,9 @@ def _write_cases(root, ids):
         write_case(case, root / f"{cid}.h5")
 
 
-def _run_mgn_smoke(tmp_path):
+def _run_mgn_smoke(
+    tmp_path, scored_frames=None, n_val: int = 1, training_steps=12, val_every=6
+):
     """Shared spec/data/train setup for both smoke tests below.
 
     Builds the tiny synthetic mesh benchmark, writes its cases, and runs a
@@ -94,9 +100,9 @@ def _run_mgn_smoke(tmp_path):
     torch.manual_seed(0)
     ids = {
         "train": [f"train_{i:04d}" for i in range(4)],
-        "val": ["val_0000"],
+        "val": [f"val_{i:04d}" for i in range(n_val)],
     }
-    spec = _mini_spec(ids)
+    spec = replace(_mini_spec(ids), scored_frames=scored_frames)
     data_root = tmp_path / "data"
     data_root.mkdir()
     _write_cases(data_root, [c for v in ids.values() for c in v])
@@ -110,8 +116,8 @@ def _run_mgn_smoke(tmp_path):
     tcfg = TrainConfig(
         benchmark="MgnSmoke",
         batch_size=2,
-        training_steps=12,
-        val_every=6,
+        training_steps=training_steps,
+        val_every=val_every,
     )
     out = tmp_path / "run"
     train(spec, mgn, tcfg, data_root, out, "cpu", family="mgn")
@@ -189,3 +195,44 @@ def test_mgn_evaluate_smoke(tmp_path, monkeypatch):
     assert all(
         isinstance(v, float) and math.isfinite(v) for v in qoi_abs_error.values()
     )
+
+
+def _per_case_bound(case_id: str) -> int:
+    """A scored bound that differs per case and is shorter than the T=8 the
+    run trains on (val_0000 -> 5, val_0001 -> 6; every TRAIN case -> 8)."""
+    return 5 + int(case_id.rsplit("_", 1)[1]) if case_id.startswith("val") else 8
+
+
+def test_training_validation_equals_the_evaluator(tmp_path, monkeypatch, caplog):
+    """The number the MGN loop selects a checkpoint on is the evaluator's
+    mean ``rollout_rel_l2_displacement`` for that checkpoint on the
+    validation split (ADR-0077), with a per-case scored bound shorter than
+    the trajectories the run trains on. The millimetre number logged beside
+    it is the evaluator's ``rollout_position_rmse``, and the run record
+    names the selector. Mirrors the Transolver test of the same name.
+    """
+    import structbench.cli.train as cli_train
+
+    caplog.set_level(logging.INFO, logger="structbench.cli.train")
+    spec, data_root, out, _mgn, _tcfg, ids = _run_mgn_smoke(
+        tmp_path,
+        scored_frames=_per_case_bound,
+        n_val=2,
+        training_steps=6,
+        val_every=6,
+    )
+    ((val_rel, val_pos),) = [
+        (float(r.args[2]), float(r.args[3]))
+        for r in caplog.records
+        if r.name == "structbench.cli.train" and "val_rel_l2" in str(r.msg)
+    ]
+    # One validation pass, so the one checkpoint is the one it scored.
+    assert [p.name for p in out.glob("model-*.pt")] == ["model-best-000006.pt"]
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    mean = metrics["mean"]
+    assert mean["rollout_rel_l2_displacement"] == pytest.approx(val_rel, rel=1e-6)
+    assert mean["rollout_position_rmse"] == pytest.approx(val_pos, rel=1e-6)
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    assert record["run"]["checkpoint_selector"] == "val_rollout_rel_l2_displacement"

@@ -36,7 +36,7 @@ DATA=/data/curtin_eecms/curtin_qilin/data/wave_propagation_1d
 nvidia-smi
 python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 
-# train -> best checkpoint (selected on rollout position RMSE, ADR-0028)
+# train -> best checkpoint (selected on validation displacement relative L2, ADR-0077)
 # + config.json + normalization_stats.npz. Logs tee into the run dir so
 # summarization never depends on slurm-* files.
 python -m structbench.cli.train --mode train   --config configs/wave_propagation_1d/cgn.toml --data-root "$DATA" --out "$OUT" 2>&1 | tee "$OUT/train.log"

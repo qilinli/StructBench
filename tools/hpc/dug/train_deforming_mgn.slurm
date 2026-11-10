@@ -46,7 +46,7 @@ DATA=${DATA:-/data/curtin_eecms/curtin_qilin/data/deforming_plate}
 nvidia-smi
 python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 
-# train -> model-best-<step>.pt (selected on val rollout position RMSE every
+# train -> model-best-<step>.pt (selected on val displacement relative L2, ADR-0077, every
 # val_every=50k) + periodic ckpt-<step>.pt every 10k (analysis-only) +
 # config.json. MGN checkpoints are self-contained (normalizer buffers in the
 # state_dict; no normalization_stats.npz — ADR-0043 §8).
