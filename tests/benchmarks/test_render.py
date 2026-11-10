@@ -976,8 +976,8 @@ HEAD = "_Headline — pooled relative L2 (↓ better)_"
 
 
 def test_properties_tier_leads_with_empty_cells_on_a_nodal_benchmark():
-    # The shipped Taylor rows report no property yet: the tier still renders,
-    # first, with the two columns the benchmark defines and dash cells.
+    # The tier renders first, with the two columns the benchmark defines; a row
+    # that reports no property (the shipped Taylor MGN row) shows dash cells.
     text = render_benchmark_page(get_benchmark("taylor_impact_2d"), "taylor_impact_2d")
     assert PROPS in text and HEAD in text
     assert text.index("## Results registry") < text.index(PROPS) < text.index(HEAD)
@@ -985,7 +985,7 @@ def test_properties_tier_leads_with_empty_cells_on_a_nodal_benchmark():
     assert (
         "| Method | Scheme | interp·closure | interp·error growth (/frame) |" in section
     )
-    assert "| CGN | autoregressive | — | — |" in section
+    assert "| MGN | autoregressive | — | — |" in section
     assert "An empty cell is a property the result has not yet reported" in section
     assert "no property gates (ADR-0075 clause 6)" in section
 

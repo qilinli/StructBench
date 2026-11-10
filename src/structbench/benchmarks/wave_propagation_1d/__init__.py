@@ -62,6 +62,8 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-07-10",
         metrics={
             "test_interp": {
+                "prop_closure_ratio": 190.2,
+                "prop_error_growth": 0.01557,
                 "rollout_rel_l2_disp": 0.3507,
                 "rollout_rel_l2_aux": 0.9025,
                 "rollout_pos_rmse_mm": 0.8750,
@@ -118,6 +120,8 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-08-28",
         metrics={
             "test_interp": {
+                "prop_closure_ratio": 416.1,
+                "prop_error_growth": 0.008812,
                 "rollout_rel_l2_disp": 1.566,
                 "rollout_rel_l2_aux": 2.079,
                 "rollout_pos_rmse_mm": 5.363,

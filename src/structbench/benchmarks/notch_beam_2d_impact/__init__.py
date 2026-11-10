@@ -114,6 +114,8 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-07-24",
         metrics={
             "test_interp": {
+                "prop_closure_ratio": 360.0,
+                "prop_error_growth": 0.01985,
                 "rollout_rel_l2_disp": 0.2827,
                 "rollout_rel_l2_aux": 0.5876,
                 "rollout_pos_rmse_mm": 0.2497,
@@ -124,6 +126,8 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_cracked_fraction_mae": 0.1892,
             },
             "probe": {
+                "prop_closure_ratio": 563.6,
+                "prop_error_growth": 0.02054,
                 "rollout_rel_l2_disp": 0.5905,
                 "rollout_rel_l2_aux": 0.8535,
                 "rollout_pos_rmse_mm": 0.3951,

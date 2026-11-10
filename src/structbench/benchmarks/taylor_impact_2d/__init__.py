@@ -107,6 +107,8 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-07-08",
         metrics={
             "test_interp": {
+                "prop_closure_ratio": 382.3,
+                "prop_error_growth": 0.02501,
                 "rollout_rel_l2_disp": 0.1299,
                 "rollout_rel_l2_aux": 0.3223,
                 "rollout_pos_rmse_mm": 1.274,
@@ -119,6 +121,8 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_t_peak_vm_mae_ms": 0.003993,
             },
             "test_extrap": {
+                "prop_closure_ratio": 1643.0,
+                "prop_error_growth": 0.02438,
                 "rollout_rel_l2_disp": 0.5547,
                 "rollout_rel_l2_aux": 0.4531,
                 "rollout_pos_rmse_mm": 7.645,

@@ -124,8 +124,8 @@ _Properties — reported before accuracy (ADR-0075)_
 
 | Method | Scheme | interp·closure | interp·error growth (/frame) |
 |---|---|---|---|
-| CGN | autoregressive | — | — |
-| MGN | autoregressive | — | — |
+| CGN | autoregressive | 190.20000 | 0.01557 |
+| MGN | autoregressive | 416.10000 | 0.00881 |
 | Transolver | autoregressive | 310.10000 | 0.00473 |
 | Transolver | time-conditioned | — | 0.00312 |
 | GeoFLARE | autoregressive | 202.60000 | 0.00487 |
