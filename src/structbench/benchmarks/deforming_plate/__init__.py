@@ -69,6 +69,8 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-08-17",
         metrics={
             "test": {
+                "prop_closure_ratio": 23.69,
+                "prop_error_growth": 0.005373,
                 "rollout_rel_l2_disp": 0.5013,
                 "rollout_rel_l2_aux": 0.3630,
                 "rollout_pos_rmse_mm": 15.45,
@@ -129,6 +131,8 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-08-18",
         metrics={
             "test": {
+                "prop_closure_ratio": 6.441,
+                "prop_error_growth": 0.004834,
                 "rollout_rel_l2_disp": 0.1437,
                 "rollout_rel_l2_aux": 0.1777,
                 "rollout_pos_rmse_mm": 3.018,
@@ -181,6 +185,7 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-08-18",
         metrics={
             "test": {
+                "prop_error_growth": 0.004455,
                 "rollout_rel_l2_disp": 0.1538,
                 "rollout_rel_l2_aux": 0.1993,
                 "rollout_pos_rmse_mm": 3.454,
@@ -238,6 +243,7 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-08-18",
         metrics={
             "test": {
+                "prop_error_growth": 0.004556,
                 "rollout_rel_l2_disp": 0.1580,
                 "rollout_rel_l2_aux": 0.2054,
                 "rollout_pos_rmse_mm": 3.322,
@@ -280,6 +286,8 @@ RESULTS: tuple[BaselineResult, ...] = (
         run_date="2026-08-18",
         metrics={
             "test": {
+                "prop_closure_ratio": 16.38,
+                "prop_error_growth": 0.005257,
                 "rollout_rel_l2_disp": 0.3828,
                 "rollout_rel_l2_aux": 0.2935,
                 "rollout_pos_rmse_mm": 4.064,

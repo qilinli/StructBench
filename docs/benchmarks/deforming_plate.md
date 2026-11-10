@@ -118,11 +118,11 @@ _Properties — reported before accuracy (ADR-0075)_
 
 | Method | Scheme | test·closure | test·error growth (/frame) |
 |---|---|---|---|
-| MGN | autoregressive | — | — |
-| Transolver | autoregressive | — | — |
-| Transolver | time-conditioned | — | — |
-| Transolver++ | time-conditioned | — | — |
-| GeoFLARE | autoregressive | — | — |
+| MGN | autoregressive | 23.69000 | 0.00537 |
+| Transolver | autoregressive | 6.44100 | 0.00483 |
+| Transolver | time-conditioned | — | 0.00445 |
+| Transolver++ | time-conditioned | — | 0.00456 |
+| GeoFLARE | autoregressive | 16.38000 | 0.00526 |
 | GeoFLARE | time-conditioned | — | — |
 
 _An empty cell is a property the result has not yet reported; no property gates (ADR-0075 clause 6)._
