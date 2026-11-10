@@ -19,10 +19,18 @@ time. Platform implementation only.*
    but the checkpoint StructBench trained on it is StructBench's own
    artifact under the repository licence. A model repo and a dataset repo
    may share a name.
-2. **What is uploaded.** The whole bundle of ADR-0037 clause 2 (the run
-   directory with `SHA256SUMS` and `provenance/`), under its bundle name
-   `<family>-<run_commit>/` at the repo root, plus a generated model-card
-   `README.md`. Nothing is trimmed: the evidence unit is the run directory.
+2. **What is uploaded.** The minimum that runs and checks the model
+   (maintainer, 2026-11-10, replacing this plan's first choice of the whole
+   bundle): the registered checkpoint, `config.json`,
+   `normalization_stats.npz` when the run has one, the `metrics-<split>.json`
+   of the row's scored splits and a `SHA256SUMS` of those files, under the
+   bundle name `<family>-<run_commit>/` at the repo root, plus a generated
+   model-card `README.md`. Logs, `provenance/`, rollouts and the
+   unregistered checkpoints stay in the private bundle (they are working
+   records and carry local paths); the JSON files are rewritten without
+   `data_root` and with `checkpoint_path` reduced to the file name, and any
+   other absolute path stops the staging. The private bundle of ADR-0037 is
+   unchanged and remains the evidence unit.
 3. **Which rows.** The blessed rows of every registry (ADR-0074 clause 8
    says *blessed*); provisional rows only on `--include-provisional`, which
    the release session decides. A row whose pointer is already a URL is
@@ -37,6 +45,9 @@ time. Platform implementation only.*
    digest equals both the listed one and the registry's
    `checkpoint_sha256`; a registry row without a digest is a problem, not
    a pass.
+   A row whose private bundle is not assembled is staged from its run
+   directory (`--run-dir <bundle>=<dir>`): no `SHA256SUMS` is asked of it,
+   and the registry digest alone identifies the checkpoint.
 6. **Who runs it.** ADR-0023's 2026-08-28 amendment puts Hugging Face
    data-release actions on the `StructBench/*` *dataset* repos in the
    on-instruction tier. Model repos are not named there. Until the
@@ -51,7 +62,8 @@ time. Platform implementation only.*
 `stage`; `main` with `--benchmark`, `--models-root`, `--out`, `--tag`,
 `--include-provisional`, `--check`. `stage` writes `<out>/<benchmark>/
 README.md`, `publish.sh` (create, upload per bundle, upload the README,
-flip public, tag) and `pointers.json` (label → old pointer, new URL,
+flip public, tag), the published folder of each row (`stage_bundle`) and
+`pointers.json` (label → old pointer, new URL,
 digest), and exits non-zero when any row fails verification. Tests on a
 synthetic mirror in `tests/tools/test_publish_checkpoints.py`. The README
 Roadmap's *Later* item "checkpoint-publishing workflow" moves into the

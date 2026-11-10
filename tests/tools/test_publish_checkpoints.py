@@ -28,6 +28,10 @@ _spec.loader.exec_module(tool)
 BUNDLE = "cgn-abc1234"
 FILE = "model-best-000002.pt"
 POINTER = f"models/taylor_impact_2d/{BUNDLE}/{FILE}"
+CONFIG = json.dumps({"model": {"family": "cgn"}, "data_root": "/home/someone/data"})
+METRICS = json.dumps(
+    {"split": "test_interp", "checkpoint_path": f"runs/fleet/s1/{FILE}", "mean": {}}
+)
 
 
 def _mirror(tmp_path: Path, *, listed_digest: str | None = None) -> tuple[Path, str]:
@@ -35,9 +39,19 @@ def _mirror(tmp_path: Path, *, listed_digest: str | None = None) -> tuple[Path, 
     bundle = tmp_path / "models" / "taylor_impact_2d" / BUNDLE
     bundle.mkdir(parents=True)
     (bundle / FILE).write_bytes(b"weights")
-    (bundle / "config.json").write_text("{}", encoding="utf-8")
+    (bundle / "config.json").write_text(CONFIG, encoding="utf-8")
+    (bundle / "normalization_stats.npz").write_bytes(b"stats")
+    (bundle / "metrics-test_interp.json").write_text(METRICS, encoding="utf-8")
+    # what a private bundle also holds and a publication must not carry
+    (bundle / "model-best-000001.pt").write_bytes(b"earlier")
+    (bundle / "train.log").write_text("/home/someone/data\n", encoding="utf-8")
+    (bundle / "metrics-val.json").write_text("{}", encoding="utf-8")
+    (bundle / "provenance").mkdir()
+    (bundle / "provenance" / "MANIFEST.tsv").write_text("s1\n", encoding="utf-8")
+    (bundle / "rollouts").mkdir()
+    (bundle / "rollouts" / "case.npz").write_bytes(b"rollout")
     digest = hashlib.sha256(b"weights").hexdigest()
-    cfg_digest = hashlib.sha256(b"{}").hexdigest()
+    cfg_digest = hashlib.sha256(CONFIG.encode()).hexdigest()
     (bundle / "SHA256SUMS").write_text(
         f"{cfg_digest}  ./config.json\n{listed_digest or digest}  ./{FILE}\n",
         encoding="utf-8",
@@ -147,7 +161,8 @@ def test_stage_writes_readme_script_and_pointers(tmp_path):
     assert "docs/benchmarks/taylor_impact_2d.md" in readme
     script = (folder / "publish.sh").read_text(encoding="utf-8")
     assert "hf repos create StructBench/taylor-impact-2d --type model" in script
-    assert f"{BUNDLE} --type model" in script and "README.md" in script
+    assert f'"$(dirname "$0")/{BUNDLE}" {BUNDLE} --type model' in script
+    assert "README.md" in script and str(root) not in script
     assert (
         "--public" in script
         and "tag create StructBench/taylor-impact-2d v0.4.0" in script
@@ -158,6 +173,78 @@ def test_stage_writes_readme_script_and_pointers(tmp_path):
         "url": plan.rows[0].url,
         "checkpoint_sha256": digest,
     }
+
+
+def test_stage_publishes_the_minimal_subset_without_local_paths(tmp_path):
+    root, digest = _mirror(tmp_path)
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_result(digest),))
+    plan = tool.plan_release("taylor_impact_2d", spec, root, "v0.4.0")
+    staged = tool.stage(plan, tmp_path / "stage") / BUNDLE
+    assert sorted(p.name for p in staged.iterdir()) == [
+        "SHA256SUMS",
+        "config.json",
+        "metrics-test_interp.json",
+        FILE,
+        "normalization_stats.npz",
+    ]
+    # the checkpoint is the registered file, byte for byte
+    assert hashlib.sha256((staged / FILE).read_bytes()).hexdigest() == digest
+    config = json.loads((staged / "config.json").read_text(encoding="utf-8"))
+    assert config == {"model": {"family": "cgn"}}
+    metrics = json.loads(
+        (staged / "metrics-test_interp.json").read_text(encoding="utf-8")
+    )
+    assert metrics["checkpoint_path"] == FILE
+    assert all("someone" not in p.read_text(errors="ignore") for p in staged.iterdir())
+    # SHA256SUMS covers exactly the published files, with their staged digests
+    sums = tool.read_sha256sums(staged)
+    assert sorted(sums) == sorted(
+        p.name for p in staged.iterdir() if p.name != "SHA256SUMS"
+    )
+    for name, listed in sums.items():
+        assert hashlib.sha256((staged / name).read_bytes()).hexdigest() == listed
+    # the private bundle is untouched
+    assert json.loads((root / "taylor_impact_2d" / BUNDLE / "config.json").read_text())[
+        "data_root"
+    ]
+
+
+def test_stage_refuses_a_local_path_it_does_not_know(tmp_path):
+    root, digest = _mirror(tmp_path)
+    bundle = root / "taylor_impact_2d" / BUNDLE
+    (bundle / "metrics-test_interp.json").write_text(
+        json.dumps({"mean": {}, "stats_file": "/home/someone/derived/norm.npz"}),
+        encoding="utf-8",
+    )
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_result(digest),))
+    plan = tool.plan_release("taylor_impact_2d", spec, root, "v0.4.0")
+    with pytest.raises(ValueError, match="stats_file holds a local path"):
+        tool.stage(plan, tmp_path / "stage")
+
+
+def test_run_dir_stands_in_for_a_bundle_that_is_not_on_the_mirror(tmp_path):
+    run = tmp_path / "runs" / "s1"
+    run.mkdir(parents=True)
+    (run / FILE).write_bytes(b"weights")
+    (run / "config.json").write_text(CONFIG, encoding="utf-8")
+    digest = hashlib.sha256(b"weights").hexdigest()
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_result(digest),))
+    empty = tmp_path / "models"
+    assert not tool.plan_release("taylor_impact_2d", spec, empty, "v0.4.0").ok
+    plan = tool.plan_release(
+        "taylor_impact_2d", spec, empty, "v0.4.0", run_dirs={BUNDLE: run}
+    )
+    assert plan.ok  # no SHA256SUMS needed; the registry digest identifies the file
+    staged = tool.stage(plan, tmp_path / "stage") / BUNDLE
+    assert sorted(p.name for p in staged.iterdir()) == [
+        "SHA256SUMS",
+        "config.json",
+        FILE,
+    ]
+    wrong = replace(spec, results=(_result("f" * 64),))
+    assert not tool.plan_release(
+        "taylor_impact_2d", wrong, empty, "v0.4.0", run_dirs={BUNDLE: run}
+    ).ok
 
 
 def test_main_check_fails_on_a_bad_mirror(tmp_path, monkeypatch, capsys):

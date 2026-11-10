@@ -6,10 +6,16 @@ points into the private ``models/`` mirror is verified against the mirror
 (the bundle exists, ``SHA256SUMS`` lists the checkpoint, the file's digest
 equals the listed one and the registry's ``checkpoint_sha256``) and staged
 for upload to the benchmark's Hugging Face *model* repository
-``StructBench/<slug>``: a generated model-card ``README.md``, a
-``publish.sh`` holding the ``hf`` commands (create the repo, upload each
-whole bundle, upload the README, flip public, tag with the code release),
-and ``pointers.json`` mapping each row to its public URL
+``StructBench/<slug>``. What is published is the minimum that runs and
+checks the model, not the private bundle (maintainer, 2026-11-10): the
+registered checkpoint, ``config.json``, ``normalization_stats.npz`` when the
+run has one, the ``metrics-<split>.json`` of the row's scored splits, and a
+``SHA256SUMS`` of those files. Logs, ``provenance/``, rollouts and the
+unregistered checkpoints stay private, and local paths are removed from the
+JSON files. Staging writes that folder per row, a generated model-card
+``README.md``, a ``publish.sh`` holding the ``hf`` commands (create the
+repo, upload each staged folder, upload the README, flip public, tag with
+the code release), and ``pointers.json`` mapping each row to its public URL
 ``https://huggingface.co/StructBench/<slug>/resolve/<tag>/<bundle>/<file>``.
 The release session edits the registries from ``pointers.json`` and
 regenerates the pages; the landing pages then drop the private-archive
@@ -24,7 +30,8 @@ Usage::
 
     python tools/publish_checkpoints.py --benchmark taylor_impact_2d \
         --models-root <...>/data/StructBench/models --out scratch/hf-models \
-        --tag v0.4.0 [--include-provisional] [--check]
+        --tag v0.4.0 [--include-provisional] [--check] \
+        [--run-dir <bundle>=<run directory>]
     bash scratch/hf-models/taylor_impact_2d/publish.sh
 """
 
@@ -33,6 +40,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -132,15 +140,24 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def verify_bundle(models_root: Path, result: BaselineResult) -> BundleCheck:
+def verify_bundle(
+    models_root: Path,
+    result: BaselineResult,
+    run_dirs: dict[str, Path] | None = None,
+) -> BundleCheck:
     """Check a row's bundle on the mirror: present, listed, digest consistent.
 
     Every failure is a named problem; a registry row without a digest is one
-    (the pointer would be unverifiable in public).
+    (the pointer would be unverifiable in public). ``run_dirs`` maps a bundle
+    name to the run directory to read in place of the mirror, for a row whose
+    private bundle is not assembled: such a directory needs no
+    ``SHA256SUMS``, and the registry digest alone identifies the checkpoint.
     """
     assert result.checkpoint is not None
     benchmark, bundle, filename = parse_pointer(result.checkpoint)
-    bundle_dir = models_root / benchmark / bundle
+    run_dir = (run_dirs or {}).get(bundle)
+    from_run_dir = run_dir is not None
+    bundle_dir = run_dir if run_dir is not None else models_root / benchmark / bundle
     checkpoint = bundle_dir / filename
     problems: list[str] = []
     if not bundle_dir.is_dir():
@@ -151,7 +168,11 @@ def verify_bundle(models_root: Path, result: BaselineResult) -> BundleCheck:
         return BundleCheck(bundle_dir, checkpoint, None, problems)
     digest = _sha256(checkpoint)
     listed = read_sha256sums(bundle_dir)
-    if not listed:
+    if not (bundle_dir / "config.json").is_file():
+        problems.append(f"bundle {bundle} has no config.json")
+    if from_run_dir and not listed:
+        pass
+    elif not listed:
         problems.append(f"bundle {bundle} has no SHA256SUMS")
     elif filename not in listed:
         problems.append(f"SHA256SUMS of bundle {bundle} does not list {filename}")
@@ -185,6 +206,7 @@ def plan_release(
     tag: str,
     *,
     include_provisional: bool = False,
+    run_dirs: dict[str, Path] | None = None,
 ) -> ReleasePlan:
     """The rows of ``spec`` (registered as ``benchmark``) to publish under
     ``tag``, verified on the mirror.
@@ -215,7 +237,7 @@ def plan_release(
                 result=result,
                 bundle=bundle,
                 filename=filename,
-                check=verify_bundle(models_root, result),
+                check=verify_bundle(models_root, result, run_dirs),
                 url=public_url(benchmark, tag, bundle, filename),
             )
         )
@@ -248,10 +270,11 @@ def render_model_readme(plan: ReleasePlan) -> str:
         "",
         f"Blessed reference checkpoints of the StructBench benchmark "
         f"`{plan.benchmark}`, published with code release `{plan.tag}` "
-        "(ADR-0074 clause 8). Each folder is the complete run directory the "
-        "registry row was blessed from (ADR-0037): checkpoints, the resolved "
-        "config, normalisation statistics, metrics, logs, rollouts, "
-        "`provenance/` and a `SHA256SUMS` covering every file. The results "
+        "(ADR-0074 clause 8). Each folder holds what running and checking "
+        "the model needs: the registered checkpoint, the resolved "
+        "`config.json`, the normalisation statistics when the model uses "
+        "them, the `metrics-<split>.json` of the scored splits, and a "
+        "`SHA256SUMS` covering those files. The results "
         "registry that reads these numbers is the benchmark's landing page, "
         f"[`docs/benchmarks/{plan.benchmark}.md`]({_REPO_URL}/blob/{plan.tag}/"
         f"docs/benchmarks/{plan.benchmark}.md).",
@@ -271,8 +294,10 @@ def render_model_readme(plan: ReleasePlan) -> str:
         "",
         "## Use",
         "",
-        "Download a bundle folder and evaluate it with the StructBench CLI, "
-        "which rebuilds the simulator from the bundle's own `config.json`:",
+        "Download a folder and evaluate it with the StructBench CLI, which "
+        "rebuilds the simulator from the folder's own `config.json` (the "
+        "evaluation overwrites the downloaded `metrics-<split>.json`; keep a "
+        "copy to compare):",
         "",
         "```bash",
         f"hf download {HF_ORG}/{slug} --revision {plan.tag} --local-dir bundles",
@@ -300,7 +325,7 @@ def render_publish_script(plan: ReleasePlan) -> str:
     ]
     for row in plan.rows:
         lines.append(
-            f'hf upload {repo} "{row.check.bundle_dir}" {row.bundle} --type model'
+            f'hf upload {repo} "$(dirname "$0")/{row.bundle}" {row.bundle} --type model'
         )
     lines += [
         f'hf upload {repo} "$(dirname "$0")/README.md" README.md --type model',
@@ -311,11 +336,74 @@ def render_publish_script(plan: ReleasePlan) -> str:
     return "\n".join(lines)
 
 
+def _is_local_path(text: str) -> bool:
+    return text.startswith(("/", "~", "\\")) or text[1:3] in (":\\", ":/")
+
+
+def _scrub(value: object, where: str) -> object:
+    """``value`` without local paths: ``data_root`` is dropped, a
+    ``checkpoint_path`` keeps its file name, and any other absolute path is
+    an error (a published file names no machine)."""
+    if isinstance(value, dict):
+        out: dict[str, object] = {}
+        for key, item in value.items():
+            if key == "data_root":
+                continue
+            if key == "checkpoint_path" and isinstance(item, str):
+                out[key] = item.replace("\\", "/").rsplit("/", 1)[-1]
+                continue
+            out[key] = _scrub(item, f"{where}/{key}")
+        return out
+    if isinstance(value, list):
+        return [_scrub(item, f"{where}[{i}]") for i, item in enumerate(value)]
+    if isinstance(value, str) and _is_local_path(value):
+        raise ValueError(f"{where} holds a local path: {value!r}")
+    return value
+
+
+def published_files(row: ReleaseRow) -> list[str]:
+    """The files of a row's bundle that are published, in upload order."""
+    names = [row.filename, "config.json"]
+    if (row.check.bundle_dir / "normalization_stats.npz").is_file():
+        names.append("normalization_stats.npz")
+    for split in row.result.metrics:
+        name = f"metrics-{split}.json"
+        if (row.check.bundle_dir / name).is_file():
+            names.append(name)
+    return names
+
+
+def stage_bundle(row: ReleaseRow, folder: Path) -> Path:
+    """Write the published subset of ``row``'s bundle to
+    ``folder/<bundle>/`` with its own ``SHA256SUMS``; returns that folder.
+    JSON files are rewritten without local paths; binaries are copied."""
+    dest = folder / row.bundle
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    for name in published_files(row):
+        source = row.check.bundle_dir / name
+        if name.endswith(".json"):
+            data = _scrub(json.loads(source.read_text(encoding="utf-8")), name)
+            text = json.dumps(data, indent=2) + "\n"
+            (dest / name).write_text(text, encoding="utf-8")
+        else:
+            shutil.copyfile(source, dest / name)
+    sums = "".join(
+        f"{_sha256(path)}  ./{path.name}\n" for path in sorted(dest.iterdir())
+    )
+    (dest / "SHA256SUMS").write_text(sums, encoding="utf-8")
+    return dest
+
+
 def stage(plan: ReleasePlan, out: Path) -> Path:
-    """Write the README, the publish script and ``pointers.json`` for the plan
-    under ``out/<benchmark>/``; returns that folder."""
+    """Write each row's published folder, the README, the publish script and
+    ``pointers.json`` for the plan under ``out/<benchmark>/``; returns that
+    folder."""
     folder = out / plan.benchmark
     folder.mkdir(parents=True, exist_ok=True)
+    for row in plan.rows:
+        stage_bundle(row, folder)
     (folder / "README.md").write_text(render_model_readme(plan), encoding="utf-8")
     (folder / "publish.sh").write_text(render_publish_script(plan), encoding="utf-8")
     pointers = {
@@ -342,7 +430,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--check", action="store_true", help="verify the mirror; stage nothing"
     )
+    parser.add_argument(
+        "--run-dir",
+        action="append",
+        default=[],
+        metavar="BUNDLE=DIR",
+        help="read this bundle from a run directory instead of the mirror",
+    )
     args = parser.parse_args(argv)
+    run_dirs: dict[str, Path] = {}
+    for item in args.run_dir:
+        bundle, sep, directory = item.partition("=")
+        if not sep or not bundle or not directory:
+            parser.error(f"--run-dir takes BUNDLE=DIR, got {item!r}")
+        run_dirs[bundle] = Path(directory)
     spec = get_benchmark(args.benchmark)
     plan = plan_release(
         args.benchmark,
@@ -350,6 +451,7 @@ def main(argv: list[str] | None = None) -> int:
         args.models_root,
         args.tag,
         include_provisional=args.include_provisional,
+        run_dirs=run_dirs,
     )
     for label, why in plan.skipped.items():
         print(f"skip {label}: {why}")
@@ -368,6 +470,8 @@ def main(argv: list[str] | None = None) -> int:
         print("check passed; nothing staged (--check)")
         return 0
     folder = stage(plan, args.out)
+    for row in plan.rows:
+        print(f"staged {row.bundle}/: {', '.join(published_files(row))}, SHA256SUMS")
     print(f"staged {len(plan.rows)} row(s) under {folder}")
     return 0
 
