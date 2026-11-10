@@ -199,9 +199,13 @@ and a new benchmark tests what the shipped four cannot. It is built from:
 
 - [x] ~~**The properties block** in the results registries and landing
       pages (ADR-0075 part 3c; 2026-11-09) — follow-up 1 of ADR-0065.~~ The
-      columns lead every landing page; the shipped rows' numbers wait on a
-      re-evaluation of the blessed checkpoints on DUG (strand *The two-site
-      state*, Inbox).
+      columns lead every landing page. 21 of the 24 shipped rows carry their
+      numbers, from a re-evaluation of the registered checkpoints on DUG
+      (2026-11-10): 17 reproduce their registered relative L2 to four
+      figures, and four graph-network rows are checked at 2% because their
+      GPU rollouts are not bitwise repeatable. Empty: Taylor MGN and
+      notch-impact MGN (outside 2%) and DeformingPlate GeoFLARE
+      time-conditioned (its run was not found).
 - [x] ~~**The restart task family** (ADR-0075 part 3b; 2026-11-09) —
       follow-up 3 of ADR-0065.~~ The declaration surface, `--mode restart`
       and the Restart tier; no shipped benchmark declares anchors, and no
@@ -218,15 +222,17 @@ and a new benchmark tests what the shipped four cannot. It is built from:
       the first of ADR-0065's trust properties no shipped benchmark reaches,
       scored on Taylor's own velocity sweep by central differences with their
       declared error; no new dataset. Built 2026-11-08 (design in
-      `docs/plans/`); the first registered model's rows wait on a DUG run of
-      the blessed CGN.
+      `docs/plans/`); the DUG run of the blessed CGN is done (2026-11-10) and
+      unregistered: its rows wait on the Sensitivity tier of the registry
+      rendering.
 - [ ] **Release mechanics**: blessed checkpoints published with the release
       (ADR-0074 clause 8) — ~~the staging tool `tools/publish_checkpoints.py`
       (2026-11-09; plan in `docs/plans/`): one Hugging Face model repo per
       benchmark, the minimal runnable subset of each blessed bundle
       (2026-11-10), the pointer rewritten to the
-      `resolve/<tag>` URL~~; the upload and the pointer rewrite at release,
-      from the `models/` mirror on DUG; the v0.4 record in this section. ~~The
+      `resolve/<tag>` URL~~; ~~the four blessed checkpoints uploaded to private
+      model repos (2026-11-10)~~; the public flip, the tag and the pointer
+      rewrite at release; the v0.4 record in this section. ~~The
       `leaderboard` → `results registry` wording sweep (2026-11-08).~~
 
 Two benchmarks ADR-0065 named are not in v0.4: the crash benchmark is an
@@ -362,8 +368,9 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
       the semigroup row is 3b's); 3b is built (2026-11-09: `eval/restart.py`,
       `--mode restart`, the composition sweep and `prop_semigroup_err`,
       declaration only); owed: the AR scheme and the pushforward chains under
-      the two-site decoder, the re-evaluation of the blessed checkpoints that
-      fills the shipped rows' properties, and the first restart declaration
+      the two-site decoder, the three shipped rows whose properties are still
+      empty (the re-evaluation of 2026-11-10 filled 21 of 24), and the first
+      restart declaration
       (with the first admitted contract dataset, after v0.4). Finding (3c
       smoke): the admissible
       forms hold the plastic strain monotone against the carried anchor, not
