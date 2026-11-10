@@ -185,6 +185,17 @@ _Quantities of interest (MAE)_
 | Transolver++ | time-conditioned | 0.64280 | 0.33180 | 2.10300 | 0.00132 |
 | GeoFLARE | autoregressive | 0.93880 | 2.37700 | 1.40700 | 0.00764 |
 
+_Sensitivity — the gradient family (ADR-0076)_
+
+| Method | Scheme | Quantity | rel L2 | sign agreement | own floor | judged / scored |
+|---|---|---|---|---|---|---|
+| CGN | autoregressive | final_length | 2.50600 | 0.77780 | 1.26500 | 9 / 9 |
+| CGN | autoregressive | mushroom_width | 2.38400 | 0.33330 | 1.78600 | 9 / 9 |
+| CGN | autoregressive | peak_von_mises | — | — | — | 0 / 9 |
+| CGN | autoregressive | t_peak_von_mises | — | — | — | 0 / 9 |
+
+_The derivative of each quantity of interest with respect to `impact_velocity_m_s`, the model's by central differences of its own rollouts, against the reference sensitivities and pooled over the judged values of the scored sets (↓ lower is better; 1 is the error of predicting no sensitivity). The own floor is the disagreement between the model's two step sizes on the same scale. A value whose reference error exceeds half its sensitivity is reported, not judged._
+
 ## Baseline details
 
 **MGN** (mgn, 2026-08-16, commit `d838606`)
@@ -193,7 +204,7 @@ _Quantities of interest (MAE)_
 
 **CGN** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt` — private archive; publication parked)
 
-*Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp. Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values above are unchanged.*
+*Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, seed 1 of the s0-s3 fleet; val-selected checkpoint model-best-096000.pt (96k), one A100-80GB, ~22.4 h. s1 is the best von Mises seed (lowest rollout aux RMSE on val and test_interp) and the seed behind the published qualitative rollouts; on rollout position it is the best of four on test_interp and the most conservative (highest) on test_extrap. Extrapolation to 200 m/s is the benchmark's honest failure mode: rollout position degrades ~6x against test_interp. Relative L2 (rollout_rel_l2_disp/aux) is the pooled space+time headline (ADR-0055), added 2026-08-16 from a re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed RMSE/QoI values above are unchanged. Gradient family (ADR-0076), run 2026-11-10 on this checkpoint at steps of 1 and 2 m/s: the sensitivities are worse than predicting none (relative L2 above 2 on final length and mushroom width), and the model's own floor (the disagreement of its two step sizes) exceeds 1, so its finite differences are not resolved at these steps; no stress-quantity value is judged (their reference errors exceed half the sensitivity).*
 
 **Transolver** (transolver, 2026-08-13, commit `7ef3bf2`)
 

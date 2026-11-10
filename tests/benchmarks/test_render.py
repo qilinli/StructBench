@@ -1147,3 +1147,86 @@ def test_col_label_names_restart_rows():
     assert _col_label("test", "compose_T20_k4_rel_l2_state") == "test·T20 k4 state"
     assert _col_label("test", "compose_T20_k4_state_rmse") == "test·T20 k4 state RMSE"
     assert _col_label("test", "prop_semigroup_err") == "test·semigroup error"
+
+
+SENS = "_Sensitivity — the gradient family (ADR-0076)_"
+QOI = "_Quantities of interest (MAE)_"
+
+
+def _gradient_result(**overrides):
+    return _result(
+        metrics={
+            "test_interp": {
+                "rollout_rel_l2_disp": 0.03,
+                "qoi_final_length_mae_mm": 1.0,
+            },
+            "gradient": {
+                "gradient_rel_l2_final_length": 0.25,
+                "gradient_sign_final_length": 1.0,
+                "gradient_floor_final_length": 0.05,
+                "gradient_n_judged_final_length": 7.0,
+                "gradient_n_reported_final_length": 2.0,
+                # no judged value: the counts only
+                "gradient_n_judged_peak_von_mises": 0.0,
+                "gradient_n_reported_peak_von_mises": 9.0,
+            },
+        },
+        **overrides,
+    )
+
+
+def test_sensitivity_tier_renders_a_line_per_quantity_after_the_qois():
+    spec = replace(
+        get_benchmark("taylor_impact_2d"),
+        results=(_gradient_result(), _result(label="other", family="mgn")),
+    )
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    assert text.index(HEAD) < text.index(QOI) < text.index(SENS)
+    section = text.split(SENS, 1)[1].split("## Baseline details", 1)[0]
+    assert (
+        "| Method | Scheme | Quantity | rel L2 | sign agreement | own floor | "
+        "judged / scored |" in section
+    )
+    assert "| baseline | — | final_length | 0.25000 | 1.00000 | 0.05000 | 7 / 9 |" in (
+        section
+    )
+    assert "| baseline | — | peak_von_mises | — | — | — | 0 / 9 |" in section
+    # a result that reports no gradient rows has no line, and a quantity the
+    # result does not name has none either
+    assert "| other |" not in section and "mushroom_width" not in section
+    assert "`impact_velocity_m_s`" in section and "reported, not judged" in section
+
+
+def test_gradient_keys_stay_out_of_the_accuracy_tiers_and_the_index_line():
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_gradient_result(),))
+    text = render_benchmark_page(spec, "taylor_impact_2d")
+    before = text.split(SENS, 1)[0]
+    assert "gradient" not in before.split("## Results registry", 1)[1]
+    # the docs-index one-liner quotes the split headline, never a gradient key
+    assert "gradient" not in _baseline_line(spec)
+    assert "rollout_rel_l2_disp" in _baseline_line(spec)
+
+
+def test_no_sensitivity_tier_without_gradient_rows():
+    spec = replace(get_benchmark("taylor_impact_2d"), results=(_result(),))
+    assert SENS not in render_benchmark_page(spec, "taylor_impact_2d")
+
+
+def test_gradient_group_needs_a_declared_family_and_holds_only_gradient_keys():
+    # wave declares no gradient family: the group is an unknown split there
+    with pytest.raises(ValueError, match="unknown splits"):
+        replace(get_benchmark("wave_propagation_1d"), results=(_gradient_result(),))
+    taylor = get_benchmark("taylor_impact_2d")
+    stray = _result(
+        metrics={"test_interp": {"gradient_rel_l2_final_length": 0.2}},
+    )
+    with pytest.raises(ValueError, match="come together"):
+        replace(taylor, results=(stray,))
+    mixed = _result(
+        metrics={
+            "test_interp": {"rollout_rel_l2_disp": 0.03},
+            "gradient": {"rollout_rel_l2_disp": 0.03},
+        },
+    )
+    with pytest.raises(ValueError, match="come together"):
+        replace(taylor, results=(mixed,))

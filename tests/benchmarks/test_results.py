@@ -111,8 +111,9 @@ def test_taylor_baseline_is_the_cgn_reference_run():
     cgn = next(r for r in results if r.family == "cgn")
     assert not cgn.provisional
     assert cgn.run_commit == "7be9d4b"
-    # val selects the checkpoint, so only the held-out splits are numbers to beat.
-    assert set(cgn.metrics) == {"test_interp", "test_extrap"}
+    # val selects the checkpoint, so only the held-out splits are numbers to
+    # beat; the gradient family's rows sit beside them (ADR-0076).
+    assert set(cgn.metrics) == {"test_interp", "test_extrap", "gradient"}
 
 
 def test_wave_baseline_is_the_cgn_reference_run():
