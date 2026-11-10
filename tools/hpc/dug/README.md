@@ -186,8 +186,10 @@ When the maintainer blesses a run, the full mechanical checklist lives here
    public URL).
 
 8. **At the next code release, publish** (ADR-0074 clause 8): stage the
-   benchmark's blessed bundles from the mirror, run the generated script,
-   then rewrite each `checkpoint=` to the URL in `pointers.json` and
+   benchmark's blessed rows from the mirror (the registered checkpoint, its
+   config, normalisation statistics and scored metrics, without logs,
+   provenance or local paths; `--run-dir <bundle>=<dir>` when the private
+   bundle is not assembled), run the generated script, then rewrite each `checkpoint=` to the URL in `pointers.json` and
    regenerate the views (the marker disappears):
 
    ```bash

@@ -223,7 +223,8 @@ and a new benchmark tests what the shipped four cannot. It is built from:
 - [ ] **Release mechanics**: blessed checkpoints published with the release
       (ADR-0074 clause 8) — ~~the staging tool `tools/publish_checkpoints.py`
       (2026-11-09; plan in `docs/plans/`): one Hugging Face model repo per
-      benchmark, whole ADR-0037 bundles, the pointer rewritten to the
+      benchmark, the minimal runnable subset of each blessed bundle
+      (2026-11-10), the pointer rewritten to the
       `resolve/<tag>` URL~~; the upload and the pointer rewrite at release,
       from the `models/` mirror on DUG; the v0.4 record in this section. ~~The
       `leaderboard` → `results registry` wording sweep (2026-11-08).~~
