@@ -138,7 +138,9 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_cracked_fraction_mae": 0.1860,
             },
         },
-        checkpoint=("models/notch_beam_2d_impact/cgn-5956d81/model-best-186000.pt"),
+        checkpoint=(
+            "https://huggingface.co/StructBench/notch-beam-2d-impact/resolve/v0.4.0/cgn-5956d81/model-best-186000.pt"
+        ),
         checkpoint_sha256=(
             "a1d75cfaa643ee5d3a09aa2de8eb8338c675a59118057a5fcb0ff5337cb310c8"
         ),

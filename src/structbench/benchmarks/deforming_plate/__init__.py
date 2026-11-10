@@ -81,7 +81,9 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_terminal_deflection_mae_mm": 48.42,
             },
         },
-        checkpoint=("models/deforming_plate/mgn-eb39994/model-best-1750000.pt"),
+        checkpoint=(
+            "https://huggingface.co/StructBench/deforming-plate/resolve/v0.4.0/mgn-eb39994/model-best-1750000.pt"
+        ),
         checkpoint_sha256=(
             "5309491a0595e90678eed3bf0a8063e76754d6f52a94228c7c58fb1bc700bbf7"
         ),
@@ -359,7 +361,11 @@ RESULTS: tuple[BaselineResult, ...] = (
             "seed 2 test displacement 0.2767), run deforming-geoflare-tc-s1 "
             "(branch feat/geoflare-tc). PROVISIONAL (ADR-0045/0046): a "
             "best-effort native implementation, not validated against a "
-            "published number. Pooled relative L2 headline (ADR-0055)."
+            "published number. Pooled relative L2 headline (ADR-0055). "
+            "UNVERIFIED (2026-11-10): the run directory was not found on the "
+            "training machine or in the checkpoint archive, so these values "
+            "were not re-evaluated and the row reports no properties "
+            "(ADR-0073 D6)."
         ),
     ),
 )

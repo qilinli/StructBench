@@ -76,7 +76,7 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_peak_stress_mae_mpa": 0.9665,
             },
         },
-        checkpoint="models/wave_propagation_1d/cgn-48046ea/model-best-050000.pt",
+        checkpoint="https://huggingface.co/StructBench/wave-propagation-1d/resolve/v0.4.0/cgn-48046ea/model-best-050000.pt",
         checkpoint_sha256=(
             "2139335fb0cb2f6cccaf9be69e69cced369deb6eda80f6970b292deeba07dc0a"
         ),

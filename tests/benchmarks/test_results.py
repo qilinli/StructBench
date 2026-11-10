@@ -1,5 +1,6 @@
 """BaselineResult validation and spec wiring (ADR-0033)."""
 
+import re
 from dataclasses import replace
 
 import pytest
@@ -139,10 +140,11 @@ def test_notch_impact_baseline_is_the_cgn_reference_run():
     assert set(cgn.metrics) == {"test_interp", "probe"}
 
 
-def test_blessed_entries_point_at_the_models_archive():
-    # ADR-0037: blessed entries carry an archive-relative pointer + digest.
-    # Provisional native baselines (ADR-0044/0045) are local runs, not archived,
-    # so they are exempt — only the blessed entries must point at the archive.
+def test_blessed_entries_point_at_their_published_checkpoint():
+    # ADR-0037 clause 4 and ADR-0074 clause 8: a blessed entry's pointer is the
+    # public, tag-pinned URL of its checkpoint (published with v0.4.0) under
+    # the bundle name <family>-<run_commit>, with the digest that verifies it.
+    # Provisional native baselines (ADR-0044/0045) are local runs and exempt.
     for name in (
         "taylor_impact_2d",
         "wave_propagation_1d",
@@ -153,9 +155,12 @@ def test_blessed_entries_point_at_the_models_archive():
         assert blessed, name
         for result in blessed:
             assert result.checkpoint is not None
-            assert result.checkpoint.startswith(
-                f"models/{name}/{result.family}-{result.run_commit}/"
-            )
+            assert re.fullmatch(
+                rf"https://huggingface\.co/StructBench/{name.replace('_', '-')}"
+                rf"/resolve/v\d+\.\d+\.\d+"
+                rf"/{result.family}-{result.run_commit}/[\w.-]+\.pt",
+                result.checkpoint,
+            ), result.checkpoint
             assert result.checkpoint_sha256 is not None
 
 

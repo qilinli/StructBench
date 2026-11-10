@@ -167,7 +167,7 @@ assets/            # figures embedded in the docs + landing pages
      docs/decisions/, not here. Platform work only: the maintainer's research
      plans stay outside the repository (ADR-0065). -->
 
-*Last revised: 2026-11-09.*
+*Last revised: 2026-11-10.*
 
 ### Shipped
 
@@ -184,111 +184,37 @@ assets/            # figures embedded in the docs + landing pages
       GeoFLARE (+ off-by-default Transolver++) provisional, ranked
       cross-method leaderboards, the prediction-scheme axis, relative-L2
       headline metric (ADRs 0041–0057).~~
-
-### Next release: v0.4 — trust before accuracy
-
-<!-- ADR-0065 follow-up 4, applied here 2026-11-08 (a Roadmap change, not an
-     ADR: the identity it rests on is recorded). The frame for what v0.4 is;
-     the strands below carry the open items. -->
-
-v0.3 shipped a cross-method comparison. v0.4 is the first release whose
-headline is whether a surrogate can be trusted (ADR-0065): a registered
-result reports its properties before its accuracy, the reference data
-declares what is known of its own error, scored cases are read by coverage,
-and a new benchmark tests what the shipped four cannot. It is built from:
-
-- [x] ~~**The properties block** in the results registries and landing
-      pages (ADR-0075 part 3c; 2026-11-09) — follow-up 1 of ADR-0065.~~ The
-      columns lead every landing page. 21 of the 24 shipped rows carry their
-      numbers, from a re-evaluation of the registered checkpoints on DUG
-      (2026-11-10): 17 reproduce their registered relative L2 to four
-      figures, and four graph-network rows are checked at 2% because their
-      GPU rollouts are not bitwise repeatable. Empty: Taylor MGN and
-      notch-impact MGN (outside 2%) and DeformingPlate GeoFLARE
-      time-conditioned (its run was not found).
-- [x] ~~**The restart task family** (ADR-0075 part 3b; 2026-11-09) —
-      follow-up 3 of ADR-0065.~~ The declaration surface, `--mode restart`
-      and the Restart tier; no shipped benchmark declares anchors, and no
-      contract dataset is admitted in v0.4 (maintainer, 2026-11-09), so the
-      first restart rows belong to a later release.
-- [x] ~~**The benchmark card's V&V fields and compliance table**
-      (2026-11-08) — follow-up 2.~~
-- [x] ~~**Open evaluation** (ADR-0074): the plan, the registry fields and
-      tiers, `CONTRIBUTING.md` (2026-11-08).~~ The first blind set needs an
-      admitted contract dataset, and none is admitted in v0.4 (maintainer,
-      2026-11-09): it moves to the next release (strand *Open evaluation*).
-- [x] ~~**The gradient task family** (ADR-0076, Accepted 2026-11-08) — the
-      surrogate's sensitivities, the quantity a design optimiser consumes and
-      the first of ADR-0065's trust properties no shipped benchmark reaches,
-      scored on Taylor's own velocity sweep by central differences with their
-      declared error; no new dataset. Built 2026-11-08 (design in
-      `docs/plans/`).~~ The first registered rows are the blessed Taylor
-      CGN's, under a Sensitivity tier on the landing page (2026-11-10): its
-      sensitivities are worse than predicting none and its own floor exceeds
-      1; no stress-quantity value is judged. A second family's rows would
-      show whether the family separates models.
-- [ ] **Release mechanics**: blessed checkpoints published with the release
-      (ADR-0074 clause 8) — ~~the staging tool `tools/publish_checkpoints.py`
-      (2026-11-09; plan in `docs/plans/`): one Hugging Face model repo per
-      benchmark, the minimal runnable subset of each blessed bundle
-      (2026-11-10), the pointer rewritten to the
-      `resolve/<tag>` URL~~; ~~the four blessed checkpoints uploaded to private
-      model repos (2026-11-10)~~; the public flip, the tag and the pointer
-      rewrite at release; the v0.4 record in this section. ~~The
-      `leaderboard` → `results registry` wording sweep (2026-11-08).~~
-
-Two benchmarks ADR-0065 named are not in v0.4: the crash benchmark is an
-assembly-tier question, and the metal component-tier benchmark is parked
-until its purpose is stated (maintainer, 2026-11-08; both under Later).
+- [x] ~~**v0.4** (2026-11-10, `v0.4.0`) — trust before accuracy (ADR-0065):
+      a registered result reports its properties before its accuracy (the
+      properties block, ADR-0075; 21 of the 24 rows carry numbers), the
+      restart family as a declaration surface, the gradient family with its
+      first rows (ADR-0076), open evaluation (ADR-0074: coverage on every
+      scored case, unranked results registries in two tiers,
+      `CONTRIBUTING.md`), the card's V&V fields and compliance table,
+      reference-data verification (ADR-0066), the data-generation platform
+      (ADRs 0068–0071), validation against experiments (ADR-0072), and the
+      blessed checkpoints public on Hugging Face (ADRs 0058–0076).~~
 
 ### In progress
 
-- **Reference-data verification** (ADR-0066; first work under the ADR-0065
-  scope) — a `verification/` module that measures a run against a catalogue
-  of numerical-health, conservation, constitutive, units and integrity
-  quantities, and judges the measurements against platform criteria.
-  - [x] ~~Stage 1 (2026-09-21) — the quantities measurable from a canonical
-        case and its solver input; criteria, JSON record, generated report;
-        `python -m structbench.cli.datacheck measure|judge`.~~
-  - [x] ~~Stage 2 (2026-09-21) — the run-evidence record (solver identity,
-        termination, diagnostics, time step, energy ledger with its balance
-        identity), read from text by per-dataset glue; the energy indicator.~~
-        The kinetic-energy closure runs on sample instants found in the
-        files; the other sampling-clock rows are still open.
-  - [x] ~~Stage 3 (2026-09-21) — first published record,
-        [`docs/datachecks/taylor_impact_2d.md`](docs/datachecks/taylor_impact_2d.md);
-        sourced reference levels are shown for context and judge nothing
-        until ratified.~~ The standard LS-DYNA input block is drafted
-        ([`docs/datagen/lsdyna-conformance.md`](docs/datagen/lsdyna-conformance.md)).
-        Still open: one conformance run with it, and the two-grid difference
-        on the convergence case.
-  - [x] ~~Second benchmark (2026-09-23) — notch-impact's record,
-        [`docs/datachecks/notch_beam_2d_impact.md`](docs/datachecks/notch_beam_2d_impact.md);
-        material classes for its two materials (ADR-0067).~~
-  - [ ] The kinetic-energy closure's tolerance; E6, E7 and the remaining E9
-        rows, which wait on a run that writes their files.
-  - [x] ~~Taylor's stored `global/total_energy` (2026-10-01) — documented on
-        the card as kinetic plus internal without the rigid-wall term; the row
-        keeps reading `fail` (ADR-0073 D2).~~
-  - [x] ~~Reference levels (2026-10-01) — none is ratified; indicators are
-        measured and shown with their published level, and the reader judges
-        (ADR-0073 D9).~~
+- **Reference-data verification** (ADR-0066) — `structbench.verification`
+  measures a run against a catalogue of numerical-health, conservation,
+  constitutive, units and integrity quantities, and judges the measurements
+  against platform criteria. Published records:
+  [Taylor](docs/datachecks/taylor_impact_2d.md),
+  [notch-impact](docs/datachecks/notch_beam_2d_impact.md).
+  - [ ] One conformance run with the standard LS-DYNA input block
+        ([`docs/datagen/lsdyna-conformance.md`](docs/datagen/lsdyna-conformance.md)),
+        and the two-grid difference on the convergence case.
+  - [ ] The kinetic-energy closure's tolerance and the remaining
+        sampling-clock rows; E6, E7 and the remaining E9 rows, which wait on
+        a run that writes their files.
 - **Data generation platform** (ADR-0068/0069/0071, Accepted) —
   `structbench-datagen`: the Abaqus pipeline as a package capability, with a
   preflight gate before production. Guide:
   [`docs/DATA_GENERATION.md`](docs/DATA_GENERATION.md).
-  - [x] ~~Part one (2026-09-27) — the package, the dataset contract,
-        `new`/`check`, provenance.~~
-  - [x] ~~Part two (2026-09-27/28) — `converge`; `preflight` and the stamp
-        `generate` requires.~~
-  - [x] ~~Part three (a) (2026-09-28) — a gate a real dataset can pass; the
-        Abaqus input-request and zero-energy-mode verification rows.~~
-  - [x] ~~Training before admission (2026-11-06) — a benchmark definition
-        loaded by path (`benchmark.py` beside the dataset definition), the
-        scored horizon per case, element fields projected to nodes; notes on
-        ADR-0032/0039, design in `docs/plans/`.~~
-  - [ ] Part three, still owed: the card generator, the full guide (the
-        energy-gain indicator stays unratified by decision, ADR-0073 D9).
+  - [ ] The card generator and the full guide (the energy-gain indicator
+        stays unratified by decision, ADR-0073 D9).
   - [ ] Minors deferred from part one's whole-branch review (moved here from
         CLAUDE.md 2026-09-29, not re-checked): `check` nests each level
         against the first only · the QoI-name check is order-sensitive ·
@@ -316,80 +242,47 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
   by coverage computed from its parameters (within the declared box or beyond
   it, distance to the nearest training point); external results in two tiers,
   self-reported and verified, in a results registry without a rank.
-  - [x] ~~The plan under `docs/plans/` (2026-11-08): prediction format, set
-        sizes, cadence, rate limit, the coverage kernel (built,
-        `eval/coverage.py`), `withheld` splits and a `grid` shorthand in the
-        contract, the container contract, the intake.~~
-  - [x] ~~The plan's tasks 2–7 (2026-11-08): case parameters on the spec and
-        coverage in `cases.csv` and on the pages; the registry fields and the
-        results registry; the contract's `withheld` and `grid` and the
-        inputs-only archive; `tools/score_submission.py` with the guard and
-        the rate limit; `tools/verify_submission.py` and the container
-        contract; `CONTRIBUTING.md` with its generated admission list.~~
-  - [x] ~~Registry fields (tier, division, blind tag, submitter, write-up,
-        data, per-case rows) and the rendering: unranked registration order,
-        tier and division columns where a result is external, the headline
-        by coverage bin, the scored sets read by coverage (2026-11-08).~~
-        The properties block renders first (ADR-0075 part 3c, 2026-11-09).
-  - [x] ~~The wording sweep *leaderboard* → *results registry* (2026-11-08).~~
-  - [x] ~~`CONTRIBUTING.md` (2026-11-08).~~
-  - [ ] The first blind set — with the first contract dataset admitted, not
-        in v0.4 (maintainer, 2026-11-09).
-  - [x] ~~The card's compliance table (2026-11-08) — ADR-0065 follow-up 2,
-        built by a plan, not an ADR: the V&V card fields and a typed
-        data-standards table with the blind-evaluation row, on every landing
-        page and archive README; the four shipped cards declare what exists.~~
+  - [ ] The first blind set and the first external result — with the first
+        contract dataset admitted (maintainer, 2026-11-09).
 - **The decision log** (ADR-0073, 2026-10-01) — the maintainer's review of
   all 71 records; its decisions are applied.
-  - [x] ~~Re-run `tools/blessing_pooled_rmse.py` (von Mises pooling added
-        2026-10-01) on the registered DeformingPlate runs (2026-10-01): five of
-        six rows reproduce to four significant figures (ADR-0073 D6).~~
-  - [ ] The GeoFLARE time-conditioned run (`deforming-geoflare-tc-s1`) is not
-        under `runs/` on DUG nor in the `models/` mirror; find it or mark the
-        registry row's pooled values unverified.
-  - [x] ~~The verdict notes never written (0061, 0064) — written 2026-10-01;
-        index rows that missed later amendments (0074, 0075, 0036, 0046,
-        0071) — named 2026-11-08.~~
-  - [x] ~~Durable labels on experiment records (2026-11-09): 0044, 0045 and
-        0057 relabelled Ephemeral with a dated note each.~~
   - [ ] Still from the review: stale text in the older records (the
         maintainer's triage register names them).
-  - [x] ~~0058, 0060, 0068, 0069 and 0070 accepted from their summaries
-        (2026-10-01).~~
 
 ### Inbox — untriaged, add freely
 
 <!-- Completed inbox items are removed at each release; their record lives in
      git history and the ADRs they cite. -->
 
-- [ ] ADR-0075 (Accepted 2026-11-07): the two-site state. Part 3a is built
-      (the element-site state block, `two_site_decoder` on the Transolver flow
-      map, state metrics); 3c is built (2026-11-09: the properties block,
-      `eval/properties.py`, rendered first on every landing page; the
-      deviator-trace kernel waits for a state layout that emits a deviator;
-      the semigroup row is 3b's); 3b is built (2026-11-09: `eval/restart.py`,
-      `--mode restart`, the composition sweep and `prop_semigroup_err`,
-      declaration only); owed: the AR scheme and the pushforward chains under
-      the two-site decoder, the three shipped rows whose properties are still
-      empty (the re-evaluation of 2026-11-10 filled 21 of 24), and the first
-      restart declaration
-      (with the first admitted contract dataset, after v0.4). Finding (3c
-      smoke): the admissible
-      forms hold the plastic strain monotone against the carried anchor, not
-      between the query frames of one flow-map interval; the property
-      reports the frame-to-frame rate. **Decided (2026-11-08):** the
-      `return_map` decoder
-      does not train on a metal — stress derived from predicted kinematics
-      amplifies displacement error by `E / std σ ≈ 10³` (plan 3a, note
-      2026-11-08) — so the admissible arm is tested in two forms that read
-      no predicted kinematics, `admissible_coords` and `projected_trial`
-      (ADR-0075 note 2026-11-08; plan 3a note (2)); the results choose the
-      final form.
+- [ ] ADR-0075, the two-site state — owed: the AR scheme and the
+      pushforward chains under the two-site decoder; the final form of the
+      admissible arm (`admissible_coords` or `projected_trial`, chosen by
+      their results; the `return_map` decoder does not train on a metal, ADR-0075
+      note 2026-11-08); the first restart declaration, with the first
+      admitted contract dataset.
+- [ ] Three registered rows report no properties (2026-11-10): Taylor MGN
+      and notch-impact MGN did not reproduce their registered relative L2
+      within 2%, and the DeformingPlate GeoFLARE time-conditioned run was
+      not found, so that row is marked unverified.
+- [ ] GPU rollouts of the graph-network families (CGN, MGN) are not bitwise
+      repeatable (CUDA scatter-add): two evaluations of one checkpoint differ
+      by up to about 1.5% in rollout relative L2. Deterministic kernels in
+      the evaluation path are untested.
+- [ ] The gradient family has one registered model (Taylor CGN); a second
+      family's rows would show whether it separates models.
+- [ ] Time-conditioned evaluation takes its time reference from each case's
+      own length and training from the shortest training trajectory; they
+      differ on trajectories of unequal length unless the run records its
+      reference.
+- [ ] Registry upkeep: `run_commit` of the Taylor Transolver and GeoFLARE
+      autoregressive rows (registered `7ef3bf2`, run records `6d65193`); the
+      five-decimal table format on property values of very different
+      magnitude; the private archive bundles of the notch-impact CGN and
+      DeformingPlate MGN, never assembled (ADR-0037).
 
 ### Later (each becomes an ADR/spec when picked up)
 
-- **Benchmarks to add** — beyond the gradient benchmark above, four, each
-  becoming its own ADR when picked up:
+- **Benchmarks to add** — four, each becoming its own ADR when picked up:
   - *A component-tier benchmark* — the first above specimen scale (every
     shipped card reads `structural scale: specimen`). ADR-0065 follow-up 4
     named it as metal and for v0.4; the maintainer parked it on 2026-11-08:
@@ -432,7 +325,7 @@ until its purpose is stated (maintainer, 2026-11-08; both under Later).
   optimisation, digital twin). ADR-0075 decided the first piece, the
   properties block, and its part 3c (the block in the registries and landing
   pages) and part 3b (the restart family, with the semigroup row) are built
-  (2026-11-09); the numbers on the shipped rows are what remains; see
+  (2026-11-09), with numbers on 21 of the 24 shipped rows (2026-11-10); see
   ADR-0065's 2026-09-23 note for why the three do not collapse
 - Eval: submission validator for the results registry · per-region probe metrics ·
   convergence check · cross-benchmark utilities
@@ -454,7 +347,7 @@ If you use StructBench, please cite it
   title   = {{StructBench}: Standardized benchmarks for machine learning
              on structural simulation},
   year    = {2026},
-  version = {0.3.0},
+  version = {0.4.0},
   license = {Apache-2.0},
   url     = {https://github.com/qilinli/StructBench}
 }
