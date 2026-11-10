@@ -107,6 +107,10 @@ def _run_transolver_smoke(
     flow_map_anchor_noise_pos: float = 0.0,
     flow_map_anchor_noise_vel: float = 0.0,
     flow_map_pushforward_generations: int = 1,
+    scored_frames=None,
+    n_val: int = 1,
+    training_steps: int = 50,
+    val_every: int = 25,
 ):
     """Shared spec/data/train setup for both smoke tests below.
 
@@ -126,9 +130,9 @@ def _run_transolver_smoke(
     torch.manual_seed(0)
     ids = {
         "train": [f"train_{i:04d}" for i in range(4)],
-        "val": ["val_0000"],
+        "val": [f"val_{i:04d}" for i in range(n_val)],
     }
-    spec = _mini_spec(ids)
+    spec = replace(_mini_spec(ids), scored_frames=scored_frames)
     data_root = tmp_path / "data"
     data_root.mkdir()
     _write_cases(data_root, [c for v in ids.values() for c in v])
@@ -160,8 +164,8 @@ def _run_transolver_smoke(
     tcfg = TrainConfig(
         benchmark="TransolverSmoke",
         batch_size=2,
-        training_steps=50,
-        val_every=25,
+        training_steps=training_steps,
+        val_every=val_every,
     )
     out = tmp_path / "run"
     train(spec, cfg, tcfg, data_root, out, "cpu", family="transolver")
@@ -355,6 +359,69 @@ def test_transolver_time_conditioned_train_and_evaluate_smoke(tmp_path, monkeypa
         assert all(math.isfinite(v) for v in per_case[key].values())
     # metrics JSON is strict-serializable with nulls (allow_nan=False).
     assert (out / "metrics-val.json").exists()
+
+
+def _per_case_bound(case_id: str) -> int:
+    """A scored bound that differs per case and is shorter than the T=8 the
+    run trains on (val_0000 -> 5, val_0001 -> 6; every TRAIN case -> 8)."""
+    return 5 + int(case_id.rsplit("_", 1)[1]) if case_id.startswith("val") else 8
+
+
+def _logged_val_pos(caplog) -> list[float]:
+    """The validation numbers the training loop selected on, unrounded."""
+    return [
+        float(r.args[2])
+        for r in caplog.records
+        if r.name == "structbench.cli.train" and "val_pos" in str(r.msg)
+    ]
+
+
+@pytest.mark.parametrize(
+    "scheme",
+    [
+        {},
+        {"time_conditioned": True},
+        {
+            "time_conditioned": True,
+            "aux_input": True,
+            "flow_map": True,
+            "flow_map_eval_intervals": (1, 3),
+            "flow_map_canonical_interval": 3,
+        },
+    ],
+    ids=["ar", "time_conditioned", "flow_map"],
+)
+def test_training_validation_equals_the_evaluator(
+    tmp_path, monkeypatch, caplog, scheme
+):
+    """The number the training loop selects a checkpoint on is the
+    evaluator's ``rollout_position_rmse`` for that checkpoint, on the same
+    split and protocol, in every Transolver loop.
+
+    The benchmark scores each case to its own bound, shorter than the
+    trajectories the run trains on, so in-training validation holds
+    truncated trajectories. A time reference re-derived from a truncated
+    length (5 or 6 here, against the 8 training used) queried the
+    time-conditioned and flow-map models at the wrong instant.
+    """
+    import structbench.cli.train as cli_train
+
+    caplog.set_level(logging.INFO, logger="structbench.cli.train")
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path,
+        scored_frames=_per_case_bound,
+        n_val=2,
+        training_steps=25,
+        val_every=25,
+        **scheme,
+    )
+    (val_pos,) = _logged_val_pos(caplog)
+    # One validation pass, so the one checkpoint is the one it scored.
+    assert [p.name for p in out.glob("model-*.pt")] == ["model-best-000025.pt"]
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    assert metrics["mean"]["rollout_position_rmse"] == pytest.approx(val_pos, rel=1e-6)
 
 
 def test_transolver_pushforward_helper_shapes_and_grad_through_bundle2():
