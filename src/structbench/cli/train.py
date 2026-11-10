@@ -990,7 +990,10 @@ def train(
         # In-training validation rolls out only the scored span (ADR-0039):
         # checkpoint selection then keys on the same window the benchmark
         # reports, and each val pass costs proportionally less. The bound may
-        # be the case's own (ADR-0039 note, 2026-11-06).
+        # be the case's own (ADR-0039 note, 2026-11-06). It is an exclusive
+        # frame index, so frames [0, bound) hold the whole scored span
+        # [input_frames, bound). The loops must not read a time reference off
+        # these truncated lengths.
         val_trajs = [
             _truncate_trajectory(tr, spec.scored_frames_for(tr.case_id))
             for tr in val_trajs
@@ -1535,6 +1538,11 @@ def _tc_time_ref_frames(
     so no value need be persisted. Precedence: the pinned scored horizon
     (``scored_frames``) if set; else the recipe truncation (``train_frames``) if
     set; else the trajectory's own frame count.
+
+    ``traj_len`` must be a FULL trajectory's frame count (training passes the
+    shortest TRAIN trajectory, the evaluator the case's own). In-training
+    validation holds trajectories truncated to their scored span, so it reuses
+    the training loop's value and never calls this.
     """
     if scored_frames is not None:
         return scored_frames
@@ -2870,18 +2878,15 @@ def _train_transolver_fm(
                             ),
                             law=_case_law_rows(spec, tr, device) if two_site else None,
                         )
-                        val_time_ref = _tc_time_ref_frames(
-                            spec.scored_frames_fixed,
-                            train_cfg.train_frames,
-                            int(tr.positions.shape[0]),
-                        )
                         # Selection runs the DEPLOYABLE mode: self-anchored at
-                        # the canonical interval (ADR-0062).
+                        # the canonical interval (ADR-0062), on the clock the
+                        # run trains on (``time_ref``; never one re-derived
+                        # from a validation trajectory, which is truncated).
                         result = flow_map_rollout(
                             sim,
                             tr,
                             cfg.input_frames,
-                            val_time_ref,
+                            time_ref,
                             canonical,
                             "self",
                             device,
@@ -3180,16 +3185,14 @@ def _train_transolver_tc(
                                 else None
                             ),
                         )
-                        val_time_ref = _tc_time_ref_frames(
-                            spec.scored_frames_fixed,
-                            train_cfg.train_frames,
-                            int(tr.positions.shape[0]),
-                        )
+                        # The clock the run trains on (``time_ref``), never
+                        # one re-derived from a validation trajectory, which
+                        # is truncated to its scored span.
                         result = time_conditioned_rollout(
                             sim,
                             tr,
                             cfg.input_frames,
-                            val_time_ref,
+                            time_ref,
                             device,
                             kinematic_types=spec.kinematic_types,
                             scored_frames=spec.scored_frames_for(tr.case_id),
@@ -3416,16 +3419,14 @@ def _train_geoflare_tc(
                                 else None
                             ),
                         )
-                        val_time_ref = _tc_time_ref_frames(
-                            spec.scored_frames_fixed,
-                            train_cfg.train_frames,
-                            int(tr.positions.shape[0]),
-                        )
+                        # The clock the run trains on (``time_ref``), never
+                        # one re-derived from a validation trajectory, which
+                        # is truncated to its scored span.
                         result = time_conditioned_rollout(
                             sim,
                             tr,
                             cfg.input_frames,
-                            val_time_ref,
+                            time_ref,
                             device,
                             kinematic_types=spec.kinematic_types,
                             scored_frames=spec.scored_frames_for(tr.case_id),

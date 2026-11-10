@@ -9,9 +9,12 @@ evaluate() gate). Mirrors ``tests/cli/test_transolver_train_smoke.py``
 """
 
 import json
+import logging
 import math
+from dataclasses import replace
 
 import numpy as np
+import pytest
 import torch
 
 from structbench.benchmarks.card import BenchmarkCard
@@ -83,7 +86,15 @@ def _write_cases(root, ids):
         write_case(case, root / f"{cid}.h5")
 
 
-def _run_geoflare_smoke(tmp_path):
+def _run_geoflare_smoke(
+    tmp_path,
+    *,
+    time_conditioned: bool = False,
+    scored_frames=None,
+    n_val: int = 1,
+    training_steps: int = 50,
+    val_every: int = 25,
+):
     """Shared spec/data/train setup for both smoke tests below.
 
     Builds the tiny synthetic mesh benchmark, writes its cases, and runs a
@@ -109,9 +120,9 @@ def _run_geoflare_smoke(tmp_path):
     torch.manual_seed(0)
     ids = {
         "train": [f"train_{i:04d}" for i in range(4)],
-        "val": ["val_0000"],
+        "val": [f"val_{i:04d}" for i in range(n_val)],
     }
-    spec = _mini_spec(ids)
+    spec = replace(_mini_spec(ids), scored_frames=scored_frames)
     data_root = tmp_path / "data"
     data_root.mkdir()
     _write_cases(data_root, [c for v in ids.values() for c in v])
@@ -127,12 +138,15 @@ def _run_geoflare_smoke(tmp_path):
         neighbors_near=2,
         neighbors_far=3,
         normalizer_warmup_steps=5,
+        time_conditioned=time_conditioned,
+        # time-conditioning is non-autoregressive: noise is inert
+        noise_std=0.0 if time_conditioned else GeoFlareConfig().noise_std,
     )
     tcfg = TrainConfig(
         benchmark="GeoFlareSmoke",
         batch_size=2,
-        training_steps=50,
-        val_every=25,
+        training_steps=training_steps,
+        val_every=val_every,
     )
     out = tmp_path / "run"
     train(spec, cfg, tcfg, data_root, out, "cpu", family="geoflare")
@@ -214,3 +228,43 @@ def test_geoflare_evaluate_smoke(tmp_path, monkeypatch):
     assert all(
         isinstance(v, float) and math.isfinite(v) for v in qoi_abs_error.values()
     )
+
+
+def _per_case_bound(case_id: str) -> int:
+    """A scored bound that differs per case and is shorter than the T=8 the
+    run trains on (val_0000 -> 5, val_0001 -> 6; every TRAIN case -> 8)."""
+    return 5 + int(case_id.rsplit("_", 1)[1]) if case_id.startswith("val") else 8
+
+
+@pytest.mark.parametrize("time_conditioned", [False, True], ids=["ar", "tc"])
+def test_training_validation_equals_the_evaluator(
+    tmp_path, monkeypatch, caplog, time_conditioned
+):
+    """The number the training loop selects a checkpoint on is the
+    evaluator's ``rollout_position_rmse`` for that checkpoint (same split,
+    same protocol) on a benchmark whose per-case scored bound is shorter
+    than the trajectories the run trains on. Mirrors the Transolver test of
+    the same name; the time-conditioned loop once re-derived its time
+    reference from the truncated validation trajectory.
+    """
+    import structbench.cli.train as cli_train
+
+    caplog.set_level(logging.INFO, logger="structbench.cli.train")
+    spec, data_root, out, _cfg, _tcfg, ids = _run_geoflare_smoke(
+        tmp_path,
+        time_conditioned=time_conditioned,
+        scored_frames=_per_case_bound,
+        n_val=2,
+        training_steps=25,
+        val_every=25,
+    )
+    (val_pos,) = [
+        float(r.args[2])
+        for r in caplog.records
+        if r.name == "structbench.cli.train" and "val_pos" in str(r.msg)
+    ]
+    assert [p.name for p in out.glob("model-*.pt")] == ["model-best-000025.pt"]
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    assert metrics["mean"]["rollout_position_rmse"] == pytest.approx(val_pos, rel=1e-6)
