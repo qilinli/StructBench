@@ -154,7 +154,7 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "gradient_n_reported_t_peak_von_mises": 9.0,
             },
         },
-        checkpoint="models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt",
+        checkpoint="https://huggingface.co/StructBench/taylor-impact-2d/resolve/v0.4.0/cgn-7be9d4b/model-best-096000.pt",
         checkpoint_sha256=(
             "4950d798a774be111d7096a16a112d38385d44e7832c7577bb1fa82eb7b76060"
         ),
