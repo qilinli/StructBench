@@ -41,6 +41,11 @@ from .results import BaselineResult
 #: The file a benchmark definition directory must hold.
 DEFINITION_FILE = "benchmark.py"
 
+#: The key of a result's ``metrics`` that holds its gradient-family rows
+#: (ADR-0076; the ``metrics`` block of ``metrics-gradient.json``). It sits
+#: beside the split keys and is not a split.
+GRADIENT_GROUP = "gradient"
+
 
 @dataclass(frozen=True)
 class BenchmarkSource:
@@ -410,10 +415,28 @@ class BenchmarkSpec:
                 f"{self.aux_field!r} (one canonical declaration per benchmark)"
             )
         for result in self.results:
-            unknown = [s for s in result.metrics if s not in self.splits]
+            # ADR-0076: the gradient family's rows sit under their own key
+            # beside the splits (it is not a split: it scores a derivative
+            # along the sweep), on a benchmark that declares the family.
+            groups = [*self.splits]
+            if self.gradient_family is not None:
+                groups.append(GRADIENT_GROUP)
+            unknown = [s for s in result.metrics if s not in groups]
             if unknown:
                 raise ValueError(
                     f"result {result.label!r} references unknown splits {unknown}"
+                )
+            misplaced = sorted(
+                key
+                for group, values in result.metrics.items()
+                for key in values
+                if key.startswith("gradient_") != (group == GRADIENT_GROUP)
+            )
+            if misplaced:
+                raise ValueError(
+                    f"result {result.label!r}: gradient_* metrics and the "
+                    f"{GRADIENT_GROUP!r} group come together (misplaced: "
+                    f"{misplaced[:5]})"
                 )
             # ADR-0074: per-case rows belong to scored cases of this benchmark.
             stray = sorted(set(result.case_metrics) - scored_ids)

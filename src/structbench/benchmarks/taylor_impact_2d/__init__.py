@@ -134,6 +134,25 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_peak_vm_mae_mpa": 19.21,
                 "qoi_t_peak_vm_mae_ms": 0.2293,
             },
+            # ADR-0076: the gradient family (metrics-gradient.json's `metrics`
+            # block, the scored sets). A quantity with no judged value carries
+            # its counts only.
+            "gradient": {
+                "gradient_rel_l2_final_length": 2.506,
+                "gradient_sign_final_length": 0.7778,
+                "gradient_floor_final_length": 1.265,
+                "gradient_n_judged_final_length": 9.0,
+                "gradient_n_reported_final_length": 0.0,
+                "gradient_rel_l2_mushroom_width": 2.384,
+                "gradient_sign_mushroom_width": 0.3333,
+                "gradient_floor_mushroom_width": 1.786,
+                "gradient_n_judged_mushroom_width": 9.0,
+                "gradient_n_reported_mushroom_width": 0.0,
+                "gradient_n_judged_peak_von_mises": 0.0,
+                "gradient_n_reported_peak_von_mises": 9.0,
+                "gradient_n_judged_t_peak_von_mises": 0.0,
+                "gradient_n_reported_t_peak_von_mises": 9.0,
+            },
         },
         checkpoint="models/taylor_impact_2d/cgn-7be9d4b/model-best-096000.pt",
         checkpoint_sha256=(
@@ -151,7 +170,14 @@ RESULTS: tuple[BaselineResult, ...] = (
             "against test_interp. Relative L2 (rollout_rel_l2_disp/aux) is the "
             "pooled space+time headline (ADR-0055), added 2026-08-16 from a "
             "re-eval on this checkpoint; RMSE reproduced to <1%, so the blessed "
-            "RMSE/QoI values above are unchanged."
+            "RMSE/QoI values above are unchanged. Gradient family (ADR-0076), "
+            "run 2026-11-10 on this checkpoint at steps of 1 and 2 m/s: the "
+            "sensitivities are worse than predicting none (relative L2 above "
+            "2 on final length and mushroom width), and the model's own floor "
+            "(the disagreement of its two step sizes) exceeds 1, so its "
+            "finite differences are not resolved at these steps; no "
+            "stress-quantity value is "
+            "judged (their reference errors exceed half the sensitivity)."
         ),
     ),
     BaselineResult(

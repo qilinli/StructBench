@@ -217,14 +217,16 @@ and a new benchmark tests what the shipped four cannot. It is built from:
       tiers, `CONTRIBUTING.md` (2026-11-08).~~ The first blind set needs an
       admitted contract dataset, and none is admitted in v0.4 (maintainer,
       2026-11-09): it moves to the next release (strand *Open evaluation*).
-- [ ] **The gradient task family** (ADR-0076, Accepted 2026-11-08) — the
+- [x] ~~**The gradient task family** (ADR-0076, Accepted 2026-11-08) — the
       surrogate's sensitivities, the quantity a design optimiser consumes and
       the first of ADR-0065's trust properties no shipped benchmark reaches,
       scored on Taylor's own velocity sweep by central differences with their
       declared error; no new dataset. Built 2026-11-08 (design in
-      `docs/plans/`); the DUG run of the blessed CGN is done (2026-11-10) and
-      unregistered: its rows wait on the Sensitivity tier of the registry
-      rendering.
+      `docs/plans/`).~~ The first registered rows are the blessed Taylor
+      CGN's, under a Sensitivity tier on the landing page (2026-11-10): its
+      sensitivities are worse than predicting none and its own floor exceeds
+      1; no stress-quantity value is judged. A second family's rows would
+      show whether the family separates models.
 - [ ] **Release mechanics**: blessed checkpoints published with the release
       (ADR-0074 clause 8) — ~~the staging tool `tools/publish_checkpoints.py`
       (2026-11-09; plan in `docs/plans/`): one Hugging Face model repo per
