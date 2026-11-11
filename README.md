@@ -173,7 +173,7 @@ assets/            # figures embedded in the docs + landing pages
      docs/decisions/, not here. Platform work only: the maintainer's research
      plans stay outside the repository (ADR-0065). -->
 
-*Last revised: 2026-11-10.*
+*Last revised: 2026-11-11.*
 
 ### Shipped
 
@@ -200,6 +200,38 @@ assets/            # figures embedded in the docs + landing pages
       reference-data verification (ADR-0066), the data-generation platform
       (ADRs 0068–0071), validation against experiments (ADR-0072), and the
       blessed checkpoints public on Hugging Face (ADRs 0058–0076).~~
+
+### Release outline to v1.0
+
+*A long-term reference (maintainer, 2026-11-11), not a schedule. A release is
+what a reader can cite and rely on, so each is closed by criteria, not by a
+feature count; no new task family enters before v0.6. Items move into
+In progress when picked up.*
+
+- [ ] **v0.5 — the citable platform.** Nothing new; what v0.4 claims is made
+      true and stable. Done when: `docs/VISION.md` carries the ADR-0065
+      identity and `CITATION.cff` and the BibTeX entry say the same; every
+      registered row reports its properties or states why not; the
+      repeatability tolerance of an evaluation is declared; the gradient
+      family has rows from a second model family; per-case coverage figures
+      are on the landing pages; a registered row is reproduced from its
+      public checkpoint by the documented command alone. The first release
+      archived with a DOI.
+- [ ] **v0.6 — the first benchmark that meets the data standard.** The first
+      contract dataset is admitted with a full compliance table (ADR-0073
+      D14), a blind set and a restart declaration, and the first result from
+      outside this repository passes the intake (ADR-0074).
+- [ ] **v0.7 — the width of the truth.** One case reproduced in a second
+      solver; the uncertainty budget of a reference dataset published as a
+      record; the component-tier benchmark only if its case is made (Later).
+- [ ] **v0.8 — used by someone else.** A result or a dataset from another
+      group passes the intake; one blind rotation is complete.
+- [ ] **v0.9 — the freeze.** The case schema, card, registry, dataset contract
+      and commands are declared stable; shipped benchmarks superseded by a
+      standard-meeting one are closed to new rows.
+- [ ] **v1.0 — the standard.** Two benchmarks meeting the data standard at
+      two structural scales; blind evaluation operating; verified results
+      from two groups; the platform described in a peer-reviewed publication.
 
 ### In progress
 
