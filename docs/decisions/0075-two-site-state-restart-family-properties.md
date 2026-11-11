@@ -85,7 +85,7 @@ in plan 3a's note of the same date.
 
 ---
 
-**Note (2026-11-11) — the admissible forms are monotone along the rollout.**
+**Note (2026-11-11) — the admissible forms are monotone along the rollout, and the head decoders train with pushforward.**
 Each frame of a flow-map window is its own jump from the one anchor, so the
 forms of the 2026-11-08 note held the plastic strain at or above the anchor's
 and left two frames of one window unordered. Along a rollout the plastic
@@ -98,3 +98,17 @@ the single-query training forward are unchanged. Pinned for any network
 output over a multi-window rollout in
 `tests/models/transolver/test_transolver_two_site.py`; the properties block
 reads zero for both rates on these forms.
+
+The 2026-11-08 note's sentence that plan 3a's rejection of the pushforward
+chains applies unchanged no longer holds for the three decoders that read the
+state off the head (`corner_mean`, `admissible_coords`, `projected_trial`):
+they take ADR-0063's two-hop chain (`flow_map_pushforward = true`). The
+mid-chain anchor is built from the first hop's own emitted state, detached,
+by the function the rollout's hand-off calls
+(`anchor_from_predictions`), so it is the anchor the rollout would build
+from the same predictions, admissible and monotone for the admissible forms.
+Every query carries the nodal and the element loss at ADR-0063's 2:1
+clean-to-dirty proportion; normalizers accumulate on the clean queries only.
+The direct return map, the generation curriculum, the structured heads and
+the consistency hinge stay refused with a two-site decoder. With the knob off
+a two-site run is unchanged. Pinned in `tests/cli/test_two_site_pushforward.py`.

@@ -340,7 +340,7 @@ class FlowMapChainDataset(Dataset):
         next_aux = np.transpose(
             np.stack([tr.aux[f] for f in frames]), (1, 0, 2)
         )  # (P, 3, C)
-        return {
+        sample = {
             "position_seq": torch.from_numpy(
                 np.ascontiguousarray(np.transpose(pair, (1, 0, 2)))
             ),
@@ -355,6 +355,17 @@ class FlowMapChainDataset(Dataset):
             # Mid-chain anchor frame (per example): step B re-anchors here.
             "chain_frame": t1,
         }
+        if tr.state is not None:
+            # ADR-0075: the element-site state at the anchor (carried) and
+            # at the chain's three query frames, like the nodal targets.
+            sample["input_state"] = torch.from_numpy(np.ascontiguousarray(tr.state[t0]))
+            sample["next_state"] = torch.from_numpy(
+                np.ascontiguousarray(
+                    np.transpose(np.stack([tr.state[f] for f in frames]), (1, 0, 2))
+                )
+            )  # (E, 3, S)
+            sample["n_elements"] = int(tr.state.shape[1])
+        return sample
 
 
 def collate_samples(batch: list[dict]) -> dict[str, torch.Tensor]:

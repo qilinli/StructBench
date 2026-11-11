@@ -268,3 +268,11 @@ single-event benchmark; the mechanism's value transfers to any task
 that scores restart/multi-event prediction. Results:
 scratch/2026-09-10-anchor-contraction-fleet-results.md,
 scratch/2026-09-12-pfkn-followup-fleet-results.md.
+
+---
+
+*2026-11-11 — the two-hop chain reaches the two-site head decoders (ADR-0075
+note of this date): the element state is carried across the mid-chain
+anchor, which is built by the rollout's own hand-off function. The chain
+here, its proportion and its normalizer rule are unchanged; the generation
+curriculum stays nodal.*

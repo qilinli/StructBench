@@ -424,9 +424,12 @@ class TransolverConfig:
         ``projected_trial``) also require the benchmark's
         ``constitutive_law`` and the canonical layout
         ``("stress_axisymmetric", "effective_plastic_strain")``.
-        Incompatible with ``flow_map_pushforward``,
-        ``flow_map_structured_heads`` and ``flow_map_consistency_hinge``
-        (3a scope; follow-ups).
+        Incompatible with ``flow_map_structured_heads`` and
+        ``flow_map_consistency_hinge`` (3a scope). ``flow_map_pushforward``
+        (the two-hop chain, one generation) is accepted for
+        ``corner_mean``, ``admissible_coords`` and ``projected_trial``:
+        the element state is carried across the mid-chain anchor (ADR-0075
+        note 2026-11-11); ``return_map`` has no chain.
     flow_map_pushforward_generations : int
         ADR-0063 amendment (2026-09-10): GraphCast-style GENERATION
         curriculum on the pushforward chain. ``G > 1`` deepens the chain to
@@ -1335,6 +1338,7 @@ def _validate_two_site(
     from .benchmarks.constitutive import (
         LAW_DECODERS,
         RETURN_MAP_STATE_CHANNELS,
+        TWO_SITE_CHAIN_DECODERS,
         TWO_SITE_DECODERS,
     )
 
@@ -1346,11 +1350,27 @@ def _validate_two_site(
         )
     if decoder == "off":
         return
-    for knob in ("flow_map_pushforward", "flow_map_structured_heads"):
-        if getattr(model, knob, False):
+    if getattr(model, "flow_map_structured_heads", False):
+        raise ConfigError(
+            f"[model] two_site_decoder={decoder!r} is incompatible with "
+            "flow_map_structured_heads=true (ADR-0075 plan 3a scope)"
+        )
+    if getattr(model, "flow_map_pushforward", False):
+        # ADR-0075 note 2026-11-11: the two-hop chain of ADR-0063 for the
+        # head decoders. The direct return map derives its state from the
+        # predicted kinematics and has no chain; the generation curriculum
+        # is nodal only.
+        if decoder not in TWO_SITE_CHAIN_DECODERS:
             raise ConfigError(
                 f"[model] two_site_decoder={decoder!r} is incompatible with "
-                f"{knob}=true (ADR-0075 plan 3a scope)"
+                "flow_map_pushforward=true (the two-hop chain is built for "
+                f"{', '.join(TWO_SITE_CHAIN_DECODERS)}; ADR-0075)"
+            )
+        if getattr(model, "flow_map_pushforward_generations", 1) != 1:
+            raise ConfigError(
+                f"[model] two_site_decoder={decoder!r} is incompatible with "
+                "flow_map_pushforward_generations > 1 (the two-site chain "
+                "is the two-hop chain; ADR-0075)"
             )
     if getattr(model, "flow_map_consistency_hinge", 0.0) != 0.0:
         raise ConfigError(
