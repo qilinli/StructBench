@@ -96,6 +96,7 @@ autoregressive transition (ADR-0026). Auxiliary target: `max_principal_strain` (
 ## Evaluation criteria
 
 - Protocol (benchmark-owned, ADR-0032, ADR-0035): 6 input frames, horizon frames [6, 250) of 502 scored (250 µs, ADR-0039); full-length diagnostic, scored at native output times.
+- Scored span (ADR-0039, ADR-0078): frames [6, 250) of each case's 502 stored; 48.6% of the stored frames lie inside it. The reference training pool, its statistics, validation, evaluation and the figures all follow this span; a rollout past it is an unscored diagnostic.
 - Metrics: headline is the pooled space+time relative L2 (displacement + max_principal_strain); also reported are position/max_principal_strain RMSE (physical units) and one-step RMSE, plus the quantities of interest below.
 - Quantities of interest: midspan_deflection_peak, cracked_fraction.
 

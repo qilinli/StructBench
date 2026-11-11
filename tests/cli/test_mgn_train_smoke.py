@@ -86,7 +86,12 @@ def _write_cases(root, ids):
 
 
 def _run_mgn_smoke(
-    tmp_path, scored_frames=None, n_val: int = 1, training_steps=12, val_every=6
+    tmp_path,
+    scored_frames=None,
+    n_val: int = 1,
+    training_steps=12,
+    val_every=6,
+    training_span: str = "scored",
 ):
     """Shared spec/data/train setup for both smoke tests below.
 
@@ -118,6 +123,7 @@ def _run_mgn_smoke(
         batch_size=2,
         training_steps=training_steps,
         val_every=val_every,
+        training_span=training_span,
     )
     out = tmp_path / "run"
     train(spec, mgn, tcfg, data_root, out, "cpu", family="mgn")
@@ -236,3 +242,23 @@ def test_training_validation_equals_the_evaluator(tmp_path, monkeypatch, caplog)
     assert mean["rollout_position_rmse"] == pytest.approx(val_pos, rel=1e-6)
     record = json.loads((out / "config.json").read_text(encoding="utf-8"))
     assert record["run"]["checkpoint_selector"] == "val_rollout_rel_l2_displacement"
+
+
+def test_one_declared_span_governs_training_and_evaluation(
+    tmp_path, scored_span_check, short_bound
+):
+    """ADR-0078 on the MGN loop; mirrors the Transolver test of the same
+    name."""
+
+    def run(directory, training_span):
+        spec, data_root, out, _mgn, _tcfg, ids = _run_mgn_smoke(
+            directory,
+            scored_frames=short_bound,
+            n_val=2,
+            training_steps=6,
+            val_every=6,
+            training_span=training_span,
+        )
+        return spec, data_root, out, ids
+
+    scored_span_check(run, timed=False)

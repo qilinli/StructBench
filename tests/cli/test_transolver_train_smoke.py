@@ -111,6 +111,7 @@ def _run_transolver_smoke(
     n_val: int = 1,
     training_steps: int = 50,
     val_every: int = 25,
+    training_span: str = "scored",
 ):
     """Shared spec/data/train setup for both smoke tests below.
 
@@ -166,6 +167,7 @@ def _run_transolver_smoke(
         batch_size=2,
         training_steps=training_steps,
         val_every=val_every,
+        training_span=training_span,
     )
     out = tmp_path / "run"
     train(spec, cfg, tcfg, data_root, out, "cpu", family="transolver")
@@ -662,3 +664,89 @@ def test_transolver_flow_map_generation_curriculum_smoke(tmp_path):
     record = json.loads((out / "config.json").read_text(encoding="utf-8"))
     assert record["model"]["flow_map_pushforward_generations"] == 2
     assert any(p.name.startswith("model-best-") for p in out.glob("model-*.pt"))
+
+
+_FLOW_MAP = {
+    "time_conditioned": True,
+    "aux_input": True,
+    "flow_map": True,
+    "flow_map_eval_intervals": (1, 3),
+    "flow_map_canonical_interval": 3,
+}
+
+
+@pytest.mark.parametrize(
+    ("scheme", "timed"),
+    [
+        ({}, False),
+        ({"time_conditioned": True}, True),
+        (_FLOW_MAP, True),
+        ({**_FLOW_MAP, "flow_map_max_dt": 3, "flow_map_pushforward": True}, True),
+    ],
+    ids=["ar", "time_conditioned", "flow_map", "flow_map_chains"],
+)
+def test_one_declared_span_governs_training_and_evaluation(
+    tmp_path, scored_span_check, short_bound, scheme, timed
+):
+    """ADR-0078 on every Transolver loop, with a per-case scored bound
+    shorter than the stored record: the training pool (windows, queries,
+    pairs and pushforward chains) holds no frame at or beyond a case's
+    bound; the time reference is the card's stored length under both span
+    settings and is written to the run record; the evaluator stops at the
+    bound and its scored numbers are the same when it rolls on."""
+
+    def run(directory, training_span):
+        spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+            directory,
+            scored_frames=short_bound,
+            n_val=2,
+            training_steps=10,
+            val_every=10,
+            training_span=training_span,
+            **scheme,
+        )
+        return spec, data_root, out, ids
+
+    scored_span_check(run, timed=timed)
+
+
+def test_a_run_is_evaluated_at_its_own_time_reference(
+    tmp_path, monkeypatch, short_bound
+):
+    """The evaluator reads the time reference from the run record
+    (ADR-0078). A record from before the field carries none and is
+    evaluated by the rule it was trained under, with the same numbers here
+    (the stored length, 8); a record that names another reference is
+    evaluated at that one."""
+    import structbench.cli.train as cli_train
+
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path,
+        time_conditioned=True,
+        scored_frames=short_bound,
+        n_val=2,
+        training_steps=10,
+        val_every=10,
+    )
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+
+    def score() -> float:
+        metrics = cli_train.evaluate(
+            ids["val"], data_root, out, "cpu", split_name="val", save_artifacts=False
+        )
+        return metrics["mean"]["rollout_rel_l2_displacement"]
+
+    recorded = score()
+    config = out / "config.json"
+    record = json.loads(config.read_text(encoding="utf-8"))
+    assert record["run"]["time_ref_frames"] == 8
+
+    legacy = json.loads(json.dumps(record))
+    del legacy["run"]["time_ref_frames"], legacy["run"]["training_pool"]
+    del legacy["train"]["training_span"]
+    config.write_text(json.dumps(legacy), encoding="utf-8")
+    assert score() == recorded
+
+    record["run"]["time_ref_frames"] = 16
+    config.write_text(json.dumps(record), encoding="utf-8")
+    assert score() != recorded

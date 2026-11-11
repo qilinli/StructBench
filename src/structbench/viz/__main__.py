@@ -14,6 +14,7 @@ The benchmark (and therefore the auxiliary field compared) is resolved from
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -82,6 +83,34 @@ def snapshot_frames(n_frames: int, input_frames: int, columns: int) -> list[int]
     return [input_frames + (span * i) // (columns - 1) for i in range(columns)]
 
 
+def figure_span(
+    pred: Mapping[str, np.ndarray], declared_bound: int | None, full: bool
+) -> tuple[int, int]:
+    """``(input_frames, end)``: the frames ``[input_frames, end)`` of a saved
+    rollout a figure shows (ADR-0078).
+
+    By default ``end`` is the case's scored bound, so panels are spaced over
+    the scored span and an animation ends at the bound; ``full`` shows every
+    saved frame (a rollout evaluated with the tail). The bound is the one
+    the rollout file carries (``scored_frames``, -1 for none), so a
+    benchmark loaded by path needs nothing extra; a file from before the
+    field falls back to ``declared_bound``, the benchmark's own.
+    """
+    n_saved = int(pred["predicted_positions"].shape[0])
+    input_frames = (
+        int(pred["input_frames"])
+        if "input_frames" in pred
+        else n_saved - len(pred["position_rmse"])
+    )
+    if "scored_frames" in pred:
+        carried = int(pred["scored_frames"])
+        bound = None if carried < 0 else carried
+    else:
+        bound = declared_bound
+    end = n_saved if full or bound is None else min(bound, n_saved)
+    return input_frames, end
+
+
 def main(argv: list[str] | None = None) -> None:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -105,6 +134,12 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--gif", action="store_true", help="also write a GIF of each predicted rollout"
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="show every saved frame, past the case's scored bound (ADR-0078); "
+        "by default panels and animations cover the scored span only",
     )
     parser.add_argument(
         "--aux-channel",
@@ -179,12 +214,20 @@ def main(argv: list[str] | None = None) -> None:
                 "fringe rows are different quantities"
             )
         gt = load_case_field(args.data_root / f"{case}.h5", spec.aux_field)
-        n_frames = gt.positions.shape[0]
-        input_frames = n_frames - len(pred["position_rmse"])
-        frames = snapshot_frames(n_frames, input_frames, args.columns)
+        # ADR-0078: the span shown is the scored one unless --full; the
+        # errors in the title are means over the frames shown.
+        input_frames, end = figure_span(pred, spec.scored_frames_for(case), args.full)
+        frames = snapshot_frames(end, input_frames, args.columns)
+        shown = end - input_frames
+        past_bound = (
+            args.full
+            and "scored_frames" in pred
+            and 0 <= int(pred["scored_frames"]) < end
+        )
+        span_note = "   |   includes the unscored tail" if past_bound else ""
 
-        pos_rmse = float(pred["position_rmse"].mean())
-        aux_rmse = float(pred["aux_rmse"].mean())
+        pos_rmse = float(pred["position_rmse"][:shown].mean())
+        aux_rmse = float(pred["aux_rmse"][:shown].mean())
         fig = compare_rollout(
             gt.positions,
             gt.values,
@@ -195,7 +238,7 @@ def main(argv: list[str] | None = None) -> None:
             title=(
                 f"{case} ({split})   |   rollout RMSE: "
                 f"position {pos_rmse:.2f} mm, "
-                f"{aux_label} {aux_rmse:.1f} {aux_unit}"
+                f"{aux_label} {aux_rmse:.1f} {aux_unit}{span_note}"
             ),
             bands=args.bands,
             wall_x=args.wall_x,
@@ -207,10 +250,10 @@ def main(argv: list[str] | None = None) -> None:
 
         if args.gif:
             gif = animate_rollout(
-                pred["predicted_positions"],
-                pred_aux,
+                pred["predicted_positions"][:end],
+                pred_aux[:end],
                 out_dir / f"rollout-{case}-{split}.gif",
-                times_us=gt.times_us,
+                times_us=gt.times_us[:end],
                 title=f"{case} ({split}) — CGN prediction",
                 bands=args.bands,
                 wall_x=args.wall_x,

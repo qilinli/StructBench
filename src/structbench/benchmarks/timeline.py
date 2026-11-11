@@ -17,7 +17,7 @@ aggregate summary is the evidence base for the card's ``protocol_rationale``.
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +50,10 @@ class CaseTimeline:
     ke_frac_dissipated_at: dict[int, float]
     peak_mean_aux: float
     t_peak_mean_aux: float
+    #: Frames of the stored record inside the declared scored span
+    #: ``[input_frames, bound)`` (ADR-0078); ``None`` when the analysis was
+    #: given no span (a benchmark scored to the trajectory end).
+    scored_frames_inside: int | None = None
 
 
 def analyze_trajectory(traj: CaseTrajectory) -> CaseTimeline:
@@ -137,6 +141,18 @@ def analyze_trajectory(traj: CaseTrajectory) -> CaseTimeline:
     )
 
 
+def with_scored_span(
+    timeline: CaseTimeline, input_frames: int, bound: int | None
+) -> CaseTimeline:
+    """``timeline`` with the count of its stored frames inside the declared
+    scored span ``[input_frames, bound)`` (ADR-0078); unchanged when the
+    benchmark declares no span."""
+    if bound is None:
+        return timeline
+    inside = max(min(bound, timeline.n_frames) - input_frames, 0)
+    return replace(timeline, scored_frames_inside=inside)
+
+
 def render_report(benchmark_name: str, timelines: list[CaseTimeline]) -> str:
     """The markdown timeline report for one benchmark's cases.
 
@@ -168,6 +184,13 @@ def render_report(benchmark_name: str, timelines: list[CaseTimeline]) -> str:
         " peak mean aux | t(peak) |",
         f"|---|---|---|---|---|---|---|---|{'---|' * len(CANDIDATE_INITS)}---|---|",
     ]
+    # ADR-0078: with a declared scored span, each case's share of stored
+    # frames inside it, as a last column; absent otherwise, so a report on a
+    # benchmark scored to the end is unchanged.
+    spanned = all(tl.scored_frames_inside is not None for tl in timelines)
+    if spanned:
+        lines[-2] += " scored share |"
+        lines[-1] += "---|"
     for tl in timelines:
         init_cells = "".join(
             " n/a |"
@@ -181,6 +204,12 @@ def render_report(benchmark_name: str, timelines: list[CaseTimeline]) -> str:
             f"| {ms(tl.t_settle99)} | {tl.tail_activity:.1%} |{init_cells}"
             f" {tl.peak_mean_aux:.4g} | {ms(tl.t_peak_mean_aux)} |"
         )
+        if spanned:
+            assert tl.scored_frames_inside is not None
+            lines[-1] += (
+                f" {tl.scored_frames_inside / tl.n_frames:.1%} "
+                f"({tl.scored_frames_inside} of {tl.n_frames}) |"
+            )
     worst = {
         k: np.nanmax([tl.ke_frac_dissipated_at[k] for tl in timelines])
         for k in CANDIDATE_INITS
@@ -197,6 +226,14 @@ def render_report(benchmark_name: str, timelines: list[CaseTimeline]) -> str:
         f"{max(tl.peak_mean_aux for tl in timelines):.4g} "
         f"(latest at {ms(max(tl.t_peak_mean_aux for tl in timelines))})",
     ]
+    if spanned:
+        inside = sum(tl.scored_frames_inside or 0 for tl in timelines)
+        stored = sum(tl.n_frames for tl in timelines)
+        lines.append(
+            f"- Stored frames inside the declared scored span (ADR-0078): "
+            f"{inside / stored:.1%} pooled ({inside} of {stored}); the "
+            "milestones above are read over the whole stored record."
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -229,8 +266,14 @@ def main(argv: list[str] | None = None) -> int:
             + (" ..." if len(missing) > 5 else "")
         )
     timelines = [
-        analyze_trajectory(
-            load_case_trajectory(args.data_root / f"{cid}.h5", aux_field=spec.aux_field)
+        with_scored_span(
+            analyze_trajectory(
+                load_case_trajectory(
+                    args.data_root / f"{cid}.h5", aux_field=spec.aux_field
+                )
+            ),
+            spec.card.input_frames,
+            spec.scored_frames_for(cid),
         )
         for cid in case_ids
     ]

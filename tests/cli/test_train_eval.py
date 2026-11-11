@@ -678,6 +678,160 @@ def test_training_validation_equals_the_evaluator(tmp_path, monkeypatch, caplog)
     assert record["run"]["checkpoint_selector"] == "val_rollout_rel_l2_displacement"
 
 
+def _span_run(directory, training_span, short_bound):
+    """A tiny CGN run on a benchmark whose scored bound is the conftest's
+    ``short_bound`` (TRAIN 5, 6, 7, 5; VAL 5, 6 of 8 stored frames)."""
+    ids = {
+        "train": tuple(f"train_{i:04d}" for i in range(4)),
+        "val": tuple(f"val_{i:04d}" for i in range(2)),
+    }
+    data_root = directory / "data"
+    if not data_root.exists():
+        data_root.mkdir()
+        for split in ids.values():
+            for cid in split:
+                _write_tiny_case(data_root, cid, n_frames=8)
+    base = _local_spec()
+    spec = replace(
+        base,
+        card=replace(base.card, n_cases=6, n_frames=8, splits={"train": 4, "val": 2}),
+        splits=ids,
+        scored_frames=short_bound,
+    )
+    out_dir = directory / f"run-{training_span}"
+    train(
+        spec,
+        CGNConfig(**SMALL_CGN),
+        TrainConfig(
+            benchmark="seed-test-local",
+            batch_size=2,
+            training_steps=2,
+            val_every=2,
+            seed=1,
+            training_span=training_span,
+        ),
+        data_root,
+        out_dir,
+        "cpu",
+    )
+    return spec, data_root, out_dir, {k: list(v) for k, v in ids.items()}
+
+
+def test_one_declared_span_governs_training_and_evaluation(
+    tmp_path, scored_span_check, short_bound
+):
+    """ADR-0078 on the CGN loop; mirrors the mesh-family tests of the same
+    name."""
+    scored_span_check(
+        lambda directory, span: _span_run(directory, span, short_bound), timed=False
+    )
+
+
+def test_statistics_are_those_of_the_pool_cut_to_the_scored_span(tmp_path, short_bound):
+    """The normalization statistics of a run are computed on the training
+    pool as cut to each case's scored bound (ADR-0078), and differ from the
+    whole-record statistics a ``full`` run gets; the dataset-level cache
+    keeps the two apart."""
+    stats = {}
+    for n_caches, span in enumerate(("scored", "full"), start=1):
+        spec, data_root, out_dir, ids = _span_run(tmp_path, span, short_bound)
+        stats[span] = dict(np.load(out_dir / "normalization_stats.npz"))
+        trajs = [
+            load_case_trajectory(data_root / f"{cid}.h5", aux_field=spec.aux_field)
+            for cid in ids["train"]
+        ]
+        if span == "scored":
+            trajs = [
+                replace(
+                    tr,
+                    positions=tr.positions[: short_bound(tr.case_id)],
+                    aux=tr.aux[: short_bound(tr.case_id)],
+                    time=tr.time[: short_bound(tr.case_id)],
+                )
+                for tr in trajs
+            ]
+        expected = compute_stats(trajs)
+        for name in ("velocity_mean", "velocity_std", "aux_mean", "aux_std"):
+            assert np.array_equal(stats[span][name], getattr(expected, name)), name
+        # One data root, one cache file per pool: the key covers the cut.
+        assert len(list((data_root / "derived").glob("norm_*.npz"))) == n_caches
+    assert not np.array_equal(stats["scored"]["aux_std"], stats["full"]["aux_std"])
+
+
+def test_train_frames_cuts_below_the_scored_span(tmp_path, monkeypatch, short_bound):
+    """``train_frames`` stays an explicit fixed cut (ADR-0078): with a
+    per-case bound of 5 to 7 and ``train_frames = 6`` every case keeps
+    ``min(bound, 6)`` frames, under ``full`` exactly 6."""
+    import structbench.cli.train as train_mod
+
+    seen = {}
+    original = train_mod._record_training_pool
+
+    def spy(out_dir, spec, train_cfg, train_trajs, make_dataset, n_samples, **kw):
+        seen[train_cfg.training_span] = {tr.case_id: len(tr.time) for tr in train_trajs}
+        return original(
+            out_dir, spec, train_cfg, train_trajs, make_dataset, n_samples, **kw
+        )
+
+    monkeypatch.setattr(train_mod, "_record_training_pool", spy)
+    for span in ("scored", "full"):
+        directory = tmp_path / span
+        directory.mkdir()
+        ids = [f"train_{i:04d}" for i in range(4)]
+        data_root = directory / "data"
+        data_root.mkdir()
+        for cid in (*ids, "val_0000"):
+            _write_tiny_case(data_root, cid, n_frames=8)
+        base = _local_spec()
+        spec = replace(
+            base,
+            card=replace(
+                base.card, n_cases=5, n_frames=8, splits={"train": 4, "val": 1}
+            ),
+            splits={"train": tuple(ids), "val": ("val_0000",)},
+            scored_frames=short_bound,
+        )
+        train(
+            spec,
+            CGNConfig(**SMALL_CGN),
+            TrainConfig(
+                benchmark="seed-test-local",
+                batch_size=2,
+                training_steps=2,
+                val_every=2,
+                train_frames=6,
+                training_span=span,
+            ),
+            data_root,
+            directory / "run",
+            "cpu",
+        )
+    assert seen["scored"] == {cid: min(short_bound(cid), 6) for cid in seen["scored"]}
+    assert set(seen["full"].values()) == {6}
+
+
+def test_train_rejects_an_unknown_training_span(tmp_path):
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for cid in ("S-1", "S-2"):
+        _write_tiny_case(data_root, cid)
+    with pytest.raises(ValueError, match="training_span"):
+        train(
+            _local_spec(),
+            CGNConfig(**SMALL_CGN),
+            TrainConfig(
+                benchmark="seed-test-local",
+                batch_size=2,
+                training_steps=2,
+                val_every=2,
+                training_span="tail",
+            ),
+            data_root,
+            tmp_path / "run",
+            "cpu",
+        )
+
+
 def test_train_writes_periodic_checkpoints_outside_selection_glob(
     tmp_path, monkeypatch
 ):

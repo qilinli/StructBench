@@ -71,3 +71,22 @@ def test_peak_mean_aux_binds_headline_channel():
     tl = analyze_trajectory(tr2)
     assert tl.peak_mean_aux == pytest.approx(7.0)
     assert tl.t_peak_mean_aux == pytest.approx(tr.time[15])
+
+
+def test_report_gives_the_share_of_stored_frames_inside_the_scored_span():
+    """ADR-0078: with a declared span, each case's share and the pooled
+    share; without one the report is as it was."""
+    from structbench.benchmarks.timeline import with_scored_span
+
+    tl = analyze_trajectory(_impact_like_traj())  # 40 stored frames
+    plain = render_report("x", [tl])
+    assert "scored share" not in plain and "scored span" not in plain
+
+    assert with_scored_span(tl, 3, None) is tl
+    short = with_scored_span(tl, 3, 13)
+    whole = with_scored_span(tl, 3, 40)
+    assert (short.scored_frames_inside, whole.scored_frames_inside) == (10, 37)
+    report = render_report("x", [short, whole])
+    assert "| scored share |" in report
+    assert "25.0% (10 of 40)" in report
+    assert "58.8% pooled (47 of 80)" in report

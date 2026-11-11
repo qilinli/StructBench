@@ -654,6 +654,15 @@ class TrainConfig:
         recipe: train only on the scored window's frames). ``0`` (default)
         trains on full trajectories. Recipe, not protocol — the scored
         evaluation span is the benchmark spec's ``scored_frames``.
+    training_span : str
+        Which frames of each training trajectory the pool is drawn from
+        (ADR-0078). ``"scored"`` (default): the case's scored span, frames
+        below ``BenchmarkSpec.scored_frames_for(case)``, so every sample of
+        every loop has all its frames, inputs and targets, inside the span
+        the benchmark scores; on a benchmark that declares no span it is the
+        whole stored record. ``"full"``: the whole stored record. Either way
+        ``train_frames`` cuts further. Normalization statistics follow the
+        pool. Recipe, not protocol.
     seed : int
         Torch RNG seed set at the start of training; fixes weight
         initialization, training-noise draws, and shuffle order. Sourced from
@@ -673,6 +682,7 @@ class TrainConfig:
     w_aux: float = 1.0
     aux_tail_weight: float | tuple[float, ...] = 0.0
     train_frames: int = 0
+    training_span: str = "scored"
     seed: int = 0
     aux_fields: tuple[str, ...] | None = None
 
@@ -718,7 +728,10 @@ _RUN_KEYS = {"benchmark", "seed"}
 _RUN_SOURCED = {"benchmark", "seed"}
 
 #: [train] keys that may be omitted from a TOML (ADR-0059).
-_OPTIONAL_TRAIN_KEYS = {"aux_fields"}
+_OPTIONAL_TRAIN_KEYS = {"aux_fields", "training_span"}
+
+#: The values of ``TrainConfig.training_span`` (ADR-0078).
+TRAINING_SPANS = ("scored", "full")
 
 #: ``TrainConfig`` fields computed by :func:`load_run_config`, not read from the
 #: ``[train]`` table (see :func:`_derive_lr_decay_steps`).
@@ -968,6 +981,11 @@ def load_run_config(path: str | Path) -> ResolvedRunConfig:
     )
 
     train_cfg = TrainConfig(benchmark=run["benchmark"], seed=run["seed"], **train_table)
+    if train_cfg.training_span not in TRAINING_SPANS:
+        raise ConfigError(
+            f"[train] training_span must be one of {', '.join(TRAINING_SPANS)}; "
+            f"got {train_cfg.training_span!r}"
+        )
     _normalize_aux_knobs(train_cfg)
     _check_aux_knob_types("train", train_cfg)
 

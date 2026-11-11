@@ -1059,3 +1059,15 @@ def test_adr0064_happy_path_loads_fleet_configs():
     )
     assert rc.model.flow_map_structured_heads is False
     assert rc.model.flow_map_consistency_hinge == 0.1
+
+
+def test_training_span_defaults_to_scored_and_takes_full(tmp_path):
+    """ADR-0078: ``[train] training_span`` is optional, ``scored`` by
+    default, ``full`` the opt-out; any other value fails the load."""
+    assert load_run_config(_write(tmp_path, VALID)).train.training_span == "scored"
+    full = VALID.replace("[train]\n", '[train]\ntraining_span = "full"\n')
+    assert full != VALID
+    assert load_run_config(_write(tmp_path, full)).train.training_span == "full"
+    bad = VALID.replace("[train]\n", '[train]\ntraining_span = "tail"\n')
+    with pytest.raises(ConfigError, match="training_span"):
+        load_run_config(_write(tmp_path, bad))

@@ -77,8 +77,39 @@ def _task_lines(c: BenchmarkCard) -> list[str]:
     ]
 
 
-def _eval_lines(c: BenchmarkCard, *, fold_rationale: bool = False) -> list[str]:
+def _scored_span_line(spec: BenchmarkSpec) -> str | None:
+    """The landing page's line on the declared scored span (ADR-0078), or
+    ``None`` for a benchmark scored to the trajectory end.
+
+    States the span, the share of the stored frames inside it (the
+    declaration's own arithmetic, :meth:`BenchmarkSpec.scored_share`) and
+    that one declaration governs every stage.
+    """
+    share = spec.scored_share()
+    if share is None:
+        return None
+    c = spec.card
+    fixed = spec.scored_frames_fixed
+    span = (
+        f"frames [{c.input_frames}, {fixed}) of each case's {c.n_frames} stored"
+        if fixed is not None
+        else f"frames [{c.input_frames}, the case's own bound) of {c.n_frames} stored"
+    )
+    return (
+        f"- Scored span (ADR-0039, ADR-0078): {span}; {share:.1%} of the stored "
+        "frames lie inside it. The reference training pool, its statistics, "
+        "validation, evaluation and the figures all follow this span; a "
+        "rollout past it is an unscored diagnostic."
+    )
+
+
+def _eval_lines(
+    c: BenchmarkCard, *, fold_rationale: bool = False, span_line: str | None = None
+) -> list[str]:
     """The shared 'Evaluation criteria' section (archive README and page).
+
+    ``span_line`` is the landing page's scored-span bullet
+    (:func:`_scored_span_line`), placed after the protocol line.
 
     ``fold_rationale`` moves the long ``protocol_rationale`` into a collapsed
     ``<details>`` block after the metrics (used by the landing page, where the
@@ -92,6 +123,8 @@ def _eval_lines(c: BenchmarkCard, *, fold_rationale: bool = False) -> list[str]:
         f"- Protocol (benchmark-owned, ADR-0032, ADR-0035): {c.input_frames} "
         f"input frames, horizon {c.horizon}, scored at {c.eval_times} output times.",
     ]
+    if span_line is not None:
+        lines.append(span_line)
     if not fold_rationale:
         lines.append(f"- Protocol rationale: {c.protocol_rationale}")
     lines += [
@@ -1238,7 +1271,7 @@ def render_benchmark_page(
         "",
         *_task_lines(c),
         "",
-        *_eval_lines(c, fold_rationale=True),
+        *_eval_lines(c, fold_rationale=True, span_line=_scored_span_line(spec)),
     ]
     # The scored sets by coverage (ADR-0074), then the compliance table,
     # both above the results — the section ADR-0036 called "Numbers to beat"

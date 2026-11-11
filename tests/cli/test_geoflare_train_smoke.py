@@ -91,6 +91,7 @@ def _run_geoflare_smoke(
     *,
     time_conditioned: bool = False,
     scored_frames=None,
+    training_span: str = "scored",
     n_val: int = 1,
     training_steps: int = 50,
     val_every: int = 25,
@@ -147,6 +148,7 @@ def _run_geoflare_smoke(
         batch_size=2,
         training_steps=training_steps,
         val_every=val_every,
+        training_span=training_span,
     )
     out = tmp_path / "run"
     train(spec, cfg, tcfg, data_root, out, "cpu", family="geoflare")
@@ -274,3 +276,25 @@ def test_training_validation_equals_the_evaluator(
     assert mean["rollout_position_rmse"] == pytest.approx(val_pos, rel=1e-6)
     record = json.loads((out / "config.json").read_text(encoding="utf-8"))
     assert record["run"]["checkpoint_selector"] == "val_rollout_rel_l2_displacement"
+
+
+@pytest.mark.parametrize("time_conditioned", [False, True], ids=["ar", "tc"])
+def test_one_declared_span_governs_training_and_evaluation(
+    tmp_path, scored_span_check, short_bound, time_conditioned
+):
+    """ADR-0078 on both GeoFLARE loops; mirrors the Transolver test of the
+    same name."""
+
+    def run(directory, training_span):
+        spec, data_root, out, _cfg, _tcfg, ids = _run_geoflare_smoke(
+            directory,
+            time_conditioned=time_conditioned,
+            scored_frames=short_bound,
+            n_val=2,
+            training_steps=10,
+            val_every=10,
+            training_span=training_span,
+        )
+        return spec, data_root, out, ids
+
+    scored_span_check(run, timed=time_conditioned)
