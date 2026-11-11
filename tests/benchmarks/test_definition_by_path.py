@@ -129,3 +129,30 @@ def test_per_case_scored_frames_are_range_checked(tmp_path):
     # 4 + 9 = 13 > n_frames = 8
     with pytest.raises(ValueError, match="scored_frames"):
         spec.scored_frames_for("a-9")
+
+
+def test_a_per_case_bound_is_checked_for_every_case_when_the_definition_loads(
+    tmp_path,
+):
+    """ADR-0078: a bound out of range for one case of one split fails the
+    load, naming the case, not the first stage that reads that case."""
+    d = _definition(tmp_path)
+    # a-0 and a-1 stay in range (4, 5); the VAL case a-2 gets 9 > n_frames.
+    (d / "horizons.py").write_text(
+        "def scored(case_id):\n"
+        "    return 9 if case_id == 'a-2' else 4 + int(case_id.rsplit('-', 1)[1])\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"scored_frames\('a-2'\)"):
+        get_benchmark(str(d))
+
+
+def test_scored_share_is_the_declared_span_over_the_stored_frames(tmp_path):
+    """ADR-0078: the pooled share of stored frames inside the declared span,
+    from the declaration alone; ``None`` without a span."""
+    spec = get_benchmark(str(_definition(tmp_path)))
+    # bounds 4, 5, 6 with input_frames 2 over three cases of 8 frames.
+    assert spec.scored_share() == pytest.approx((2 + 3 + 4) / 24)
+    notch = get_benchmark("notch_beam_2d_impact")
+    assert notch.scored_share() == pytest.approx((250 - 6) / 502)
+    assert get_benchmark("taylor_impact_2d").scored_share() is None

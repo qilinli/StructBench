@@ -130,3 +130,13 @@ truncation or the trajectory length. Notch-impact's window is unchanged.
 First user: a dataset whose scored span ends when the body leaves the wall,
 a frame that differs per case. Design:
 `docs/plans/2026-11-06-benchmark-by-path-design.md`.
+
+---
+
+**Note (2026-11-11) — every stage follows the span (ADR-0078).** §4's
+truncated recipe is the trainer's default for any declared span
+(`training_span = "scored"`), fixed or per case; §3's long-horizon diagnostic
+is computed when asked for (`--tail`) and written under `unscored_tail`. The
+time-conditioned reference is written to the run record; for a per-case bound
+it is the card's `n_frames`. Notch-impact's window and registered rows are
+unchanged.

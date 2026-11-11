@@ -52,6 +52,7 @@ from ..benchmarks import (
 from ..config import (
     LR_SCHEDULE_FLOOR,
     MODEL_FAMILIES,
+    TRAINING_SPANS,
     CGNConfig,
     GeoFlareConfig,
     MGNConfig,
@@ -88,6 +89,7 @@ from ..eval import (
     one_step_position_rmse,
     peeq_decrease_rate,
     reference_sensitivities,
+    relative_l2_pooled,
     rollout,
     state_sufficiency,
     time_conditioned_rollout,
@@ -697,6 +699,89 @@ def _truncate_trajectory(tr: CaseTrajectory, n: int | None) -> CaseTrajectory:
     )
 
 
+def _training_cut(
+    spec: BenchmarkSpec, train_cfg: TrainConfig, case_id: str
+) -> int | None:
+    """The exclusive frame bound of one case's share of the training pool
+    (ADR-0078), ``None`` for the whole stored record.
+
+    Under ``training_span = "scored"`` it is the case's scored bound, read
+    through the one accessor every stage uses; ``train_frames`` is an
+    explicit fixed cut on top of either setting.
+    """
+    cuts: list[int] = []
+    if train_cfg.training_span == "scored":
+        bound = spec.scored_frames_for(case_id)
+        if bound is not None:
+            cuts.append(bound)
+    if train_cfg.train_frames > 0:
+        cuts.append(train_cfg.train_frames)
+    return min(cuts) if cuts else None
+
+
+def _record_training_pool(
+    out_dir: Path,
+    spec: BenchmarkSpec,
+    train_cfg: TrainConfig,
+    train_trajs: Sequence[CaseTrajectory],
+    make_dataset: Callable[[list[CaseTrajectory]], Any],
+    n_samples: int,
+    time_ref: int | None = None,
+) -> dict[str, Any]:
+    """Log the training pool and write it into the run record (ADR-0078).
+
+    ``run.training_pool`` in ``config.json`` holds the span setting in force,
+    the number of samples in the pool, the share of them whose every frame
+    lies inside the case's scored span, and the passes over the pool the
+    schedule makes (steps x batch / samples). A time-conditioned or flow-map
+    run also gets ``run.time_ref_frames``, the denominator of its normalized
+    time, which the evaluator reads back.
+
+    ``make_dataset`` builds the loop's own sample index from a trajectory
+    list; the scored share is the size of that index on the pool cut to each
+    case's scored bound, over its size on the pool as trained.
+    """
+    scored_trajs = [
+        _truncate_trajectory(tr, spec.scored_frames_for(tr.case_id))
+        for tr in train_trajs
+    ]
+    if all(
+        a.positions.shape[0] == b.positions.shape[0]
+        for a, b in zip(scored_trajs, train_trajs, strict=True)
+    ):
+        n_scored = n_samples
+    else:
+        n_scored = len(make_dataset(scored_trajs))
+    pool: dict[str, Any] = {
+        "training_span": train_cfg.training_span,
+        "train_frames": train_cfg.train_frames,
+        "scored_frames": _scored_frames_record(spec),
+        "samples": n_samples,
+        "scored_share": n_scored / n_samples,
+        "passes": train_cfg.training_steps * train_cfg.batch_size / n_samples,
+    }
+    logger.info(
+        "training pool: span %r (train_frames=%d), %d samples, %.1f%% inside "
+        "the scored span, time reference %s, %.3g passes over the pool "
+        "(%d steps x batch %d)",
+        pool["training_span"],
+        pool["train_frames"],
+        n_samples,
+        100.0 * pool["scored_share"],
+        "n/a" if time_ref is None else f"{time_ref} frames",
+        pool["passes"],
+        train_cfg.training_steps,
+        train_cfg.batch_size,
+    )
+    config_path = out_dir / "config.json"
+    record = json.loads(config_path.read_text(encoding="utf-8"))
+    record["run"]["training_pool"] = pool
+    if time_ref is not None:
+        record["run"]["time_ref_frames"] = time_ref
+    config_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    return pool
+
+
 def _definition_record(spec: BenchmarkSpec) -> dict[str, Any] | None:
     """The ``run.definition`` block for a benchmark loaded from a definition
     directory (its absolute path and file hashes), else ``None``."""
@@ -979,22 +1064,38 @@ def train(
     logger.info("loading %d TRAIN trajectories from %s", len(train_ids), data_root)
     state_fields = _state_fields_for(family, model_cfg, spec)
     train_trajs = _load_trajectories(train_ids, data_root, aux_field, state_fields)
-    if train_cfg.train_frames > 0:
-        # ADR-0039 §4 recipe: train only on the scored window's frames. Must
-        # precede cached_compute_stats so normalization follows the truncated
-        # pool (the cache signature covers frame counts, so no stale hit).
-        if train_cfg.train_frames <= model_cfg.input_frames + 1:
-            raise ValueError(
-                f"train_frames={train_cfg.train_frames} leaves no training "
-                f"window (input_frames={model_cfg.input_frames})"
-            )
-        train_trajs = [
-            _truncate_trajectory(tr, train_cfg.train_frames) for tr in train_trajs
-        ]
-        logger.info(
-            "train_frames=%d: training pool truncated (ADR-0039 recipe)",
-            train_cfg.train_frames,
+    if train_cfg.training_span not in TRAINING_SPANS:
+        raise ValueError(
+            f"training_span must be one of {', '.join(TRAINING_SPANS)}; "
+            f"got {train_cfg.training_span!r}"
         )
+    if (
+        train_cfg.train_frames > 0
+        and train_cfg.train_frames <= model_cfg.input_frames + 1
+    ):
+        raise ValueError(
+            f"train_frames={train_cfg.train_frames} leaves no training "
+            f"window (input_frames={model_cfg.input_frames})"
+        )
+    # ADR-0078 (extending ADR-0039 §4): the pool is cut per case, here and
+    # only here, before the statistics and before any loop builds a sample.
+    # Every loop draws from these trajectories, so no sample holds a frame at
+    # or beyond its case's cut, and the statistics (cached on a signature
+    # that covers frame counts and content) follow the cut pool.
+    stored = sum(int(tr.positions.shape[0]) for tr in train_trajs)
+    train_trajs = [
+        _truncate_trajectory(tr, _training_cut(spec, train_cfg, tr.case_id))
+        for tr in train_trajs
+    ]
+    kept = sum(int(tr.positions.shape[0]) for tr in train_trajs)
+    logger.info(
+        "training span %r (train_frames=%d): the pool keeps %d of %d stored "
+        "TRAIN frames (ADR-0078)",
+        train_cfg.training_span,
+        train_cfg.train_frames,
+        kept,
+        stored,
+    )
     val_trajs = _load_trajectories(
         list(spec.splits["val"]), data_root, aux_field, state_fields
     )
@@ -1124,6 +1225,14 @@ def train(
             f"input_frames={cgn.input_frames} frames, so there are no "
             f"autoregressive samples. Check the data root or reduce input_frames."
         )
+    _record_training_pool(
+        out_dir,
+        spec,
+        train_cfg,
+        train_trajs,
+        lambda trajs: WindowDataset(trajs, cgn.input_frames),
+        len(dataset),
+    )
     loader = DataLoader(
         dataset,
         batch_size=train_cfg.batch_size,
@@ -1386,6 +1495,14 @@ def _train_mgn(
             f"input_frames={mgn.input_frames} frames, so there are no "
             f"autoregressive samples. Check the data root or reduce input_frames."
         )
+    _record_training_pool(
+        out_dir,
+        spec,
+        train_cfg,
+        train_trajs,
+        lambda trajs: WindowDataset(trajs, mgn.input_frames),
+        len(dataset),
+    )
     loader = DataLoader(
         dataset,
         batch_size=train_cfg.batch_size,
@@ -1547,22 +1664,64 @@ def _tc_time_ref_frames(
 
     The query time is ``t = frame / (time_ref_frames - 1)``, so ``time_ref_frames``
     is the scored horizon in frames. It must be identical at train and eval for
-    ``t`` to mean the same physical instant; both call this with the SAME inputs
-    (the benchmark spec's ``scored_frames`` and the config's ``train_frames``),
-    so no value need be persisted. Precedence: the pinned scored horizon
-    (``scored_frames``) if set; else the recipe truncation (``train_frames``) if
-    set; else the trajectory's own frame count.
+    ``t`` to mean the same physical instant. Precedence: the pinned scored
+    horizon (``scored_frames``) if set; else the recipe truncation
+    (``train_frames``) if set; else the trajectory's own frame count.
 
-    ``traj_len`` must be a FULL trajectory's frame count (training passes the
-    shortest TRAIN trajectory, the evaluator the case's own). In-training
-    validation holds trajectories truncated to their scored span, so it reuses
-    the training loop's value and never calls this.
+    This is the rule for a benchmark with a fixed bound or none, and the one
+    a run record from before ADR-0078 is evaluated under. Callers go through
+    :func:`_training_time_ref` (training, which also handles a per-case
+    bound and whose value is written to the run record) and
+    :func:`_run_time_ref` (evaluation, which reads it back). ``traj_len``
+    must be an UNCUT trajectory's frame count.
     """
     if scored_frames is not None:
         return scored_frames
     if train_frames > 0:
         return train_frames
     return traj_len
+
+
+def _training_time_ref(
+    spec: BenchmarkSpec, train_cfg: TrainConfig, pool_min_frames: int
+) -> int:
+    """The time reference a time-conditioned or flow-map run trains on
+    (ADR-0078): one number per benchmark, which does not move with the
+    training span.
+
+    A fixed scored bound is the reference (ADR-0054). A per-case bound takes
+    the card's ``n_frames``: the pool is then cut per case, so its shortest
+    trajectory is one case's span, not a clock. A benchmark that declares no
+    span keeps the rule it had, the fixed cut ``train_frames`` or else the
+    shortest training trajectory, which is uncut there. The value is written
+    to the run record (``run.time_ref_frames``) and :func:`_run_time_ref`
+    reads it back.
+    """
+    if callable(spec.scored_frames):
+        return spec.card.n_frames
+    return _tc_time_ref_frames(
+        spec.scored_frames_fixed, train_cfg.train_frames, pool_min_frames
+    )
+
+
+def _run_time_ref(
+    record: Mapping[str, Any], spec: BenchmarkSpec, stored_frames: int
+) -> int:
+    """The time reference a run was trained on, for evaluating it.
+
+    Read from the run record where it is written (ADR-0078). A record from
+    before that carries none and is evaluated by the rule it was trained
+    under: the fixed scored bound, else its ``train_frames``, else the
+    case's stored frame count, which must be passed uncut.
+    """
+    recorded = record.get("run", {}).get("time_ref_frames")
+    if recorded is not None:
+        return int(recorded)
+    return _tc_time_ref_frames(
+        spec.scored_frames_fixed,
+        record["train"].get("train_frames", 0),
+        stored_frames,
+    )
 
 
 def _resolve_transolver_k(
@@ -1589,7 +1748,8 @@ def _resolve_transolver_k(
         raise ValueError(
             "frames_per_call = 0 (one-shot / k=T) requires a uniform TRAIN "
             "trajectory length (the decoder head is fixed-size); got lengths "
-            f"{sorted(lengths)}"
+            f"{sorted(lengths)}. A per-case scored span cuts each case to its "
+            "own bound (ADR-0078), so one-shot cannot train on it."
         )
     horizon = min(lengths) - cfg.input_frames
     if cfg.frames_per_call == 0:
@@ -1937,6 +2097,16 @@ def _train_transolver(
             f"({'pushforward needs 2k target frames; ' if is_pushforward else ''}"
             f"check the data root, or reduce input_frames / frames_per_call)."
         )
+    _record_training_pool(
+        out_dir,
+        spec,
+        train_cfg,
+        train_trajs,
+        lambda trajs: WindowDataset(
+            trajs, cfg.input_frames, target_frames=target_frames
+        ),
+        len(dataset),
+    )
     loader = DataLoader(
         dataset,
         batch_size=train_cfg.batch_size,
@@ -2367,9 +2537,7 @@ def _train_transolver_fm(
         loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
 
     min_len = min(int(tr.positions.shape[0]) for tr in train_trajs)
-    time_ref = _tc_time_ref_frames(
-        spec.scored_frames_fixed, train_cfg.train_frames, min_len
-    )
+    time_ref = _training_time_ref(spec, train_cfg, min_len)
     if time_ref < 2:
         raise ValueError(
             f"flow-map time_ref_frames={time_ref} < 2 (scored_frames="
@@ -2458,21 +2626,23 @@ def _train_transolver_fm(
     )
 
     chain = cfg.flow_map_pushforward
-    dataset: FlowMapChainDataset | FlowMapPairDataset
-    if chain:
-        # ADR-0063 knob 1: two-hop chains. Config load guarantees
-        # flow_map_max_dt >= 2 with pushforward (uncapped chains would
-        # enumerate O(T^3) triples).
-        dataset = FlowMapChainDataset(
-            train_trajs,
-            cfg.input_frames,
-            max_dt=cfg.flow_map_max_dt,
-            generations=cfg.flow_map_pushforward_generations,
-        )
-    else:
-        dataset = FlowMapPairDataset(
-            train_trajs, cfg.input_frames, max_dt=cfg.flow_map_max_dt
-        )
+
+    def _fm_dataset(
+        trajs: list[CaseTrajectory],
+    ) -> FlowMapChainDataset | FlowMapPairDataset:
+        if chain:
+            # ADR-0063 knob 1: two-hop chains. Config load guarantees
+            # flow_map_max_dt >= 2 with pushforward (uncapped chains would
+            # enumerate O(T^3) triples).
+            return FlowMapChainDataset(
+                trajs,
+                cfg.input_frames,
+                max_dt=cfg.flow_map_max_dt,
+                generations=cfg.flow_map_pushforward_generations,
+            )
+        return FlowMapPairDataset(trajs, cfg.input_frames, max_dt=cfg.flow_map_max_dt)
+
+    dataset = _fm_dataset(train_trajs)
     if len(dataset) == 0:
         raise ValueError(
             "empty training set: no TRAIN trajectory yields a valid "
@@ -2482,6 +2652,15 @@ def _train_transolver_fm(
             f"{cfg.flow_map_pushforward_generations} (a G-deep chain needs "
             f"trajectories longer than input_frames + 2G + 1; ADR-0062/0063)."
         )
+    _record_training_pool(
+        out_dir,
+        spec,
+        train_cfg,
+        train_trajs,
+        _fm_dataset,
+        len(dataset),
+        time_ref=time_ref,
+    )
     loader = DataLoader(
         dataset,
         batch_size=train_cfg.batch_size,
@@ -3019,9 +3198,7 @@ def _train_transolver_tc(
         loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
 
     min_len = min(int(tr.positions.shape[0]) for tr in train_trajs)
-    time_ref = _tc_time_ref_frames(
-        spec.scored_frames_fixed, train_cfg.train_frames, min_len
-    )
+    time_ref = _training_time_ref(spec, train_cfg, min_len)
     if time_ref < 2:
         raise ValueError(
             f"time-conditioned time_ref_frames={time_ref} < 2 (scored_frames="
@@ -3069,6 +3246,15 @@ def _train_transolver_tc(
             "time-conditioned query frames (check the data root or reduce "
             "input_frames)."
         )
+    _record_training_pool(
+        out_dir,
+        spec,
+        train_cfg,
+        train_trajs,
+        lambda trajs: WindowDataset(trajs, cfg.input_frames, target_frames=1),
+        len(dataset),
+        time_ref=time_ref,
+    )
     loader = DataLoader(
         dataset,
         batch_size=train_cfg.batch_size,
@@ -3293,9 +3479,7 @@ def _train_geoflare_tc(
         loading_scalars = [spec.loading_scalar(tr.case_id) for tr in train_trajs]
 
     min_len = min(int(tr.positions.shape[0]) for tr in train_trajs)
-    time_ref = _tc_time_ref_frames(
-        spec.scored_frames_fixed, train_cfg.train_frames, min_len
-    )
+    time_ref = _training_time_ref(spec, train_cfg, min_len)
     if time_ref < 2:
         raise ValueError(
             f"time-conditioned time_ref_frames={time_ref} < 2 (scored_frames="
@@ -3342,6 +3526,15 @@ def _train_geoflare_tc(
             "time-conditioned query frames (check the data root or reduce "
             "input_frames)."
         )
+    _record_training_pool(
+        out_dir,
+        spec,
+        train_cfg,
+        train_trajs,
+        lambda trajs: WindowDataset(trajs, cfg.input_frames, target_frames=1),
+        len(dataset),
+        time_ref=time_ref,
+    )
     loader = DataLoader(
         dataset,
         batch_size=train_cfg.batch_size,
@@ -3626,6 +3819,14 @@ def _train_geoflare(
             f"input_frames={cfg.input_frames} frames, so there are no "
             f"autoregressive samples. Check the data root or reduce input_frames."
         )
+    _record_training_pool(
+        out_dir,
+        spec,
+        train_cfg,
+        train_trajs,
+        lambda trajs: WindowDataset(trajs, cfg.input_frames),
+        len(dataset),
+    )
     loader = DataLoader(
         dataset,
         batch_size=train_cfg.batch_size,
@@ -3877,6 +4078,83 @@ def _case_properties(
     if spec.matched_initial_state_pairs:
         props["prop_state_sufficiency"] = None
     return props
+
+
+#: The numbers an ``unscored_tail`` block may hold (ADR-0078), in the order
+#: the split mean lists them. Same names as the scored keys: the block they
+#: sit in is what says they are unscored.
+_UNSCORED_TAIL_KEYS = (
+    "rollout_position_rmse",
+    "rollout_aux_rmse",
+    "rollout_rel_l2_displacement",
+    "rollout_rel_l2_aux",
+    "prop_closure_ratio",
+    "prop_error_growth",
+    "prop_yield_violation_rate",
+    "prop_peeq_decrease_rate",
+)
+
+
+def _unscored_tail(
+    spec: BenchmarkSpec,
+    trajectory: CaseTrajectory,
+    result: RolloutResult,
+    one_step: np.ndarray | None,
+    state_labels: tuple[str, ...],
+    input_frames: int,
+    bound: int,
+) -> dict[str, Any]:
+    """The errors and properties of one rollout over the frames at and beyond
+    its case's scored bound, ``[bound, last stored frame]`` (ADR-0078; the
+    long-horizon diagnostic of ADR-0039 §3).
+
+    Nothing here is a registry metric. The forms are the scored ones (mean of
+    per-frame RMSE, pooled relative L2 with the kinematic mask, the
+    properties of ADR-0075) taken over the tail's frames; the plastic-strain
+    property reads from the last scored frame on, so the first tail step is
+    a step.
+    """
+    n_scored = bound - input_frames
+    kin = np.isin(trajectory.particle_type, np.asarray(spec.kinematic_types))
+    keep: np.ndarray | None = ~kin if kin.any() else None
+    ref0 = trajectory.positions[0]
+    pos_tail = result.position_rmse[n_scored:]
+    true_aux = trajectory.aux[bound:]
+    pred_aux = result.predicted_aux[bound:].reshape(true_aux.shape)
+    out: dict[str, Any] = {
+        "frames": [bound, len(trajectory.time)],
+        "rollout_position_rmse": float(pos_tail.mean()),
+        "rollout_aux_rmse": float(result.aux_rmse[n_scored:].mean()),
+        "rollout_rel_l2_displacement": float(
+            relative_l2_pooled(
+                result.predicted_positions[bound:] - ref0,
+                trajectory.positions[bound:] - ref0,
+                mask=keep,
+            )
+        ),
+        "rollout_rel_l2_aux": float(relative_l2_pooled(pred_aux, true_aux, mask=keep)),
+        "prop_closure_ratio": (
+            None
+            if one_step is None
+            else _defined(closure_ratio(pos_tail, one_step[n_scored:]))
+        ),
+        "prop_error_growth": _defined(error_growth(pos_tail)),
+    }
+    if spec.state_site == "element":
+        law = (
+            spec.constitutive_law(trajectory.case_id) if spec.constitutive_law else None
+        )
+        out.update(
+            _state_constraint_properties(
+                result.predicted_state,
+                state_labels,
+                law,
+                spec.property_tolerances,
+                bound,
+                None,
+            )
+        )
+    return out
 
 
 def _json_safe(obj: Any) -> Any:
@@ -4147,11 +4425,7 @@ def _predict_case(
     scored = spec.scored_frames_for(trajectory.case_id)
     if getattr(model_cfg, "time_conditioned", False):
         assert isinstance(simulator, (TransolverSimulator, GeoFlareSimulator))
-        time_ref = _tc_time_ref_frames(
-            spec.scored_frames_fixed,
-            run.record["train"].get("train_frames", 0),
-            len(trajectory.time),
-        )
+        time_ref = _run_time_ref(run.record, spec, len(trajectory.time))
         if run.family == "transolver" and bool(getattr(model_cfg, "flow_map", False)):
             assert isinstance(simulator, TransolverSimulator)
             _, canonical = _fm_intervals_and_canonical(model_cfg)
@@ -4336,11 +4610,7 @@ def evaluate_restart(
             assert isinstance(simulator, TransolverSimulator)
             # The CASE's time reference, as training and evaluate() use it;
             # the window's own length would renormalise time per restart.
-            time_ref = _tc_time_ref_frames(
-                spec.scored_frames_fixed,
-                record["train"].get("train_frames", 0),
-                n_case_frames,
-            )
+            time_ref = _run_time_ref(record, spec, n_case_frames)
             return flow_map_rollout(
                 simulator,
                 window,
@@ -4694,8 +4964,16 @@ def evaluate(
     split_name: str = "eval",
     save_artifacts: bool = True,
     checkpoint: str | Path | None = None,
+    tail: bool = False,
 ) -> dict[str, Any]:
     """Roll out the run's checkpoint over ``case_ids`` and report ADR-0019 §5.
+
+    A case with a scored bound is rolled out to that bound and no further
+    (ADR-0078): the scored span is all the evaluator computes and saves.
+    ``tail=True`` rolls on to the last stored frame and adds, per case and
+    in the split mean, an ``unscored_tail`` block (the errors and properties
+    of the frames at and beyond the bound) and the full-length rollout
+    artifact. The scored numbers are the same either way.
 
     The simulator is rebuilt entirely from the run directory's own record —
     architecture and ``n_particle_types`` from ``config.json``, model family
@@ -4732,6 +5010,10 @@ def evaluate(
         Label recorded in the report and used in artifact filenames.
     save_artifacts : bool
         Write the metrics JSON and per-case rollout ``.npz`` files.
+    tail : bool
+        Roll each bounded case on past its scored bound and report the tail
+        under ``unscored_tail`` (ADR-0078; the ADR-0039 §3 diagnostic). No
+        effect on a benchmark that declares no scored span.
     checkpoint : str, pathlib.Path or None
         Explicit checkpoint file to evaluate (e.g. a periodic
         ``ckpt-<step>.pt``); a relative path is resolved against ``out_dir``.
@@ -4834,6 +5116,14 @@ def evaluate(
         if mesh_sim is not None and spec.mesh_transform is not None:
             # ADR-0047: same synthesis the training load applied.
             trajectory = spec.mesh_transform(trajectory)
+        # ADR-0078: the case's scored bound, read once. Unless the tail is
+        # asked for, the case is cut to it here, so the rollout, every pass
+        # and the saved artifact stop at the bound. The time reference is
+        # the run's own and never read off the cut length.
+        case_bound = spec.scored_frames_for(case_id)
+        stored_frames = len(trajectory.time)
+        if case_bound is not None and not tail:
+            trajectory = _truncate_trajectory(trajectory, case_bound)
         if mesh_sim is not None:
             if trajectory.cells is None or trajectory.reference_coords is None:
                 raise ValueError(
@@ -4880,11 +5170,7 @@ def evaluate(
             # tc is set only for the Transolver / GeoFLARE families (the two
             # exposing predict_state_at); assert so mypy narrows the union.
             assert isinstance(simulator, (TransolverSimulator, GeoFlareSimulator))
-            time_ref = _tc_time_ref_frames(
-                spec.scored_frames_fixed,
-                record["train"].get("train_frames", 0),
-                len(trajectory.time),
-            )
+            time_ref = _run_time_ref(record, spec, stored_frames)
             if fm:
                 # ADR-0062: every listed interval in both anchor modes; the
                 # canonical self-anchored pass is the standard `result`
@@ -5029,7 +5315,6 @@ def evaluate(
                 simulator.aux_feedback = "self"
         # One-step aggregates cover the same scored span as the rollout means
         # (ADR-0035 parity, ADR-0039 horizon); per-frame arrays stay full.
-        case_bound = spec.scored_frames_for(trajectory.case_id)
         n_scored = (
             None
             if case_bound is None
@@ -5134,10 +5419,31 @@ def evaluate(
                 case_bound,
             ),
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
-            # frame to trajectory end. Not a registry metric; equals the scored value
-            # when the benchmark pins no horizon. Field name matches the
-            # 2026-07-20 bless-fleet rescore (metrics-rescore-adr0039.json).
-            "rollout_position_rmse_full": float(result.position_rmse.mean()),
+            # frame to the last stored one. Not a registry metric; equals the
+            # scored value when the benchmark pins no horizon, and is null
+            # when the rollout stopped at the bound (ADR-0078; ``tail`` rolls
+            # on). Field name matches the 2026-07-20 bless-fleet rescore.
+            "rollout_position_rmse_full": (
+                float(result.position_rmse.mean())
+                if len(trajectory.time) == stored_frames
+                else None
+            ),
+            # ADR-0078: what lies at and beyond the bound, labelled unscored.
+            **(
+                {}
+                if not tail or case_bound is None or case_bound >= stored_frames
+                else {
+                    "unscored_tail": _unscored_tail(
+                        spec,
+                        trajectory,
+                        result,
+                        one_step,
+                        state_labels,
+                        model_cfg.input_frames,
+                        case_bound,
+                    )
+                }
+            ),
             "qoi_pred": result.qoi_pred,
             "qoi_true": result.qoi_true,
             "qoi_error": result.qoi_error,
@@ -5178,6 +5484,15 @@ def evaluate(
                     "predicted_state": result.predicted_state,
                     "state_rmse": result.state_rmse,
                 }
+            # ADR-0078: each saved rollout carries its span, so a reader
+            # (the figures) needs no benchmark to find the bound. The arrays
+            # hold frames [0, saved); the scored span is
+            # [input_frames, scored_frames). -1 = no bound, scored to the end.
+            span_arrays: dict[str, Any] = {
+                "input_frames": np.int64(model_cfg.input_frames),
+                "scored_frames": np.int64(-1 if case_bound is None else case_bound),
+                "stored_frames": np.int64(stored_frames),
+            }
             if one_step is None:
                 # Time-conditioned: no one-step arrays to persist (null; ADR-0054).
                 np.savez(
@@ -5187,6 +5502,7 @@ def evaluate(
                     position_rmse=result.position_rmse,
                     aux_rmse=result.aux_rmse,
                     **state_arrays,
+                    **span_arrays,
                 )
             else:
                 assert one_step_aux is not None  # set together with one_step
@@ -5198,6 +5514,8 @@ def evaluate(
                     aux_rmse=result.aux_rmse,
                     one_step_position_rmse=one_step,
                     one_step_aux_rmse=one_step_aux,
+                    **state_arrays,
+                    **span_arrays,
                 )
 
     # ADR-0075 clause 6: state sufficiency of each declared pair whose two
@@ -5221,6 +5539,17 @@ def evaluate(
         vals = [case[key] for case in cases.values() if case[key] is not None]
         return float(np.mean(vals)) if vals else None
 
+    # ADR-0078: the split mean of each unscored-tail number, over the cases
+    # that have a tail (a case scored to its last stored frame has none).
+    tails = [
+        case["unscored_tail"] for case in cases.values() if "unscored_tail" in case
+    ]
+    tail_mean: dict[str, float | None] = {}
+    for key in _UNSCORED_TAIL_KEYS:
+        vals = [t[key] for t in tails if t.get(key) is not None]
+        if any(key in t for t in tails):
+            tail_mean[key] = float(np.mean(vals)) if vals else None
+
     metrics: dict[str, Any] = {
         "split": split_name,
         "checkpoint": ckpt_path.name,
@@ -5233,6 +5562,15 @@ def evaluate(
         # "per_case" that each case has its own bound (ADR-0039 note,
         # 2026-11-06). Records with different scored_frames are not comparable.
         "scored_frames": _scored_frames_record(spec),
+        # ADR-0078: the span the run was trained on ("scored" or "full"; a
+        # record from before the setting trained on the full record, cut by
+        # its train_frames) and that fixed cut. Records trained on different
+        # spans are not comparable either.
+        "training_span": record["train"].get("training_span", "full"),
+        "train_frames": record["train"].get("train_frames", 0),
+        # Whether the rollouts ran past the scored bound (the unscored_tail
+        # blocks). The scored numbers do not depend on it.
+        "tail": bool(tail),
         # Card-conforming by construction: a checkpoint's input_frames is
         # validated equal to the card's at config load and train (ADR-0035),
         # so a standard run stays standard on re-eval. Legacy off-card records
@@ -5302,6 +5640,7 @@ def evaluate(
             "rollout_position_rmse_full": _mean_over_cases(
                 "rollout_position_rmse_full"
             ),
+            **({"unscored_tail": tail_mean} if tail_mean else {}),
             # ADR-0075 clause 6: the split means of the properties block.
             **{key: _mean_over_cases(key) for key in spec.defined_properties},
             "qoi_abs_error": {
@@ -5363,6 +5702,14 @@ def main(argv: list[str] | None = None) -> int:
         "rollout .npz artifacts are skipped, so the canonical "
         "selected-checkpoint artifacts are never overwritten.",
     )
+    parser.add_argument(
+        "--tail",
+        action="store_true",
+        help="valid/rollout only: roll each case on past its scored bound to "
+        "the last stored frame and report the tail's errors and properties "
+        "under 'unscored_tail' (ADR-0078). By default a rollout stops at the "
+        "bound; the scored numbers are the same either way.",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -5374,6 +5721,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.mode == "train" and args.checkpoint is not None:
         print("error: --checkpoint applies to valid/rollout modes only")
+        return 2
+    if args.tail and args.mode not in ("valid", "rollout"):
+        print("error: --tail applies to valid/rollout modes only")
         return 2
     run_config = load_run_config(args.config) if args.config is not None else None
 
@@ -5424,6 +5774,7 @@ def main(argv: list[str] | None = None) -> int:
                 device,
                 split_name="val",
                 checkpoint=args.checkpoint,
+                tail=args.tail,
             )
             _print_split_report(metrics)
         elif args.mode == "gradient":  # ADR-0076: the gradient task family
@@ -5464,6 +5815,7 @@ def main(argv: list[str] | None = None) -> int:
                     device,
                     split_name=split_name,
                     checkpoint=args.checkpoint,
+                    tail=args.tail,
                 )
                 _print_split_report(metrics)
     return 0

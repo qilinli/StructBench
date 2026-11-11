@@ -137,7 +137,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0036 | Per-benchmark landing pages: one generated docs page per benchmark (extends 0027) | Durable | Accepted (extended by 0046; amended by 0074) |
 | 0037 | Blessed runs archive: `models/` mirror and registry checkpoint pointers (amends 0031, 0033) | Durable | Accepted |
 | 0038 | Auxiliary-channel training knobs: target-space transform and tail weight | Ephemeral | Accepted |
-| 0039 | Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe | Durable | Accepted (note 2026-11-06: the bound may be per case) |
+| 0039 | Notch-impact scored horizon: 250 µs evaluation window, matched baseline recipe | Durable | Accepted (note 2026-11-06: the bound may be per case; amended by 0078) |
 | 0040 | Dataset hosting: maintainer's OneDrive stays the master; archives public on Hugging Face (was: shared on request) | Durable | Accepted (amended 2026-08-28: public Hugging Face mirror; 2026-09-23: data tag v0.1.1, and the on-request promise needs ADR-0068 clause 6 for Abaqus; notes by 0074) |
 | 0041 | v0.3 pivots to a public multi-method benchmark: DeformingPlate with native MGN/Transolver/GeoFLARE (supersedes ADR-0024's v0.3 scope) | Durable | Accepted (amends 0034; corrected in place 2026-08-07 re schema, see 0042; clause 4 closed by 0046; comparison reframed as a use, not the purpose, by 0065) |
 | 0042 | Schema 0.2.0 adds per-node fields; nodal-FE ingestion via download-and-convert (deforming_plate) | Durable | Accepted (corrects 0041) |
@@ -151,7 +151,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0050 | Prediction-scheme axis: unified k-frames-per-call (autoregressive ↔ bundled ↔ one-shot) | Durable | Superseded by 0051 (source corrections 2026-08-15) |
 | 0051 | k-frames-per-call implementation (Transolver): resolved decisions, neural-CFL, pushforward | Durable | Accepted (amended 2026-08-15: one-shot impact-velocity conditioning; time-query scheme recorded) |
 | 0053 | Decouple model history (`history_frames`) from the `input_frames` seed / scored-span protocol | Durable | Accepted |
-| 0054 | Transolver time-conditioning: the native non-autoregressive prediction scheme | Durable | Accepted |
+| 0054 | Transolver time-conditioning: the native non-autoregressive prediction scheme | Durable | Accepted (amended by 0078) |
 | 0055 | Relative-L2 as the headline metric (amended: headline, RMSE retained secondary) | Durable | Accepted (amended by 0073, 0075) |
 | 0056 | Descope notch-bend: the notch-beam benchmark narrows to notch-impact (redundant with impact; amends 0024/0026) | Durable | Accepted (amended 2026-09-23: excluded, not parked) |
 | 0057 | Transolver++ eidetic-state adaptation (adaptive temperature + train-only Gumbel Rep-Slice) on the Transolver family | Ephemeral | Accepted (0073; relabelled Ephemeral 2026-11-09) |
@@ -175,6 +175,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted (amended by 0074; a second task family by 0076) |
 | 0076 | The gradient task family: a surrogate's sensitivities scored against the sweep's own differences (amends 0019, 0032, 0033, 0055, 0075; constrains 0074) | Durable | Accepted (2026-11-08) |
 | 0077 | Checkpoint selection on the reported metric: validation relative L2 of displacement (supersedes the selection clause of 0028 and the selection sentence of 0062) | Ephemeral | Accepted (2026-11-10) |
+| 0078 | One declared scored span, read by every stage: training pool, statistics, time reference, evaluation, figures, records (amends 0039, 0054, 0032) | Durable | Proposed |
 
 ---
 

@@ -1230,3 +1230,20 @@ def test_gradient_group_needs_a_declared_family_and_holds_only_gradient_keys():
     )
     with pytest.raises(ValueError, match="come together"):
         replace(taylor, results=(mixed,))
+
+
+def test_landing_page_states_the_scored_span_where_one_is_declared():
+    """ADR-0078: the page of a benchmark with a scored span says which
+    frames are scored and what share of the stored record that is; a
+    benchmark scored to the end carries no such line."""
+    from structbench.benchmarks import get_benchmark
+    from structbench.benchmarks.render import render_benchmark_page
+
+    notch = render_benchmark_page(
+        get_benchmark("notch_beam_2d_impact"), "notch_beam_2d_impact"
+    )
+    assert "frames [6, 250) of each case's 502 stored; 48.6% of the stored" in notch
+    taylor = render_benchmark_page(
+        get_benchmark("taylor_impact_2d"), "taylor_impact_2d"
+    )
+    assert "Scored span (ADR-0039, ADR-0078)" not in taylor

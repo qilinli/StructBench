@@ -256,3 +256,34 @@ def test_element_values_must_match_the_quads():
     with pytest.raises(ValueError, match="one value per element"):
         fringe_elements(ax, NODES, QUADS, np.zeros(3))
     matplotlib.pyplot.close("all")
+
+
+def test_figure_frames_lie_inside_the_scored_span():
+    """ADR-0078: a figure covers ``[input_frames, bound)`` of a saved
+    rollout, the bound read from the rollout file; ``--full`` shows every
+    saved frame; a file from before the field uses the declared bound."""
+    from structbench.viz.__main__ import figure_span
+
+    def saved(n, input_frames=3, **extra):
+        return {
+            "predicted_positions": np.zeros((n, 2, 2)),
+            "position_rmse": np.zeros(n - input_frames),
+            **extra,
+        }
+
+    # A rollout evaluated with the tail: 20 saved frames, bound 9.
+    tail = saved(20, input_frames=np.int64(3), scored_frames=np.int64(9))
+    input_frames, end = figure_span(tail, None, full=False)
+    assert (input_frames, end) == (3, 9)
+    frames = snapshot_frames(end, input_frames, 4)
+    assert frames[0] == 3 and frames[-1] == 8
+    assert all(3 <= f < 9 for f in frames)
+    assert figure_span(tail, None, full=True) == (3, 20)
+    # Stopped at the bound: the file holds exactly the scored span.
+    stopped = saved(9, input_frames=np.int64(3), scored_frames=np.int64(9))
+    assert figure_span(stopped, None, full=True) == (3, 9)
+    # No bound declared (-1): every saved frame.
+    assert figure_span(saved(20, scored_frames=np.int64(-1)), 9, full=False) == (3, 20)
+    # A file from before the field: the benchmark's own bound.
+    assert figure_span(saved(20), 9, full=False) == (3, 9)
+    assert figure_span(saved(20), None, full=False) == (3, 20)

@@ -21,6 +21,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
+from typing import cast
 
 from torch import Tensor
 
@@ -326,6 +327,25 @@ class BenchmarkSpec:
         benchmark scores to the trajectory end or per case."""
         return self.scored_frames if isinstance(self.scored_frames, int) else None
 
+    def scored_share(self) -> float | None:
+        """The share of the stored frames that lie inside the declared scored
+        span, pooled over every case of every split (ADR-0078), or ``None``
+        when the benchmark scores to the trajectory end.
+
+        Per case the span ``[input_frames, bound)`` holds
+        ``bound - input_frames`` frames of the card's ``n_frames``. This is
+        the declaration's own arithmetic and reads no data; the timeline
+        analysis reports the same share from the stored files.
+        """
+        if self.scored_frames is None:
+            return None
+        ids = [cid for split in self.splits.values() for cid in split]
+        inside = sum(
+            cast(int, self.scored_frames_for(cid)) - self.card.input_frames
+            for cid in ids
+        )
+        return inside / (len(ids) * self.card.n_frames)
+
     def scored_frames_for(self, case_id: str) -> int | None:
         """The scored bound of one case: the fixed ``int``, the callable's
         value for ``case_id``, or ``None`` (scored to the trajectory end).
@@ -488,6 +508,13 @@ class BenchmarkSpec:
                 f"input_frames ({self.card.input_frames}) < scored_frames "
                 f"<= n_frames ({self.card.n_frames})"
             )
+        if callable(self.scored_frames):
+            # ADR-0078: a per-case bound is checked for every case of every
+            # split when the definition loads, not when a stage first reads
+            # the one case that is wrong.
+            for ids in self.splits.values():
+                for case_id in ids:
+                    self.scored_frames_for(case_id)
         # ADR-0075: the state site and what it needs, all or nothing.
         if self.state_site not in ("node", "element"):
             raise ValueError(

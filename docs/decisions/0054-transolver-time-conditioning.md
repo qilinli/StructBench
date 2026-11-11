@@ -122,3 +122,11 @@ than the autoregressive ones, as the landing page records; the guard's
 `velocity_history` is `history_frames` since ADR-0053; and the
 autoregressive rows this ADR called not-native were kept in the family ×
 scheme matrix by ADR-0046's 2026-08-27 amendment.
+
+---
+
+**Note (2026-11-11) — the time reference is recorded (ADR-0078).** The
+denominator of the normalized query time is written to the run record
+(`run.time_ref_frames`) and read back at evaluation; a record without it is
+evaluated by this record's rule. For a per-case scored bound the reference is
+the card's `n_frames`.

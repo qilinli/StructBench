@@ -121,6 +121,12 @@ structbench-train --mode valid   --data-root /path/to/StructBench/canonical/tayl
 structbench-train --mode rollout --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-cgn
 ```
 
+Where a benchmark declares a scored span (ADR-0078), training draws from that
+span by default (`[train] training_span = "scored"`; `"full"` uses the whole
+stored record) and a rollout stops at the span's end; add `--tail` to
+`valid`/`rollout` to roll on to the last stored frame and report the frames
+beyond the span under `unscored_tail`.
+
 Configs are grouped per benchmark (ADR-0032): swap
 `configs/taylor_impact_2d/cgn.toml` for `configs/wave_propagation_1d/cgn.toml`
 or `configs/notch_beam_2d_impact/cgn.toml` to train against a different
