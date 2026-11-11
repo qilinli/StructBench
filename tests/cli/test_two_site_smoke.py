@@ -227,6 +227,11 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
     if decoder in LAW_DECODERS:
         assert case["prop_yield_violation_rate"] == 0.0
         assert metrics["mean"]["prop_yield_violation_rate"] == 0.0
+    if decoder in ("admissible_coords", "projected_trial"):
+        # The plastic strain the admissible forms emit never decreases
+        # along the rollout, within a window as well as across anchors.
+        assert case["prop_peeq_decrease_rate"] == 0.0
+        assert metrics["mean"]["prop_peeq_decrease_rate"] == 0.0
 
     # ADR-0075 clause 5 (plan 3b): the restart family from the stored state.
     # The flow map must see the CASE's time reference (T = 8 frames, as

@@ -425,3 +425,51 @@ def test_admissible_forms_reject_a_wrong_channel_width(fn):
             admissible_decode(bad, anchor, _law(n), 0.0, 1.0)
         else:
             project_trial(bad, anchor, _law(n))
+
+
+@pytest.mark.parametrize("scale", [0.0, 1.0, 50.0])
+def test_admissible_forms_never_fall_below_a_floor_and_bound_the_yield_there(scale):
+    """With a plastic-strain floor (the value a rollout emitted for the
+    previous frame of the window), both admissible forms emit at or above
+    it for ANY head or trial, the yield bound holds at the emitted value,
+    and the deviator stays exactly trace-free. Without a floor, and with a
+    floor that does not bind, the decode is unchanged."""
+    from structbench.models.common.two_site import floored_peeq
+
+    n = 64
+    g = torch.Generator().manual_seed(11)
+    head = torch.randn((n, 5), generator=g, dtype=torch.float64) * scale
+    anchor = torch.rand((n,), generator=g, dtype=torch.float64) * 0.4
+    floor = anchor + torch.rand((n,), generator=g, dtype=torch.float64) * 2.0
+    law = _random_law_rows(n, g)
+    loc, sc = torch.tensor(-25.0, dtype=torch.float64), torch.tensor(180.0)
+
+    free = admissible_parts(head, anchor, law, loc, sc)
+    dev, p, peeq = admissible_parts(head, anchor, law, loc, sc, floor)
+    assert torch.equal(peeq, torch.maximum(free[2], floor))
+    assert bool((peeq > free[2]).any())  # the floor binds somewhere
+    sy, _ = sigma_y_rows(peeq, law.knots_peeq, law.knots_sy)
+    assert bool((von_mises4(dev) <= sy * (1.0 + 1e-12)).all())
+    assert bool((_exact_trace(dev) == 0.0).all())
+    assert torch.equal(p, free[1])
+
+    trial = torch.randn((n, 5), generator=g, dtype=torch.float64) * max(scale, 1.0)
+    trial[:, :4] *= 300.0
+    free_t = project_trial_parts(trial, anchor, law)
+    dev_t, _p_t, peeq_t = project_trial_parts(trial, anchor, law, floor)
+    assert bool((peeq_t >= floor).all()) and bool((peeq_t >= anchor).all())
+    assert bool((peeq_t >= trial[:, 4]).all())
+    sy_t, _ = sigma_y_rows(peeq_t, law.knots_peeq, law.knots_sy)
+    assert bool((von_mises4(dev_t) <= sy_t * (1.0 + 1e-12)).all())
+    assert bool((_exact_trace(dev_t) == 0.0).all())
+
+    # No floor, or one below what the decode gives anyway: nothing changes.
+    assert floored_peeq(peeq, None) is peeq
+    for a, b in zip(
+        free, admissible_parts(head, anchor, law, loc, sc, anchor), strict=True
+    ):
+        assert torch.equal(a, b)
+    for a, b in zip(
+        free_t, project_trial_parts(trial, anchor, law, anchor), strict=True
+    ):
+        assert torch.equal(a, b)

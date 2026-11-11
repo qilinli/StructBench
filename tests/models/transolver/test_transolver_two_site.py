@@ -488,3 +488,122 @@ def test_admissible_coordinates_read_the_network_space_not_the_raw_aux():
         sim._net.g.manual_seed(3)
         _, _, st_b = sim.predict_two_site_at(3, 0.4)
     assert torch.equal(st_a, st_b)
+
+
+def _long_trajectory(n_frames: int = 11, seed: int = 3):
+    """A stored case long enough for several flow-map windows, with a
+    plastic strain that rises and falls (so stored anchors are arbitrary)."""
+    import numpy as np
+
+    from structbench.datasets.canonical import CaseTrajectory
+
+    g = torch.Generator().manual_seed(seed)
+    positions = REFERENCE[None] + torch.rand((n_frames, P, DIM), generator=g) * 0.01
+    state = torch.zeros((n_frames, E, S))
+    state[..., 4] = torch.rand((n_frames, E), generator=g) * 0.01
+    weights = torch.tensor([1.0, 2.0])
+    aux = torch.stack(
+        [
+            project_elements_to_nodes(state[t], CELLS, weights, P)
+            for t in range(n_frames)
+        ]
+    )
+    return CaseTrajectory(
+        case_id="monotone",
+        positions=positions.numpy(),
+        particle_type=PTYPE.numpy(),
+        aux=aux.numpy(),
+        time=np.arange(n_frames, dtype=np.float64),
+        cells=CELLS.numpy(),
+        reference_coords=REFERENCE.numpy(),
+        state=state.numpy(),
+        state_channels=("s11", "s22", "s33", "s12", "peeq"),
+    )
+
+
+def _roll(sim, traj, interval, mode):
+    from structbench.eval import flow_map_rollout
+
+    law = _law()
+    sim.bind_case(
+        CELLS,
+        REFERENCE,
+        PTYPE,
+        torch.from_numpy(traj.positions),
+        gt_aux=torch.from_numpy(traj.aux),
+        gt_state=torch.from_numpy(traj.state),
+        law=law,
+    )
+    sim.eval()
+    result = flow_map_rollout(
+        sim, traj, 2, len(traj.time), interval, mode, kinematic_types=(1,)
+    )
+    return result.predicted_state.astype("float64"), law
+
+
+@pytest.mark.parametrize("decoder", ADMISSIBLE_FORMS)
+@pytest.mark.parametrize("scale", [1.0, 40.0])
+def test_admissible_forms_never_decrease_peeq_along_a_rollout(decoder, scale):
+    """Whatever the network emits, the element-site plastic strain of a
+    self-anchored multi-window rollout never decreases between consecutive
+    emitted frames (within a window as well as across anchors, from the
+    seed frame on), and the yield bound holds at the emitted plastic strain
+    on the same frames. The next anchor is the emitted state, so the
+    sequence stays monotone through every hand-off.
+
+    Each frame of a window is its own jump from the anchor: without the
+    floor two jumps of one window are unordered, which the last block shows
+    on the same network outputs.
+    """
+    import numpy as np
+
+    traj = _long_trajectory()
+    interval = 3  # frames 2..10: windows of 3 from anchors 1, 4, 7
+
+    def rollout(floor: bool):
+        sim = _sim(two_site_decoder=decoder)
+        sim._net = _WildNet(DIM + S, scale, seed=7)
+        if not floor:
+            decode = sim._two_site_state
+            sim._two_site_state = lambda *a, peeq_floor=None, **k: decode(*a, **k)
+        return _roll(sim, traj, interval, "self")
+
+    state, law = rollout(floor=True)
+    peeq = state[1:, :, 4]  # from the last seeded frame, as the property reads
+    assert (np.diff(peeq, axis=0) >= 0.0).all()
+    st = torch.from_numpy(state[2:]).reshape(-1, S)
+    sy, _ = sigma_y_rows(
+        st[:, 4],
+        law.knots_peeq.double().repeat(9, 1),
+        law.knots_sy.double().repeat(9, 1),
+    )
+    assert bool((von_mises4(st[:, :4]) <= sy * (1 + 1e-6)).all())
+    dev, _p = split_stress(st[:, :4])
+    assert float(_exact_trace(dev).abs().max()) < 1e-9
+
+    # The same outputs without the floor decrease inside a window, and the
+    # first frame after each anchor is the same either way.
+    free, _ = rollout(floor=False)
+    assert (np.diff(free[1:, :, 4], axis=0) < 0.0).any()
+    assert np.array_equal(free[2], state[2])
+
+
+@pytest.mark.parametrize("decoder", ADMISSIBLE_FORMS)
+def test_an_oracle_anchor_resets_the_floor_to_the_stored_state(decoder):
+    """A window starts from its anchor alone: in an oracle-anchored rollout
+    the plastic strain is non-decreasing within each window and at or above
+    the stored anchor's, and is not held up by what an earlier window
+    emitted."""
+    import numpy as np
+
+    traj = _long_trajectory()
+    sim = _sim(two_site_decoder=decoder)
+    sim._net = _WildNet(DIM + S, 5.0, seed=9)
+    state, _law_rows_ = _roll(sim, traj, 3, "oracle")
+    for anchor in (1, 4, 7):
+        window = state[anchor + 1 : anchor + 4, :, 4]
+        assert (np.diff(window, axis=0) >= 0.0).all()
+        assert (window[0] >= traj.state[anchor][:, 4].astype("float64")).all()
+    # The stored plastic strain falls between anchors here, and so may the
+    # emitted one across an oracle hand-off.
+    assert (np.diff(state[1:, :, 4], axis=0) < 0.0).any()

@@ -31,6 +31,7 @@ from ..common import CaseBoundSimulator
 from ..common.two_site import (
     FORMULATIONS,
     LAW_DECODERS,
+    MONOTONE_DECODERS,
     RETURN_MAP_WIDTH,
     TWO_SITE_DECODERS,
     LawRows,
@@ -350,6 +351,9 @@ class TransolverSimulator(CaseBoundSimulator):
         self._cell_weights: Tensor | None = None
         self._anchor_state: Tensor | None = None
         self._last_state: Tensor | None = None
+        # The plastic strain emitted for the latest frame since the anchor
+        # (the two admissible forms): the floor of the window's next frame.
+        self._window_peeq: Tensor | None = None
         # ADR-0062 anchor cache (eval path): set via set_anchor(), cleared on
         # bind_case()/reset_rollout(). The training path passes anchor parts
         # per batch instead and never touches the cache.
@@ -645,6 +649,7 @@ class TransolverSimulator(CaseBoundSimulator):
         self._anchor_t_norm = None
         self._anchor_state = None
         self._last_state = None
+        self._window_peeq = None
 
     def set_anchor(
         self,
@@ -737,6 +742,8 @@ class TransolverSimulator(CaseBoundSimulator):
             # Carried in double: the return map's deviator must survive
             # beside the mean stress across every hand-off.
             self._anchor_state = state.detach().to(torch.float64)
+            # A new window: its first frame is floored by the anchor alone.
+            self._window_peeq = None
 
     def _two_site_head(self, net_out: Tensor, raw: Tensor) -> Tensor:
         """The nodal slice ``(P, S)`` the two-site decoder reads.
@@ -768,6 +775,7 @@ class TransolverSimulator(CaseBoundSimulator):
         weights: Tensor,
         law: LawRows | None,
         du: Tensor | None = None,
+        peeq_floor: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
         """The two-site decode: element state ``(E, S)`` and its nodal view.
 
@@ -782,6 +790,11 @@ class TransolverSimulator(CaseBoundSimulator):
         nodal view is the area-weighted projection the loader applies, so the
         network's next anchor input is the projection of the state it
         carries. Only ``return_map`` reads the predicted kinematics.
+
+        ``peeq_floor`` (the two admissible forms only) is the plastic strain
+        already emitted for the previous frame of the window; the decode
+        never falls below it and evaluates the yield bound at the floored
+        value (:func:`~structbench.models.common.two_site.floored_peeq`).
         """
         if self._two_site == "return_map":
             assert law is not None and self._formulation is not None
@@ -792,11 +805,18 @@ class TransolverSimulator(CaseBoundSimulator):
             assert law is not None
             loc, scale = self._mean_stress_moments()
             state = admissible_decode(
-                corner_mean(head, cells), anchor_state[:, 4], law, loc, scale
+                corner_mean(head, cells),
+                anchor_state[:, 4],
+                law,
+                loc,
+                scale,
+                peeq_floor,
             )
         elif self._two_site == "projected_trial":
             assert law is not None
-            state = project_trial(corner_mean(head, cells), anchor_state[:, 4], law)
+            state = project_trial(
+                corner_mean(head, cells), anchor_state[:, 4], law, peeq_floor
+            )
         else:
             state = corner_mean(head, cells).to(torch.float64)
         projection = project_elements_to_nodes(state, cells, weights, x_query.shape[0])
@@ -1572,6 +1592,12 @@ class TransolverSimulator(CaseBoundSimulator):
                 weights,
                 self._law,
                 du=disp_query - anchor_disp,
+                peeq_floor=self._window_peeq,
             )
             self._last_state = state
+            if self._two_site in MONOTONE_DECODERS:
+                # The floor of the window's next frame: what was emitted
+                # here. set_anchor() clears it, and the next anchor of a
+                # self-anchored rollout is this emitted state.
+                self._window_peeq = state[:, 4]
         return positions, stress

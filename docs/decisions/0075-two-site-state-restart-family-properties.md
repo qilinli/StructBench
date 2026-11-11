@@ -82,3 +82,19 @@ unconstrained arm (`corner_mean`) is unchanged. Invariants are pinned for any
 head output in `tests/models/common/test_two_site.py` and
 `tests/models/transolver/test_transolver_two_site.py`; the build is recorded
 in plan 3a's note of the same date.
+
+---
+
+**Note (2026-11-11) — the admissible forms are monotone along the rollout.**
+Each frame of a flow-map window is its own jump from the one anchor, so the
+forms of the 2026-11-08 note held the plastic strain at or above the anchor's
+and left two frames of one window unordered. Along a rollout the plastic
+strain either form emits is now the running maximum of the window's jumps in
+time order: a frame is floored by what was emitted for the frame before it,
+the yield bound is evaluated at the floored value, and the next anchor of a
+self-anchored rollout is the emitted state. A stored (oracle) anchor starts
+its window from the stored state alone. The first frame after an anchor and
+the single-query training forward are unchanged. Pinned for any network
+output over a multi-window rollout in
+`tests/models/transolver/test_transolver_two_site.py`; the properties block
+reads zero for both rates on these forms.
