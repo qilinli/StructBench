@@ -114,6 +114,8 @@ Where this benchmark's reference data stands against the platform's data standar
 
 Rows are in registration order and are not ranked (ADR-0074): a result is read beside the coverage of the set it was scored on (the Scored sets above) and its properties, which lead (ADR-0075). The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. Properties, RMSE and quantities of interest are shown for the in-distribution `test` split.
 
+Repeatability: re-evaluating a registered checkpoint reproduces its row to four significant figures. The graph-network families (CGN, MGN) are not bitwise repeatable on a GPU, where two evaluations of one checkpoint differ by up to about 1.5% in rollout relative L2; their rows are checked at 2% of the registered relative L2 on every scored split. A row that does not reproduce reports no properties and says so in its note.
+
 _Properties — reported before accuracy (ADR-0075)_
 
 | Method | Scheme | test·closure | test·error growth (/frame) |

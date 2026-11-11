@@ -229,8 +229,8 @@ def _citation_bibtex() -> str:
         [
             "@software{structbench,",
             f"  author  = {{{fields['authors']}}},",
-            "  title   = {StructBench: standardized benchmarks for machine "
-            "learning on structural simulation},",
+            "  title   = {StructBench: verification and validation benchmarks "
+            "for learned surrogates of structural response},",
             f"  year    = {{{fields['year']}}},",
             f"  version = {{{fields['version']}}},",
             "  url     = {https://github.com/qilinli/StructBench},",

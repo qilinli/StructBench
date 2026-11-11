@@ -23,7 +23,7 @@ regimes, from quasi-static contact to impact and fracture.
 *A 2D copper bar striking a rigid wall at 150 m/s — LS-DYNA SPH ground truth
 (left) vs the CGN baseline's prediction (right), colored by von Mises stress.
 See the [Taylor2D-Impact benchmark page](docs/benchmarks/taylor_impact_2d.md)
-for the full problem, data, and numbers to beat.*
+for the full problem, data, and registered results.*
 
 ## Benchmarks
 
@@ -121,6 +121,27 @@ structbench-train --mode valid   --data-root /path/to/StructBench/canonical/tayl
 structbench-train --mode rollout --data-root /path/to/StructBench/canonical/taylor_impact_2d --out runs/taylor-cgn
 ```
 
+### Reproduce a registered result from its public checkpoint
+
+The blessed checkpoints are public on Hugging Face, one model repository per
+benchmark with one bundle per registered row (the checkpoint, its run record,
+normalisation statistics and checksums). Two downloads and one command
+reproduce a row; the smallest is wave-1D (a 6 MB bundle, 0.23 GB of data, a
+few minutes on a CPU):
+
+```bash
+hf download StructBench/wave-propagation-1d --revision v0.4.0 --local-dir bundles
+hf download StructBench/wave-propagation-1d --repo-type dataset --local-dir data/wave_propagation_1d
+(cd bundles/cgn-48046ea && sha256sum -c SHA256SUMS)
+structbench-train --mode rollout --out bundles/cgn-48046ea --data-root data/wave_propagation_1d
+```
+
+The command rebuilds the model from the bundle's own record, rolls out every
+scored case and prints the row's metrics. Checked on 2026-11-11 from the
+public files alone, on a CPU: displacement relative L2 0.3506 against the
+registered 0.3507, axial stress 0.9004 against 0.9025. How closely a
+re-evaluation should agree is stated in each landing page's results registry.
+
 Where a benchmark declares a scored span (ADR-0078), training draws from that
 span by default (`[train] training_span = "scored"`; `"full"` uses the whole
 stored record) and a rollout stops at the span's end; add `--tail` to
@@ -210,15 +231,25 @@ closing criteria, is
 a release's criteria become its checklist here when it is picked up.*
 
 - [ ] `docs/VISION.md` carries the ADR-0065 identity (maintainer, out of
-      session); `CITATION.cff` and the BibTeX entry below say the same.
-- [ ] Every registered row reports its properties or states why not (three
-      do not: Inbox).
-- [ ] The repeatability tolerance of an evaluation is declared (Inbox: GPU
-      rollouts of the graph-network families).
+      session).
+- [x] ~~`CITATION.cff`, the BibTeX entry below and the dataset cards' BibTeX
+      carry the ADR-0065 identity (2026-11-11).~~
+- [x] ~~The tree is fit to archive (2026-11-11): the source dossier is an
+      index of claims, sources and locators without the sources' own
+      sentences; no record names a dataset that is not public.~~
+- [x] ~~Every registered row reports its properties or states why not
+      (2026-11-11: the three rows without properties say why in their
+      notes; re-running them is in the Inbox).~~
+- [x] ~~The repeatability tolerance of an evaluation is declared
+      (2026-11-11: on every landing page's results registry — four
+      significant figures, 2% for the graph-network families on a GPU, the
+      maintainer's decision of 2026-11-10).~~
 - [ ] The gradient family has rows from a second model family.
 - [ ] Per-case coverage figures on the landing pages.
-- [ ] A registered row reproduced from its public checkpoint by the
-      documented command alone.
+- [x] ~~A registered row reproduced from its public checkpoint by the
+      documented command alone (2026-11-11: wave-1D CGN, displacement
+      relative L2 0.3506 against 0.3507 registered; the procedure is in
+      Quickstart).~~
 - [ ] The release archived with a DOI.
 
 ### In progress
@@ -370,8 +401,8 @@ If you use StructBench, please cite it
 ```bibtex
 @software{li_structbench_2026,
   author  = {Li, Qilin},
-  title   = {{StructBench}: Standardized benchmarks for machine learning
-             on structural simulation},
+  title   = {{StructBench}: Verification and validation benchmarks for
+             learned surrogates of structural response},
   year    = {2026},
   version = {0.4.0},
   license = {Apache-2.0},

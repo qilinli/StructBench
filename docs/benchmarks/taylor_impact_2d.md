@@ -139,6 +139,8 @@ Where this benchmark's reference data stands against the platform's data standar
 
 Rows are in registration order and are not ranked (ADR-0074): a result is read beside the coverage of the set it was scored on (the Scored sets above) and its properties, which lead (ADR-0075). The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. Properties, RMSE and quantities of interest are shown for the in-distribution `test_interp` split.
 
+Repeatability: re-evaluating a registered checkpoint reproduces its row to four significant figures. The graph-network families (CGN, MGN) are not bitwise repeatable on a GPU, where two evaluations of one checkpoint differ by up to about 1.5% in rollout relative L2; their rows are checked at 2% of the registered relative L2 on every scored split. A row that does not reproduce reports no properties and says so in its note.
+
 _Properties — reported before accuracy (ADR-0075)_
 
 | Method | Scheme | interp·closure | interp·error growth (/frame) |
@@ -200,7 +202,7 @@ _The derivative of each quantity of interest with respect to `impact_velocity_m_
 
 **MGN** (mgn, 2026-08-16, commit `d838606`)
 
-*Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): autoregressive next-step on the SPH particle set as a mesh, val-selected model-best-066000.pt, seed 1 of the s1-s2 pair, run taylor-mgn-base-s1. PROVISIONAL (ADR-0044/0045): not validated against a published Taylor-MGN number. On Taylor it TRAILS the CGN baseline (rollout position 2.27 vs 1.27 mm on test_interp; displacement relative L2 0.22 vs 0.13) - the known MGN-on-Taylor difficulty (large mesh stretch, noise-scale sensitivity; ADR-0047). Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval.*
+*Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): autoregressive next-step on the SPH particle set as a mesh, val-selected model-best-066000.pt, seed 1 of the s1-s2 pair, run taylor-mgn-base-s1. PROVISIONAL (ADR-0044/0045): not validated against a published Taylor-MGN number. On Taylor it TRAILS the CGN baseline (rollout position 2.27 vs 1.27 mm on test_interp; displacement relative L2 0.22 vs 0.13) - the known MGN-on-Taylor difficulty (large mesh stretch, noise-scale sensitivity; ADR-0047). Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval. NO PROPERTIES (2026-11-10): a re-evaluation of the registered checkpoint did not reproduce the registered relative L2 within the 2% reproduction tolerance, so the row is not re-scored and reports no properties.*
 
 **CGN** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `https://huggingface.co/StructBench/taylor-impact-2d/resolve/v0.4.0/cgn-7be9d4b/model-best-096000.pt`)
 

@@ -71,7 +71,7 @@ design is `docs/plans/2026-09-27-abaqus-datagen-platform-design.md`.
    definition (the single-rod conformance case) that the scaffold, the docs
    and the env-gated acceptance test share. No private dataset's box, splits
    or constants enter the repository.
-8. **Dataset A migrates without a re-run**: its definition adopts the
+8. **The first contract dataset migrates without a re-run**: its definition adopts the
    contract and its decks must rebuild byte for byte against their recorded
    hashes.
 
@@ -99,8 +99,8 @@ design is `docs/plans/2026-09-27-abaqus-datagen-platform-design.md`.
   The dataset contract and the template are public API and change by ADR.
 - The pre-production cost of a dataset rises by the preflight's runs (a
   pilot split at three mesh levels); it replaces the cost of re-running
-  production, which for dataset A was three times its size.
-- Dataset B's solver-side needs (combined hardening, self-contact, a point
+  production, which for the first contract dataset was three times its size.
+- A later dataset's solver-side needs (combined hardening, self-contact, a point
   mass, backstress and plastic-strain fields, a new material class) become
   separate ADRs against a stable pipeline rather than changes to it.
 - ADR-0069 remains the record of the stage designs; this ADR changes their
@@ -119,7 +119,7 @@ production:
 - **Time** — two settings. The solver's increment: the energy account is
   checked at more than one stable-increment scale, because a contact
   enforcement that creates energy at the full increment and not at half of it
-  is a resolution defect the pilots can show (dataset A found it after
+  is a resolution defect the pilots can show (the first contract dataset found it after
   production). The output sampling: one pilot is exported at a finer frame
   interval and the stored fields, globals and QoIs are compared at the common
   instants, so the frame interval is a measured choice rather than an inherited
@@ -130,7 +130,7 @@ production:
   horizon that lies after it, and requires the slowest pilot to settle inside
   the horizon with margin. The card declares the horizon and the scored
   horizon (fixed, or per case from a stored global); a tail kept beyond
-  settling is for property tests, not accuracy. Dataset A's horizon was
+  settling is for property tests, not accuracy. The first contract dataset's horizon was
   inherited from an early probe, and most of its trajectory turned out to be
   elastic ringing after the rod had left the wall.
 

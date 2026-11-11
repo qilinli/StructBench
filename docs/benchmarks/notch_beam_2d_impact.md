@@ -134,6 +134,8 @@ Where this benchmark's reference data stands against the platform's data standar
 
 Rows are in registration order and are not ranked (ADR-0074): a result is read beside the coverage of the set it was scored on (the Scored sets above) and its properties, which lead (ADR-0075). The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. Properties, RMSE and quantities of interest are shown for the in-distribution `test_interp` split.
 
+Repeatability: re-evaluating a registered checkpoint reproduces its row to four significant figures. The graph-network families (CGN, MGN) are not bitwise repeatable on a GPU, where two evaluations of one checkpoint differ by up to about 1.5% in rollout relative L2; their rows are checked at 2% of the registered relative L2 on every scored split. A row that does not reproduce reports no properties and says so in its note.
+
 _Properties — reported before accuracy (ADR-0075)_
 
 | Method | Scheme | interp·closure | interp·error growth (/frame) |
@@ -184,7 +186,7 @@ _Quantities of interest (MAE)_
 
 **MGN** (mgn, 2026-08-17, commit `59d5786`)
 
-*Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): autoregressive next-step on the SPH particle set as a mesh, val-selected model-best-212000.pt, seed 2 of the s1-s2 pair, run notch-mgn-base-s2. PROVISIONAL (ADR-0044/0045). On test_interp it roughly matches CGN (displacement relative L2 0.22 vs 0.28) and both trail Transolver ~6x; on the off-centre triple-OOD PROBE the relative-position message passing degrades more gracefully than the global-attention operator (disp 0.77 vs Transolver 1.05), though CGN is best there (0.59). Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval.*
+*Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): autoregressive next-step on the SPH particle set as a mesh, val-selected model-best-212000.pt, seed 2 of the s1-s2 pair, run notch-mgn-base-s2. PROVISIONAL (ADR-0044/0045). On test_interp it roughly matches CGN (displacement relative L2 0.22 vs 0.28) and both trail Transolver ~6x; on the off-centre triple-OOD PROBE the relative-position message passing degrades more gracefully than the global-attention operator (disp 0.77 vs Transolver 1.05), though CGN is best there (0.59). Pooled relative L2 headline (ADR-0055) from the 2026-08-17 re-eval. NO PROPERTIES (2026-11-10): a re-evaluation of the registered checkpoint did not reproduce the registered relative L2 within the 2% reproduction tolerance, so the row is not re-scored and reports no properties.*
 
 **CGN** (cgn, 2026-07-24, commit `5956d81`, checkpoint: `https://huggingface.co/StructBench/notch-beam-2d-impact/resolve/v0.4.0/cgn-5956d81/model-best-186000.pt`)
 

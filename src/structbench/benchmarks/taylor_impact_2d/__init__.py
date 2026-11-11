@@ -90,7 +90,11 @@ RESULTS: tuple[BaselineResult, ...] = (
             "baseline (rollout position 2.27 vs 1.27 mm on test_interp; "
             "displacement relative L2 0.22 vs 0.13) - the known MGN-on-Taylor "
             "difficulty (large mesh stretch, noise-scale sensitivity; ADR-0047). "
-            "Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval."
+            "Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval. "
+            "NO PROPERTIES (2026-11-10): a re-evaluation of the registered "
+            "checkpoint did not reproduce the registered relative L2 within the "
+            "2% reproduction tolerance, so the row is not re-scored and reports "
+            "no properties."
         ),
     ),
     BaselineResult(

@@ -2,10 +2,11 @@ cff-version: 1.2.0
 message: "If you use StructBench, please cite it as below."
 title: StructBench
 abstract: >-
-  Standardized benchmarks for machine learning on structural simulation:
-  a task definition, a fixed split, a relative-L2 headline metric with
-  physical-unit errors reported alongside, and a reference baseline to
-  beat — for structural response prediction across loading regimes, from
+  Verification and validation benchmarks for learned surrogates of
+  structural response: reference data with declared uncertainty, a fixed
+  task and split, evaluation protocols that test physical consistency
+  alongside accuracy in physical units, and reference baselines that can
+  be rerun — for structural response across loading regimes, from
   quasi-static contact to impact and fracture.
 type: software
 authors:

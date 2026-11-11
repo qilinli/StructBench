@@ -14,7 +14,7 @@ table maps those names to files.
 |---|---|---|---|
 | `2026-07-05-readme-roadmap-todo-design.md` | design | | executed: the README Roadmap (ADR-0009) |
 | `2026-09-21-reference-data-verification-design.md` | design | | the design behind ADR-0066 |
-| `2026-09-21-reference-data-verification-sources.md` | source dossier | | current: cited by ADR-0066, the criteria and the published records; nothing in it is ratified |
+| `2026-09-21-reference-data-verification-sources.md` | source dossier | | current: cited by ADR-0066, the criteria and the published records; nothing in it is ratified; an index of claims, sources and locators since 2026-11-11 (the sources' own sentences removed before the first archived release) |
 | `2026-09-24-abaqus-data-pipeline-design.md` | design | | the design behind ADR-0069 |
 | `2026-09-24-abaqus-data-pipeline-plan-1.md` | plan | plan 1 (ADR-0069) | executed, merged 2026-09-24 (`a59075f`) |
 | `2026-09-24-abaqus-data-pipeline-plan-2.md` | plan | plan 2 | executed, merged 2026-09-25 (`4b30201`) |
