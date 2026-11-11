@@ -1,6 +1,6 @@
 # 0078 — One declared scored span, read by every stage
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-11-11)
 **Type**: Durable
 **Date**: 2026-11-11
 **Amends**: 0039 (§3: the long-horizon diagnostic is asked for; §4: the truncated recipe is the trainer's default for any declared span), 0054 (the time reference is recorded), 0032 (run-record and metrics-record fields); 0077 stands

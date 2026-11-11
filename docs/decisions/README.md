@@ -175,7 +175,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted (amended by 0074; a second task family by 0076) |
 | 0076 | The gradient task family: a surrogate's sensitivities scored against the sweep's own differences (amends 0019, 0032, 0033, 0055, 0075; constrains 0074) | Durable | Accepted (2026-11-08) |
 | 0077 | Checkpoint selection on the reported metric: validation relative L2 of displacement (supersedes the selection clause of 0028 and the selection sentence of 0062) | Ephemeral | Accepted (2026-11-10) |
-| 0078 | One declared scored span, read by every stage: training pool, statistics, time reference, evaluation, figures, records (amends 0039, 0054, 0032) | Durable | Proposed |
+| 0078 | One declared scored span, read by every stage: training pool, statistics, time reference, evaluation, figures, records (amends 0039, 0054, 0032) | Durable | Accepted (2026-11-11) |
 
 ---
 
