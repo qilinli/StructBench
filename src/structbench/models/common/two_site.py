@@ -71,6 +71,10 @@ TWO_SITE_DECODERS: tuple[str, ...] = (
 #: canonical :data:`RETURN_MAP_CHANNELS` layout.
 LAW_DECODERS: tuple[str, ...] = ("return_map", "admissible_coords", "projected_trial")
 
+#: The two admissible forms: along a rollout the plastic strain they emit
+#: never decreases between consecutive frames (:func:`floored_peeq`).
+MONOTONE_DECODERS: tuple[str, ...] = ("admissible_coords", "projected_trial")
+
 #: Largest displacement-gradient and hoop-strain component one increment may
 #: carry; beyond it the geometry a prediction implies is unphysical for a
 #: frame or a segment, and the clamp keeps the trial stress finite.
@@ -440,12 +444,30 @@ def split_stress(stress: Tensor) -> tuple[Tensor, Tensor]:
     return deviator_from_direction(torch.stack([s11 - p, s22 - p, s12], dim=-1)), p
 
 
+def floored_peeq(peeq: Tensor, peeq_floor: Tensor | None) -> Tensor:
+    """``peeq`` raised to ``peeq_floor`` where it lies below it; unchanged
+    for ``None``.
+
+    Each frame of a flow-map window is its own jump from the one anchor, so
+    each is at or above the anchor's plastic strain and nothing orders two
+    jumps against each other. Along a rollout the floor is the plastic
+    strain emitted for the previous frame: the emitted sequence is then the
+    running maximum of the jumps in time order, non-decreasing within a
+    window as well as across anchors. The decoders evaluate the yield bound
+    at the floored value, so it holds on what is emitted.
+    """
+    if peeq_floor is None:
+        return peeq
+    return torch.maximum(peeq, peeq_floor.to(peeq.dtype))
+
+
 def admissible_parts(
     head: Tensor,
     peeq_anchor: Tensor,
     law: LawRows,
     mean_stress_loc: Tensor | float,
     mean_stress_scale: Tensor | float,
+    peeq_floor: Tensor | None = None,
 ) -> tuple[Tensor, Tensor, Tensor]:
     """The admissible-coordinates decode as (deviator, mean stress, peeq).
 
@@ -465,12 +487,19 @@ def admissible_parts(
         Location and scale of the free mean-stress channel, so ``m`` of
         order one is a stress of the data's size (a scale, not a statistic:
         the network absorbs the rest).
+    peeq_floor:
+        ``(E,)`` a lower bound on the emitted plastic strain beyond the
+        anchor's, or ``None``. A rollout passes the plastic strain it
+        emitted for the previous frame of the same window, so consecutive
+        frames never decrease (:func:`floored_peeq`); the yield radius is
+        evaluated at the floored value.
 
     Returns
     -------
     tuple[Tensor, Tensor, Tensor]
         ``(deviator (E, 4), mean_stress (E,), peeq (E,))`` in float64 with,
-        for ANY head value: ``peeq = peeq_anchor + softplus(d) >= peeq_anchor``
+        for ANY head value: ``peeq = max(peeq_anchor + softplus(d),
+        peeq_floor) >= peeq_anchor``
         exactly; the deviator ``sigma_y(peeq) * tanh(|v|) / |v| * v`` with
         von Mises ``sigma_y(peeq) * tanh(|v|) <= sigma_y(peeq)`` (the norm
         is 1-homogeneous; smooth at ``v -> 0``); the deviator trace zero
@@ -484,7 +513,7 @@ def admissible_parts(
     h = head.to(torch.float64)
     law64 = _law64(law)
     v, d, m = h[:, :3], h[:, 3], h[:, 4]
-    peeq = peeq_anchor.to(torch.float64) + F.softplus(d)
+    peeq = floored_peeq(peeq_anchor.to(torch.float64) + F.softplus(d), peeq_floor)
     sy, _ = sigma_y_rows(peeq, law64.knots_peeq, law64.knots_sy)
     q = deviator_norm(v)
     radius = sy * torch.tanh(q) / q
@@ -501,17 +530,21 @@ def admissible_decode(
     law: LawRows,
     mean_stress_loc: Tensor | float,
     mean_stress_scale: Tensor | float,
+    peeq_floor: Tensor | None = None,
 ) -> Tensor:
     """The admissible-coordinates decoder: ``(E, 5)`` head -> ``(E, 5)`` state
     in the :data:`RETURN_MAP_CHANNELS` layout, float64 (:func:`admissible_parts`)."""
     deviator, mean_stress, peeq = admissible_parts(
-        head, peeq_anchor, law, mean_stress_loc, mean_stress_scale
+        head, peeq_anchor, law, mean_stress_loc, mean_stress_scale, peeq_floor
     )
     return torch.cat([assemble_stress(deviator, mean_stress), peeq[:, None]], dim=-1)
 
 
 def project_trial_parts(
-    state_trial: Tensor, peeq_anchor: Tensor, law: LawRows
+    state_trial: Tensor,
+    peeq_anchor: Tensor,
+    law: LawRows,
+    peeq_floor: Tensor | None = None,
 ) -> tuple[Tensor, Tensor, Tensor]:
     """Project an unconstrained element state onto the admissible set.
 
@@ -542,12 +575,17 @@ def project_trial_parts(
         ``(E,)`` the CARRIED anchor plastic strain.
     law:
         Per-element law rows.
+    peeq_floor:
+        ``(E,)`` a lower bound beyond the anchor's, or ``None``
+        (:func:`floored_peeq`): the clamp becomes ``max(peeq_trial,
+        peeq_anchor, peeq_floor)`` and the return starts there.
 
     Returns
     -------
     tuple[Tensor, Tensor, Tensor]
         ``(deviator (E, 4), mean_stress (E,), peeq (E,))`` in float64 with,
-        for ANY trial: ``peeq >= peeq_anchor`` and ``peeq >= peeq_trial``;
+        for ANY trial: ``peeq >= peeq_anchor``, ``peeq >= peeq_trial`` and
+        ``peeq >= peeq_floor``;
         von Mises at or below ``sigma_y(peeq)``; the deviator trace zero
         exactly; and the identity on an admissible trial.
     """
@@ -559,7 +597,9 @@ def project_trial_parts(
     st = state_trial.to(torch.float64)
     law64 = _law64(law)
     stress_trial, peeq_trial = st[:, :4], st[:, 4]
-    peeq_0 = torch.maximum(peeq_trial, peeq_anchor.to(torch.float64))
+    peeq_0 = floored_peeq(
+        torch.maximum(peeq_trial, peeq_anchor.to(torch.float64)), peeq_floor
+    )
     n = st.shape[0]
     deps = st.new_zeros((n, 3, 3))
     rot = torch.eye(2, dtype=st.dtype, device=st.device).expand(n, 2, 2)
@@ -572,11 +612,18 @@ def project_trial_parts(
     return deviator, mean_stress, peeq
 
 
-def project_trial(state_trial: Tensor, peeq_anchor: Tensor, law: LawRows) -> Tensor:
+def project_trial(
+    state_trial: Tensor,
+    peeq_anchor: Tensor,
+    law: LawRows,
+    peeq_floor: Tensor | None = None,
+) -> Tensor:
     """The trial-state + projection decoder: ``(E, 5)`` unconstrained state ->
     ``(E, 5)`` admissible state in the :data:`RETURN_MAP_CHANNELS` layout,
     float64 (:func:`project_trial_parts`)."""
-    deviator, mean_stress, peeq = project_trial_parts(state_trial, peeq_anchor, law)
+    deviator, mean_stress, peeq = project_trial_parts(
+        state_trial, peeq_anchor, law, peeq_floor
+    )
     return torch.cat([assemble_stress(deviator, mean_stress), peeq[:, None]], dim=-1)
 
 
