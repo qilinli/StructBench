@@ -173,7 +173,7 @@ assets/            # figures embedded in the docs + landing pages
      docs/decisions/, not here. Platform work only: the maintainer's research
      plans stay outside the repository (ADR-0065). -->
 
-*Last revised: 2026-11-10.*
+*Last revised: 2026-11-11.*
 
 ### Shipped
 
@@ -200,6 +200,26 @@ assets/            # figures embedded in the docs + landing pages
       reference-data verification (ADR-0066), the data-generation platform
       (ADRs 0068–0071), validation against experiments (ADR-0072), and the
       blessed checkpoints public on Hugging Face (ADRs 0058–0076).~~
+
+### Next release — v0.5, the citable platform
+
+*Nothing new: what v0.4 claims is made true and stable, and the release is
+the first archived with a DOI. The arc from here to v1.0, with each release's
+closing criteria, is
+[`docs/plans/2026-11-11-release-outline-to-v1.md`](docs/plans/2026-11-11-release-outline-to-v1.md);
+a release's criteria become its checklist here when it is picked up.*
+
+- [ ] `docs/VISION.md` carries the ADR-0065 identity (maintainer, out of
+      session); `CITATION.cff` and the BibTeX entry below say the same.
+- [ ] Every registered row reports its properties or states why not (three
+      do not: Inbox).
+- [ ] The repeatability tolerance of an evaluation is declared (Inbox: GPU
+      rollouts of the graph-network families).
+- [ ] The gradient family has rows from a second model family.
+- [ ] Per-case coverage figures on the landing pages.
+- [ ] A registered row reproduced from its public checkpoint by the
+      documented command alone.
+- [ ] The release archived with a DOI.
 
 ### In progress
 
