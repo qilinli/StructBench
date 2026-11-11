@@ -37,7 +37,7 @@ hard way have been checked.
    `problem.py` that satisfy a stated contract, plus the prose only its author
    can write.
 2. **Every solver keyword goes through the writer library.** No dataset edits
-   deck text by string replacement (two options of dataset A were set that
+   deck text by string replacement (two options of the first contract dataset were set that
    way; both become writer arguments). Every writer is a hypothesis until a
    conformance run confirms it, and the confirmation is recorded.
 3. **Verification before production, mechanised.** The pre-production checks
@@ -272,7 +272,7 @@ carries none of any private dataset's box, splits or constants.
 - One acceptance test, env-gated on `STRUCTBENCH_ABAQUS`, runs the public
   example end to end on a machine with the solver.
 
-## Migration of dataset A (no re-run)
+## Migration of the first contract dataset (no re-run)
 
 Its `sweep.toml` becomes `dataset.toml` and gains `[levels]`, `[pilot]`,
 `[qoi]` and `[limits]`; its `model.py` becomes `problem.py`, renames `build`
@@ -290,7 +290,7 @@ favour of the package.
    `preflight` and the gate; `run` hardening and `follow`; the three
    verification additions; docs and the example; `card`; A's migration.
    Roughly eight to twelve sessions, each ending green and mergeable.
-2. **Dataset B's solver side**: combined-hardening material, point mass,
+2. **A later dataset's solver side**: combined-hardening material, point mass,
    self-contact, base and trigger writers; backstress and plastic-strain
    fields in the canonical schema; a combined-hardening material class and its
    constitutive row. Each is an ADR of its own.
@@ -299,7 +299,7 @@ favour of the package.
 ## Out of scope
 
 LS-DYNA generation (only readers exist and no generation is planned);
-cluster submission; any change to dataset A's data.
+cluster submission; any change to the first contract dataset's data.
 
 ## Open points
 

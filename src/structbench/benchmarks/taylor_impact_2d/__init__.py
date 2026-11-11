@@ -90,7 +90,11 @@ RESULTS: tuple[BaselineResult, ...] = (
             "baseline (rollout position 2.27 vs 1.27 mm on test_interp; "
             "displacement relative L2 0.22 vs 0.13) - the known MGN-on-Taylor "
             "difficulty (large mesh stretch, noise-scale sensitivity; ADR-0047). "
-            "Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval."
+            "Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval. "
+            "NO PROPERTIES (2026-11-10): a re-evaluation of the registered "
+            "checkpoint did not reproduce the registered relative L2 within the "
+            "2% reproduction tolerance, so the row is not re-scored and reports "
+            "no properties."
         ),
     ),
     BaselineResult(
@@ -221,6 +225,25 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_peak_vm_mae_mpa": 1.908,
                 "qoi_t_peak_vm_mae_ms": 0.008655,
             },
+            # ADR-0076: the gradient family (metrics-gradient.json's `metrics`
+            # block, the scored sets). A quantity with no judged value carries
+            # its counts only.
+            "gradient": {
+                "gradient_rel_l2_final_length": 0.3832,
+                "gradient_sign_final_length": 1.0,
+                "gradient_floor_final_length": 0.0279,
+                "gradient_n_judged_final_length": 9.0,
+                "gradient_n_reported_final_length": 0.0,
+                "gradient_rel_l2_mushroom_width": 0.4657,
+                "gradient_sign_mushroom_width": 1.0,
+                "gradient_floor_mushroom_width": 0.0404,
+                "gradient_n_judged_mushroom_width": 9.0,
+                "gradient_n_reported_mushroom_width": 0.0,
+                "gradient_n_judged_peak_von_mises": 0.0,
+                "gradient_n_reported_peak_von_mises": 9.0,
+                "gradient_n_judged_t_peak_von_mises": 0.0,
+                "gradient_n_reported_t_peak_von_mises": 9.0,
+            },
         },
         notes=(
             "Native autoregressive Transolver under the ADR-0049 repaired "
@@ -243,7 +266,14 @@ RESULTS: tuple[BaselineResult, ...] = (
             "(ADR-0044/0046), single seed. Relative-L2/QoI values recomputed "
             "2026-08-27 from the run's saved rollouts under the exact evaluator "
             "recipe (see module header); pooled relative L2 headline "
-            "(ADR-0055)."
+            "(ADR-0055). Gradient family (ADR-0076), run 2026-11-11 on this "
+            "checkpoint at steps of 1 and 2 m/s (CPU): the sensitivities of "
+            "final length and mushroom width have the right sign on all nine "
+            "judged values, with relative L2 0.38 and 0.47, and the model's "
+            "own floor (the disagreement of its two step sizes) is 0.03 and "
+            "0.04, so its finite differences are resolved at these steps; no "
+            "stress-quantity value is judged (their reference errors exceed "
+            "half the sensitivity)."
         ),
     ),
     BaselineResult(

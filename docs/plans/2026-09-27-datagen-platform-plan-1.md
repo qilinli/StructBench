@@ -4,13 +4,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move the Abaqus data-generation pipeline into the package as `structbench.datagen` with one console entry point, give datasets a stated, checked contract (`dataset.toml` + `problem.py`) with a scaffold and a public example, and prove it by rebuilding dataset A's 520 decks byte for byte.
+**Goal:** Move the Abaqus data-generation pipeline into the package as `structbench.datagen` with one console entry point, give datasets a stated, checked contract (`dataset.toml` + `problem.py`) with a scaffold and a public example, and prove it by rebuilding the first contract dataset's decks byte for byte.
 
-**Architecture:** Nine tasks. The first is a mechanical move of the existing scripts and their tests into `src/structbench/datagen/` (solver-agnostic stages) and `src/structbench/datagen/abaqus/` (deck writers and the exporter, which stays a standalone Python 3.10 file). Then the contract: `definition.py` parses and validates `dataset.toml` (today's `sweep.toml` plus `[levels]`, `[pilot]`, `[qoi]`, `[limits]`) and loads `problem.py` (`input_deck`, `feasible`, `mesh`, `qoi`); the stages switch to it; `template.py` scaffolds a definition from the public example and checks any definition without a solver; `cli.py` exposes every stage as `structbench-datagen <stage>`. Docs record the layering change. The last task migrates the private dataset A and regresses its decks against the sha256 in their provenance.
+**Architecture:** Nine tasks. The first is a mechanical move of the existing scripts and their tests into `src/structbench/datagen/` (solver-agnostic stages) and `src/structbench/datagen/abaqus/` (deck writers and the exporter, which stays a standalone Python 3.10 file). Then the contract: `definition.py` parses and validates `dataset.toml` (today's `sweep.toml` plus `[levels]`, `[pilot]`, `[qoi]`, `[limits]`) and loads `problem.py` (`input_deck`, `feasible`, `mesh`, `qoi`); the stages switch to it; `template.py` scaffolds a definition from the public example and checks any definition without a solver; `cli.py` exposes every stage as `structbench-datagen <stage>`. Docs record the layering change. The last task migrates the private the first contract dataset and regresses its decks against the sha256 in their provenance.
 
 **Tech Stack:** Python ≥ 3.12, numpy, scipy (the `datagen` extra, Sobol), tomllib, h5py through `structbench.core`; setuptools console scripts and package data; pytest; ruff (88 columns); mypy with `disallow_untyped_defs`.
 
-**Spec:** `docs/plans/2026-09-27-abaqus-datagen-platform-design.md` (ADR-0071, `decisions/0071-datagen-platform.md`). Part one covers the design's "Package layout", "The dataset definition: the template" (`new`, `check`, the tables, the four hooks), the writer arguments named under "Migration of dataset A", and the migration itself. Preflight, converge, run hardening, follow, card, the verification additions and the full user guide are parts two and three.
+**Spec:** `docs/plans/2026-09-27-abaqus-datagen-platform-design.md` (ADR-0071, `decisions/0071-datagen-platform.md`). Part one covers the design's "Package layout", "The dataset definition: the template" (`new`, `check`, the tables, the four hooks), the writer arguments named under "Migration of the first contract dataset", and the migration itself. Preflight, converge, run hardening, follow, card, the verification additions and the full user guide are parts two and three.
 
 ## Global Constraints
 
@@ -20,10 +20,10 @@
 - No private dataset's box, split names, constants, case ids or numbers enter the public repository. The example carries one rod, one material, three explicit points.
 - Files written by tools (`new`, provenance, decks) are written as bytes with `\n` endings; on Windows `Path.write_text` writes CRLF and would change the hashes the pipeline records.
 - Deck text is byte-stable: identical parameters produce identical text; every keyword is written by `structbench.datagen.abaqus.deck`.
-- Dataset A is never re-run; its migration is proven by rebuilding decks against `inp_sha256` in each case's `provenance.json`.
+- The first contract dataset is never re-run; its migration is proven by rebuilding decks against `inp_sha256` in each case's `provenance.json`.
 - Work on branch `feat/datagen-platform-1` of `<repo>`; `main` moves only on the maintainer's instruction; never push.
 - Test command for the whole suite (partial collection breaks on duplicate test basenames): `<venv>/python -m pytest -q -p no:cacheprovider`. Gates before every commit: `ruff check .`, `ruff format --check .`, `mypy src`, the full suite, chained with `&&`.
-- The private dataset repository (`<private repo>`) holds dataset A's definition and its runs (gitignored there). Only Task 9 touches it, and nothing of it is quoted here.
+- The private dataset repository (`<private repo>`) holds the first contract dataset's definition and its runs (gitignored there). Only Task 9 touches it, and nothing of it is quoted here.
 
 ## Review Focus
 
@@ -1719,7 +1719,7 @@ git commit -m "docs: datagen in the layering; the conformance document under doc
 
 ---
 
-### Task 9: Migrate dataset A to the contract and regress its decks
+### Task 9: Migrate the first contract dataset to the contract and regress its decks
 
 **Files (the private dataset repository; `<dataset dir>` is the dataset's folder there):**
 - Move: `<dataset dir>/sweep.toml` → `dataset.toml`; `<dataset dir>/model.py` → `problem.py`; `test_model.py` → `test_problem.py`
@@ -1735,7 +1735,7 @@ git commit -m "docs: datagen in the layering; the conformance document under doc
 Rename `test_model.py` to `test_problem.py` and give it three tests:
 
 ```python
-"""Dataset A on the ADR-0071 contract: the definition checks, and every deck
+"""The first contract dataset on the ADR-0071 contract: the definition checks, and every deck
 that ran rebuilds byte for byte against the sha256 in its provenance."""
 
 from __future__ import annotations

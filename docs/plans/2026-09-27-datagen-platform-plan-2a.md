@@ -10,7 +10,7 @@
 
 **Tech Stack:** Python 3.14 (venv at `<venv>`), numpy, h5py through `core`, scipy (the `datagen` extra; imported lazily by `match_nodes` only), tomllib, pytest; no new dependencies.
 
-**Spec:** `docs/plans/2026-09-27-abaqus-datagen-platform-design.md` (ADR-0071 Proposed, `decisions/0071-datagen-platform.md`), sections "`converge`", "Package layout", "Migration of dataset A", the ADR-0071 note of 2026-09-27 (three resolutions), and plan 1's deferred review items 5 (the layering exception) and 11 (the private QoI copy).
+**Spec:** `docs/plans/2026-09-27-abaqus-datagen-platform-design.md` (ADR-0071 Proposed, `decisions/0071-datagen-platform.md`), sections "`converge`", "Package layout", "Migration of the first contract dataset", the ADR-0071 note of 2026-09-27 (three resolutions), and plan 1's deferred review items 5 (the layering exception) and 11 (the private QoI copy).
 
 **Part two (b)**, a separate plan after this one: `preflight` and its stamp with the three resolutions and the new `[pilot]` fields, `generate`'s gate, `run` hardening (free space, exit 3, the estimate) and `follow`.
 

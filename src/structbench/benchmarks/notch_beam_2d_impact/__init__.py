@@ -97,7 +97,11 @@ RESULTS: tuple[BaselineResult, ...] = (
             "relative-position message passing degrades more gracefully than the "
             "global-attention operator (disp 0.77 vs Transolver 1.05), though "
             "CGN is best there (0.59). Pooled relative L2 headline (ADR-0055) "
-            "from the 2026-08-17 re-eval."
+            "from the 2026-08-17 re-eval. "
+            "NO PROPERTIES (2026-11-10): a re-evaluation of the registered "
+            "checkpoint did not reproduce the registered relative L2 within the "
+            "2% reproduction tolerance, so the row is not re-scored and reports "
+            "no properties."
         ),
     ),
     BaselineResult(

@@ -631,6 +631,14 @@ def _results_registry(spec: BenchmarkSpec) -> list[str]:
         f"quantities of interest are shown for the in-distribution {trimmed} "
         "split.",
         "",
+        "Repeatability: re-evaluating a registered checkpoint reproduces its "
+        "row to four significant figures. The graph-network families (CGN, "
+        "MGN) are not bitwise repeatable on a GPU, where two evaluations of "
+        "one checkpoint differ by up to about 1.5% in rollout relative L2; "
+        "their rows are checked at 2% of the registered relative L2 on every "
+        "scored split. A row that does not reproduce reports no properties "
+        "and says so in its note.",
+        "",
     ]
     # (title, keys, splits, every column shown even when no result carries it)
     tiers = (

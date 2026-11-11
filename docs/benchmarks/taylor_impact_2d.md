@@ -139,6 +139,8 @@ Where this benchmark's reference data stands against the platform's data standar
 
 Rows are in registration order and are not ranked (ADR-0074): a result is read beside the coverage of the set it was scored on (the Scored sets above) and its properties, which lead (ADR-0075). The headline metric is the pooled space+time relative L2 (↓ lower is better); the Scheme column is the prediction scheme. Properties, RMSE and quantities of interest are shown for the in-distribution `test_interp` split.
 
+Repeatability: re-evaluating a registered checkpoint reproduces its row to four significant figures. The graph-network families (CGN, MGN) are not bitwise repeatable on a GPU, where two evaluations of one checkpoint differ by up to about 1.5% in rollout relative L2; their rows are checked at 2% of the registered relative L2 on every scored split. A row that does not reproduce reports no properties and says so in its note.
+
 _Properties — reported before accuracy (ADR-0075)_
 
 | Method | Scheme | interp·closure | interp·error growth (/frame) |
@@ -193,6 +195,10 @@ _Sensitivity — the gradient family (ADR-0076)_
 | CGN | autoregressive | mushroom_width | 2.38400 | 0.33330 | 1.78600 | 9 / 9 |
 | CGN | autoregressive | peak_von_mises | — | — | — | 0 / 9 |
 | CGN | autoregressive | t_peak_von_mises | — | — | — | 0 / 9 |
+| Transolver | autoregressive | final_length | 0.38320 | 1.00000 | 0.02790 | 9 / 9 |
+| Transolver | autoregressive | mushroom_width | 0.46570 | 1.00000 | 0.04040 | 9 / 9 |
+| Transolver | autoregressive | peak_von_mises | — | — | — | 0 / 9 |
+| Transolver | autoregressive | t_peak_von_mises | — | — | — | 0 / 9 |
 
 _The derivative of each quantity of interest with respect to `impact_velocity_m_s`, the model's by central differences of its own rollouts, against the reference sensitivities and pooled over the judged values of the scored sets (↓ lower is better; 1 is the error of predicting no sensitivity). The own floor is the disagreement between the model's two step sizes on the same scale. A value whose reference error exceeds half its sensitivity is reported, not judged._
 
@@ -200,7 +206,7 @@ _The derivative of each quantity of interest with respect to `impact_velocity_m_
 
 **MGN** (mgn, 2026-08-16, commit `d838606`)
 
-*Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): autoregressive next-step on the SPH particle set as a mesh, val-selected model-best-066000.pt, seed 1 of the s1-s2 pair, run taylor-mgn-base-s1. PROVISIONAL (ADR-0044/0045): not validated against a published Taylor-MGN number. On Taylor it TRAILS the CGN baseline (rollout position 2.27 vs 1.27 mm on test_interp; displacement relative L2 0.22 vs 0.13) - the known MGN-on-Taylor difficulty (large mesh stretch, noise-scale sensitivity; ADR-0047). Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval.*
+*Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): autoregressive next-step on the SPH particle set as a mesh, val-selected model-best-066000.pt, seed 1 of the s1-s2 pair, run taylor-mgn-base-s1. PROVISIONAL (ADR-0044/0045): not validated against a published Taylor-MGN number. On Taylor it TRAILS the CGN baseline (rollout position 2.27 vs 1.27 mm on test_interp; displacement relative L2 0.22 vs 0.13) - the known MGN-on-Taylor difficulty (large mesh stretch, noise-scale sensitivity; ADR-0047). Pooled relative L2 headline (ADR-0055) from the 2026-08-16 re-eval. NO PROPERTIES (2026-11-10): a re-evaluation of the registered checkpoint did not reproduce the registered relative L2 within the 2% reproduction tolerance, so the row is not re-scored and reports no properties.*
 
 **CGN** (cgn, 2026-07-08, commit `7be9d4b`, checkpoint: `https://huggingface.co/StructBench/taylor-impact-2d/resolve/v0.4.0/cgn-7be9d4b/model-best-096000.pt`)
 
@@ -208,7 +214,7 @@ _The derivative of each quantity of interest with respect to `impact_velocity_m_
 
 **Transolver** (transolver, 2026-08-13, commit `7ef3bf2`)
 
-*Native autoregressive Transolver under the ADR-0049 repaired recipe (velocity history + working-frame training noise): the hidden_dim-256 'big' arm of the ADR-0049 tuning round, run taylor-transolver-n02-vh-big-adr0049, 100k steps - budget-matched to the time-conditioned row - val-selected model-best-084000.pt, single seed. Selected as the AR representative on val displacement relative L2 (0.0103, vs 0.0129 base-vh / 0.0160 vh-250k / 0.0617 pre-repair ADR-0047; rescored 2026-08-27). Standing: the time-conditioned Transolver wins both FIELDS ~2x (displacement relative L2 0.0213 vs 0.0094 interp, 0.0418 vs 0.0164 extrap; von Mises 0.221 vs 0.175) - the reverse of DeformingPlate, where displacement ties and AR wins the vm field - but AR wins the peak-vm QoI ~2x (1.11 vs 2.16 MPa interp), and systematically: in the seed-matched budget-matched paired check (base-vh arm vs tc-s1) AR is better on 6/6 interp cases. Rollout dynamics preserve the stress extreme that time-conditioning smooths, while TC wins the geometric QoIs (mushroom width 0.77 vs 0.35 mm). PROVISIONAL (ADR-0044/0046), single seed. Relative-L2/QoI values recomputed 2026-08-27 from the run's saved rollouts under the exact evaluator recipe (see module header); pooled relative L2 headline (ADR-0055).*
+*Native autoregressive Transolver under the ADR-0049 repaired recipe (velocity history + working-frame training noise): the hidden_dim-256 'big' arm of the ADR-0049 tuning round, run taylor-transolver-n02-vh-big-adr0049, 100k steps - budget-matched to the time-conditioned row - val-selected model-best-084000.pt, single seed. Selected as the AR representative on val displacement relative L2 (0.0103, vs 0.0129 base-vh / 0.0160 vh-250k / 0.0617 pre-repair ADR-0047; rescored 2026-08-27). Standing: the time-conditioned Transolver wins both FIELDS ~2x (displacement relative L2 0.0213 vs 0.0094 interp, 0.0418 vs 0.0164 extrap; von Mises 0.221 vs 0.175) - the reverse of DeformingPlate, where displacement ties and AR wins the vm field - but AR wins the peak-vm QoI ~2x (1.11 vs 2.16 MPa interp), and systematically: in the seed-matched budget-matched paired check (base-vh arm vs tc-s1) AR is better on 6/6 interp cases. Rollout dynamics preserve the stress extreme that time-conditioning smooths, while TC wins the geometric QoIs (mushroom width 0.77 vs 0.35 mm). PROVISIONAL (ADR-0044/0046), single seed. Relative-L2/QoI values recomputed 2026-08-27 from the run's saved rollouts under the exact evaluator recipe (see module header); pooled relative L2 headline (ADR-0055). Gradient family (ADR-0076), run 2026-11-11 on this checkpoint at steps of 1 and 2 m/s (CPU): the sensitivities of final length and mushroom width have the right sign on all nine judged values, with relative L2 0.38 and 0.47, and the model's own floor (the disagreement of its two step sizes) is 0.03 and 0.04, so its finite differences are resolved at these steps; no stress-quantity value is judged (their reference errors exceed half the sensitivity).*
 
 **Transolver** (transolver, 2026-08-16, commit `59d5786`)
 
