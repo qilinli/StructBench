@@ -34,6 +34,7 @@ table maps those names to files.
 | `2026-11-09-two-site-state-plan-3b.md` | plan | plan 3b | executed on `feat/two-site-state-3b` (2026-11-09): `eval/restart.py` (the window, the keys, the semigroup error), `flow_map_rollout(frame_offset=)`, the spec's `restart_anchors` / `restart_horizons` / `restart_compositions` and the row's `restart_kind`, `evaluate_restart` and `--mode restart`, the Restart tier; declaration only, no shipped benchmark declares anchors |
 | `2026-11-09-checkpoint-publishing.md` | plan | checkpoint publishing | executed on `feat/checkpoint-publishing` (2026-11-09): `tools/publish_checkpoints.py` stages a release's blessed bundles for one Hugging Face model repo per benchmark; the upload and the pointer rewrite happen at release from the `models/` mirror |
 | `2026-11-08-card-fields-and-compliance-table.md` | plan | card fields and compliance table | executed 2026-11-08 (ADR-0065 follow-up 2, a plan not an ADR by the maintainer's ruling): the V&V card fields, the compliance table, the four shipped cards filled, both generated views; notes on ADR-0027, 0065 and 0074 |
+| `2026-11-11-release-outline-to-v1.md` | outline | releases v0.5 to v1.0 | a long-term reference, not a schedule (maintainer, 2026-11-11): each release's closing criteria; the README Roadmap draws a release's checklist from it when the release is picked up |
 
 No plan is in flight. What ADR-0071's part three still owes has no plan yet
 (README Roadmap).
