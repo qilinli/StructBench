@@ -41,6 +41,15 @@ TWO_SITE_DECODERS: tuple[str, ...] = (
 #: and so need the :data:`RETURN_MAP_STATE_CHANNELS` layout.
 LAW_DECODERS: tuple[str, ...] = ("return_map", "admissible_coords", "projected_trial")
 
+#: The decoders the ADR-0063 two-hop pushforward chain is built for: the
+#: three that read the element state off the network's head. The direct
+#: return map derives its state from predicted kinematics and has no chain.
+TWO_SITE_CHAIN_DECODERS: tuple[str, ...] = (
+    "corner_mean",
+    "admissible_coords",
+    "projected_trial",
+)
+
 
 @dataclass(frozen=True)
 class ConstitutiveLaw:

@@ -160,7 +160,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0060 | Aux channels as model inputs: the state-feedback surface (Transolver AR) | Durable | Accepted (2026-10-01; narrowed by 0062; line closed by 0064; amended by 0075) |
 | 0061 | State-feedback stability: input noise and pushforward on the state channel | Ephemeral | Accepted |
 | 0062 | Anchored flow map: state-anchored time-conditioned prediction (Transolver) | Ephemeral | Accepted (verdict note 2026-09-12; amended by 0075; selection sentence superseded by 0077) |
-| 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Ephemeral | Accepted (amended 2026-09-10; verdict note 2026-09-12) |
+| 0063 | Anchor-interface contraction training: flow-map pushforward chains + kinematic-anchor noise | Ephemeral | Accepted (amended 2026-09-10; verdict note 2026-09-12; note 2026-11-11: the chain reaches the two-site decoders) |
 | 0064 | Constitutively-structured admissible heads: return-map decoder structure (D2/D3 by construction) + consistency-hinge comparator | Ephemeral | Accepted (note by 0073; amended by 0075) |
 | 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session; data standard fixed by 0073; clause 1 amended by 0074; follow-ups 1 and 3 by 0075, follow-up 2 by the plan of 2026-11-08, follow-up 4 by the README Roadmap of 2026-11-08) |
 | 0066 | Reference-data verification: the `verification/` module | Durable | Accepted (reviewed by 0073) |
@@ -172,7 +172,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0072 | Validation against experiments: `structbench.validation`, reference-experiment sets with provenance, measures shared by experiment and simulation, a record that reports deviations and never judges; the datagen stage `validate` renamed `verify` | Durable | Accepted (0073) |
 | 0073 | Decisions from the maintainer's review of the decision log (amends 0010, 0012, 0026, 0035, 0043, 0046, 0055, 0064, 0065, 0066, 0067, 0068, 0071, 0072; accepts 0057, 0071, 0072) | Durable | Accepted |
 | 0074 | Open evaluation: blind sets, computed coverage, a results registry for external results (amends 0019, 0025, 0026, 0032, 0033, 0036, 0040, 0043, 0046, 0065, 0071, 0075) | Durable | Accepted (2026-11-08) |
-| 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted (amended by 0074; a second task family by 0076) |
+| 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted (amended by 0074; a second task family by 0076; note 2026-11-11: monotone admissible forms, two-site pushforward) |
 | 0076 | The gradient task family: a surrogate's sensitivities scored against the sweep's own differences (amends 0019, 0032, 0033, 0055, 0075; constrains 0074) | Durable | Accepted (2026-11-08) |
 | 0077 | Checkpoint selection on the reported metric: validation relative L2 of displacement (supersedes the selection clause of 0028 and the selection sentence of 0062) | Ephemeral | Accepted (2026-11-10) |
 | 0078 | One declared scored span, read by every stage: training pool, statistics, time reference, evaluation, figures, records (amends 0039, 0054, 0032) | Durable | Accepted (2026-11-11) |

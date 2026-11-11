@@ -228,3 +228,29 @@ def test_flowmap_chain_generations():
     assert "chain_frame" in ds1[0] and "chain_frames" not in ds1[0]
     with pytest.raises(ValueError, match="generations"):
         FlowMapChainDataset([tr], input_frames=2, max_dt=4, generations=0)
+
+
+def test_flowmap_chain_carries_the_element_state():
+    """ADR-0075 note 2026-11-11: a two-hop chain on a case with an element
+    state carries the state at the anchor and at its three query frames,
+    like the nodal targets; a case without one is as before."""
+    from dataclasses import replace
+
+    from structbench.datasets import FlowMapChainDataset
+
+    tr = _pair_traj()  # T=8, P=4
+    assert "input_state" not in FlowMapChainDataset([tr], input_frames=2, max_dt=3)[0]
+    state = np.random.default_rng(5).random((8, 3, 5)).astype(np.float32)
+    tr = replace(tr, state=state)
+    ds = FlowMapChainDataset([tr], input_frames=2, max_dt=3)
+    for i in range(len(ds)):
+        s = ds[i]
+        t0, t1, t2 = (
+            int(s["anchor_frame"]),
+            int(s["chain_frame"]),
+            int(s["target_frame"]),
+        )
+        np.testing.assert_array_equal(s["input_state"].numpy(), state[t0])
+        assert s["next_state"].shape == (3, 3, 5) and s["n_elements"] == 3
+        for j, f in enumerate((t1 - 1, t1, t2)):
+            np.testing.assert_array_equal(s["next_state"][:, j].numpy(), state[f])

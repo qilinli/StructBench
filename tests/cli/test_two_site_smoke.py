@@ -140,10 +140,30 @@ def _spec(ids):
     )
 
 
-def _run(tmp_path, decoder: str):
+def _run(
+    tmp_path,
+    decoder: str,
+    *,
+    pushforward: bool = False,
+    scored_frames=None,
+    training_span: str = "scored",
+    n_val: int = 1,
+):
     torch.manual_seed(0)
-    ids = {"train": [f"train_{i:04d}" for i in range(3)], "val": ["val_0000"]}
+    ids = {
+        "train": [f"train_{i:04d}" for i in range(3)],
+        "val": [f"val_{i:04d}" for i in range(n_val)],
+    }
     spec = _spec(ids)
+    if scored_frames is not None:
+        # A per-case bound; the fixture's restart anchors sit beyond it.
+        spec = replace(
+            spec,
+            scored_frames=scored_frames,
+            restart_anchors=None,
+            restart_horizons=(),
+            restart_compositions=(1,),
+        )
     data_root = tmp_path / "data"
     data_root.mkdir()
     _write_cases(data_root, [c for v in ids.values() for c in v])
@@ -162,6 +182,8 @@ def _run(tmp_path, decoder: str):
         flow_map_eval_intervals=(1, 3),
         flow_map_canonical_interval=3,
         two_site_decoder=decoder,
+        flow_map_pushforward=pushforward,
+        flow_map_max_dt=3 if pushforward else 0,
     )
     tcfg = TrainConfig(
         benchmark="TwoSiteSmoke",
@@ -169,6 +191,7 @@ def _run(tmp_path, decoder: str):
         training_steps=20,
         val_every=10,
         aux_fields=STATE_CHANNELS,
+        training_span=training_span,
     )
     out = tmp_path / "run"
     train(spec, cfg, tcfg, data_root, out, "cpu", family="transolver")
@@ -375,3 +398,80 @@ def test_by_path_arm_dies_at_its_first_validation_when_not_training(
         family="transolver",
     )
     assert ckpt is not None and ckpt.exists()
+
+
+CHAIN_DECODERS = ("corner_mean", "admissible_coords", "projected_trial")
+
+
+@pytest.mark.parametrize("decoder", CHAIN_DECODERS)
+def test_two_site_pushforward_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
+    """ADR-0063's two-hop chain with the element state carried (ADR-0075
+    note 2026-11-11): the three head decoders train with
+    ``flow_map_pushforward`` through validation and evaluate; the admissible
+    forms keep both state rates at zero."""
+    import structbench.cli.train as cli_train
+
+    calls = []
+    chain_step = cli_train._fm_two_site_chain
+
+    def spy(*args, **kwargs):
+        out = chain_step(*args, **kwargs)
+        calls.append((out[0].shape, out[2].shape, kwargs["accumulate"]))
+        return out
+
+    monkeypatch.setattr(cli_train, "_fm_two_site_chain", spy)
+    spec, data_root, out, ids = _run(tmp_path, decoder, pushforward=True)
+    # Every step ran the chain: three queries per sample, nodal and element.
+    assert len(calls) == 20
+    assert all(p[1] == 3 and s[1] == 3 for p, s, _acc in calls)
+    # Normalizer warm-up (5 steps here) is the only accumulating stretch.
+    assert [acc for _p, _s, acc in calls] == [True] * 5 + [False] * 15
+    record = json.loads((out / "config.json").read_text(encoding="utf-8"))
+    assert record["model"]["flow_map_pushforward"] is True
+    assert record["model"]["two_site_decoder"] == decoder
+
+    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    case = metrics["cases"][ids["val"][0]]
+    assert np.isfinite(case["rollout_rel_l2_displacement"])
+    assert np.isfinite(case["rollout_rel_l2_state"])
+    if decoder != "corner_mean":
+        assert case["prop_yield_violation_rate"] == 0.0
+        assert case["prop_peeq_decrease_rate"] == 0.0
+
+
+def test_two_site_chains_lie_inside_the_training_span(
+    tmp_path, scored_span_check, short_bound
+):
+    """Every frame of a two-site pushforward chain, the element state
+    included, lies inside the training span (ADR-0078), on a benchmark with
+    a per-case bound; the shared check also holds the time reference and
+    the evaluator for this arm."""
+
+    def run(directory, training_span):
+        return _run(
+            directory,
+            "admissible_coords",
+            pushforward=True,
+            scored_frames=short_bound,
+            training_span=training_span,
+            n_val=2,
+        )
+
+    scored_span_check(run, timed=True)
+
+
+@pytest.mark.parametrize("decoder", CHAIN_DECODERS)
+def test_without_the_knob_no_chain_code_runs(tmp_path, monkeypatch, decoder):
+    """With ``flow_map_pushforward`` off a two-site run never reaches the
+    chain step or the chain dataset: it trains on (anchor, query) pairs
+    through the single-query forward, as before the chain existed."""
+    import structbench.cli.train as cli_train
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("chain code ran with flow_map_pushforward off")
+
+    monkeypatch.setattr(cli_train, "_fm_two_site_chain", forbidden)
+    monkeypatch.setattr(cli_train, "FlowMapChainDataset", forbidden)
+    _spec_, _root, out, _ids = _run(tmp_path, decoder)
+    assert list(out.glob("model-best-*.pt"))

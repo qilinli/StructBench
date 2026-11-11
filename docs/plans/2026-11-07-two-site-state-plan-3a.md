@@ -163,3 +163,7 @@ validation at 300) trained at a loss below one from its first validation,
 with a position RMSE at a few percent of the domain scale and falling by the
 second — the divergence guard stayed silent where it had killed the direct
 return map at the same step.
+
+*2026-11-11 — the pushforward follow-up is built for the three head decoders
+(ADR-0075 note of this date); the direct return map and the generation
+curriculum remain rejected at config load with a two-site decoder.*

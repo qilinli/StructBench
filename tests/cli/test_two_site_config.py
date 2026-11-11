@@ -102,11 +102,63 @@ def test_the_admissible_forms_need_the_law_and_the_layout(decoder):
         _validate_two_site(
             cfg, _train(aux_fields=other), _spec(state_channels=other), "x"
         )
-    for knob in ("flow_map_pushforward", "flow_map_structured_heads"):
+    with pytest.raises(ConfigError, match="incompatible"):
+        _validate_two_site(
+            TransolverConfig(two_site_decoder=decoder, flow_map_structured_heads=True),
+            _train(),
+            _spec(),
+            "x",
+        )
+
+
+@pytest.mark.parametrize(
+    "decoder", ["corner_mean", "admissible_coords", "projected_trial"]
+)
+def test_the_two_hop_chain_is_accepted_for_the_head_decoders(decoder):
+    """ADR-0075 note 2026-11-11: ``flow_map_pushforward`` loads with the
+    three decoders that read the state off the head; the generation
+    curriculum stays nodal, and the other 3a refusals stand."""
+    from structbench.benchmarks.constitutive import TWO_SITE_CHAIN_DECODERS
+
+    assert decoder in TWO_SITE_CHAIN_DECODERS
+    spec = _spec() if decoder != "corner_mean" else _spec()
+    _validate_two_site(
+        TransolverConfig(two_site_decoder=decoder, flow_map_pushforward=True),
+        _train(),
+        spec,
+        "x",
+    )
+    with pytest.raises(ConfigError, match="generations"):
+        _validate_two_site(
+            TransolverConfig(
+                two_site_decoder=decoder,
+                flow_map_pushforward=True,
+                flow_map_pushforward_generations=2,
+            ),
+            _train(),
+            spec,
+            "x",
+        )
+    for knob in (
+        {"flow_map_structured_heads": True},
+        {"flow_map_consistency_hinge": 0.1},
+    ):
         with pytest.raises(ConfigError, match="incompatible"):
             _validate_two_site(
-                TransolverConfig(two_site_decoder=decoder, **{knob: True}),
+                TransolverConfig(
+                    two_site_decoder=decoder, flow_map_pushforward=True, **knob
+                ),
                 _train(),
-                _spec(),
+                spec,
                 "x",
             )
+
+
+def test_the_direct_return_map_has_no_chain():
+    with pytest.raises(ConfigError, match="flow_map_pushforward"):
+        _validate_two_site(
+            TransolverConfig(two_site_decoder="return_map", flow_map_pushforward=True),
+            _train(),
+            _spec(),
+            "x",
+        )

@@ -107,7 +107,12 @@ from ..eval.restart import (
 from ..models.cgn import LearnedSimulator
 from ..models.cgn.simulator import time_diff
 from ..models.common import CaseBoundSimulator
-from ..models.common.two_site import LAW_DECODERS, LawRows, law_rows
+from ..models.common.two_site import (
+    LAW_DECODERS,
+    MONOTONE_DECODERS,
+    LawRows,
+    law_rows,
+)
 from ..models.geoflare import GeoFlareSimulator
 from ..models.mgn import (
     MeshSimulator,
@@ -116,7 +121,9 @@ from ..models.mgn import (
 )
 from ..models.mgn.collate import LawTuple
 from ..models.transolver import (
+    FlowMapAnchor,
     TransolverSimulator,
+    anchor_from_predictions,
     hardening_sigma_y,
     plane_strain_vm,
 )
@@ -2486,6 +2493,147 @@ def _fm_admissibility_hinge(
     )
 
 
+def _fm_two_site_chain(
+    sim: TransolverSimulator,
+    next_position: Tensor,
+    next_aux: Tensor,
+    next_state: Tensor,
+    particle_type: Tensor,
+    reference_coords: Tensor,
+    n_particles_per_example: Tensor,
+    anchor_frame: Tensor,
+    chain_frame: Tensor,
+    target_frame: Tensor,
+    time_ref: int,
+    *,
+    accumulate: bool,
+    cells: Tensor,
+    weights: Tensor,
+    law: LawRows | None,
+    anchor_disp: Tensor,
+    anchor_vel: Tensor,
+    anchor_aux: Tensor,
+    anchor_state: Tensor,
+    is_kinematic: Tensor,
+    loading_feature: Tensor | None,
+    anchor_time_feature: Tensor | None,
+    anchor_time: bool,
+) -> tuple[Tensor, Tensor, Tensor, Tensor, FlowMapAnchor]:
+    """One ADR-0063 two-hop chain with the element state carried (ADR-0075
+    note 2026-11-11): three queries, two clean and one dirty.
+
+    Hop A queries frames ``t1 - 1`` and ``t1`` from the stored anchor at
+    ``t0`` (the two frames a re-anchor at ``t1`` consumes), in time order:
+    the second is floored by the plastic strain the first emitted, as a
+    rollout floors each frame by the one before it. The mid-chain anchor is
+    then built from hop A's own emitted state by
+    :func:`~structbench.models.transolver.anchor_from_predictions`, the
+    function the rollout's hand-off calls, and is detached: no gradient
+    reaches hop A through it. Hop B queries ``t2`` from that anchor.
+
+    Every query carries the nodal and the element loss; the caller's
+    equal-weight mean over the stacked queries is ADR-0063's 2:1
+    clean-to-dirty proportion. Normalizers accumulate on the clean queries
+    only.
+
+    Parameters
+    ----------
+    next_position, next_aux, next_state:
+        ``(P, 3, dim)``, ``(P, 3, C)`` and ``(E, 3, S)``: the stored state at
+        the chain's three query frames ``(t1 - 1, t1, t2)``.
+    anchor_frame, chain_frame, target_frame:
+        ``(B,)`` the frames ``t0``, ``t1``, ``t2``.
+    anchor_disp, anchor_vel, anchor_aux, anchor_state:
+        The stored anchor at ``t0`` as the trainer prepared it (kinematics
+        and nodal aux possibly noised; the carried element state clean).
+    anchor_time:
+        Whether the simulator takes the anchor-time feature.
+
+    Returns
+    -------
+    tuple
+        ``(pred (P, 3, dim + S), target (P, 3, dim + S), state_pred
+        (E, 3, S), state_target (E, 3, S), anchor_b)``, the predictions and
+        targets in their normalizers' spaces and the mid-chain anchor.
+    """
+    scale = float(time_ref - 1)
+    preds, targets, state_preds, state_targets = [], [], [], []
+    emitted = []
+    floor: Tensor | None = None
+    for j in (0, 1):
+        dt_a = (chain_frame - 1 + j - anchor_frame).to(torch.float32) / scale
+        p_j, t_j, sp_j, st_j, out_j = sim.forward_train_two_site_emitted(
+            next_position[:, j],
+            next_aux[:, j],
+            next_state[:, j],
+            particle_type,
+            reference_coords,
+            n_particles_per_example,
+            dt_a,
+            accumulate=accumulate,
+            anchor_disp=anchor_disp,
+            anchor_vel=anchor_vel,
+            anchor_aux=anchor_aux,
+            anchor_state=anchor_state,
+            anchor_time_feature=anchor_time_feature,
+            peeq_floor=floor,
+            cells=cells,
+            weights=weights,
+            law=law,
+            loading_feature=loading_feature,
+        )
+        preds.append(p_j)
+        targets.append(t_j)
+        state_preds.append(sp_j)
+        state_targets.append(st_j)
+        emitted.append(out_j)
+        if sim.two_site in MONOTONE_DECODERS:
+            floor = out_j[2][:, 4].detach()
+    (pos_a1, _aux_a1, _state_a1), (pos_a2, aux_a2, state_a2) = emitted
+    anchor_b = anchor_from_predictions(
+        reference_coords,
+        pos_a1,
+        pos_a2,
+        aux_a2,
+        kin_mask=is_kinematic if bool(is_kinematic.any()) else None,
+        gt_aux=next_aux[:, 1],
+        state=state_a2,
+    )
+    assert anchor_b.state is not None
+    anchor_time_b = None
+    if anchor_time:
+        anchor_time_b = torch.repeat_interleave(
+            chain_frame.to(torch.float32) / scale, n_particles_per_example
+        ).unsqueeze(1)
+    dt_b = (target_frame - chain_frame).to(torch.float32) / scale
+    p_b, t_b, sp_b, st_b = sim.forward_train_two_site(
+        next_position[:, 2],
+        next_aux[:, 2],
+        next_state[:, 2],
+        particle_type,
+        reference_coords,
+        n_particles_per_example,
+        dt_b,
+        accumulate=False,
+        anchor_disp=anchor_b.disp,
+        anchor_vel=anchor_b.vel,
+        anchor_aux=anchor_b.aux,
+        anchor_state=anchor_b.state,
+        anchor_time_feature=anchor_time_b,
+        cells=cells,
+        weights=weights,
+        law=law,
+        loading_feature=loading_feature,
+    )
+    return (
+        torch.stack([*preds, p_b], dim=1),
+        torch.stack([*targets, t_b], dim=1),
+        torch.stack([*state_preds, sp_b], dim=1),
+        torch.stack([*state_targets, st_b], dim=1),
+        anchor_b,
+    )
+
+
 def _train_transolver_fm(
     spec: BenchmarkSpec,
     cfg: TransolverConfig,
@@ -2866,6 +3014,43 @@ def _train_transolver_fm(
                     )
                 pred = torch.stack(preds, dim=1)  # (P, 2*g_level+1, dim+C)
                 target = torch.stack(targets, dim=1)
+            elif chain and two_site:
+                # ADR-0075 note 2026-11-11: the ADR-0063 two-hop chain with
+                # the element state carried across the mid-chain anchor.
+                pred, target, state_pred, state_target, _anchor_b = _fm_two_site_chain(
+                    sim,
+                    next_position,
+                    next_aux,
+                    batch["next_state"].to(device),
+                    particle_type,
+                    reference_coords,
+                    n_particles_per_example,
+                    anchor_frame,
+                    batch["chain_frame"].to(device),
+                    target_frame,
+                    time_ref,
+                    accumulate=accumulate,
+                    cells=batch["cells"].to(device),
+                    weights=batch["cell_weights"].to(device),
+                    law=(
+                        None
+                        if laws is None
+                        else law_rows(
+                            batch["law_youngs"].to(device),
+                            batch["law_poisson"].to(device),
+                            batch["law_knots_peeq"].to(device),
+                            batch["law_knots_sy"].to(device),
+                        )
+                    ),
+                    anchor_disp=anchor_disp,
+                    anchor_vel=anchor_vel,
+                    anchor_aux=anchor_aux,
+                    anchor_state=batch["input_state"].to(device),
+                    is_kinematic=is_kinematic,
+                    loading_feature=loading_feature,
+                    anchor_time_feature=anchor_time_feature,
+                    anchor_time=cfg.flow_map_anchor_time,
+                )
             elif chain:
                 # ADR-0063 knob 1. Step A (teacher-forced GT anchor at t0):
                 # the TWO queries a re-anchor at t1 consumes — (t1-1, t1).

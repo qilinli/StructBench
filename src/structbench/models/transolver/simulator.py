@@ -22,6 +22,7 @@ finite-difference velocities, adding ``history_velocities * dim`` channels.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NamedTuple
 
 import torch
 import torch.nn.functional as F
@@ -77,6 +78,69 @@ def plane_strain_vm(dev: Tensor) -> Tensor:
         + 3.0 * dev[..., 2] ** 2
     )
     return torch.sqrt(q.clamp(min=1e-24))
+
+
+class FlowMapAnchor(NamedTuple):
+    """The state a flow-map query conditions on (ADR-0062), as the simulator
+    caches it: displacement and finite-difference velocity ``(P, dim)``, the
+    nodal aux ``(P, C)`` and, under a two-site decoder, the element state
+    ``(E, S)`` in float64 (ADR-0075), else ``None``."""
+
+    disp: Tensor
+    vel: Tensor
+    aux: Tensor
+    state: Tensor | None
+
+
+def anchor_from_predictions(
+    reference_coords: Tensor,
+    prev_positions: Tensor,
+    positions: Tensor,
+    aux: Tensor,
+    *,
+    kin_mask: Tensor | None = None,
+    gt_aux: Tensor | None = None,
+    state: Tensor | None = None,
+) -> FlowMapAnchor:
+    """Build a flow-map anchor from the state at two consecutive frames.
+
+    The one place an anchor is built from predictions: the rollout's
+    hand-off (:meth:`TransolverSimulator.set_anchor`) and the second hop of
+    a pushforward chain in training both call it, so the anchor a chain
+    trains against is the anchor the rollout would build from the same
+    predictions. Nothing here carries a gradient: every part is detached.
+
+    Parameters
+    ----------
+    reference_coords:
+        ``(P, dim)`` reference configuration.
+    prev_positions, positions:
+        ``(P, dim)`` world positions at the frame before the anchor and at
+        the anchor. Kinematic rows are prescribed and must already hold
+        their stored values (a query emits them so).
+    aux:
+        ``(P, C)`` nodal aux at the anchor frame.
+    kin_mask, gt_aux:
+        ``(P,)`` kinematic-row mask and the stored ``(P, C)`` aux at the
+        anchor frame; where given, kinematic aux rows take the stored value
+        (the ADR-0060 house clamp: those rows carry no aux training signal).
+    state:
+        ``(E, S)`` element-site state at the anchor frame as emitted
+        (admissible, and monotone in plastic strain for the admissible
+        forms), carried in float64; ``None`` without a two-site decoder.
+    """
+    anchor_aux = aux.detach()
+    if kin_mask is not None and gt_aux is not None:
+        anchor_aux = anchor_aux.clone()
+        anchor_aux[kin_mask] = gt_aux[kin_mask]
+    return FlowMapAnchor(
+        disp=(positions - reference_coords).detach(),
+        vel=(positions - prev_positions).detach(),
+        aux=anchor_aux,
+        # Carried in double: the return map's deviator must survive beside
+        # the mean stress across every hand-off.
+        state=None if state is None else state.detach().to(torch.float64),
+    )
 
 
 class TransolverSimulator(CaseBoundSimulator):
@@ -713,7 +777,7 @@ class TransolverSimulator(CaseBoundSimulator):
                 "simulator was built with flow_map_anchor_time=True but "
                 "set_anchor() received no anchor_t_norm"
             )
-        anchor_aux = aux.detach()
+        kin_mask = gt_aux_frame = None
         if self._has_kinematic and self._kin_mask is not None:
             # The clamp is REQUIRED, not best-effort: kinematic rows carry no
             # aux training signal, so silently anchoring on a predicted value
@@ -725,23 +789,29 @@ class TransolverSimulator(CaseBoundSimulator):
                     "ADR-0060 house clamp is mandatory under flow_map; "
                     "ADR-0062)"
                 )
-            anchor_aux = anchor_aux.clone()
-            anchor_aux[self._kin_mask] = self._gt_aux[frame][self._kin_mask]
-        self._anchor_disp = (positions - reference_coords).detach()
-        self._anchor_vel = (positions - prev_positions).detach()
-        self._anchor_aux = anchor_aux
+            kin_mask, gt_aux_frame = self._kin_mask, self._gt_aux[frame]
+        if self._two_site != "off" and state is None:
+            raise ValueError(
+                "set_anchor() needs the element state under a two-site "
+                "decoder (ADR-0075)"
+            )
+        anchor = anchor_from_predictions(
+            reference_coords,
+            prev_positions,
+            positions,
+            aux,
+            kin_mask=kin_mask,
+            gt_aux=gt_aux_frame,
+            state=state if self._two_site != "off" else None,
+        )
+        self._anchor_disp = anchor.disp
+        self._anchor_vel = anchor.vel
+        self._anchor_aux = anchor.aux
         self._anchor_t_norm = (
             float(anchor_t_norm) if anchor_t_norm is not None else None
         )
         if self._two_site != "off":
-            if state is None:
-                raise ValueError(
-                    "set_anchor() needs the element state under a two-site "
-                    "decoder (ADR-0075)"
-                )
-            # Carried in double: the return map's deviator must survive
-            # beside the mean stress across every hand-off.
-            self._anchor_state = state.detach().to(torch.float64)
+            self._anchor_state = anchor.state
             # A new window: its first frame is floored by the anchor alone.
             self._window_peeq = None
 
@@ -843,6 +913,51 @@ class TransolverSimulator(CaseBoundSimulator):
         loading_feature: Tensor | None = None,
         anchor_time_feature: Tensor | None = None,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        """One flow-map training pass with the element state carried
+        (ADR-0075): :meth:`forward_train_two_site_emitted` without the
+        emitted state."""
+        return self.forward_train_two_site_emitted(
+            gt_position,
+            gt_aux,
+            gt_state,
+            particle_types,
+            reference_coords,
+            n_particles_per_example,
+            t_norm,
+            accumulate=accumulate,
+            cells=cells,
+            weights=weights,
+            law=law,
+            anchor_disp=anchor_disp,
+            anchor_vel=anchor_vel,
+            anchor_aux=anchor_aux,
+            anchor_state=anchor_state,
+            loading_feature=loading_feature,
+            anchor_time_feature=anchor_time_feature,
+        )[:4]
+
+    def forward_train_two_site_emitted(
+        self,
+        gt_position: Tensor,
+        gt_aux: Tensor,
+        gt_state: Tensor,
+        particle_types: Tensor,
+        reference_coords: Tensor,
+        n_particles_per_example: Tensor,
+        t_norm: Tensor,
+        *,
+        accumulate: bool,
+        cells: Tensor,
+        weights: Tensor,
+        law: LawRows | None,
+        anchor_disp: Tensor,
+        anchor_vel: Tensor,
+        anchor_aux: Tensor,
+        anchor_state: Tensor,
+        loading_feature: Tensor | None = None,
+        anchor_time_feature: Tensor | None = None,
+        peeq_floor: Tensor | None = None,
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, tuple[Tensor, Tensor, Tensor]]:
         """One flow-map training pass with the element state carried (ADR-0075).
 
         The nodal half mirrors :meth:`forward_train_tc`; the aux slice of the
@@ -851,11 +966,21 @@ class TransolverSimulator(CaseBoundSimulator):
         too), and the element state is returned beside it in the state
         normalizer's space.
 
+        ``peeq_floor`` is the plastic strain already emitted for the frame
+        before this query in the same window (the two admissible forms; a
+        pushforward chain passes its first query's to its second), as the
+        rollout floors each frame by the one before it.
+
         Returns
         -------
-        tuple[Tensor, Tensor, Tensor, Tensor]
+        tuple
             ``(pred_norm (P, dim + S), target_norm (P, dim + S), state_pred_norm
-            (E, S), state_target_norm (E, S))``.
+            (E, S), state_target_norm (E, S), emitted)`` where ``emitted`` is
+            what a rollout query would emit for this frame, in physical
+            units and with gradients: ``(positions (P, dim)`` with the
+            prescribed kinematic rows, ``aux (P, S)`` the projection of the
+            state, ``state (E, S)`` float64``)`` — the inputs of
+            :func:`anchor_from_predictions`.
         """
         if self._two_site == "off":
             raise RuntimeError(
@@ -907,6 +1032,7 @@ class TransolverSimulator(CaseBoundSimulator):
             weights,
             law,
             du=disp_query - anchor_disp,
+            peeq_floor=peeq_floor,
         )
         pred_norm = self._target_normalizer(
             torch.cat([disp_pred, aux_proj], dim=-1), accumulate=False
@@ -914,7 +1040,8 @@ class TransolverSimulator(CaseBoundSimulator):
         state_pred_norm = self._state_normalizer(
             state_pred.to(gt_state.dtype), accumulate=False
         )
-        return pred_norm, target_norm, state_pred_norm, state_target_norm
+        emitted = (reference_coords + disp_query, aux_proj, state_pred)
+        return pred_norm, target_norm, state_pred_norm, state_target_norm, emitted
 
     def predict_two_site_at(
         self, frame: int, t_norm: float
