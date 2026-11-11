@@ -244,7 +244,9 @@ a release's criteria become its checklist here when it is picked up.*
       (2026-11-11: on every landing page's results registry — four
       significant figures, 2% for the graph-network families on a GPU, the
       maintainer's decision of 2026-11-10).~~
-- [ ] The gradient family has rows from a second model family.
+- [x] ~~The gradient family has rows from a second model family
+      (2026-11-11: the Taylor autoregressive Transolver; the time-conditioned
+      rows wait on the protocol gap in the Inbox).~~
 - [ ] Per-case coverage figures on the landing pages.
 - [x] ~~A registered row reproduced from its public checkpoint by the
       documented command alone (2026-11-11: wave-1D CGN, displacement
@@ -325,8 +327,18 @@ a release's criteria become its checklist here when it is picked up.*
       repeatable (CUDA scatter-add): two evaluations of one checkpoint differ
       by up to about 1.5% in rollout relative L2. Deterministic kernels in
       the evaluation path are untested.
-- [ ] The gradient family has one registered model (Taylor CGN); a second
-      family's rows would show whether it separates models.
+- [x] ~~The gradient family has one registered model (Taylor CGN); a second
+      family's rows would show whether it separates models (2026-11-11: it
+      does — the Taylor autoregressive Transolver reads relative L2 0.38 and
+      0.47 with every sign right, against CGN's 2.5 and 2.4).~~
+- [ ] The gradient family does not reach a time-conditioned model
+      (2026-11-11): the protocol perturbs the seed frames, and a
+      time-conditioned model takes its loading scalar from the case's nominal
+      value, so its sensitivity reads exactly zero (relative L2 1, sign
+      agreement 0) whatever the model has learned. Measured on the registered
+      Taylor time-conditioned Transolver; the row is not registered. The
+      protocol has to perturb the loading scalar with the seed (ADR-0076
+      clause 2).
 - [ ] Time-conditioned evaluation takes its time reference from each case's
       own length and training from the shortest training trajectory; they
       differ on trajectories of unequal length unless the run records its
