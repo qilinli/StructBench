@@ -344,8 +344,8 @@ a release's criteria become its checklist here when it is picked up.*
       span as the archived GPU evaluation; one-step error agrees to 0.1%
       and rollout position RMSE differs by up to 7% on a case (0.8% in the
       mean), while the Transolver checkpoint on the same benchmark agrees
-      to seven figures and GeoFLARE on Taylor to four. The difference sits
-      in GeoFLARE's capped neighbour queries on the particle set, amplified
+      to seven figures and GeoFLARE on Taylor to four. The likely source (not isolated) is
+      GeoFLARE's capped neighbour queries on the particle set, amplified
       by the rollout. The repeatability statement names four figures for
       this family; whether it joins the graph-network families at 2% on
       particle benchmarks is the maintainer's.
