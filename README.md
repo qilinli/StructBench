@@ -436,7 +436,7 @@ If you use StructBench, please cite it
   title   = {{StructBench}: Verification and validation benchmarks for
              learned surrogates of structural response},
   year    = {2026},
-  version = {0.4.0},
+  version = {0.5.0},
   license = {Apache-2.0},
   url     = {https://github.com/qilinli/StructBench}
 }
