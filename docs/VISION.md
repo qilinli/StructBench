@@ -2,23 +2,21 @@
 
 *What StructBench is, who it serves, and where it is going.*
 
----
+------
+
+
 
 ## What StructBench is
 
-StructBench is an open platform for data-driven structural engineering. It provides standardised benchmark problems, reference models, and — over time — reusable deployment tools that let research groups and practitioners apply machine learning methods to structural analysis and health monitoring in a consistent, reproducible way.
+StructBench is an open platform for establishing whether learned surrogate models of structural response can be trusted. It provides benchmark problems with reference data whose uncertainty is declared, evaluation protocols that test physical consistency and decision-relevant behaviour alongside accuracy, and reference models that show those properties are attainable — so that research groups and practitioners can verify and validate data-driven simulation in a consistent, reproducible way.
 
-At its current stage, the platform's focus is on benchmarks and reference
-implementations for surrogate modelling of structural response — from
-quasi-static contact to stress-wave propagation, impact, and fracture. Its
-scope will expand to include multi-modal structural health monitoring and
-end-to-end deployment workflows as the platform matures.
+At its current stage, the platform's focus is on benchmarks and reference implementations for surrogate modelling of structural response — from quasi-static contact to stress-wave propagation, impact, and fracture. Its scope will expand to include multi-modal structural health monitoring and end-to-end deployment workflows as the platform matures.
 
 ## Why it exists
 
 Machine learning research in structural engineering is currently fragmented. Individual groups publish results on custom datasets with non-standardised evaluation protocols, making it difficult to compare methods, reproduce claimed results, or assess whether the field is making real progress. Reference implementations are rarely released or maintained. The path from a research prototype to practical deployment on a real asset is rebuilt from scratch for each project.
 
-StructBench addresses this by establishing a shared substrate: benchmark problems with reproducible data generation, reference models with released checkpoints, a solver-agnostic data format that allows contributions across different simulation backends, and evaluation protocols that let results be compared meaningfully across methods.
+StructBench addresses this by establishing a shared substrate: benchmark problems with reproducible data generation and reference data of declared uncertainty, reference models with released checkpoints, a solver-agnostic data format that allows contributions across different simulation backends, and evaluation protocols that test physical consistency alongside accuracy and let results be compared meaningfully across methods.
 
 ## Who it serves
 
