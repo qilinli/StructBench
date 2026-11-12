@@ -340,8 +340,15 @@ a release's criteria become its checklist here when it is picked up.*
       re-evaluation of the registered checkpoint read 0.05324 on
       `test_interp` against the registered 0.05257 (1.3% apart), outside
       the four figures the registry states for that family, so its values
-      were not entered; whether GeoFLARE belongs with the graph-network
-      families in the repeatability statement is open.
+      were not entered. Diagnosed the same day: same checkpoint and scored
+      span as the archived GPU evaluation; one-step error agrees to 0.1%
+      and rollout position RMSE differs by up to 7% on a case (0.8% in the
+      mean), while the Transolver checkpoint on the same benchmark agrees
+      to seven figures and GeoFLARE on Taylor to four. The difference sits
+      in GeoFLARE's capped neighbour queries on the particle set, amplified
+      by the rollout. The repeatability statement names four figures for
+      this family; whether it joins the graph-network families at 2% on
+      particle benchmarks is the maintainer's.
 - [ ] The gradient family does not reach a time-conditioned model
       (2026-11-11): the protocol perturbs the seed frames, and a
       time-conditioned model takes its loading scalar from the case's nominal
