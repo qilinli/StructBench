@@ -230,8 +230,8 @@ closing criteria, is
 [`docs/plans/2026-11-11-release-outline-to-v1.md`](docs/plans/2026-11-11-release-outline-to-v1.md);
 a release's criteria become its checklist here when it is picked up.*
 
-- [ ] `docs/VISION.md` carries the ADR-0065 identity (maintainer, out of
-      session).
+- [x] ~~`docs/VISION.md` carries the ADR-0065 identity (maintainer, out of
+      session, 2026-11-12).~~
 - [x] ~~`CITATION.cff`, the BibTeX entry below and the dataset cards' BibTeX
       carry the ADR-0065 identity (2026-11-11).~~
 - [x] ~~The tree is fit to archive (2026-11-11): the source dossier is an
