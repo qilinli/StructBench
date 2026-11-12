@@ -202,6 +202,19 @@ _Sensitivity — the gradient family (ADR-0076)_
 
 _The derivative of each quantity of interest with respect to `impact_velocity_m_s`, the model's by central differences of its own rollouts, against the reference sensitivities and pooled over the judged values of the scored sets (↓ lower is better; 1 is the error of predicting no sensitivity). The own floor is the disagreement between the model's two step sizes on the same scale. A value whose reference error exceeds half its sensitivity is reported, not judged._
 
+_Headline by coverage bin — mean over the cases in each bin_
+
+| Method | Scheme | interp·within, ≤ 1 | extrap·beyond, ≤ 1 |
+|---|---|---|---|
+| MGN | autoregressive | 0.21565 | 0.32337 |
+| CGN | autoregressive | — | — |
+| Transolver | autoregressive | 0.02133 | 0.04184 |
+| Transolver | time-conditioned | 0.00938 | 0.01637 |
+| Transolver++ | time-conditioned | 0.00936 | 0.01765 |
+| GeoFLARE | autoregressive | 0.04014 | 0.01462 |
+
+_Each column is a scored set and a coverage bin: within or beyond the training box, with the distance to the nearest training point in units of the training set's spacing, or a novel case. The per-case values are the registered run's own, or a re-evaluation of the registered checkpoint that reproduced the registered headline within the repeatability stated above; a row without them reads —._
+
 ## Baseline details
 
 **MGN** (mgn, 2026-08-16, commit `d838606`)

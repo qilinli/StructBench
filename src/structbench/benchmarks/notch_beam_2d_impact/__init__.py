@@ -87,6 +87,22 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_cracked_fraction_mae": 0.2225,
             },
         },
+        case_metrics={
+            "NB-I-320-Bullet-a-80": {"rollout_rel_l2_disp": 0.1646},
+            "NB-I-320-Bullet-b-120": {"rollout_rel_l2_disp": 0.1483},
+            "NB-I-320-Rectangular-b-120": {"rollout_rel_l2_disp": 0.2794},
+            "NB-I-320-Rectangular-c-120": {"rollout_rel_l2_disp": 0.2636},
+            "NB-I-320-Sphere-b-120": {"rollout_rel_l2_disp": 0.1655},
+            "NB-I-320-Sphere-b-80": {"rollout_rel_l2_disp": 0.1734},
+            "NB-I-480-Rectangular-b-120": {"rollout_rel_l2_disp": 0.1691},
+            "NB-I-480-Sphere-a-120": {"rollout_rel_l2_disp": 0.1058},
+            "NB-I-480-Sphere-b-120": {"rollout_rel_l2_disp": 0.12},
+            "NB-I-640-Bullet-b-80": {"rollout_rel_l2_disp": 0.4437},
+            "NB-I-640-Sphere-a-80": {"rollout_rel_l2_disp": 0.3828},
+            "NB-I-640-Sphere-c-120": {"rollout_rel_l2_disp": 0.278},
+            "S_100_800_V60_extrapolation": {"rollout_rel_l2_disp": 1.4},
+            "S_80_400_V140_intrapolation": {"rollout_rel_l2_disp": 0.1349},
+        },
         notes=(
             "Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): "
             "autoregressive next-step on the SPH particle set as a mesh, "
@@ -211,6 +227,22 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_cracked_fraction_mae": 0.08400,
             },
         },
+        case_metrics={
+            "NB-I-320-Bullet-a-80": {"rollout_rel_l2_disp": 0.08498},
+            "NB-I-320-Bullet-b-120": {"rollout_rel_l2_disp": 0.06412},
+            "NB-I-320-Rectangular-b-120": {"rollout_rel_l2_disp": 0.03735},
+            "NB-I-320-Rectangular-c-120": {"rollout_rel_l2_disp": 0.04903},
+            "NB-I-320-Sphere-b-120": {"rollout_rel_l2_disp": 0.05629},
+            "NB-I-320-Sphere-b-80": {"rollout_rel_l2_disp": 0.06311},
+            "NB-I-480-Rectangular-b-120": {"rollout_rel_l2_disp": 0.07955},
+            "NB-I-480-Sphere-a-120": {"rollout_rel_l2_disp": 0.0581},
+            "NB-I-480-Sphere-b-120": {"rollout_rel_l2_disp": 0.08514},
+            "NB-I-640-Bullet-b-80": {"rollout_rel_l2_disp": 0.07708},
+            "NB-I-640-Sphere-a-80": {"rollout_rel_l2_disp": 0.06431},
+            "NB-I-640-Sphere-c-120": {"rollout_rel_l2_disp": 0.04963},
+            "S_100_800_V60_extrapolation": {"rollout_rel_l2_disp": 1.826},
+            "S_80_400_V140_intrapolation": {"rollout_rel_l2_disp": 0.5449},
+        },
         notes=(
             "Native autoregressive Transolver (ADR-0048 multi-method "
             "extension): next-step on the SPH particle set as a mesh, run "
@@ -268,6 +300,22 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_cracked_fraction_mae": 0.04823,
             },
         },
+        case_metrics={
+            "NB-I-320-Bullet-a-80": {"rollout_rel_l2_disp": 0.03898},
+            "NB-I-320-Bullet-b-120": {"rollout_rel_l2_disp": 0.02398},
+            "NB-I-320-Rectangular-b-120": {"rollout_rel_l2_disp": 0.03471},
+            "NB-I-320-Rectangular-c-120": {"rollout_rel_l2_disp": 0.03464},
+            "NB-I-320-Sphere-b-120": {"rollout_rel_l2_disp": 0.02829},
+            "NB-I-320-Sphere-b-80": {"rollout_rel_l2_disp": 0.04055},
+            "NB-I-480-Rectangular-b-120": {"rollout_rel_l2_disp": 0.03957},
+            "NB-I-480-Sphere-a-120": {"rollout_rel_l2_disp": 0.02763},
+            "NB-I-480-Sphere-b-120": {"rollout_rel_l2_disp": 0.03835},
+            "NB-I-640-Bullet-b-80": {"rollout_rel_l2_disp": 0.05138},
+            "NB-I-640-Sphere-a-80": {"rollout_rel_l2_disp": 0.03609},
+            "NB-I-640-Sphere-c-120": {"rollout_rel_l2_disp": 0.02783},
+            "S_100_800_V60_extrapolation": {"rollout_rel_l2_disp": 1.555},
+            "S_80_400_V140_intrapolation": {"rollout_rel_l2_disp": 0.5389},
+        },
         notes=(
             "Native time-conditioned Transolver (ADR-0054): history-free "
             "independent-time-query, no rollout accumulation, so one-step is "
@@ -314,6 +362,22 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_midspan_deflection_peak_mae_mm": 3.329,
                 "qoi_cracked_fraction_mae": 0.04194,
             },
+        },
+        case_metrics={
+            "NB-I-320-Bullet-a-80": {"rollout_rel_l2_disp": 0.04061},
+            "NB-I-320-Bullet-b-120": {"rollout_rel_l2_disp": 0.02973},
+            "NB-I-320-Rectangular-b-120": {"rollout_rel_l2_disp": 0.03453},
+            "NB-I-320-Rectangular-c-120": {"rollout_rel_l2_disp": 0.03169},
+            "NB-I-320-Sphere-b-120": {"rollout_rel_l2_disp": 0.03052},
+            "NB-I-320-Sphere-b-80": {"rollout_rel_l2_disp": 0.04872},
+            "NB-I-480-Rectangular-b-120": {"rollout_rel_l2_disp": 0.03832},
+            "NB-I-480-Sphere-a-120": {"rollout_rel_l2_disp": 0.02999},
+            "NB-I-480-Sphere-b-120": {"rollout_rel_l2_disp": 0.03536},
+            "NB-I-640-Bullet-b-80": {"rollout_rel_l2_disp": 0.0563},
+            "NB-I-640-Sphere-a-80": {"rollout_rel_l2_disp": 0.03594},
+            "NB-I-640-Sphere-c-120": {"rollout_rel_l2_disp": 0.03219},
+            "S_100_800_V60_extrapolation": {"rollout_rel_l2_disp": 1.485},
+            "S_80_400_V140_intrapolation": {"rollout_rel_l2_disp": 0.5348},
         },
         notes=(
             "Transolver++ (ADR-0057): the native time-conditioned Transolver "

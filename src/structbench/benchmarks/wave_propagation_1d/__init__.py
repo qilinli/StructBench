@@ -80,6 +80,10 @@ RESULTS: tuple[BaselineResult, ...] = (
         checkpoint_sha256=(
             "2139335fb0cb2f6cccaf9be69e69cced369deb6eda80f6970b292deeba07dc0a"
         ),
+        case_metrics={
+            "W1D-300-4": {"rollout_rel_l2_disp": 0.2213},
+            "W1D-400-2": {"rollout_rel_l2_disp": 0.4798},
+        },
         notes=(
             "Single-scale CGN (ADR-0034) on the round-2 capacity recipe "
             "(hidden 128 / 10 MP steps / 2-layer node MLP, noise_std 0.06) at "
@@ -134,6 +138,10 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_peak_stress_mae_mpa": 0.9974,
             },
         },
+        case_metrics={
+            "W1D-300-4": {"rollout_rel_l2_disp": 1.39},
+            "W1D-400-2": {"rollout_rel_l2_disp": 1.742},
+        },
         notes=(
             "Native MeshGraphNets, DELIBERATE NEGATIVE ROW (see module "
             "header): FAILS on wave - displacement relative L2 1.566 (> 1, "
@@ -179,6 +187,10 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_peak_stress_mae_mpa": 0.5225,
             },
         },
+        case_metrics={
+            "W1D-300-4": {"rollout_rel_l2_disp": 1.327},
+            "W1D-400-2": {"rollout_rel_l2_disp": 1.194},
+        },
         notes=(
             "Native autoregressive Transolver, DELIBERATE NEGATIVE ROW (see "
             "module header): FAILS on wave - displacement relative L2 1.261 "
@@ -222,6 +234,10 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_arrival_time_75_mae_ms": 0.1006,
                 "qoi_peak_stress_mae_mpa": 0.09222,
             },
+        },
+        case_metrics={
+            "W1D-300-4": {"rollout_rel_l2_disp": 0.1275},
+            "W1D-400-2": {"rollout_rel_l2_disp": 0.09922},
         },
         notes=(
             "Native time-conditioned Transolver (ADR-0054): history-free, each "
@@ -274,6 +290,10 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_peak_stress_mae_mpa": 0.6025,
             },
         },
+        case_metrics={
+            "W1D-300-4": {"rollout_rel_l2_disp": 1.116},
+            "W1D-400-2": {"rollout_rel_l2_disp": 1.025},
+        },
         notes=(
             "Native autoregressive GeoFLARE, DELIBERATE NEGATIVE ROW (see "
             "module header): FAILS on wave - displacement relative L2 1.071 "
@@ -312,6 +332,10 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_arrival_time_75_mae_ms": 0.3525,
                 "qoi_peak_stress_mae_mpa": 0.1320,
             },
+        },
+        case_metrics={
+            "W1D-300-4": {"rollout_rel_l2_disp": 0.1373},
+            "W1D-400-2": {"rollout_rel_l2_disp": 0.1266},
         },
         notes=(
             "Native GeoFLARE under the time-conditioned scheme (ADR-0054): "
