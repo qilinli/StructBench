@@ -168,6 +168,19 @@ _Quantities of interest (MAE)_
 | GeoFLARE | autoregressive | 1.19900 | 0.73490 | 0.15100 | 0.60250 |
 | GeoFLARE | time-conditioned | 0.25190 | 0.10050 | 0.35250 | 0.13200 |
 
+_Headline by coverage bin — mean over the cases in each bin_
+
+| Method | Scheme | interp·within, 1–2 | interp·within, ≤ 1 |
+|---|---|---|---|
+| CGN | autoregressive | 0.22130 | 0.47980 |
+| MGN | autoregressive | 1.39000 | 1.74200 |
+| Transolver | autoregressive | 1.32700 | 1.19400 |
+| Transolver | time-conditioned | 0.12750 | 0.09922 |
+| GeoFLARE | autoregressive | 1.11600 | 1.02500 |
+| GeoFLARE | time-conditioned | 0.13730 | 0.12660 |
+
+_Each column is a scored set and a coverage bin: within or beyond the training box, with the distance to the nearest training point in units of the training set's spacing, or a novel case. The per-case values are the registered run's own, or a re-evaluation of the registered checkpoint that reproduced the registered headline within the repeatability stated above; a row without them reads —._
+
 ## Baseline details
 
 **CGN** (cgn, 2026-07-10, commit `48046ea`, checkpoint: `https://huggingface.co/StructBench/wave-propagation-1d/resolve/v0.4.0/cgn-48046ea/model-best-050000.pt`)

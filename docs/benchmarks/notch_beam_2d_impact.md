@@ -182,6 +182,19 @@ _Quantities of interest (MAE)_
 | Transolver++ | time-conditioned | 0.04696 | 0.02438 |
 | GeoFLARE | autoregressive | 0.10520 | 0.02508 |
 
+_Headline by coverage bin — mean over the cases in each bin_
+
+| Method | Scheme | interp·within, ≤ 1 | probe·novel |
+|---|---|---|---|
+| MGN | autoregressive | 0.22452 | 0.76745 |
+| CGN | autoregressive | — | — |
+| Transolver | autoregressive | 0.06406 | 1.18545 |
+| Transolver | time-conditioned | 0.03517 | 1.04695 |
+| Transolver++ | time-conditioned | 0.03699 | 1.00990 |
+| GeoFLARE | autoregressive | — | — |
+
+_Each column is a scored set and a coverage bin: within or beyond the training box, with the distance to the nearest training point in units of the training set's spacing, or a novel case. The per-case values are the registered run's own, or a re-evaluation of the registered checkpoint that reproduced the registered headline within the repeatability stated above; a row without them reads —._
+
 ## Baseline details
 
 **MGN** (mgn, 2026-08-17, commit `59d5786`)

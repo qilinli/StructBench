@@ -559,6 +559,15 @@ def _coverage_tier(spec: BenchmarkSpec) -> list[str]:
             ]
             cells.append(_fmt_value(sum(values) / len(values)) if values else "—")
         lines.append("| " + " | ".join(cells) + " |")
+    lines += [
+        "",
+        "_Each column is a scored set and a coverage bin: within or beyond the "
+        "training box, with the distance to the nearest training point in "
+        "units of the training set's spacing, or a novel case. The per-case "
+        "values are the registered run's own, or a re-evaluation of the "
+        "registered checkpoint that reproduced the registered headline within "
+        "the repeatability stated above; a row without them reads —._",
+    ]
     return lines
 
 

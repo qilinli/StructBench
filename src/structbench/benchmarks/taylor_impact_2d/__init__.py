@@ -81,6 +81,17 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_t_peak_vm_mae_ms": 0.1087,
             },
         },
+        case_metrics={
+            "T-20-60-130": {"rollout_rel_l2_disp": 0.09531},
+            "T-20-80-130": {"rollout_rel_l2_disp": 0.1874},
+            "T-20-100-130": {"rollout_rel_l2_disp": 0.2145},
+            "T-20-60-170": {"rollout_rel_l2_disp": 0.3136},
+            "T-20-80-170": {"rollout_rel_l2_disp": 0.2583},
+            "T-20-100-170": {"rollout_rel_l2_disp": 0.2248},
+            "T-20-60-200": {"rollout_rel_l2_disp": 0.4009},
+            "T-20-80-200": {"rollout_rel_l2_disp": 0.3123},
+            "T-20-100-200": {"rollout_rel_l2_disp": 0.2569},
+        },
         notes=(
             "Native MeshGraphNets (ADR-0047 baseline, ADR-0049 repair): "
             "autoregressive next-step on the SPH particle set as a mesh, "
@@ -245,6 +256,17 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "gradient_n_reported_t_peak_von_mises": 9.0,
             },
         },
+        case_metrics={
+            "T-20-60-130": {"rollout_rel_l2_disp": 0.03826},
+            "T-20-80-130": {"rollout_rel_l2_disp": 0.03452},
+            "T-20-100-130": {"rollout_rel_l2_disp": 0.02293},
+            "T-20-60-170": {"rollout_rel_l2_disp": 0.01695},
+            "T-20-80-170": {"rollout_rel_l2_disp": 0.00832},
+            "T-20-100-170": {"rollout_rel_l2_disp": 0.006976},
+            "T-20-60-200": {"rollout_rel_l2_disp": 0.05493},
+            "T-20-80-200": {"rollout_rel_l2_disp": 0.03088},
+            "T-20-100-200": {"rollout_rel_l2_disp": 0.0397},
+        },
         notes=(
             "Native autoregressive Transolver under the ADR-0049 repaired "
             "recipe (velocity history + working-frame training noise): the "
@@ -312,6 +334,17 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_t_peak_vm_mae_ms": 0.01064,
             },
         },
+        case_metrics={
+            "T-20-60-130": {"rollout_rel_l2_disp": 0.01176},
+            "T-20-80-130": {"rollout_rel_l2_disp": 0.00928},
+            "T-20-100-130": {"rollout_rel_l2_disp": 0.00811},
+            "T-20-60-170": {"rollout_rel_l2_disp": 0.01053},
+            "T-20-80-170": {"rollout_rel_l2_disp": 0.008683},
+            "T-20-100-170": {"rollout_rel_l2_disp": 0.007935},
+            "T-20-60-200": {"rollout_rel_l2_disp": 0.01855},
+            "T-20-80-200": {"rollout_rel_l2_disp": 0.01424},
+            "T-20-100-200": {"rollout_rel_l2_disp": 0.01631},
+        },
         notes=(
             "Native time-conditioned Transolver (ADR-0054): each frame is "
             "predicted independently from the reference geometry + normalized "
@@ -363,6 +396,17 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_peak_vm_mae_mpa": 4.605,
                 "qoi_t_peak_vm_mae_ms": 0.01132,
             },
+        },
+        case_metrics={
+            "T-20-60-130": {"rollout_rel_l2_disp": 0.01183},
+            "T-20-80-130": {"rollout_rel_l2_disp": 0.009277},
+            "T-20-100-130": {"rollout_rel_l2_disp": 0.007954},
+            "T-20-60-170": {"rollout_rel_l2_disp": 0.01057},
+            "T-20-80-170": {"rollout_rel_l2_disp": 0.008565},
+            "T-20-100-170": {"rollout_rel_l2_disp": 0.007967},
+            "T-20-60-200": {"rollout_rel_l2_disp": 0.01778},
+            "T-20-80-200": {"rollout_rel_l2_disp": 0.01585},
+            "T-20-100-200": {"rollout_rel_l2_disp": 0.01931},
         },
         notes=(
             "Transolver++ (ADR-0057): the native time-conditioned Transolver "
@@ -425,6 +469,17 @@ RESULTS: tuple[BaselineResult, ...] = (
                 "qoi_peak_vm_mae_mpa": 3.439,
                 "qoi_t_peak_vm_mae_ms": 0.001331,
             },
+        },
+        case_metrics={
+            "T-20-60-130": {"rollout_rel_l2_disp": 0.07058},
+            "T-20-80-130": {"rollout_rel_l2_disp": 0.02581},
+            "T-20-100-130": {"rollout_rel_l2_disp": 0.02668},
+            "T-20-60-170": {"rollout_rel_l2_disp": 0.02403},
+            "T-20-80-170": {"rollout_rel_l2_disp": 0.03622},
+            "T-20-100-170": {"rollout_rel_l2_disp": 0.05754},
+            "T-20-60-200": {"rollout_rel_l2_disp": 0.01445},
+            "T-20-80-200": {"rollout_rel_l2_disp": 0.01576},
+            "T-20-100-200": {"rollout_rel_l2_disp": 0.01364},
         },
         notes=(
             "Native autoregressive GeoFLARE under the ADR-0049 repaired recipe "
