@@ -207,7 +207,7 @@ _Headline by coverage bin — mean over the cases in each bin_
 | Method | Scheme | interp·within, ≤ 1 | extrap·beyond, ≤ 1 |
 |---|---|---|---|
 | MGN | autoregressive | 0.21565 | 0.32337 |
-| CGN | autoregressive | — | — |
+| CGN | autoregressive | 0.13053 | 0.55517 |
 | Transolver | autoregressive | 0.02133 | 0.04184 |
 | Transolver | time-conditioned | 0.00938 | 0.01637 |
 | Transolver++ | time-conditioned | 0.00936 | 0.01765 |

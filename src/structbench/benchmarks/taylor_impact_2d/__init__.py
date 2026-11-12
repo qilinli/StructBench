@@ -173,6 +173,17 @@ RESULTS: tuple[BaselineResult, ...] = (
         checkpoint_sha256=(
             "4950d798a774be111d7096a16a112d38385d44e7832c7577bb1fa82eb7b76060"
         ),
+        case_metrics={
+            "T-20-60-130": {"rollout_rel_l2_disp": 0.1718},
+            "T-20-80-130": {"rollout_rel_l2_disp": 0.07959},
+            "T-20-100-130": {"rollout_rel_l2_disp": 0.09916},
+            "T-20-60-170": {"rollout_rel_l2_disp": 0.2181},
+            "T-20-80-170": {"rollout_rel_l2_disp": 0.1173},
+            "T-20-100-170": {"rollout_rel_l2_disp": 0.09723},
+            "T-20-60-200": {"rollout_rel_l2_disp": 0.6915},
+            "T-20-80-200": {"rollout_rel_l2_disp": 0.5303},
+            "T-20-100-200": {"rollout_rel_l2_disp": 0.4437},
+        },
         notes=(
             "Single-scale CGN (ADR-0034) on the ADR-0028 recipe at 100k steps, "
             "seed 1 of the s0-s3 fleet; val-selected checkpoint "

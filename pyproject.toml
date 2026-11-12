@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "structbench"
-version = "0.4.0"
+version = "0.5.0"
 description = "Verification and validation benchmarks for learned surrogates of structural response."
 readme = "README.md"
 requires-python = ">=3.12"
