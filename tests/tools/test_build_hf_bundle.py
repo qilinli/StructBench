@@ -164,6 +164,16 @@ def test_citation_bibtex_reads_citation_cff():
     assert bib.startswith("@software{structbench,") and bib.endswith("}")
     assert "author  = {Li, Qilin}" in bib
     assert "version = {" in bib and "year    = {" in bib
+    # the archive's all-versions DOI, as CITATION.cff states it
+    cff = (Path(tool.__file__).resolve().parents[1] / "CITATION.cff").read_text(
+        encoding="utf-8"
+    )
+    doi = next(
+        line.split(":", 1)[1].strip()
+        for line in cff.splitlines()
+        if line.startswith("doi:")
+    )
+    assert f"  doi     = {{{doi}}}," in bib
 
 
 # --------------------------------------------------------------------------

@@ -159,7 +159,10 @@ def test_stage_writes_readme_script_and_pointers(tmp_path):
     assert readme.startswith("---\nlicense: apache-2.0\n")
     assert "| CGN | cgn | autoregressive |" in readme and digest in readme
     assert "docs/benchmarks/taylor_impact_2d.md" in readme
-    script = (folder / "publish.sh").read_text(encoding="utf-8")
+    # the card ends with the software citation CITATION.cff states
+    assert "## Citation" in readme and "@software{structbench," in readme
+    assert "  author  = {Li, Qilin}," in readme and "  doi     = {10.5281/" in readme
+    script =(folder / "publish.sh").read_text(encoding="utf-8")
     assert "hf repos create StructBench/taylor-impact-2d --type model" in script
     assert f'"$(dirname "$0")/{BUNDLE}" {BUNDLE} --type model' in script
     assert "README.md" in script and str(root) not in script

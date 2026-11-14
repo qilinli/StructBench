@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import sys
 from dataclasses import dataclass, field
@@ -252,6 +253,47 @@ def _headline(result: BaselineResult) -> str:
     return "—"
 
 
+def citation_section() -> list[str]:
+    """The model card's Citation section, read from the repo's ``CITATION.cff``.
+
+    The same entry the dataset cards carry (``tools/build_hf_bundle.py``):
+    the software is what is cited, with the archive's all-versions DOI when
+    the file has one. Parsed line-wise, without a YAML dependency.
+    """
+    text = (Path(__file__).resolve().parents[1] / "CITATION.cff").read_text(
+        encoding="utf-8"
+    )
+
+    def field(pattern: str, default: str) -> str:
+        m = re.search(pattern, text, re.M)
+        return m.group(1).strip('"') if m else default
+
+    names = re.findall(r"family-names:\s*(.+)\n\s*given-names:\s*(.+)", text)
+    authors = " and ".join(f"{f.strip()}, {g.strip()}" for f, g in names)
+    doi = field(r"^doi:\s*(\S+)", "")
+    year = field(r'^date-released:\s*"?(\d{4})', "2026")
+    version = field(r"^version:\s*(\S+)", "")
+    return [
+        "## Citation",
+        "",
+        "The checkpoints and the code are released together — cite the "
+        "software (`CITATION.cff` in the code repository):",
+        "",
+        "```bibtex",
+        "@software{structbench,",
+        f"  author  = {{{authors or 'Li, Qilin'}}},",
+        "  title   = {StructBench: verification and validation benchmarks "
+        "for learned surrogates of structural response},",
+        f"  year    = {{{year}}},",
+        f"  version = {{{version}}},",
+        *([f"  doi     = {{{doi}}},"] if doi else []),
+        f"  url     = {{{_REPO_URL}}},",
+        "}",
+        "```",
+        "",
+    ]
+
+
 def render_model_readme(plan: ReleasePlan) -> str:
     """The Hugging Face model card of one benchmark's checkpoints."""
     slug = MODEL_REPOS[plan.benchmark]
@@ -308,6 +350,7 @@ def render_model_readme(plan: ReleasePlan) -> str:
         "Verify a file against `SHA256SUMS` before trusting it. Code and "
         f"benchmark definitions: {_REPO_URL} (Apache-2.0).",
         "",
+        *citation_section(),
     ]
     return "\n".join(lines)
 

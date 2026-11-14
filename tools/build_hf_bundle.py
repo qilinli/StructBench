@@ -211,11 +211,16 @@ def _citation_bibtex() -> str:
 
     Only the fields the entry needs are parsed (line-wise, no YAML
     dependency); the release the archive was built from is what gets cited.
+    The top-level ``doi`` (the archive's all-versions DOI) is carried when
+    the file has one.
     """
     cff = _REPO_ROOT / "CITATION.cff"
     fields = {"version": "0.3.0", "year": "2026", "authors": "Li, Qilin"}
+    doi = None
     if cff.exists():
         text = cff.read_text(encoding="utf-8")
+        if m := re.search(r"^doi:\s*(\S+)", text, re.M):
+            doi = m.group(1).strip('"')
         if m := re.search(r"^version:\s*(\S+)", text, re.M):
             fields["version"] = m.group(1).strip('"')
         if m := re.search(r'^date-released:\s*"?(\d{4})', text, re.M):
@@ -233,6 +238,7 @@ def _citation_bibtex() -> str:
             "for learned surrogates of structural response},",
             f"  year    = {{{fields['year']}}},",
             f"  version = {{{fields['version']}}},",
+            *([f"  doi     = {{{doi}}},"] if doi else []),
             "  url     = {https://github.com/qilinli/StructBench},",
             "}",
         ]
