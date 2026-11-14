@@ -10,6 +10,7 @@ regimes, from quasi-static contact to impact and fracture.
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 [![Release](https://img.shields.io/github/v/release/qilinli/StructBench)](https://github.com/qilinli/StructBench/releases)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.24214777-blue.svg)](https://doi.org/10.5281/zenodo.24214777)
 
 > **Status: four benchmarks, four model families; cross-method comparison
 > tables on Taylor, notch-impact, and DeformingPlate (wave-1D stays
@@ -222,40 +223,23 @@ assets/            # figures embedded in the docs + landing pages
       (ADRs 0068–0071), validation against experiments (ADR-0072), and the
       blessed checkpoints public on Hugging Face (ADRs 0058–0076).~~
 
-### Next release — v0.5, the citable platform
+- [x] ~~**v0.5** (2026-11-14, `v0.5.0`) — the citable platform: nothing
+      new, what v0.4 claims made true and stable. `docs/VISION.md`, the
+      citation and the dataset cards carry the ADR-0065 identity; every
+      registered row reports its properties or states why not; the
+      repeatability of an evaluation is declared on every landing page; the
+      gradient family has a second model family; the headline by coverage
+      bin on 16 of 18 rows; a registered row reproduced from its public
+      checkpoint by the documented command alone; the first release
+      archived with a DOI
+      ([10.5281/zenodo.24214777](https://doi.org/10.5281/zenodo.24214777)).~~
 
-*Nothing new: what v0.4 claims is made true and stable, and the release is
-the first archived with a DOI. The arc from here to v1.0, with each release's
-closing criteria, is
+### Next release
+
+*Not picked up yet. The arc from here to v1.0, with each release's closing
+criteria, is
 [`docs/plans/2026-11-11-release-outline-to-v1.md`](docs/plans/2026-11-11-release-outline-to-v1.md);
 a release's criteria become its checklist here when it is picked up.*
-
-- [x] ~~`docs/VISION.md` carries the ADR-0065 identity (maintainer, out of
-      session, 2026-11-12).~~
-- [x] ~~`CITATION.cff`, the BibTeX entry below and the dataset cards' BibTeX
-      carry the ADR-0065 identity (2026-11-11).~~
-- [x] ~~The tree is fit to archive (2026-11-11): the source dossier is an
-      index of claims, sources and locators without the sources' own
-      sentences; no record names a dataset that is not public.~~
-- [x] ~~Every registered row reports its properties or states why not
-      (2026-11-11: the three rows without properties say why in their
-      notes; re-running them is in the Inbox).~~
-- [x] ~~The repeatability tolerance of an evaluation is declared
-      (2026-11-11: on every landing page's results registry — four
-      significant figures, 2% for the graph-network families on a GPU, the
-      maintainer's decision of 2026-11-10).~~
-- [x] ~~The gradient family has rows from a second model family
-      (2026-11-11: the Taylor autoregressive Transolver; the time-conditioned
-      rows wait on the protocol gap in the Inbox).~~
-- [x] ~~Per-case coverage figures on the landing pages (2026-11-12: the
-      headline by coverage bin on Taylor, notch-impact and wave-1D, 16 of 18
-      rows; DeformingPlate declares no case parameters and has none; the
-      two rows without values are in the Inbox).~~
-- [x] ~~A registered row reproduced from its public checkpoint by the
-      documented command alone (2026-11-11: wave-1D CGN, displacement
-      relative L2 0.3506 against 0.3507 registered; the procedure is in
-      Quickstart).~~
-- [ ] The release archived with a DOI.
 
 ### In progress
 
@@ -428,7 +412,9 @@ Rationale for every item lives in [`docs/decisions/`](docs/decisions/).
 ## Citation
 
 If you use StructBench, please cite it
-([CITATION.cff](CITATION.cff)):
+([CITATION.cff](CITATION.cff)). The DOI below covers all versions and
+resolves to the latest; version 0.5.0 alone is
+[10.5281/zenodo.24214778](https://doi.org/10.5281/zenodo.24214778).
 
 ```bibtex
 @software{li_structbench_2026,
@@ -437,6 +423,7 @@ If you use StructBench, please cite it
              learned surrogates of structural response},
   year    = {2026},
   version = {0.5.0},
+  doi     = {10.5281/zenodo.24214777},
   license = {Apache-2.0},
   url     = {https://github.com/qilinli/StructBench}
 }
