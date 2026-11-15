@@ -345,6 +345,35 @@ def _aux_stress_axisymmetric(
     return (stress[..., :4] * stress_scale).astype(np.float32)
 
 
+def _aux_backstress_axisymmetric(
+    sph: Mapping[str, NDArray[np.floating]], stress_scale: float
+) -> NDArray[np.float32]:
+    """The four backstress components of a 2D continuum, scaled.
+
+    The internal variable of a kinematic or combined hardening law, in the
+    layout of :func:`_aux_stress_axisymmetric`: Voigt ``[xx, yy, zz, xy]`` of
+    the stored 6-component tensor. It is stored as the solver writes it, which
+    need not be deviatoric; the yield condition reads the deviator of stress
+    minus backstress (``structbench.eval.properties.von_mises4`` of the
+    difference, which is blind to the trace).
+
+    Parameters
+    ----------
+    sph:
+        Mapping of response fields with a ``"backstress"`` key holding a
+        ``(T, P, 6)`` array (Pa).
+    stress_scale:
+        Multiplier applied to SI stress (e.g. 1e-6: Pa -> MPa).
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(T, P, 4)``, float32, in the working stress unit.
+    """
+    backstress = np.asarray(sph["backstress"])
+    return (backstress[..., :4] * stress_scale).astype(np.float32)
+
+
 @dataclass(frozen=True)
 class AuxFieldInfo:
     """Registry metadata for one auxiliary field name (ADR-0059).
@@ -387,6 +416,9 @@ _AUX_FIELDS: dict[str, AuxFieldInfo] = {
     "density": AuxFieldInfo(_aux_density, ("density",), "kg/m^3"),
     "stress_axisymmetric": AuxFieldInfo(
         _aux_stress_axisymmetric, ("s_rr", "s_zz", "s_tt", "s_rz"), "MPa"
+    ),
+    "backstress_axisymmetric": AuxFieldInfo(
+        _aux_backstress_axisymmetric, ("a_rr", "a_zz", "a_tt", "a_rz"), "MPa"
     ),
 }
 

@@ -47,6 +47,7 @@ where = ["src"]
 structbench = [
     "py.typed",
     "datagen/examples/abaqus_conformance/*",
+    "datagen/examples/abaqus_cyclic_element/*",
     "validation/references/*",
 ]
 

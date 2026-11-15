@@ -734,6 +734,11 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
                     except (IndexError, ValueError):
                         tokens.add("unknown_card_layout:INITIAL_CONDITIONS")
                         hardening_read = False
+                        continue
+                    if any(c for c in columns[2:]):
+                        # Backstress components beside the plastic strain: the
+                        # strain is read, the backstress is not, and says so.
+                        tokens.add("unread_card:HARDENING_BACKSTRESS")
             else:
                 label = f"INITIAL_CONDITIONS_{kind.replace(' ', '_')}"
                 tokens.add(

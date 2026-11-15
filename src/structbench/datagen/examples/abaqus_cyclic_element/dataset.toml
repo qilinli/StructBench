@@ -1,0 +1,86 @@
+# The second example definition: a block of a combined-hardening material under
+# one cycle of axial strain, some cases starting from a non-zero plastic strain
+# and backstress (docs/datagen/abaqus-conformance.md, "Combined hardening").
+# The tables are the contract of the first example, abaqus_conformance, whose
+# comments explain each key. Units: t-mm-s. Canonical files are written in SI.
+
+[dataset]
+name = "abaqus_cyclic_element"
+case_prefix = "ACE"
+units = "t-mm-s"
+solver = "abaqus"
+
+[declaration]
+unit_system = "t-mm-s"
+discretisation = "FEM"
+erosion = false
+fields = [
+    "node/displacement", "node/velocity", "node/acceleration",
+    "solid/stress", "solid/effective_plastic_strain", "solid/backstress",
+    "global/kinetic_energy", "global/internal_energy", "global/total_energy",
+    "global/hourglass_energy", "global/plastic_dissipation",
+    "global/viscous_dissipation", "global/external_work",
+    "global/frictional_dissipation", "global/strain_energy",
+    "global/creep_dissipation",
+]
+
+[fixed]
+E = 210000.0                    # MPa, steel-like
+nu = 0.3
+rho = 7.85e-9                   # t/mm^3
+edge = 1.0                      # mm, the block's radius and height
+sigma0 = 300.0                  # MPa, initial yield stress
+C = 20000.0                     # MPa, kinematic hardening modulus (one backstress)
+gamma = 100.0                   # the backstress's recall rate
+Q_inf = 50.0                    # MPa, the isotropic part's saturation
+b = 10.0                        # the isotropic part's rate
+frame_interval = 2.0e-5         # s, the output clock
+n_intervals = 100               # 101 stored frames: one cycle
+dt_scale = 1.0                  # the stable increment as the solver chooses it
+
+[variables]
+strain_amplitude = [0.01, 0.03] # the peak axial strain of the cycle
+peeq0 = [0.0, 0.02]             # initial equivalent plastic strain
+alpha0 = [-50.0, 50.0]          # MPa, initial axial backstress
+
+[splits.train]
+n = 8
+seed = 1
+
+[splits.pilot]
+points = [
+  { strain_amplitude = 0.02, peeq0 = 0.0, alpha0 = 0.0 },
+  { strain_amplitude = 0.02, peeq0 = 0.01, alpha0 = 40.0 },
+  { strain_amplitude = 0.03, peeq0 = 0.02, alpha0 = -40.0 },
+]
+probe = true
+
+[levels]
+refine_key = "refine"
+production = "1"
+pilot = ["1", "2", "4"]
+symmetry = "axisymmetric"
+
+[pilot]
+split = "pilot"
+fine_cases = ["ACE-pilot-0001"]
+min_free_gb = 20.0
+accepted_gaps = ["solver_identity_complete"]
+increment_key = "dt_scale"
+increment_factors = [0.5]
+frame_key = "frame_interval"
+frame_count_key = "n_intervals"
+frame_factor = 0.5
+frame_tolerance = 0.05
+settling_margin = 0.0           # a driven cycle does not settle: the horizon is the cycle
+frame_reported = { "node/acceleration" = "the second time derivative of a frame-sampled explicit response; reported, not scored" }
+
+[qoi]
+names = ["final_plastic_strain", "final_radius"]
+units = ["-", "m"]
+tolerance = [0.01, 0.01]
+
+[retention]
+odb_fraction = 0.05
+odb_seed = 0
+odb_cases = ["ACE-pilot-0001"]

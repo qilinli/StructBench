@@ -161,6 +161,40 @@ def material(
     )
 
 
+def material_combined_hardening(
+    name: str,
+    *,
+    density: float,
+    youngs: float,
+    poisson: float,
+    yield_stress: float,
+    kinematic_modulus: float,
+    kinematic_rate: float,
+    isotropic_saturation: float,
+    isotropic_rate: float,
+) -> str:
+    """Combined hardening by parameters, one backstress.
+
+    The yield surface is ``vm(dev(S - ALPHA)) = yield_stress +
+    isotropic_saturation (1 - exp(-isotropic_rate PEEQ))``; the backstress
+    grows by ``kinematic_modulus / sigma_y (S - ALPHA) dPEEQ`` and recalls by
+    ``kinematic_rate ALPHA dPEEQ``, so under monotonic uniaxial stress it is
+    ``kinematic_modulus / kinematic_rate (1 - exp(-kinematic_rate PEEQ))``.
+    Both read off one-element Abaqus/Explicit 2025 runs
+    (``docs/datagen/abaqus-conformance.md``, "Combined hardening"), where the
+    solver's backstress is not deviatoric: only its deviator enters the
+    yield condition.
+    """
+    return (
+        f"*MATERIAL, NAME={name}\n*DENSITY\n{num(density)}\n"
+        f"*ELASTIC\n{num(youngs)}, {num(poisson)}\n"
+        "*PLASTIC, HARDENING=COMBINED, DATATYPE=PARAMETERS, NUMBER BACKSTRESSES=1\n"
+        f"{num(yield_stress)}, {num(kinematic_modulus)}, {num(kinematic_rate)}\n"
+        "*CYCLIC HARDENING, PARAMETERS\n"
+        f"{num(yield_stress)}, {num(isotropic_saturation)}, {num(isotropic_rate)}\n"
+    )
+
+
 def solid_section(elset: str, material: str, *, data_line: str | None = None) -> str:
     text = (
         "*SECTION CONTROLS, NAME=HG_ENHANCED, HOURGLASS=ENHANCED\n"
@@ -192,10 +226,47 @@ def initial_velocity(nset: str, dof: int, value: float) -> str:
     return f"*INITIAL CONDITIONS, TYPE=VELOCITY\n{nset}, {dof}, {num(value)}\n"
 
 
-def initial_hardening(labels: Iterable[int], values: ArrayLike) -> str:
+def initial_hardening(
+    labels: Iterable[int], values: ArrayLike, backstress: ArrayLike | None = None
+) -> str:
+    """Initial equivalent plastic strain per element, and a backstress beside it.
+
+    ``backstress`` is ``(n_elements, c)`` in the solver's component order,
+    ``11, 22, 33, 12`` for a 2-D continuum (``13, 23`` after them in 3-D), for
+    a material with one backstress. Abaqus/Explicit 2025 stores both at frame
+    0 as given (``docs/datagen/abaqus-conformance.md``, "Combined hardening").
+    """
     vals = np.asarray(values, dtype=np.float64)
-    body = "".join(f"{int(e)}, {num(v)}\n" for e, v in zip(labels, vals, strict=True))
+    if backstress is None:
+        body = "".join(
+            f"{int(e)}, {num(v)}\n" for e, v in zip(labels, vals, strict=True)
+        )
+        return "*INITIAL CONDITIONS, TYPE=HARDENING\n" + body
+    alpha = np.asarray(backstress, dtype=np.float64)
+    if alpha.ndim != 2 or alpha.shape[1] not in (4, 6):
+        raise ValueError(f"backstress must be (n_elements, 4 or 6), got {alpha.shape}")
+    body = "".join(
+        f"{int(e)}, {num(v)}, " + ", ".join(num(c) for c in row) + "\n"
+        for e, v, row in zip(labels, vals, alpha, strict=True)
+    )
     return "*INITIAL CONDITIONS, TYPE=HARDENING\n" + body
+
+
+def amplitude(name: str, points: Sequence[tuple[float, float]]) -> str:
+    """A tabular amplitude: ``(time, value)`` pairs, four pairs to a line."""
+    pairs = [f"{num(t)}, {num(v)}" for t, v in points]
+    rows = [pairs[k : k + 4] for k in range(0, len(pairs), 4)]
+    return f"*AMPLITUDE, NAME={name}\n" + "".join(", ".join(r) + "\n" for r in rows)
+
+
+def prescribed_displacement(
+    target: str, dof: int, value: float, *, amplitude: str
+) -> str:
+    """Step data: a displacement of ``value`` times the named amplitude."""
+    return (
+        f"*BOUNDARY, TYPE=DISPLACEMENT, AMPLITUDE={amplitude}\n"
+        f"{target}, {dof}, {dof}, {num(value)}\n"
+    )
 
 
 def contact_pair(
