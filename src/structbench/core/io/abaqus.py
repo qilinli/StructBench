@@ -92,6 +92,16 @@ _NODE_FIELDS = {
 }
 #: The in-plane stress components of a 2D continuum element, in this order.
 _STRESS_2D = ["S11", "S22", "S33", "S12"]
+#: Symmetric tensors at the integration point -> (canonical element field,
+#: the component layout a 2-D continuum writes). ``ALPHA`` is the backstress
+#: of a kinematic or combined hardening law, in the stress's own component
+#: order; it is stored as the solver writes it, which is not deviatoric (only
+#: its deviator enters the yield condition: one-element Abaqus/Explicit 2025
+#: runs, ``docs/datagen/abaqus-conformance.md``, "Combined hardening").
+_TENSORS_2D: dict[str, tuple[str, list[str]]] = {
+    "S": ("stress", _STRESS_2D),
+    "ALPHA": ("backstress", ["ALPHA11", "ALPHA22", "ALPHA33", "ALPHA12"]),
+}
 #: Fields the end-of-step frame writes afresh rather than repeating. In every
 #: run of a 2026-09-24 sweep its A differed from frame N's, by up to 64 % of
 #: frame N's largest magnitude; why is not established. Frame N, on the output
@@ -395,7 +405,7 @@ def abaqus_export_to_case(
 
     element: dict[str, NDArray[np.float32]] = {}
     fields = export.manifest.get("fields", {})
-    for name in ("S", "PEEQ"):
+    for name in ("S", "PEEQ", "ALPHA"):
         key = f"field/{step}/{name}/{inst}"
         if f"{key}/data" not in a:
             continue
@@ -414,14 +424,15 @@ def abaqus_export_to_case(
         if name == "PEEQ":
             element["effective_plastic_strain"] = data[..., 0].astype(np.float32)
             continue
-        labels = fields.get(key, {}).get("component_labels") or _STRESS_2D
-        if labels != _STRESS_2D or data.shape[-1] != 4:
-            raise NotImplementedError(f"stress components {labels}")
+        canonical, layout = _TENSORS_2D[name]
+        labels = fields.get(key, {}).get("component_labels") or layout
+        if labels != layout or data.shape[-1] != 4:
+            raise NotImplementedError(f"{canonical} components {labels}")
         zero = np.zeros(data.shape[:-1], dtype=data.dtype)
         voigt = np.stack(
             [data[..., 0], data[..., 1], data[..., 2], data[..., 3], zero, zero], -1
         )
-        element["stress"] = (voigt * f["stress"]).astype(np.float32)
+        element[canonical] = (voigt * f["stress"]).astype(np.float32)
 
     globals_: dict[str, NDArray[np.float32]] = {}
     meshed = {int(n) for n in node_id}
