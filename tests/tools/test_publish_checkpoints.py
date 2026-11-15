@@ -162,7 +162,7 @@ def test_stage_writes_readme_script_and_pointers(tmp_path):
     # the card ends with the software citation CITATION.cff states
     assert "## Citation" in readme and "@software{structbench," in readme
     assert "  author  = {Li, Qilin}," in readme and "  doi     = {10.5281/" in readme
-    script =(folder / "publish.sh").read_text(encoding="utf-8")
+    script = (folder / "publish.sh").read_text(encoding="utf-8")
     assert "hf repos create StructBench/taylor-impact-2d --type model" in script
     assert f'"$(dirname "$0")/{BUNDLE}" {BUNDLE} --type model' in script
     assert "README.md" in script and str(root) not in script
