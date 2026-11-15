@@ -112,3 +112,21 @@ clean-to-dirty proportion; normalizers accumulate on the clean queries only.
 The direct return map, the generation curriculum, the structured heads and
 the consistency hinge stay refused with a two-site decoder. With the knob off
 a two-site run is unchanged. Pinned in `tests/cli/test_two_site_pushforward.py`.
+
+**Note (2026-11-15) — a law with a backstress (clauses 1, 3 and 6).** Clause 1's
+"internal variables the material class names" now has a first instance beyond
+the plastic strain: the backstress of a combined-hardening law. The surface:
+the Abaqus adapter stores the solver's `ALPHA` as the element field
+`backstress`; the channel `backstress_axisymmetric` is registered beside
+`stress_axisymmetric`; a definition may return a `CombinedHardeningLaw` (initial
+yield stress, one backstress `C, γ`, the isotropic part `Q∞, b`) from
+`constitutive_law` beside the tabulated isotropic `ConstitutiveLaw`, which is
+unchanged. Under such a law clause 6's yield bound is measured about the
+backstress, `vm(σ − α) ≤ (1 + tol) σ_y(peeq)`, reported under the same key
+`prop_yield_violation_rate` at the tolerance the benchmark declares, and is
+undefined on a layout that does not carry the backstress. The decoders that
+read the case's law read the isotropic table only and refuse a combined law;
+no shipped benchmark declares one. The isotropic paths are byte-identical
+(`tests/test_isotropic_paths_unchanged.py`); the new surface is pinned on a
+real one-element run in `tests/core/test_combined_hardening.py`
+(`docs/datagen/abaqus-conformance.md`, "Combined hardening").

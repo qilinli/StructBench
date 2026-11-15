@@ -220,6 +220,46 @@ verification row `plastic_dissipation_excess_max` (ADR-0066, energy-account
 note) fails a run whose plastic dissipation exceeds its internal energy.
 `deck.contact_pair` takes the constraint as `mechanical_constraint`.
 
+### Combined hardening (one-element runs, 2026-11-15)
+
+Established on Abaqus/Explicit 2025 with single elements under one cycle of
+axial strain (the shipped example `abaqus_cyclic_element`, and the same deck
+on `CPE4R` and `C3D8R`). The keyword documentation could not be read (no
+local copy, the vendor's site needs a login), so every statement here rests
+on what the solver accepted and on measured values, not on the manual.
+
+- **The material.** `*PLASTIC, HARDENING=COMBINED, DATATYPE=PARAMETERS,
+  NUMBER BACKSTRESSES=1` with the data line `σ0, C, γ`, followed by `*CYCLIC
+  HARDENING, PARAMETERS` with `σ0, Q∞, b`, is accepted without a warning. The
+  column meanings are measured: the yield surface's size is `σ0 + Q∞ (1 −
+  exp(−b PEEQ))` to 1e-6 relative, and under monotonic axial stress the
+  backstress is `(C/γ)(1 − exp(−γ PEEQ))` to five figures.
+  `deck.material_combined_hardening` writes the two cards.
+- **The backstress is `ALPHA`**, requested like `S`: one value per element at
+  the integration point, components `ALPHA11, ALPHA22, ALPHA33, ALPHA12` for
+  `CAX4R` and `CPE4R` (and `ALPHA13, ALPHA23` after them for `C3D8R`), the
+  stress's own order. `odb_export.py` writes it unchanged.
+- **`ALPHA` is not deviatoric.** Under axial stress it reads `(≈0, α, ≈0)`,
+  not `(−α/3, 2α/3, −α/3)`: the solver's backstress follows the whole stress,
+  and the yield condition that holds is on the deviator of `S − ALPHA`. The
+  adapter stores `ALPHA` as written (`response/element/solid/backstress`,
+  six-component Voigt, Pa); a von Mises measure of `S − ALPHA` needs no
+  projection.
+- **The initial state.** `*INITIAL CONDITIONS, TYPE=HARDENING` with the data
+  line `element, PEEQ, α11, α22, α33, α12` (`α13, α23` after them in 3-D) is
+  accepted by Abaqus/Explicit for all three element types, without a warning,
+  and frame 0 stores exactly the values given. The initial `PEEQ` enters the
+  isotropic part. With an initial state the yield condition holds to 4.3e-5
+  relative in the single-precision field output, 3.4e-7 without one.
+  `deck.initial_hardening` takes the backstress as an optional argument.
+- **Not established:** more than one backstress, the half-cycle and
+  stabilized-cycle data types, a rate- or temperature-dependent table, and
+  what an initial backstress outside the initial yield surface does. The deck
+  reader reads none of this law yet: it names `*PLASTIC`, `*CYCLIC HARDENING`
+  and the initial backstress as unread, and the material has no class
+  (ADR-0070), so the constitutive rows of the data checks are not assessable
+  on such a case.
+
 ### What the instrument requires of an Abaqus input
 
 `input_requests_required_evidence` (ADR-0066) reads this block back off the
@@ -326,8 +366,9 @@ sourced dossier and one conformance run must settle (ADR-0068 clause 8).
    integration-point data or averages is exactly the distinction LS-DYNA's
    `NINTSLD` open point turns on, and it is still unread.
 3. **Field output at the constitutive points (E8), partly settled.** `S` and
-   `PEEQ` at the integration point are established for CAX4R. Which state
-   variables other materials write is not.
+   `PEEQ` at the integration point are established for CAX4R, and `ALPHA` for
+   combined hardening with one backstress (see "Combined hardening"). Which
+   state variables other materials write is not.
 4. **Per-part and per-interface output (E6).** No job has requested it. The
    E7 reaction resultant for a rigid body is established (see above); nodal
    reactions on a `*Boundary` are not.
