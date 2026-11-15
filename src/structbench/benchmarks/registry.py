@@ -36,7 +36,11 @@ from ..eval import QoiFn
 from ..eval.coverage import Coverage, coverage
 from ..eval.sensitivity import GradientFamily
 from .card import BenchmarkCard
-from .constitutive import ELEMENT_FORMULATIONS, ConstitutiveLaw
+from .constitutive import (
+    ELEMENT_FORMULATIONS,
+    CombinedHardeningLaw,
+    ConstitutiveLaw,
+)
 from .results import BaselineResult
 
 #: The file a benchmark definition directory must hold.
@@ -216,15 +220,20 @@ class BenchmarkSpec:
     """The element kinematics of the state site, one of
     :data:`~structbench.benchmarks.constitutive.ELEMENT_FORMULATIONS`;
     required with ``state_site == "element"``, ``None`` otherwise."""
-    constitutive_law: Callable[[str], ConstitutiveLaw] | None = None
-    """Maps a case id to its own :class:`ConstitutiveLaw` (ADR-0075 clause 3):
-    the law the admissible decoder applies, an input of the case rather than
-    a table baked into a checkpoint. ``None`` when the benchmark declares no
-    element site or its cases carry no return-map law."""
+    constitutive_law: Callable[[str], ConstitutiveLaw | CombinedHardeningLaw] | None = (
+        None
+    )
+    """Maps a case id to its own law (ADR-0075 clause 3), a
+    :class:`ConstitutiveLaw` or a :class:`CombinedHardeningLaw`: the law the
+    admissible decoder applies and the yield property is measured against, an
+    input of the case rather than a table baked into a checkpoint. ``None``
+    when the benchmark declares no element site or its cases carry no
+    return-map law."""
     property_tolerances: Mapping[str, float] = field(default_factory=dict)
     """ADR-0075 clause 6 (plan 3c): the tolerances of the constraint
     properties at the element site, keyed ``"yield"`` (relative excess over
-    ``σ_y(peeq)`` a sample may show before it counts as a violation) and
+    ``σ_y(peeq)`` a sample may show before it counts as a violation; measured
+    about the backstress where the case's law is combined hardening) and
     ``"peeq"`` (absolute backward step of the plastic strain that counts as a
     decrease). A definition takes both from the reference data's own measured
     excess in its verification record and never declares them tighter; both

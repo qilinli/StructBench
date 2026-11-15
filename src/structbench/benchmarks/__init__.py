@@ -11,10 +11,12 @@ from .card import (
     ParameterSpace,
 )
 from .constitutive import (
+    COMBINED_HARDENING_STATE_CHANNELS,
     ELEMENT_FORMULATIONS,
     LAW_DECODERS,
     RETURN_MAP_STATE_CHANNELS,
     TWO_SITE_DECODERS,
+    CombinedHardeningLaw,
     ConstitutiveLaw,
 )
 from .registry import (
@@ -28,6 +30,7 @@ from .registry import (
 )
 
 __all__ = [
+    "COMBINED_HARDENING_STATE_CHANNELS",
     "COMPLIANCE_STATUSES",
     "ELEMENT_FORMULATIONS",
     "LAW_DECODERS",
@@ -39,6 +42,7 @@ __all__ = [
     "BenchmarkCard",
     "BenchmarkSource",
     "BenchmarkSpec",
+    "CombinedHardeningLaw",
     "ComplianceRow",
     "ConstitutiveLaw",
     "GroundTruth",

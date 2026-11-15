@@ -45,6 +45,7 @@ from torch.utils.data import DataLoader
 
 from ..benchmarks import (
     BenchmarkSpec,
+    CombinedHardeningLaw,
     ConstitutiveLaw,
     available_benchmarks,
     get_benchmark,
@@ -94,6 +95,7 @@ from ..eval import (
     state_sufficiency,
     time_conditioned_rollout,
     yield_violation_rate,
+    yield_violation_rate_about_backstress,
 )
 from ..eval.properties import von_mises4
 from ..eval.restart import (
@@ -670,8 +672,14 @@ def _state_fields_for(
     return None
 
 
-def _law_tuple(law: ConstitutiveLaw) -> LawTuple:
+def _law_tuple(law: ConstitutiveLaw | CombinedHardeningLaw) -> LawTuple:
     """A benchmark's :class:`ConstitutiveLaw` as the collate's plain tuple."""
+    if not isinstance(law, ConstitutiveLaw):
+        raise ValueError(
+            "the law-reading two-site decoders read an isotropic hardening "
+            f"table; the case's law is {type(law).__name__}, which none of them "
+            "reads (ADR-0075)"
+        )
     return (law.youngs_modulus, law.poisson_ratio, law.hardening[0], law.hardening[1])
 
 
@@ -683,6 +691,8 @@ def _case_law_rows(
     if spec.constitutive_law is None or trajectory.state is None:
         return None
     law = spec.constitutive_law(trajectory.case_id)
+    if not isinstance(law, ConstitutiveLaw):
+        return None  # no isotropic table to tile; no decoder reads this law
     n = int(trajectory.state.shape[1])
     knots_peeq, knots_sy = law.hardening
     return law_rows(
@@ -4166,6 +4176,8 @@ def _find_checkpoint(out_dir: Path) -> Path | None:
 #: four stress components of the return-map layout and the plastic strain.
 _STATE_STRESS_LABELS: tuple[str, ...] = ("s_rr", "s_zz", "s_tt", "s_rz")
 _STATE_PEEQ_LABEL = "effective_plastic_strain"
+#: The backstress components a combined-hardening benchmark carries beside them.
+_STATE_BACKSTRESS_LABELS: tuple[str, ...] = ("a_rr", "a_zz", "a_tt", "a_rz")
 
 
 def _defined(value: float) -> float | None:
@@ -4178,14 +4190,16 @@ def _defined(value: float) -> float | None:
 def _state_constraint_properties(
     predicted_state: np.ndarray | None,
     state_labels: tuple[str, ...],
-    law: ConstitutiveLaw | None,
+    law: ConstitutiveLaw | CombinedHardeningLaw | None,
     tolerances: Mapping[str, float],
     input_frames: int,
     bound: int | None,
 ) -> dict[str, float | None]:
     """The yield-bound and plastic-strain properties of one rollout's element
     state (ADR-0075 clause 6), ``None`` where the run carries no state block,
-    the layout lacks the channel, or the case has no law.
+    the layout lacks the channel, or the case has no law. Under a combined-
+    hardening law the yield bound is measured about the backstress, and is
+    undefined on a layout that does not carry it.
 
     The plastic strain is read from the last seeded frame on, so the first
     predicted step is a step; the yield bound over the predicted frames only.
@@ -4212,7 +4226,30 @@ def _state_constraint_properties(
     out["prop_peeq_decrease_rate"] = peeq_decrease_rate(
         predicted_state[input_frames - 1 : stop, :, peeq_idx], tolerances["peeq"]
     )
-    if law is not None and all(n in labels for n in _STATE_STRESS_LABELS):
+    if law is None or not all(n in labels for n in _STATE_STRESS_LABELS):
+        return out
+    if isinstance(law, CombinedHardeningLaw):
+        if not all(n in labels for n in _STATE_BACKSTRESS_LABELS):
+            logger.info(
+                "element-site layout %s carries no backstress: the yield "
+                "property of a combined-hardening law is undefined on it, not "
+                "unreported",
+                state_labels,
+            )
+            return out
+        stress_idx = [labels.index(n) for n in _STATE_STRESS_LABELS]
+        back_idx = [labels.index(n) for n in _STATE_BACKSTRESS_LABELS]
+        scored = predicted_state[input_frames:stop]
+        out["prop_yield_violation_rate"] = yield_violation_rate_about_backstress(
+            scored[:, :, stress_idx],
+            scored[:, :, back_idx],
+            scored[:, :, peeq_idx],
+            law.yield_stress,
+            law.isotropic_saturation,
+            law.isotropic_rate,
+            tolerances["yield"],
+        )
+    else:
         stress_idx = [labels.index(n) for n in _STATE_STRESS_LABELS]
         scored = predicted_state[input_frames:stop]
         out["prop_yield_violation_rate"] = yield_violation_rate(

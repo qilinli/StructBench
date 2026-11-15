@@ -29,11 +29,13 @@ from structbench.verification.kernels import decrease_max, interp_yield_stress
 __all__ = [
     "PROPERTY_KEYS",
     "closure_ratio",
+    "combined_yield_stress",
     "error_growth",
     "peeq_decrease_rate",
     "state_sufficiency",
     "von_mises4",
     "yield_violation_rate",
+    "yield_violation_rate_about_backstress",
 ]
 
 #: The block's metric keys in render order (the design's §7 table, minus the
@@ -139,6 +141,57 @@ def yield_violation_rate(
         return float("nan")
     sy = interp_yield_stress(p, knots_peeq, knots_sy)
     return float((vm > (1.0 + tol) * sy).mean())
+
+
+def combined_yield_stress(
+    peeq: ArrayLike, yield_stress: float, saturation: float, rate: float
+) -> NDArray[np.float64]:
+    """The isotropic part of a combined-hardening law at ``peeq``.
+
+    ``σ_y = yield_stress + saturation (1 − exp(−rate peeq))``, the size of the
+    yield surface of a
+    :class:`~structbench.benchmarks.constitutive.CombinedHardeningLaw`.
+    """
+    p = np.asarray(peeq, dtype=np.float64)
+    return yield_stress + saturation * (1.0 - np.exp(-rate * p))
+
+
+def yield_violation_rate_about_backstress(
+    stress: ArrayLike,
+    backstress: ArrayLike,
+    peeq: ArrayLike,
+    yield_stress: float,
+    saturation: float,
+    rate: float,
+    tol: float,
+) -> float:
+    """Fraction of samples with ``vm(σ − α) > (1 + tol) σ_y(peeq)``.
+
+    The yield bound of a combined-hardening law: the von Mises measure is
+    taken of the stress less the backstress (it reads the deviator alone, so
+    a backstress stored with a trace needs no projection), against
+    :func:`combined_yield_stress`. Same semantics as
+    :func:`yield_violation_rate` otherwise: ``tol`` is the benchmark's
+    declared tolerance, the reference's own measured excess, and a block with
+    any non-finite sample is undefined (``nan``), never admissible.
+
+    Parameters
+    ----------
+    stress, backstress : array_like, shape (T, E, 4)
+        ``(s11, s22, s33, s12)`` components, same unit.
+    peeq : array_like, shape (T, E)
+    yield_stress, saturation, rate : float
+        The isotropic part's parameters, in the stress's unit.
+    tol : float
+        Relative tolerance above the surface, non-negative.
+    """
+    s = np.asarray(stress, dtype=np.float64)
+    a = np.asarray(backstress, dtype=np.float64)
+    p = np.asarray(peeq, dtype=np.float64)
+    if not (np.isfinite(s).all() and np.isfinite(a).all() and np.isfinite(p).all()):
+        return float("nan")
+    sy = combined_yield_stress(p, yield_stress, saturation, rate)
+    return float((von_mises4(s - a) > (1.0 + tol) * sy).mean())
 
 
 def peeq_decrease_rate(peeq: ArrayLike, tol: float) -> float:

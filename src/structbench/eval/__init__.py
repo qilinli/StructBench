@@ -22,10 +22,12 @@ from .metrics import (
 from .properties import (
     PROPERTY_KEYS,
     closure_ratio,
+    combined_yield_stress,
     error_growth,
     peeq_decrease_rate,
     state_sufficiency,
     yield_violation_rate,
+    yield_violation_rate_about_backstress,
 )
 from .restart import (
     RESTART_FIELD_METRICS,
@@ -61,6 +63,7 @@ from .sensitivity import (
 __all__ = [
     "arrival_time",
     "closure_ratio",
+    "combined_yield_stress",
     "compose_keys",
     "Coverage",
     "coverage",
@@ -108,4 +111,5 @@ __all__ = [
     "terminal_peak_displacement",
     "time_conditioned_rollout",
     "yield_violation_rate",
+    "yield_violation_rate_about_backstress",
 ]

@@ -107,3 +107,82 @@ class ConstitutiveLaw:
     @property
     def n_knots(self) -> int:
         return len(self.hardening[0])
+
+
+#: The state-channel layout of a benchmark whose cases follow a
+#: :class:`CombinedHardeningLaw`: the return-map layout, then the four
+#: backstress components in the stress's own order.
+COMBINED_HARDENING_STATE_CHANNELS: tuple[str, ...] = (
+    *RETURN_MAP_STATE_CHANNELS,
+    "backstress_axisymmetric",
+)
+
+
+@dataclass(frozen=True)
+class CombinedHardeningLaw:
+    """J2 plasticity with combined hardening by parameters, one backstress.
+
+    The yield condition is ``vm(dev(σ − α)) ≤ σ_y(ε̄ᵖ)`` with the isotropic
+    part ``σ_y = yield_stress + isotropic_saturation (1 − exp(−isotropic_rate
+    ε̄ᵖ))``. The backstress ``α`` follows ``dα = kinematic_modulus / σ_y
+    (σ − α) dε̄ᵖ − kinematic_rate α dε̄ᵖ``, driven by the whole stress, so
+    ``α`` is not deviatoric and only its deviator enters the yield condition.
+    A benchmark whose cases follow this law carries ``α`` in its element
+    state (:data:`COMBINED_HARDENING_STATE_CHANNELS`).
+
+    The law beside :class:`ConstitutiveLaw`, which it does not replace: the
+    decoders of :data:`LAW_DECODERS` read the isotropic table and refuse this
+    one.
+
+    Parameters
+    ----------
+    youngs_modulus:
+        Young's modulus in the working stress unit.
+    poisson_ratio:
+        Poisson's ratio, in ``[0, 0.5)``.
+    yield_stress:
+        Yield stress at zero plastic strain, working stress unit, ``> 0``.
+    kinematic_modulus:
+        The backstress's hardening modulus ``C``, working stress unit, ``≥ 0``.
+    kinematic_rate:
+        The backstress's recall rate ``γ``, dimensionless, ``≥ 0``.
+    isotropic_saturation:
+        The isotropic part's saturation ``Q∞``, working stress unit; negative
+        for cyclic softening, but ``yield_stress + isotropic_saturation > 0``.
+    isotropic_rate:
+        The isotropic part's rate ``b``, dimensionless, ``≥ 0``.
+    """
+
+    youngs_modulus: float
+    poisson_ratio: float
+    yield_stress: float
+    kinematic_modulus: float
+    kinematic_rate: float
+    isotropic_saturation: float
+    isotropic_rate: float
+
+    def __post_init__(self) -> None:
+        if not self.youngs_modulus > 0:
+            raise ValueError(f"youngs_modulus must be > 0, got {self.youngs_modulus}")
+        if not 0.0 <= self.poisson_ratio < 0.5:
+            raise ValueError(
+                f"poisson_ratio must be in [0, 0.5), got {self.poisson_ratio}"
+            )
+        if not self.yield_stress > 0:
+            raise ValueError(f"yield_stress must be > 0, got {self.yield_stress}")
+        for name in ("kinematic_modulus", "kinematic_rate", "isotropic_rate"):
+            if not getattr(self, name) >= 0:
+                raise ValueError(f"{name} must be >= 0, got {getattr(self, name)}")
+        if not self.yield_stress + self.isotropic_saturation > 0:
+            raise ValueError(
+                "yield_stress + isotropic_saturation must be > 0, got "
+                f"{self.yield_stress} + {self.isotropic_saturation}"
+            )
+
+    @property
+    def shear_modulus(self) -> float:
+        return self.youngs_modulus / (2.0 * (1.0 + self.poisson_ratio))
+
+    @property
+    def bulk_modulus(self) -> float:
+        return self.youngs_modulus / (3.0 * (1.0 - 2.0 * self.poisson_ratio))
