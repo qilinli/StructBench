@@ -260,6 +260,53 @@ on what the solver accepted and on measured values, not on the manual.
   (ADR-0070), so the constitutive rows of the data checks are not assessable
   on such a case.
 
+### A rigid body with a point mass (2026-11-16)
+
+Established on Abaqus/Explicit 2025 with the shipped example
+`abaqus_drop_mass`: a `CAX4R` cylinder between two analytical rigid surfaces,
+a fixed base and a plate that falls onto it. As for combined hardening, the
+keyword documentation could not be read; these are the solver's acceptance and
+measured values.
+
+- **The mass.** An analytical rigid body has no inertia of its own. `*ELEMENT,
+  TYPE=MASS` on its reference node, with a `*MASS` card for the element's
+  set, is accepted in a `CAX4R` model (`deck.point_mass`). The value is the
+  mass of the whole revolution, as the energies are: with 4 kg at 5 m/s,
+  `ALLKE` at frame 0 is 50 J to six figures.
+- **In the export** the element is listed under the instance's
+  `elements/MASS` with its one node, and the section list gains
+  `Section-<elset>`. It carries no field output. The adapter leaves it out of
+  the case; `abaqus_run.abaqus_point_masses` reads the value from the case's
+  stored input, in kilograms by node label. The input reader does not take it
+  for the part's element type, wherever its block stands.
+- **The reference node in the field output.** Placed in the node set of
+  `*NODE OUTPUT`, a rigid body's reference node is stored with `U`, `V`, `A`
+  (and `UR3`, `VR3`, `AR3`, single-component fields the adapter ignores) and
+  reaches the case as a node no element uses. The mass times its stored
+  acceleration is the force on the body: its peak agreed with the peak of
+  the base's `RF2` to 0.08 %.
+- **Two analytical rigid surfaces** in one model each appear in the export as
+  an instance without elements. The fixed one's reference node, requested in
+  the history only, is the case's `reaction_force_2_reference_node`.
+- **Single-surface contact.** A `*CONTACT PAIR` with one surface name on its
+  data line is accepted with the default (kinematic) enforcement
+  (`deck.self_contact_pair`), and `*FRICTION` under a `*SURFACE INTERACTION`
+  is accepted (`deck.surface_interaction(..., friction=)`). In the example
+  the wall never folds onto itself, so `ALLFD` stayed zero: the friction card
+  is accepted, not exercised.
+- **Energy and frames.** `ALLPW` peaked at 1.2e-6 mJ against 5e4 mJ of
+  energy and `ALLFD` stayed zero; the preflight's conformance run closed the
+  standard ledger identity to 8.5e-8 with no other term non-zero. This
+  model's ODB had no duplicate end frame: 181 frames for 180 intervals.
+- **Nested levels.** The example's mesh carries a small imperfection, so its
+  quads are not rectangles; the levels nest by index, and `converge` reports
+  the element fields' errors per level beside the node fields'. The plate's
+  reference node stands exactly where the mesh's top axis node does: nodes
+  are matched among those an element uses.
+- **Not established:** the friction card in action (see above), a point mass
+  on a meshed node, mass elements with rotary inertia, and `*MASS` cards with
+  options.
+
 ### What the instrument requires of an Abaqus input
 
 `input_requests_required_evidence` (ADR-0066) reads this block back off the

@@ -3,7 +3,7 @@
 ``structbench/datagen/abaqus/odb_export.py`` runs under ``abaqus python`` and
 writes the ``.odb`` as plain arrays in the deck's own units, keyed by Abaqus
 labels (layout: ``docs/datagen/abaqus-conformance.md``). This module turns that into the
-strict-SI canonical case. It decides three things the export leaves open:
+strict-SI canonical case. It decides four things the export leaves open:
 
 1. **The duplicate end frame.** Abaqus/Explicit writes an extra field frame
    at the step's end time and samples the history there too. The last frame
@@ -29,6 +29,12 @@ strict-SI canonical case. It decides three things the export leaves open:
 3. **A deck without ``*Part`` blocks** is one part, ``PART-1``, as the input
    reader mints it; the export's instance is that part's (``PART-1-1``).
 
+4. **Point elements.** A ``MASS`` element on a node (the inertia of an
+   analytical rigid body, on its reference node) is listed in the export's
+   mesh and carries no field output. It is left out of the case's elements;
+   its value is read from the case's stored input by
+   ``abaqus_run.abaqus_point_masses``.
+
 Anything else unanticipated -- several instances or element types, more than
 one integration point, a stress layout other than ``S11 S22 S33 S12`` -- is
 refused by name rather than guessed.
@@ -53,6 +59,7 @@ from .abaqus_run import (
     CONTACT_OUTPUTS,
     ENERGY_LEDGER_TERMS,
     LEDGER_REQUIRED_OUTPUTS,
+    POINT_ELEMENTS,
     read_abaqus_input_facts,
 )
 from .lsdyna import unit_factors
@@ -362,8 +369,12 @@ def abaqus_export_to_case(
     if len(instances) != 1:
         raise NotImplementedError(f"multi-instance decks: {instances}")
     (inst,) = instances
+    # Point elements (a mass on a node) carry no field output and are no part
+    # of the mesh; their values are read from the stored input
+    # (`abaqus_point_masses`). Exactly one continuum type must remain.
     types = sorted(
         {k.split("/")[3] for k in a if k.startswith(f"mesh/{inst}/elements/")}
+        - POINT_ELEMENTS
     )
     if len(types) != 1:
         raise NotImplementedError(f"several element types in one instance: {types}")

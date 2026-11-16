@@ -312,15 +312,18 @@ def _one_case(
                     f"fields stored at level {label} or {finest} but not both, "
                     f"left out: {', '.join(missing)}"
                 )
+            partial: list[str] = []
             try:
                 errors = engine.field_errors(
                     coarse,
                     fine,
                     axisymmetric=defn.levels.symmetry == "axisymmetric",
+                    notes=partial,
                 )
             except (engine.NestingError, ValueError) as exc:
                 entry["notes"].append(f"level {label} against {finest}: {exc}")
                 continue
+            entry["notes"] += [f"level {label} against {finest}: {n}" for n in partial]
             for field, value in errors.items():
                 entry["fields"].setdefault(field, {})[label] = value
     return entry

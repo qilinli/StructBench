@@ -1,0 +1,89 @@
+# The third example definition: a short cylinder upset between a fixed rigid
+# base and a dropped rigid plate whose reference node carries a point mass
+# (docs/datagen/abaqus-conformance.md, "A rigid body with a point mass"). Its
+# mesh carries a small imperfection, so its quads are not rectangles. The
+# tables are the contract of the first example, abaqus_conformance, whose
+# comments explain each key. Units: t-mm-s. Canonical files are written in SI.
+
+[dataset]
+name = "abaqus_drop_mass"
+case_prefix = "ADM"
+units = "t-mm-s"
+solver = "abaqus"
+
+[declaration]
+unit_system = "t-mm-s"
+discretisation = "FEM"
+erosion = false
+fields = [
+    "node/displacement", "node/velocity", "node/acceleration",
+    "solid/stress", "solid/effective_plastic_strain",
+    "global/kinetic_energy", "global/internal_energy", "global/total_energy",
+    "global/hourglass_energy", "global/plastic_dissipation",
+    "global/viscous_dissipation", "global/external_work",
+    "global/frictional_dissipation", "global/strain_energy",
+    "global/creep_dissipation", "global/reaction_force_2_reference_node",
+]
+
+[fixed]
+E = 210000.0                    # MPa, steel-like
+nu = 0.3
+rho = 7.85e-9                   # t/mm^3
+D = 10.0                        # mm, the cylinder's diameter
+H = 10.0                        # mm, its height
+imperfection = 0.01             # the wall's swell at mid-height, as a share of the radius
+sigma0 = 300.0                  # MPa, initial yield
+hardening = 1000.0              # MPa, linear hardening slope
+friction = 0.1                  # Coulomb coefficient of the wall on itself
+frame_interval = 5.0e-6         # s, the output clock
+n_intervals = 180               # 181 stored frames
+dt_scale = 1.0
+
+[variables]
+v0 = [3000.0, 6000.0]           # mm/s, the plate's velocity at contact
+mass = [2.0e-3, 6.0e-3]         # t (2-6 kg), the drop mass on the plate's reference node
+
+[splits.train]
+n = 8
+seed = 1
+
+[splits.pilot]
+points = [
+  { v0 = 3000.0, mass = 4.0e-3 },
+  { v0 = 5000.0, mass = 4.0e-3 },
+  { v0 = 6000.0, mass = 6.0e-3 },
+]
+probe = true
+
+[levels]
+refine_key = "refine"
+production = "1"
+pilot = ["1", "2", "4"]
+symmetry = "axisymmetric"
+
+[pilot]
+split = "pilot"
+fine_cases = ["ADM-pilot-0001"]
+min_free_gb = 20.0
+accepted_gaps = ["solver_identity_complete"]
+increment_key = "dt_scale"
+increment_factors = [0.5]
+frame_key = "frame_interval"
+frame_count_key = "n_intervals"
+frame_factor = 0.5
+frame_tolerance = 0.05
+settling_margin = 0.25
+contact_force_global = "reaction_force_2_reference_node"
+# The cylinder rings elastically after the impact, faster than a frame clock
+# that resolves the upsetting: the nodal velocity is reported, not judged.
+frame_reported = { "node/acceleration" = "the second time derivative of a frame-sampled explicit response; reported, not scored", "node/velocity" = "elastic ringing after the impact, above the stored clock; reported, not scored" }
+
+[qoi]
+names = ["final_height", "final_radius"]
+units = ["m", "m"]
+tolerance = [0.01, 0.01]
+
+[retention]
+odb_fraction = 0.05
+odb_seed = 0
+odb_cases = ["ADM-pilot-0001"]

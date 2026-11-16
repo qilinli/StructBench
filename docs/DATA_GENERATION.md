@@ -40,7 +40,9 @@ over the sweep), `converge`, `archive`. The shipped example
 conformance case described in `docs/datagen/abaqus-conformance.md`; a second,
 `abaqus_cyclic_element`, is a block of a combined-hardening material under one
 cycle of axial strain, with an initial plastic strain and backstress (one
-element at level 1, seconds to run). The design
+element at level 1, seconds to run); a third, `abaqus_drop_mass`, is a
+cylinder upset by a dropped rigid plate whose reference node carries a point
+mass, on a mesh whose quads are not rectangles. The design
 is `docs/plans/2026-09-27-abaqus-datagen-platform-design.md`.
 
 `verify` asks whether each run is internally sound (the ADR-0066 instrument).
