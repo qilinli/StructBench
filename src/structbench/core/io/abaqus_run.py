@@ -38,6 +38,8 @@ from .lsdyna import unit_factors
 
 __all__ = [
     "ENERGY_LEDGER_TERMS",
+    "POINT_ELEMENTS",
+    "abaqus_point_masses",
     "mint_ids",
     "read_abaqus_input_facts",
     "read_abaqus_run_evidence",
@@ -260,6 +262,11 @@ _ELEMENT_KINDS: dict[str, str] = {"C3D": "solid", "CAX": "solid", "CPE": "solid"
 #: element, non-zero ALLAE (2026-09-24 conformance run). Any other code reads
 #: ``under_integrated = None`` rather than a guess from its trailing letter.
 _UNDER_INTEGRATED = frozenset({"CAX4R"})
+#: Point elements: a mass on a node, with no connectivity beyond it and no
+#: field output. ``MASS`` on the reference node of an analytical rigid body is
+#: established (docs/datagen/abaqus-conformance.md, "A rigid body with a point
+#: mass"); the value is on the ``*MASS`` card of the element's set.
+POINT_ELEMENTS = frozenset({"MASS"})
 #: The part a deck without ``*Part`` blocks is written as. Abaqus names the
 #: ``.odb`` part of a flat input ``PART-1``, so the stored response carries
 #: the same name and ``mint_ids`` agrees on both sides.
@@ -316,6 +323,7 @@ _ENDS_MATERIAL = frozenset(
         "SURFACE INTERACTION",
         "RIGID BODY",
         "INITIAL CONDITIONS",
+        "MASS",
     }
 )
 #: Keywords that close a part definition.
@@ -549,6 +557,68 @@ def _clock_requests(
     return frozenset(tokens)
 
 
+def abaqus_point_masses(deck_text: str, *, source_units: str) -> dict[int, float]:
+    """The point masses an Abaqus input places on nodes, in kilograms by node label.
+
+    A ``MASS`` element is one node; the ``*MASS`` card of its element set
+    states the value. A canonical case stores its input
+    (``metadata.source_deck``) and keeps Abaqus's node labels as ``node_id``,
+    so the mass a rigid body's reference node carries is read from the case::
+
+        abaqus_point_masses(case.metadata.source_deck,
+                            source_units=case.metadata.source_units)
+
+    Masses on one node add. In an axisymmetric model the value is that of the
+    whole revolution (docs/datagen/abaqus-conformance.md, "A rigid body with
+    a point mass").
+
+    Raises
+    ------
+    ValueError
+        If a mass element's set has no ``*MASS`` card, a card is not one
+        number, or a card carries an option this reader does not know (a
+        mass-proportional damping, a mass given per direction): a mass is
+        never guessed.
+    """
+    to_kg = unit_factors(source_units)["mass"]
+    lines = [ln.rstrip() for ln in deck_text.splitlines() if not ln.startswith("**")]
+    nodes_of: dict[str, list[int]] = {}
+    value_of: dict[str, float] = {}
+    for index, line in enumerate(lines):
+        if not line.startswith("*"):
+            continue
+        word, options = _keyword(line), _options(line)
+        if word == "ELEMENT" and options.get("TYPE", "").upper() in POINT_ELEMENTS:
+            elset = options.get("ELSET", "").upper()
+            rows = _data_rows(lines, index)
+            if not elset or set(options) - {"TYPE", "ELSET"} or _flags(line):
+                raise ValueError(f"a mass element this reader cannot place: {line!r}")
+            try:
+                nodes_of.setdefault(elset, []).extend(int(r[1]) for r in rows)
+            except (IndexError, ValueError) as exc:
+                raise ValueError(f"a mass element without a node: {line!r}") from exc
+        elif word == "MASS":
+            elset = options.get("ELSET", "").upper()
+            rows = _data_rows(lines, index)
+            values = [c for r in rows for c in r if c]
+            if (
+                not elset
+                or set(options) - {"ELSET"}
+                or _flags(line)
+                or len(values) != 1
+            ):
+                raise ValueError(f"a *MASS card this reader cannot read: {line!r}")
+            value_of[elset] = float(values[0]) * to_kg
+    missing = sorted(set(nodes_of) - set(value_of))
+    if missing:
+        raise ValueError(f"mass elements without a *MASS card: {missing}")
+    masses: dict[int, float] = {}
+    for elset, nodes in nodes_of.items():
+        for node in nodes:
+            masses[node] = masses.get(node, 0.0) + value_of[elset]
+    return masses
+
+
 def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
     """Read what an Abaqus input establishes about a run (evidence item E1).
 
@@ -658,6 +728,11 @@ def read_abaqus_input_facts(deck_text: str, *, source_units: str) -> InputFacts:
             current_material = options["NAME"]
             material_names.append(current_material)
             per_material.setdefault(current_material, {})
+        elif word == "ELEMENT" and options.get("TYPE", "").upper() in POINT_ELEMENTS:
+            # A point element carries inertia, not a continuum: it is no part's
+            # kind, no formulation and no integration rule, wherever it stands
+            # among the part's element blocks.
+            pass
         elif word == "ELEMENT" and "TYPE" in options:
             code = options["TYPE"].upper()
             kind = next(
