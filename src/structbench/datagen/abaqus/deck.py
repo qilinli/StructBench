@@ -204,9 +204,25 @@ def solid_section(elset: str, material: str, *, data_line: str | None = None) ->
     return text + (f"{data_line}\n" if data_line is not None else "")
 
 
-def surface_interaction(name: str) -> str:
-    """A contact property with no friction card: frictionless."""
-    return f"*SURFACE INTERACTION, NAME={name}\n"
+def point_mass(elset: str, label: int, node: int, mass: float) -> str:
+    """A point mass on a node, as a ``MASS`` element of its own element set.
+
+    The only way an analytical rigid body gets inertia is a mass on its
+    reference node. In an axisymmetric model the value is the mass of the
+    whole revolution, as the energies are
+    (``docs/datagen/abaqus-conformance.md``, "A rigid body with a point mass").
+    """
+    return (
+        f"*ELEMENT, TYPE=MASS, ELSET={elset}\n{int(label)}, {int(node)}\n"
+        f"*MASS, ELSET={elset}\n{num(mass)}\n"
+    )
+
+
+def surface_interaction(name: str, *, friction: float | None = None) -> str:
+    """A contact property: frictionless without ``friction``, else Coulomb
+    friction of that coefficient (a ``*FRICTION`` card)."""
+    text = f"*SURFACE INTERACTION, NAME={name}\n"
+    return text if friction is None else text + f"*FRICTION\n{num(friction)}\n"
 
 
 def contact_damping(fraction: float) -> str:
@@ -287,6 +303,23 @@ def contact_pair(
         else ""
     )
     return f"*CONTACT PAIR, INTERACTION={interaction}{option}\n{slave}, {master}\n"
+
+
+def self_contact_pair(
+    surface: str, interaction: str, *, mechanical_constraint: str | None = None
+) -> str:
+    """Step data under Abaqus/Explicit: a surface in contact with itself.
+
+    One surface name on the data line is single-surface contact, for a body
+    that folds onto itself. ``mechanical_constraint`` as in
+    :func:`contact_pair`.
+    """
+    option = (
+        f", MECHANICAL CONSTRAINT={mechanical_constraint}"
+        if mechanical_constraint
+        else ""
+    )
+    return f"*CONTACT PAIR, INTERACTION={interaction}{option}\n{surface}\n"
 
 
 def standard_output(
