@@ -12,7 +12,7 @@ named. Levels are ordered as ``[levels].pilot`` lists them (coarse to fine),
 then numerically; a label is a refinement factor, larger meaning finer. Each
 quantity of interest (the dataset's ``qoi()``) is extrapolated with the engine
 of ``structbench.verification.convergence`` when the three finest levels have
-positive numeric labels in a constant ratio, and every stored field of each
+positive numeric labels (in a constant ratio or not), and every stored field of each
 coarser level is measured against the finest. The record
 (``convergence-record/1``) is byte-stable and names cases, never paths; its
 Markdown is rendered from it. Exit 0 clean, 1 when a case carries a finding
@@ -265,7 +265,7 @@ def _one_case(
         for name, value in found.items():
             entry["qoi"].setdefault(name, {})[label] = value
     finest_three = labels[-3:]
-    ratio = None
+    ratio = coarse_ratio = None
     if len(finest_three) == 3:
         h = [_numeric(label) for label in finest_three]
         if h[0] is None or h[1] is None or h[2] is None:
@@ -278,9 +278,12 @@ def _one_case(
             if abs(ratios[1] - ratios[0]) <= 1e-9 * ratios[0]:
                 ratio = ratios[0]
             else:
+                # Coarse to fine, as the levels: the order is solved for.
+                coarse_ratio, ratio = ratios
                 entry["notes"].append(
-                    f"levels {finest_three} are not in a constant ratio: "
-                    "no extrapolation"
+                    f"levels {finest_three} are not in a constant ratio "
+                    f"({coarse_ratio:g} then {ratio:g}): the observed order is "
+                    "solved from the relation for unequal ratios"
                 )
     for name in defn.qoi.names:
         per_level = entry["qoi"].get(name, {})
@@ -289,7 +292,9 @@ def _one_case(
             continue
         try:
             x = engine.richardson(
-                {label: per_level[label] for label in finest_three}, ratio=ratio
+                {label: per_level[label] for label in finest_three},
+                ratio=ratio,
+                coarse_ratio=coarse_ratio,
             )
         except (ValueError, ZeroDivisionError) as exc:
             entry["extrapolation"][name] = None
@@ -300,6 +305,8 @@ def _one_case(
             "ratio": ratio,
             "levels": finest_three,
         }
+        if coarse_ratio is not None:  # only an unequal ladder carries the key
+            entry["extrapolation"][name]["coarse_ratio"] = coarse_ratio
     if len(labels) >= 2:
         finest = labels[-1]
         fine = loaded[finest]

@@ -186,7 +186,7 @@ def test_a_duplicate_run_at_one_level_is_resolved_production_first_then_root_ord
     assert entry["levels"]["2"] == "TOY-train-0000"
 
 
-def test_labels_without_a_constant_ratio_get_no_extrapolation_but_field_errors(
+def test_labels_without_a_constant_ratio_are_extrapolated_with_the_solved_order(
     tmp_path, toy
 ):
     _, defn, problem = toy
@@ -195,9 +195,23 @@ def test_labels_without_a_constant_ratio_get_no_extrapolation_but_field_errors(
         "TOY-conv-0001", "conv", "6"
     )
     (entry,) = converge.converge(defn, problem, [s.root])["cases"]
-    assert entry["extrapolation"]["length"] is None
-    assert any("ratio" in n for n in entry["notes"])
+    x = entry["extrapolation"]["length"]
+    # The toy's quantity is second order in the spacing, on ratios 2 then 3.
+    assert x["status"] == "monotone" and x["order"] == pytest.approx(2.0, abs=1e-3)
+    assert (x["coarse_ratio"], x["ratio"]) == (2.0, 3.0)
+    assert x["levels"] == ["1", "2", "6"]
+    assert any("not in a constant ratio" in n for n in entry["notes"])
     assert set(entry["fields"]["displacement"]) == {"1", "2"}
+
+
+def test_a_constant_ratio_keeps_its_record_without_the_new_key(tmp_path, toy):
+    _, defn, problem = toy
+    (entry,) = converge.converge(
+        defn, problem, [_three_levels(tmp_path, problem).root]
+    )["cases"]
+    x = entry["extrapolation"]["length"]
+    assert x["ratio"] == 2.0 and "coarse_ratio" not in x
+    assert not any("ratio" in n for n in entry["notes"])
 
 
 def test_a_field_stored_on_one_level_only_is_skipped_with_a_note(tmp_path, toy):

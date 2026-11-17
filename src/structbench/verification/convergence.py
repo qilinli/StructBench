@@ -53,14 +53,64 @@ def _ratio(numerator: float, denominator: float) -> float | None:
     return None if denominator == 0.0 else abs(numerator) / abs(denominator)
 
 
+def observed_order(change: float, fine_ratio: float, coarse_ratio: float) -> float:
+    """The order p of a monotone three-level ladder whose two ratios differ.
+
+    With the quantity at spacing h reading ``f + C h^p``, the change over the
+    coarser pair of levels divided by the change over the finer pair is
+
+        change = r_f^p (r_c^p - 1) / (r_f^p - 1),
+
+    ``r_f`` and ``r_c`` the refinement ratios of the finer and the coarser
+    pair. This is the relation Celik et al. (2008, J. Fluids Eng. 130,
+    078001) iterate as a fixed point, for a ratio of one sign. Its logarithm
+    rises strictly with p from ``ln(ln r_c / ln r_f)`` at p = 0, so the root
+    is bracketed and found by bisection; a ``change`` at or below that limit
+    has no positive order and is refused.
+    """
+    if not (fine_ratio > 1.0 and coarse_ratio > 1.0):
+        raise ValueError(
+            f"refinement ratios must exceed 1, got {coarse_ratio:g} and {fine_ratio:g}"
+        )
+    a, b = math.log(fine_ratio), math.log(coarse_ratio)
+    target = math.log(change)
+
+    def residual(p: float) -> float:
+        # ln of the relation above, less ln(change); expm1 keeps small p exact.
+        return a * p + math.log(math.expm1(b * p) / math.expm1(a * p)) - target
+
+    if target <= math.log(b / a):
+        raise ValueError("the change between levels does not shrink: no order")
+    low, high = 0.0, 1.0
+    while residual(high) < 0.0:
+        low, high = high, 2.0 * high
+    for _ in range(200):
+        mid = 0.5 * (low + high)
+        if mid in (low, high):
+            break
+        if residual(mid) < 0.0:
+            low = mid
+        else:
+            high = mid
+    return 0.5 * (low + high)
+
+
 def richardson(
-    values: dict[str, float], *, ratio: float, safety: float = SAFETY_DEFAULT
+    values: dict[str, float],
+    *,
+    ratio: float,
+    coarse_ratio: float | None = None,
+    safety: float = SAFETY_DEFAULT,
 ) -> Extrapolation:
     """Observed order and extrapolated value from three levels, coarse to fine.
 
     ``values`` maps the three level labels, coarsest first, to the quantity;
-    ``ratio`` is the refinement ratio between consecutive levels. Non-finite
-    values are refused by name.
+    ``ratio`` is the refinement ratio between consecutive levels. On a ladder
+    whose two ratios differ, ``ratio`` is that of the finer pair of levels and
+    ``coarse_ratio`` that of the coarser pair (``observed_order``); the
+    statuses are the same, and ``diverging`` is the change that does not
+    shrink as a positive order would make it. Equal ratios take the closed
+    form. Non-finite values are refused by name.
     """
     if len(values) != 3:
         raise ValueError(
@@ -69,6 +119,12 @@ def richardson(
     if not all(math.isfinite(v) for v in values.values()):
         raise ValueError(
             f"Richardson extrapolation needs finite values, got {dict(values)}"
+        )
+    coarse = ratio if coarse_ratio is None else coarse_ratio
+    unequal = coarse != ratio
+    if unequal and not (ratio > 1.0 and coarse > 1.0):
+        raise ValueError(
+            f"refinement ratios must exceed 1, got {coarse:g} and {ratio:g}"
         )
     (_lc, fc), (_lm, fm), (_lf, ff) = values.items()
     e32, e21 = fc - fm, fm - ff
@@ -79,13 +135,18 @@ def richardson(
         status = "diverging"  # no change at the first step, a change at the second
     elif e32 / e21 < 0.0:
         status = "oscillatory"
-    elif abs(e32) <= abs(e21):
+    elif unequal and e32 / e21 <= math.log(coarse) / math.log(ratio):
+        status = "diverging"  # the limit of the change at order zero
+    elif not unequal and abs(e32) <= abs(e21):
         status = "diverging"
     else:
         status = "monotone"
     if status != "monotone":
         return Extrapolation(status, None, None, None, None, coarsest_vs_finest)
-    p = math.log(e32 / e21) / math.log(ratio)
+    if unequal:
+        p = observed_order(e32 / e21, ratio, coarse)
+    else:
+        p = math.log(e32 / e21) / math.log(ratio)
     gain = ratio**p - 1.0
     extrapolated = ff + (ff - fm) / gain
     errors = (
