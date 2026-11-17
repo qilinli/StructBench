@@ -75,8 +75,8 @@ records into verdicts, in ADR-0066's vocabulary:
 | `deck_regression` | every preflight deck rebuilds byte for byte in a fresh interpreter, and each probe key (`refine`, `increment_key`, `frame_key`) changes the deck it is meant to change |
 | `feasibility` | every pilot completes at the production level (the `[limits]` and `feasible()` values are listed) |
 | `conformance` | every preflight deck asks for the evidence the instrument requires (`input_requests_required_evidence`, [the Abaqus requirement](datagen/abaqus-conformance.md#what-the-instrument-requires-of-an-abaqus-input)), judged on the decks before anything is written, so a deck that could never supply its evidence launches nothing (`fail`), nor does one the platform cannot tell about (`not_assessable`); and on the run with `*ENERGY OUTPUT, VARIABLE=ALL`, the ledger identity closes with the standard terms to 1e-5 and no other term is non-zero |
-| `space` | each quantity of interest at the production level is within its `[qoi].tolerance` of the value extrapolated from three levels (with no observed order: `review` when the quantity moves across the levels by no more than its tolerance, which a person may accept in `[pilot].accepted_reviews` as `space.<name>` with a reason, and `fail` when it moves more; the field errors are reported for the maintainer to weigh) |
-| `increment` | each quantity of interest changes by less than its tolerance between the production increment and the scaled ones, and no energy row of those runs fails (the summary names the rows the instrument could not assess) |
+| `space` | each quantity of interest at the production level is within its `[qoi].tolerance` of the value extrapolated from three levels, whose two refinement ratios may differ (with no observed order: `review` when the quantity moves across the levels by no more than its tolerance, which a person may accept in `[pilot].accepted_reviews` as `space.<name>` with a reason, and `fail` when it moves more; the field errors are reported for the maintainer to weigh) |
+| `increment` | each quantity of interest changes by less than its tolerance between the production increment and the scaled ones, except the changes the dataset accepts for one pilot and one quantity in `[pilot].accepted_increment`, each with its reason; and no energy row of those runs fails, which no acceptance covers (the summary names the rows the instrument could not assess) |
 | `frame` | every `1 / frame_factor`-th frame of the finer export predicts the frames between by linear interpolation to `frame_tolerance`, for every stored field except those `[pilot].frame_reported` names, each reported with its error and the dataset's reason (the common-instant agreement with the stored clock and the shortest rise time among the globals are reported too); at least one node field must be judged, or the step is `not_assessable` |
 | `duration` | the slowest pilot settles — every quantity of interest within its tolerance of its final value — by `(1 − settling_margin)` of the horizon; where `contact_force_global` is named, the frame at which it drops below 10⁻³ of its peak is reported per pilot |
 | `energy` | no energy row of the instrument fails on any preflight case |
@@ -91,7 +91,11 @@ passes when every step is `pass` or `not_applicable`, or is a `review` whose
 every key the dataset accepts in `[pilot].accepted_reviews`; an acceptance
 never rescues a `fail` or a `not_assessable`, and the stamp lists the accepted
 reviews with their reasons, the unaccepted ones, and the acceptances that
-never occurred. A value that is not finite never passes: it makes the step
+never occurred. The increment changes a dataset accepts are listed the same
+way: `accepted_increment` (each entry with its measured change at every scaled
+increment, the tolerance and the reason), `unaccepted_increment` (the changes
+beyond tolerance that no entry names, which fail the step) and
+`unused_accepted_increment` (entries the runs do not exceed). A value that is not finite never passes: it makes the step
 `not_assessable` (or, in the solver's energy history, `fail`). **`generate` refuses a split that is not a probe
 unless a passing stamp exists for the current `dataset.toml`, `problem.py`
 and siblings**; `--no-preflight` generates anyway and writes
@@ -101,7 +105,9 @@ gated. Because the preflight evaluates `qoi()` on every prefix of a
 trajectory, `qoi()` must accept a one-frame case; `check` exercises that.
 
 When only the judging changed — a tolerance, `frame_reported`,
-`accepted_reviews`, `qoi()`, the declaration — `preflight --rejudge`
+`accepted_reviews`, `accepted_increment`, `qoi()`, the declaration, or the
+platform's own judging (a release that extrapolates a ladder it used not to) —
+`preflight --rejudge`
 re-evaluates every step on the runs already made, with no solver. It accepts
 them as the same evidence only if the case set is the planned one, every case
 has run, every deck on disk equals the current definition's byte for byte and
@@ -122,7 +128,7 @@ Exit codes: 0 passed, 1 a step failed or needs review (the stamp says which),
 | Field | Default | Meaning |
 |---|---|---|
 | `split` | required | the probe split whose `points` are the pilots |
-| `fine_cases` | required | plain case ids that also run at the finest level (three levels are needed for an extrapolation) |
+| `fine_cases` | required | plain case ids that also run at the finest level (three levels are needed for an extrapolation; their two ratios need not be equal) |
 | `min_free_gb` | required | the free-space margin: the budget step's, and the runner's before every launch |
 | `accepted_gaps` | required | verification rows the dataset accepts as known gaps |
 | `increment_key` | `"dt_scale"` | the `[fixed]` key the increment probe scales; it must be a constant there — a split that samples, pins or points it (a probe split included) is refused, and without it in `[fixed]` the step is `not_assessable` |
@@ -134,6 +140,7 @@ Exit codes: 0 passed, 1 a step failed or needs review (the stamp says which),
 | `contact_force_global` | none | a stored global (the `global/` prefix may be dropped) whose separation frame the duration step reports |
 | `frame_reported` | `{}` | stored fields the frame step reports rather than judges, `key = "reason"` (keys `node/<f>`, `<block>/<f>`, `global/<g>`); empty judges every stored field, and the example declares acceleration |
 | `accepted_reviews` | `{}` | reviews a person accepts, `"<step>.<name>" = "reason"` (e.g. `space.final_length`); they rescue a review, never a fail or a missing measurement |
+| `accepted_increment` | `{}` | changes beyond tolerance at the scaled increment that a person accepts, `"<pilot case id>.<quantity of interest>" = "reason"` (e.g. `"ACX-pilot-0001.final_length"`): a sensitivity of the problem and not of the increment, such as the timing of a late second instability. The case is the pilot's plain id (`check` refuses any other), the quantity one of `[qoi].names`. An entry covers that pilot and quantity at every factor and nothing else: a change not listed still fails, a missing or non-finite value and a failing energy row are never covered, and an entry the runs do not exceed is reported as unused |
 
 `[qoi].tolerance` is one relative number per quantity of interest (default
 0.01 each): the target for space, the increment step and the settling rule.
@@ -182,9 +189,12 @@ made no progress. Exit 1 when an export or a conversion failed.
 `structbench-datagen converge --dataset <dir> --sweep <runs>/<name> [--root <other run root> ...] [--anchor SPLIT] [--cases ID ...]`
 pairs every production run with the probe runs at the other `[levels]` of the
 same parameters (across run roots, so a production that moved to a finer mesh
-keeps its older runs), extrapolates each quantity of interest from three
-levels in constant ratio (Richardson, with the observed order and a status
-that says when there is none), and measures every stored field of each
+keeps its older runs), extrapolates each quantity of interest from the three
+finest levels (Richardson, with the observed order and a status that says
+when there is none; when the two refinement ratios differ, the order is solved
+from the relation for unequal ratios of Celik et al. 2008, J. Fluids Eng. 130,
+078001, the record carries `coarse_ratio` beside `ratio`, and a constant
+ratio keeps the closed form and its record unchanged), and measures every stored field of each
 coarser level against the finest with the headline relative L2, restricted
 with the `[levels].symmetry` volume weights. It writes `convergence.json`
 (byte-stable, case ids only) and `convergence.md` under `<sweep>/converge/`.

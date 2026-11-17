@@ -88,6 +88,8 @@ contact_force_global = "reaction_force_2_reference_node"  # a stored global whos
 # (empty judges every stored field); and reviews a person accepts, with theirs.
 frame_reported = { "node/acceleration" = "the second time derivative of a frame-sampled explicit response; reported, not scored" }
 # accepted_reviews = { "space.final_length" = "why a person accepts this review" }
+# Changes beyond tolerance at the scaled increment that a person accepts, by pilot and quantity:
+# accepted_increment = { "ACX-pilot-0001.final_length" = "why this is the problem's sensitivity, not the increment's" }
 
 [qoi]                           # required: the keys problem.qoi returns, their units and tolerances
 names = ["final_length", "face_radius"]
