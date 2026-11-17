@@ -147,6 +147,14 @@ def check_definition(dataset_dir: Path) -> list[str]:
     except Exception as exc:
         return [f"problem.feasible: raised {type(exc).__name__}: {exc}"]
     problems: list[str] = []
+    pilots = {s.case_id for s in specs if s.split == defn.pilot.split}
+    for accepted in defn.pilot.accepted_increment:
+        case_id = accepted.rpartition(".")[0]
+        if case_id not in pilots:
+            problems.append(
+                f"pilot.accepted_increment: {accepted!r}: {case_id!r} is not a "
+                f"pilot case (one of {', '.join(sorted(pilots))})"
+            )
     base = next(dict(s.params) for s in specs if s.split == defn.pilot.split)
     key = defn.levels.refine_key
 

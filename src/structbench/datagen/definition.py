@@ -13,7 +13,7 @@ import hashlib
 import re
 import tomllib
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -64,6 +64,7 @@ PILOT_KEYS = frozenset(
         "contact_force_global",
         "frame_reported",
         "accepted_reviews",
+        "accepted_increment",
     }
 )
 QOI_KEYS = frozenset({"names", "units", "tolerance"})
@@ -117,6 +118,9 @@ class Pilot:
     #: Reviews a person accepts, "<step>.<name>" -> reason; they rescue a
     #: review, never a fail or a missing measurement.
     accepted_reviews: Mapping[str, str] = field(default_factory=dict)
+    #: Changes at the scaled increment beyond a quantity's tolerance that a
+    #: person accepts, "<pilot case id>.<quantity of interest>" -> reason.
+    accepted_increment: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -333,6 +337,37 @@ def _reasons(
     return out
 
 
+def _accepted_increment(pt: dict[str, Any], names: Sequence[str]) -> dict[str, str]:
+    """``[pilot].accepted_increment``: "<pilot case id>.<quantity>" = reason.
+
+    The quantity is checked against ``[qoi].names`` here; that the case is a
+    pilot is ``check``'s to say, which plans the cases.
+    """
+    value = pt.get("accepted_increment", {})
+    where = "pilot.accepted_increment"
+    if not isinstance(value, dict):
+        raise DefinitionError(
+            f"{where}: expected a table of "
+            '"<pilot case id>.<quantity of interest>" = reason'
+        )
+    out: dict[str, str] = {}
+    for key, reason in value.items():
+        case_id, dot, name = key.rpartition(".")
+        if not dot or not case_id:
+            raise DefinitionError(
+                f"{where}: {key!r} is not <pilot case id>.<quantity of interest>"
+            )
+        if name not in names:
+            raise DefinitionError(
+                f"{where}: {key!r} names no quantity of interest "
+                f"(one of {', '.join(names)})"
+            )
+        if not isinstance(reason, str) or not reason.strip():
+            raise DefinitionError(f"{where}: {key!r} needs a reason")
+        out[key] = reason
+    return out
+
+
 def load_definition(dataset_dir: Path) -> Definition:
     """Parse and validate ``<dataset_dir>/dataset.toml``."""
     path = dataset_dir / DEFINITION_FILE
@@ -451,6 +486,7 @@ def load_definition(dataset_dir: Path) -> Definition:
             "qoi.tolerance: one positive relative tolerance per name (default 0.01)"
         )
     qoi = QoiSpec(qoi_names, qoi_units, tuple(float(t) for t in tolerance))
+    pilot = replace(pilot, accepted_increment=_accepted_increment(pt, qoi_names))
 
     retention = dict(raw.get("retention", {}))
     stray = sorted(set(retention) - {"odb_fraction", "odb_seed", "odb_cases"})

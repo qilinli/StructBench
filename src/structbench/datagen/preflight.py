@@ -630,8 +630,8 @@ def step_space(record: Mapping[str, Any], defn: Definition) -> Step:
         return Step(
             "space",
             "not_assessable",
-            "no pilot ran at three levels in constant ratio, so no quantity of "
-            "interest could be extrapolated",
+            "no pilot ran at three levels with positive numeric labels, so no "
+            "quantity of interest could be extrapolated",
             detail,
         )
     # The review keys go with every verdict, so an acceptance whose review
@@ -685,7 +685,14 @@ def step_increment(
     report: Any,
 ) -> Step:
     """Time (a): the QoIs at another stable-increment scale, and the energy
-    rows of those runs."""
+    rows of those runs.
+
+    A change beyond a quantity's tolerance fails the step unless the dataset
+    accepts it for that pilot and quantity (``[pilot].accepted_increment``,
+    each with its reason): the detail lists every accepted entry with its
+    measured changes, and the entries the runs did not exceed as unused. An
+    energy row that fails is never accepted here.
+    """
     key = defn.pilot.increment_key
     if not defn.pilot.increment_factors:
         return Step(
@@ -713,6 +720,9 @@ def step_increment(
     pilots: dict[str, dict[str, dict[str, float]]] = {}
     fails: list[str] = []
     missing: list[str] = []
+    reasons = dict(defn.pilot.accepted_increment)
+    accepted: dict[str, dict[str, Any]] = {}
+    unaccepted: set[str] = set()
     for s in increments:
         plain = case_id_for(defn, s.split, s.index, s.variant)
         base = base_of.get(_pilot_key(s))
@@ -731,7 +741,18 @@ def step_increment(
                 continue
             rel = abs(float(b) - float(a)) / max(abs(float(a)), 1e-300)
             diffs[name] = rel
-            if rel > tol[name]:
+            if rel > tol[name] and f"{plain}.{name}" in reasons:
+                entry = accepted.setdefault(
+                    f"{plain}.{name}",
+                    {
+                        "changes": {},
+                        "tolerance": tol[name],
+                        "reason": reasons[f"{plain}.{name}"],
+                    },
+                )
+                entry["changes"][f"{value:g}"] = rel
+            elif rel > tol[name]:
+                unaccepted.add(f"{plain}.{name}")
                 fails.append(
                     f"{plain}: {name} changes by {rel:.3g} at {key}={value:g} "
                     f"(> {tol[name]:g})"
@@ -752,6 +773,8 @@ def step_increment(
         "fields": {cid: dict(v) for cid, v in fields.items()},
         "production_value": production_value(defn),
         "energy_rows": energy,
+        "accepted": dict(sorted(accepted.items())),
+        "unaccepted": sorted(unaccepted),
     }
     if missing:
         return Step(
@@ -760,14 +783,30 @@ def step_increment(
             "no finite quantities of interest for " + ", ".join(missing),
             detail,
         )
+    # Every pilot and quantity was measured, so an entry not exceeded is unused.
+    detail["unused_accepted"] = sorted(k for k in reasons if k not in accepted)
     if fails:
         return Step("increment", "fail", "; ".join(fails), detail)
+    factors = ", ".join(f"{f:g}" for f in defn.pilot.increment_factors)
+    if accepted:
+        listed = "; ".join(
+            f"{k} changes by "
+            + ", ".join(f"{rel:.3g} at {key}={v}" for v, rel in a["changes"].items())
+            for k, a in sorted(accepted.items())
+        )
+        return Step(
+            "increment",
+            "pass",
+            f"every quantity of interest is within tolerance at {key} scaled by "
+            f"{factors}, except the changes the dataset accepts ({listed}); "
+            f"{energy_note}",
+            detail,
+        )
     return Step(
         "increment",
         "pass",
         f"every quantity of interest is within tolerance at {key} scaled by "
-        + ", ".join(f"{f:g}" for f in defn.pilot.increment_factors)
-        + f"; {energy_note}",
+        f"{factors}; {energy_note}",
         detail,
     )
 
@@ -1245,6 +1284,7 @@ def stamp_record(
     state = package_state()
     acceptances = dict(defn.pilot.accepted_reviews)
     occurred = sorted({k for s in steps for k in s.reviews})
+    increment = by_name["increment"].detail if "increment" in by_name else {}
     record = {
         "format": STAMP_FORMAT,
         "dataset": defn.name,
@@ -1257,6 +1297,10 @@ def stamp_record(
         "accepted_reviews": accepted(steps, acceptances),
         "unaccepted_reviews": [k for k in occurred if k not in acceptances],
         "unused_acceptances": sorted(k for k in acceptances if k not in occurred),
+        # The increment step's own account: what it measured, not what was declared.
+        "accepted_increment": dict(increment.get("accepted") or {}),
+        "unaccepted_increment": list(increment.get("unaccepted") or []),
+        "unused_accepted_increment": list(increment.get("unused_accepted") or []),
         "steps": {
             s.name: {
                 "verdict": s.verdict,
@@ -1322,10 +1366,30 @@ def render_report(stamp: Mapping[str, Any]) -> str:
     ) or {}
     unaccepted = stamp.get("unaccepted_reviews") or []
     unused = stamp.get("unused_acceptances") or []
-    if acceptances or reported or unaccepted or unused:
+    inc_accepted = stamp.get("accepted_increment") or {}
+    inc_unaccepted = stamp.get("unaccepted_increment") or []
+    inc_unused = stamp.get("unused_accepted_increment") or []
+    increment_said = inc_accepted or inc_unaccepted or inc_unused
+    if acceptances or reported or unaccepted or unused or increment_said:
         out += ["", "## Accepted by the dataset", ""]
         for key, reason in acceptances.items():
             out.append(f"- review `{key}` accepted: {reason}")
+        for key, row in inc_accepted.items():
+            changes = ", ".join(
+                f"{rel:.3g} at the increment key = {value}"
+                for value, rel in row["changes"].items()
+            )
+            out.append(
+                f"- increment change `{key}` accepted ({changes}; tolerance "
+                f"{row['tolerance']:g}): {row['reason']}"
+            )
+        for key in inc_unaccepted:
+            out.append(f"- increment change `{key}` not accepted: it fails the step")
+        for key in inc_unused:
+            out.append(
+                f"- increment acceptance `{key}` unused: the runs do not exceed "
+                "the tolerance there"
+            )
         for key, row in reported.items():
             reason = row.get("reason", "") if isinstance(row, Mapping) else ""
             out.append(f"- `{key}` reported, not judged by the frame step: {reason}")
