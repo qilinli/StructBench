@@ -28,6 +28,7 @@ from structbench.datagen import card, generate
 from structbench.datagen.definition import (
     Definition,
     DefinitionError,
+    experimental_notice,
     load_definition,
     load_problem,
 )
@@ -287,6 +288,9 @@ def main_check(argv: list[str] | None = None) -> int:
     if problems:
         return 1
     defn = load_definition(args.dataset)
+    notice = experimental_notice(defn.solver)
+    if notice:
+        print(f"note: {notice}")
     print(
         f"ok: {defn.name}: {len(defn.splits)} splits, {len(defn.variables)} "
         f"variables, pilot {defn.pilot.split!r} at levels {list(defn.levels.pilot)}"

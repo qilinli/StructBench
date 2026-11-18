@@ -141,4 +141,6 @@ and not recommended (ADR-0068 clauses 7 and 8). The template:
     a source would settle.
 
 A page is a draft until one unpublished *conformance run* with its input
-block has been read through the readers; the maintainer ratifies it.
+block has been read through the readers; the maintainer ratifies it. What a
+contributor brings for a further solver, and when it is admitted, is ADR-0079
+(`CONTRIBUTING.md`, *Contributing a solver*).

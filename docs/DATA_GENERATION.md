@@ -279,6 +279,12 @@ something that exists (a fine case that is a pilot, an accepted gap that is a
 catalogue row, an accepted increment change on a pilot). `preflight` runs
 `check` first and refuses on any finding.
 
+A definition names its solver. `check` accepts an admitted solver (Abaqus) or
+an experimental one, and says so for the second; the stages that read a
+definition (`preflight`, `generate`, `converge`, `archive`) run Abaqus only and
+refuse any other with exit code 2. How a further solver is contributed and
+admitted is in `CONTRIBUTING.md`, *Contributing a solver* (ADR-0079).
+
 ### `generate`
 
     structbench-datagen generate --dataset <dir> --work-root <runs>

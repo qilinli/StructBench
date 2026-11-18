@@ -61,9 +61,11 @@ from structbench.datagen.converge import level_order
 from structbench.datagen.convert import convert_sweep
 from structbench.datagen.definition import (
     Definition,
+    DefinitionError,
     load_definition,
     load_problem,
     problem_sha256,
+    require_stage_solver,
     siblings_sha256,
 )
 from structbench.datagen.export import export_cases
@@ -1578,6 +1580,11 @@ def preflight(
             print(f"{dataset_dir.name}: {finding}", file=sys.stderr)
         return 2
     defn = load_definition(dataset_dir)
+    try:
+        require_stage_solver(defn.solver, "preflight")
+    except DefinitionError as exc:
+        print(f"{dataset_dir.name}: {exc}", file=sys.stderr)
+        return 2
     problem = load_problem(dataset_dir)
     specs = preflight_cases(defn)
     try:

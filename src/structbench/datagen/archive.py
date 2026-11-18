@@ -44,7 +44,11 @@ from pathlib import Path
 import numpy as np
 
 from structbench.core import Case, Response, read_case, write_case
-from structbench.datagen.definition import load_definition
+from structbench.datagen.definition import (
+    DefinitionError,
+    load_definition,
+    require_stage_solver,
+)
 
 _RUN_FILES = (
     "{id}.inp",
@@ -311,6 +315,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     defn = load_definition(args.dataset)
+    try:
+        require_stage_solver(defn.solver, "archive")
+    except DefinitionError as exc:
+        print(exc, file=sys.stderr)
+        return 2
     name, rules = defn.name, defn.retention
     case_ids = _case_ids(args.sweep, args.split)
     keep = retained(

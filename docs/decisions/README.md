@@ -165,10 +165,10 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0065 | StructBench is a verification-and-validation platform for learned surrogates (supersedes 0014) | Durable | Accepted (VISION.md rewrite pending, maintainer out-of-session; data standard fixed by 0073; clause 1 amended by 0074; follow-ups 1 and 3 by 0075, follow-up 2 by the plan of 2026-11-08, follow-up 4 by the README Roadmap of 2026-11-08) |
 | 0066 | Reference-data verification: the `verification/` module | Durable | Accepted (reviewed by 0073) |
 | 0067 | Material classes for the notch sweep: K&C concrete and bilinear steel | Durable | Accepted (note by 0073) |
-| 0068 | Abaqus is the second solver; the deferred abstraction question is answered (amends 0066 clause 3) | Durable | Accepted (2026-10-01; clause 8 lifted for one row by 0073) |
+| 0068 | Abaqus is the second solver; the deferred abstraction question is answered (amends 0066 clause 3) | Durable | Accepted (2026-10-01; clause 8 lifted for one row by 0073; admission generalised by 0079) |
 | 0069 | The Abaqus data-generation pipeline (four stages, shared scripts, `abaqus-npz/1`, `datagen` extra) | Durable | Accepted (2026-10-01; amended by 0071) |
 | 0070 | Material class `elastic_plastic_isotropic` (Abaqus `*PLASTIC`, isotropic, no EOS) | Durable | Accepted (2026-10-01) |
-| 0071 | The Abaqus data-generation pipeline becomes a StructBench capability: `structbench.datagen`, the dataset template and `check`, the preflight gate, the convergence engine in `verification`, runner budget and `follow` (amends ADR-0069) | Durable | Accepted (0073; amended by 0074) |
+| 0071 | The Abaqus data-generation pipeline becomes a StructBench capability: `structbench.datagen`, the dataset template and `check`, the preflight gate, the convergence engine in `verification`, runner budget and `follow` (amends ADR-0069) | Durable | Accepted (0073; amended by 0074, 0079) |
 | 0072 | Validation against experiments: `structbench.validation`, reference-experiment sets with provenance, measures shared by experiment and simulation, a record that reports deviations and never judges; the datagen stage `validate` renamed `verify` | Durable | Accepted (0073) |
 | 0073 | Decisions from the maintainer's review of the decision log (amends 0010, 0012, 0026, 0035, 0043, 0046, 0055, 0064, 0065, 0066, 0067, 0068, 0071, 0072; accepts 0057, 0071, 0072) | Durable | Accepted |
 | 0074 | Open evaluation: blind sets, computed coverage, a results registry for external results (amends 0019, 0025, 0026, 0032, 0033, 0036, 0040, 0043, 0046, 0065, 0071, 0075) | Durable | Accepted (2026-11-08) |
@@ -176,6 +176,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0076 | The gradient task family: a surrogate's sensitivities scored against the sweep's own differences (amends 0019, 0032, 0033, 0055, 0075; constrains 0074) | Durable | Accepted (2026-11-08) |
 | 0077 | Checkpoint selection on the reported metric: validation relative L2 of displacement (supersedes the selection clause of 0028 and the selection sentence of 0062) | Ephemeral | Accepted (2026-11-10) |
 | 0078 | One declared scored span, read by every stage: training pool, statistics, time reference, evaluation, figures, records (amends 0039, 0054, 0032) | Durable | Accepted (2026-11-11) |
+| 0079 | How a further solver is admitted to data generation: experimental then admitted, on a conformance run the maintainer reads (amends 0068, 0071) | Ephemeral | Accepted (2026-11-18) |
 
 ---
 

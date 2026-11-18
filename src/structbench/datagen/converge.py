@@ -40,6 +40,7 @@ from structbench.datagen.definition import (
     DefinitionError,
     load_definition,
     load_problem,
+    require_stage_solver,
 )
 from structbench.verification import convergence as engine
 
@@ -520,6 +521,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         defn = load_definition(args.dataset)
+        require_stage_solver(defn.solver, "converge")
         problem = load_problem(args.dataset)
     except DefinitionError as exc:
         print(exc, file=sys.stderr)

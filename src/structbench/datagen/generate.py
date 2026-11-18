@@ -44,6 +44,7 @@ from structbench.datagen.definition import (
     load_definition,
     load_problem,
     problem_sha256,
+    require_stage_solver,
     siblings_sha256,
 )
 
@@ -307,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
     dataset_dir = args.dataset.resolve()
     try:
         defn = load_definition(dataset_dir)
+        require_stage_solver(defn.solver, "generate")
         problem = load_problem(dataset_dir)
         specs = plan_cases(defn, getattr(problem, "feasible", None))
     except (ValueError, KeyError) as exc:  # DefinitionError is a ValueError
