@@ -113,7 +113,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--split", action="append")
     parser.add_argument(
-        "--exporter-args", nargs="*", default=None, help=argparse.SUPPRESS
+        "--exporter-args",
+        nargs="*",
+        default=None,
+        help="arguments that replace 'python <exporter>' on the exporter's "
+        "command line, so that a stand-in script can take its place (the "
+        "tests, and the guide's walkthrough)",
     )
     args = parser.parse_args(argv)
     if shutil.which(args.abaqus) is None:
