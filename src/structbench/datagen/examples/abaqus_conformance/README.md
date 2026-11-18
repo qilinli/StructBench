@@ -16,7 +16,9 @@ provenance records the commit it was generated from.
     structbench-datagen verify    --sweep <runs>/abaqus_conformance --dataset <this dir>
     structbench-datagen converge  --sweep <runs>/abaqus_conformance --dataset <this dir>
     structbench-datagen archive   --sweep <runs>/abaqus_conformance --dataset <this dir> --data-root <tree>
+    structbench-datagen card      --sweep <runs>/abaqus_conformance --dataset <this dir>
 
 `generate` opens a split that is not a probe only against a passing preflight
-stamp for the current definition. The stages are described in
+stamp for the current definition; `card` renders the generated parts of
+`DATA_CARD.md` from the records. The stages are described in
 `docs/DATA_GENERATION.md`.

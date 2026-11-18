@@ -15,6 +15,8 @@
                                  [--root DIR ...] [--out DIR]
     structbench-datagen archive  --sweep <runs>/<name> --dataset <dir>
                                  --data-root <tree> [...]
+    structbench-datagen card     --dataset <dir> [--sweep <runs>/<name>]
+                                 [--out FILE] [--check]
 
 Each stage's own options are its module's; ``export`` hands the packaged
 exporter to ``abaqus python`` because it must run under the solver's Python.
@@ -31,6 +33,7 @@ from collections.abc import Callable
 try:
     from structbench.datagen import (
         archive,
+        card,
         converge,
         convert,
         export,
@@ -66,6 +69,7 @@ STAGES: dict[str, Callable[[list[str] | None], int]] = {
     "verify": verify.main,
     "converge": converge.main,
     "archive": archive.main,
+    "card": card.main,
 }
 #: Old names, refused with a pointer (ADR-0072: validate now means
 #: comparison with experiment).

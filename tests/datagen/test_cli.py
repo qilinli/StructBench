@@ -21,6 +21,7 @@ STAGES = [
     "verify",
     "converge",
     "archive",
+    "card",
 ]
 
 

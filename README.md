@@ -259,9 +259,10 @@ a release's criteria become its checklist here when it is picked up.*
   `structbench-datagen`: the Abaqus pipeline as a package capability, with a
   preflight gate before production. Guide:
   [`docs/DATA_GENERATION.md`](docs/DATA_GENERATION.md).
-  - [ ] The card generator (plan:
-        `docs/plans/2026-11-18-datagen-card-plan.md`, proposed;
-        the energy-gain indicator stays unratified by decision, ADR-0073 D9).
+  - [x] ~~The card generator: `structbench-datagen card` renders the
+        generated parts of `DATA_CARD.md` from records, with a survivor log;
+        the three examples' cards are its renders (the energy-gain indicator
+        stays unratified by decision, ADR-0073 D9).~~ (2026-11-18)
   - [x] ~~The guide in full: the definition, every stage with what it reads
         and writes, the exit codes, and a walkthrough that needs no
         solver.~~ (2026-11-18)

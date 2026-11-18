@@ -24,7 +24,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from structbench.core import Case, ElementBlock, Metadata, Nodes, Response
-from structbench.datagen import generate
+from structbench.datagen import card, generate
 from structbench.datagen.definition import (
     Definition,
     DefinitionError,
@@ -60,7 +60,11 @@ def scaffold(target: Path, name: str, *, solver: str = "abaqus") -> list[Path]:
     target.mkdir(parents=True, exist_ok=True)
     written = []
     for filename in SCAFFOLD_FILES:
-        text = (EXAMPLE_DIR / filename).read_text(encoding="utf-8")
+        if filename == card.CARD_FILE:
+            # an empty card: the example's own is filled in for the example
+            text = card.template_card(name)
+        else:
+            text = (EXAMPLE_DIR / filename).read_text(encoding="utf-8")
         text = text.replace(EXAMPLE_NAME, name).replace("\r\n", "\n")
         if filename == "README.md":
             body = text.split("\n", 2)[2]

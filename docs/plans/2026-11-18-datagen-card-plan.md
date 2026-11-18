@@ -1,6 +1,14 @@
 # Plan: `structbench-datagen card`, the last stage of ADR-0071
 
-*Written 2026-11-18 before the work; not started. The stage is named in
+*Written 2026-11-18 before the work; approved by the maintainer and executed
+the same day. One departure, in §3.5: the draws `feasible()` rejects are
+counted by recomputing the plan with a counting hook, which the definition
+alone determines, so neither a new `plan.json` nor a "not recorded" line was
+needed. Also added while building: the provenance part says when runs were
+launched through `--solver-args`, and `new` writes an empty card from the
+template instead of copying the example's.*
+
+*As first written: The stage is named in
 ADR-0071 clause 1 and described in the design
 (`2026-09-27-abaqus-datagen-platform-design.md`, "`card`"), so this is a plan
 and not a record. Two things in it change public surface and are flag-first:
