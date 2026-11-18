@@ -3,7 +3,9 @@
 *How an LS-DYNA run supplies the run evidence E1–E10 of ADR-0066, so that the
 reference-data verification instrument can measure it. Every generated input
 deck in this repository carries this block. A contributed dataset is measured
-against the same requirement; this file tells a contributor what to switch on.*
+against the same requirement; this file tells a contributor what to switch on.
+The requirement itself, stated for any solver, is
+[`solver-requirements.md`](solver-requirements.md).*
 
 **Status: draft, never yet exercised by a run.** It is assembled from the
 keyword manual (R13 and R15 were read; the legacy sweeps ran R12) and from
