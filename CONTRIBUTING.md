@@ -155,6 +155,64 @@ admitted whole (ADR-0074 clause 8).
 
 ## Contributing code
 
-Code contributions follow `docs/PRINCIPLES.md` (conventions), `docs/
-ARCHITECTURE.md` (layering) and the decision log. Open a pull request on a
-feature branch; the full test suite is the gate. The maintainer merges.
+Code enters by pull request from a fork. The maintainer merges; nothing else
+moves `main`.
+
+### Read first
+
+- `docs/VISION.md` — what the platform is for, and what it is not.
+- `docs/PRINCIPLES.md` — the conventions: Python 3.12, Ruff, type hints on
+  every public API, NumPy docstrings, tests, the dependency policy.
+- `docs/ARCHITECTURE.md` — the modules and which may import which. An
+  import-boundary test enforces the layering.
+- `docs/decisions/README.md` — the decision log's index. A change that
+  touches a recorded decision says which one; a change that needs a new
+  decision (a public contract, a file format, a dependency, a benchmark
+  protocol) is proposed as a record first, and the maintainer accepts it.
+- For data generation: `docs/DATA_GENERATION.md`, and the conformance
+  document of the solver under `docs/datagen/`.
+
+### Set up
+
+    git clone https://github.com/<you>/StructBench
+    cd StructBench
+    python -m venv .venv            # Python 3.12 or later
+    pip install -e ".[dev,datagen]"
+
+`dev` installs Ruff, mypy and pytest; `datagen` installs scipy, which
+`structbench-datagen` and its tests need (without it those tests skip).
+
+### Before you open a pull request
+
+    ruff format .
+    ruff check .
+    mypy
+    python -m pytest -q
+
+All four must be clean. `mypy` is run bare: `pyproject.toml` names the
+package. The suite needs no solver, no network and no dataset; it takes ten to
+fifteen minutes. Tests that read real data are gated by a `STRUCTBENCH_*`
+environment variable and skip without it, so a green suite on your machine has
+not touched real data, and the pull request should say so if the change
+depends on it.
+
+### The pull request
+
+- One purpose per pull request, on a branch named `type/short-description`
+  (`feat/…`, `fix/…`, `docs/…`), with Conventional Commit subjects
+  (`fix(datagen): …`).
+- A bug fix comes with a test that fails without it. New behaviour comes with
+  tests and with the documentation that describes it, in the same pull
+  request.
+- No new dependency without a decision record (`docs/PRINCIPLES.md`,
+  *Dependency policy*).
+- Say what you ran: the four commands above, and anything a reviewer cannot
+  run (a solver, a licensed tool, a dataset), with the version.
+- Name no private study or dataset. The repository is public: a dataset
+  that is not published is passed by path and never named, and no case id,
+  split, constant or result of one appears in code, tests, documents or commit
+  messages. Use the shipped examples
+  (`src/structbench/datagen/examples/`) for anything that needs a definition.
+- Solver output files can carry licence text (a licensee, a host, a site
+  id). Do not commit them (`docs/datagen/abaqus-conformance.md`, *Nothing of
+  the licence line may be published*).
