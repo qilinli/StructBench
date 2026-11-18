@@ -176,6 +176,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0076 | The gradient task family: a surrogate's sensitivities scored against the sweep's own differences (amends 0019, 0032, 0033, 0055, 0075; constrains 0074) | Durable | Accepted (2026-11-08) |
 | 0077 | Checkpoint selection on the reported metric: validation relative L2 of displacement (supersedes the selection clause of 0028 and the selection sentence of 0062) | Ephemeral | Accepted (2026-11-10) |
 | 0078 | One declared scored span, read by every stage: training pool, statistics, time reference, evaluation, figures, records (amends 0039, 0054, 0032) | Durable | Accepted (2026-11-11) |
+| 0079 | How a further solver is admitted to data generation: experimental then admitted, on a conformance run the maintainer reads (amends 0068, 0071) | Ephemeral | Proposed |
 
 ---
 
