@@ -178,9 +178,10 @@ def write_case(
             return "conflict"
     case_dir.mkdir(parents=True, exist_ok=True)
     inp.write_bytes(data)
-    (case_dir / "provenance.json").write_text(
-        json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    # Bytes, so the record is LF on every platform (write_text would make it
+    # CRLF on Windows, and the same case would hash differently by machine).
+    text = json.dumps(provenance, indent=2, sort_keys=True) + "\n"
+    (case_dir / "provenance.json").write_bytes(text.encode("utf-8"))
     return "written"
 
 

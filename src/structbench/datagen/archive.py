@@ -327,14 +327,18 @@ def main(argv: list[str] | None = None) -> int:
     seed_frames = args.seed_frames
     if withheld:
         if not args.blind_tag.strip():
-            print("error: --blind-tag is required when a withheld split is archived")
+            print(
+                "error: --blind-tag is required when a withheld split is archived",
+                file=sys.stderr,
+            )
             return 2
         # datagen sits below benchmarks (ARCHITECTURE.md layering), so the
         # protocol's input_frames is passed in, never read from a benchmark.py.
         if seed_frames is None or seed_frames < 1:
             print(
                 "error: --seed-frames (the protocol's input_frames, >= 1) is "
-                "required when a withheld split is archived"
+                "required when a withheld split is archived",
+                file=sys.stderr,
             )
             return 2
     copies = plan(

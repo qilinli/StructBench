@@ -76,7 +76,8 @@ def judge_sweep(
     out = out or sweep / "datacheck"
     out.mkdir(parents=True, exist_ok=True)
     runs = collect_sweep(sweep, splits=splits)
-    (out / "run_evidence.json").write_text(dump_run_evidence(runs), encoding="utf-8")
+    # Bytes throughout: the three records are LF on every platform.
+    (out / "run_evidence.json").write_bytes(dump_run_evidence(runs).encode("utf-8"))
     _, declared = declared_from_toml(dataset / "dataset.toml")
     stored = sorted(cid for cid in runs if (data_root / f"{cid}.h5").is_file())
     record = measure_cases(declared, None, data_root, stored, run_evidence=runs)
@@ -91,9 +92,9 @@ def judge_sweep(
         record.definition_versions,
         tuple(sorted((*record.cases, *extra), key=lambda c: c.case_id)),
     )
-    (out / "measurements.json").write_text(to_json(record), encoding="utf-8")
+    (out / "measurements.json").write_bytes(to_json(record).encode("utf-8"))
     report = judge(record)
-    (out / "report.md").write_text(render_markdown(report), encoding="utf-8")
+    (out / "report.md").write_bytes(render_markdown(report).encode("utf-8"))
     return record, report
 
 

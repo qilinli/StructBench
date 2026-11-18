@@ -1676,7 +1676,7 @@ def preflight(
     exe = None if rejudge else shutil.which(abaqus)
     if exe is None and not rejudge:
         print(f"abaqus executable {abaqus!r} not found", file=sys.stderr)
-        return 2
+        return 3
     solver = [exe or abaqus, *(solver_args or [])]
     production = defn.levels.production
     ids = [s.case_id for s in specs]

@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if shutil.which(args.abaqus) is None:
         print(f"abaqus executable {args.abaqus!r} not found", file=sys.stderr)
-        return 2
+        return 3
     report = follow(
         args.sweep,
         args.abaqus,

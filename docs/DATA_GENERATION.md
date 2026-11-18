@@ -121,7 +121,8 @@ another definition — either file or a sibling changed, whether or not the
 decks did — is refused (exit 2) and nothing in it is deleted; move it aside.
 Exit codes: 0 passed, 1 a step failed or needs review (the stamp says which),
 2 refused, 3 stopped by the environment (the free space fell below
-`min_free_gb`).
+`min_free_gb`, or the solver executable was not found; `run`, `export` and
+`follow` answer a missing solver with 3 too).
 
 ### The `[pilot]` fields
 

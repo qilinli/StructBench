@@ -259,7 +259,7 @@ def test_a_withheld_case_publishes_inputs_only_and_keeps_the_whole_case_apart(
 
     # no tag: refused before anything is written
     rc = archive.main(_argv(sweep, dataset, data, "--yes", "--seed-frames", "2"))
-    assert rc == 2 and "--blind-tag" in capsys.readouterr().out
+    assert rc == 2 and "--blind-tag" in capsys.readouterr().err
     assert not (data / "canonical").exists()
 
     # dry run names the withheld count and the private tree

@@ -40,14 +40,15 @@ def export_cases(
 ) -> int:
     """Run the exporter over ``sweep`` (or ``cases`` of it).
 
-    Returns the exporter's return code, or 2 when ``abaqus`` is not on the
-    path. ``exporter_args`` replaces ``python <exporter>`` on the command line
-    (tests: a stub script in place of the solver's interpreter).
+    Returns the exporter's return code, or 3 (stopped by the environment)
+    when ``abaqus`` is not on the path. ``exporter_args`` replaces
+    ``python <exporter>`` on the command line (tests: a stub script in place
+    of the solver's interpreter).
     """
     exe = shutil.which(abaqus)
     if exe is None:
         print(f"abaqus executable {abaqus!r} not found", file=sys.stderr)
-        return 2
+        return 3
     command = export_command(exe, sweep, cases)
     if exporter_args is not None:
         command = [exe, *exporter_args, "--sweep", str(sweep)]

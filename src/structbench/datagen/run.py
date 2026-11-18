@@ -245,9 +245,8 @@ def _run_one(
         "status": status,
         **facts,
     }
-    (case_dir / "run.json").write_text(
-        json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    text = json.dumps(record, indent=2, sort_keys=True) + "\n"
+    (case_dir / "run.json").write_bytes(text.encode("utf-8"))  # LF everywhere
     return JobResult(case_id, status, wall, return_code)
 
 
@@ -415,7 +414,7 @@ def main(argv: list[str] | None = None) -> int:
     exe = shutil.which(args.abaqus)
     if exe is None:
         print(f"abaqus executable {args.abaqus!r} not found", file=sys.stderr)
-        return 2
+        return 3
     stamp = read_stamp(args.sweep)
     min_free = args.min_free_gb
     if min_free is None and stamp is not None:

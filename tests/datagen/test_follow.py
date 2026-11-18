@@ -128,7 +128,8 @@ def test_split_filter_and_nothing_to_do(tmp_path, stub):
     assert not (sweep / "T-0001" / "T-0001.npz").exists()
 
 
-def test_main_without_a_solver_exits_two(tmp_path, capsys):
+def test_main_without_a_solver_exits_three(tmp_path, capsys):
+    # stopped by the environment, not refused (the design's exit codes)
     args = ["--sweep", str(tmp_path), "--abaqus", "no-such-solver-xyz", "--once"]
-    assert follow.main(args) == 2
+    assert follow.main(args) == 3
     assert "no-such-solver-xyz" in capsys.readouterr().err
