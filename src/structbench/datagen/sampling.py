@@ -77,7 +77,7 @@ def parse_bounds(raw: Mapping[str, Any], where: str) -> dict[str, Bounds]:
 
 
 def parse_splits(sweep: Mapping[str, Any]) -> list[Split]:
-    """The ``[splits.*]`` tables of a parsed sweep.toml, in file order."""
+    """The ``[splits.*]`` tables of a parsed dataset.toml, in file order."""
     splits = []
     for name, raw in sweep["splits"].items():
         if not isinstance(raw, Mapping):

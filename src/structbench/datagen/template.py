@@ -31,6 +31,8 @@ from structbench.datagen.definition import (
     load_definition,
     load_problem,
 )
+from structbench.verification.dataset import declared_from_toml
+from structbench.verification.quantities import CATALOGUE
 from structbench.verification.temporal import response_until
 
 EXAMPLE_DIR = resources.files("structbench.datagen") / "examples" / "abaqus_conformance"
@@ -147,7 +149,28 @@ def check_definition(dataset_dir: Path) -> list[str]:
     except Exception as exc:
         return [f"problem.feasible: raised {type(exc).__name__}: {exc}"]
     problems: list[str] = []
+    # What verify would refuse after the runs are made (the same reader).
+    try:
+        declared_from_toml(defn.path)
+    except ValueError as exc:
+        problems.append(f"declaration: {exc}")
     pilots = {s.case_id for s in specs if s.split == defn.pilot.split}
+    # An entry that names nothing is silently unused by the preflight: a
+    # misspelt fine case never runs at the finest level, and a misspelt gap
+    # accepts nothing.
+    for fine in defn.pilot.fine_cases:
+        if fine not in pilots:
+            problems.append(
+                f"pilot.fine_cases: {fine!r} is not a pilot case "
+                f"(one of {', '.join(sorted(pilots))})"
+            )
+    rows = {q.name for q in CATALOGUE}
+    for gap in defn.pilot.accepted_gaps:
+        if gap not in rows:
+            problems.append(
+                f"pilot.accepted_gaps: {gap!r} is not a row of the verification "
+                "catalogue (structbench.verification.quantities.CATALOGUE)"
+            )
     for accepted in defn.pilot.accepted_increment:
         case_id = accepted.rpartition(".")[0]
         if case_id not in pilots:
@@ -183,31 +206,32 @@ def check_definition(dataset_dir: Path) -> list[str]:
                 "dict order)"
             )
 
+    # Each level against the next finer: nesting is transitive, so the chain
+    # puts every coarser level inside the finest, which converge compares with.
     grids: dict[str, Any] = {}
-    coarsest: NDArray[np.float64] | None = None
+    coarser: tuple[str, NDArray[np.float64]] | None = None
     for level in defn.levels.pilot:
         try:
             grids[level] = problem.mesh({**base, key: level})
             coords = np.asarray(grids[level].coords, float)
         except Exception as exc:
             return problems + [f"problem.mesh: raised {type(exc).__name__}: {exc}"]
-        if coarsest is None:
-            coarsest = coords
-        elif not mesh_nests(coarsest, coords):
+        if coarser is not None and not mesh_nests(coarser[1], coords):
             problems.append(
-                f"problem.mesh: level {level} does not nest level "
-                f"{defn.levels.pilot[0]}"
+                f"problem.mesh: level {level} does not nest level {coarser[0]}"
             )
+        coarser = (level, coords)
 
     synthetic = _synthetic_case(defn, grids[defn.levels.production])
     try:
         out = problem.qoi(synthetic)
     except Exception as exc:
         return problems + [f"problem.qoi: raised {type(exc).__name__}: {exc}"]
-    if tuple(out) != defn.qoi.names:
+    # By name, in any order: every reader looks a quantity up by its name.
+    if set(out) != set(defn.qoi.names):
         problems.append(
             f"problem.qoi: returns {sorted(out)} but qoi.names declares "
-            f"{list(defn.qoi.names)}"
+            f"{sorted(defn.qoi.names)}"
         )
     try:
         problem.qoi(response_until(synthetic, 0))
@@ -234,8 +258,10 @@ def main_new(argv: list[str] | None = None) -> int:
     parser.add_argument("target", type=Path)
     parser.add_argument("--solver", default="abaqus")
     args = parser.parse_args(argv)
+    # Resolved first: "." and "sub/.." have no name of their own.
+    target = args.target.resolve()
     try:
-        written = scaffold(args.target, args.target.name, solver=args.solver)
+        written = scaffold(target, target.name, solver=args.solver)
     except (FileExistsError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 2

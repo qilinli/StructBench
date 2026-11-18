@@ -28,18 +28,29 @@ import argparse
 import sys
 from collections.abc import Callable
 
-from structbench.datagen import (
-    archive,
-    converge,
-    convert,
-    export,
-    follow,
-    generate,
-    preflight,
-    run,
-    template,
-    verify,
-)
+try:
+    from structbench.datagen import (
+        archive,
+        converge,
+        convert,
+        export,
+        follow,
+        generate,
+        preflight,
+        run,
+        template,
+        verify,
+    )
+except ModuleNotFoundError as exc:
+    # scipy is the datagen extra's one dependency (ADR-0069); without it the
+    # stages cannot be imported, and a traceback names no remedy.
+    if exc.name is None or exc.name.split(".")[0] != "scipy":
+        raise
+    raise SystemExit(
+        "structbench-datagen needs scipy, which the datagen extra installs: "
+        'pip install "structbench[datagen]" (from a checkout: '
+        'pip install -e ".[datagen]")'
+    ) from exc
 from structbench.datagen.export import EXPORTER as EXPORTER
 from structbench.datagen.export import export_command as export_command
 

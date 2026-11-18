@@ -12,8 +12,10 @@ from structbench.datagen import cli  # noqa: E402
 STAGES = [
     "new",
     "check",
+    "preflight",
     "generate",
     "run",
+    "follow",
     "export",
     "convert",
     "verify",
@@ -55,11 +57,37 @@ def test_export_builds_the_abaqus_python_command(tmp_path):
     assert command[3:] == ["--sweep", str(tmp_path), "--cases", "A-1", "A-2"]
 
 
-def test_export_without_abaqus_exits_two(tmp_path, capsys):
+def test_a_missing_solver_is_the_environments_stop_not_a_refusal(tmp_path, capsys):
+    # the design's exit codes: 2 refused by a gate, 3 stopped by the environment
     args = ["export", "--sweep", str(tmp_path), "--abaqus", "no-such-solver-xyz"]
     rc = cli.main(args)
-    assert rc == 2
+    assert rc == 3
     assert "no-such-solver-xyz" in capsys.readouterr().err
+    args = ["run", "--sweep", str(tmp_path), "--abaqus", "no-such-solver-xyz"]
+    assert cli.main(args) == 3
+
+
+def test_without_scipy_the_command_names_the_extra_instead_of_a_traceback():
+    import subprocess
+
+    code = (
+        "import sys; sys.modules['scipy'] = None\nfrom structbench.datagen import cli"
+    )
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert proc.returncode == 1
+    assert "structbench[datagen]" in proc.stderr and "Traceback" not in proc.stderr
+
+
+def test_new_in_the_current_directory_takes_the_directorys_name(
+    tmp_path, monkeypatch, capsys
+):
+    target = tmp_path / "my_set"
+    target.mkdir()
+    monkeypatch.chdir(target)
+    assert cli.main(["new", "."]) == 0
+    toml = (target / "dataset.toml").read_text(encoding="utf-8")
+    assert 'name = "my_set"' in toml
+    assert cli.main(["check", "."]) == 0
 
 
 def test_export_runs_a_stub_solver(tmp_path):

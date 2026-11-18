@@ -126,6 +126,8 @@ def test_writes_cases_provenance_and_manifest(tmp_path):
         "TOY-main-0002",
         "TOY-pilot-0000",
     ]
+    # LF on every platform: the same record must be the same bytes everywhere
+    assert b"\r" not in (work / "toy/TOY-listed-0000-y/provenance.json").read_bytes()
     prov = json.loads((work / "toy/TOY-listed-0000-y/provenance.json").read_text())
     assert prov["variant"] == "y" and prov["split"] == "listed"
     assert prov["units"] == "t-mm-s"

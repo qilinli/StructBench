@@ -261,19 +261,12 @@ a release's criteria become its checklist here when it is picked up.*
   [`docs/DATA_GENERATION.md`](docs/DATA_GENERATION.md).
   - [ ] The card generator and the full guide (the energy-gain indicator
         stays unratified by decision, ADR-0073 D9).
-  - [ ] Minors deferred from part one's whole-branch review (moved here from
-        CLAUDE.md 2026-09-29, not re-checked): `check` nests each level
-        against the first only · the QoI-name check is order-sensitive ·
-        `[pilot].fine_cases` and `accepted_gaps` are not checked against
-        planned case ids or catalogue rows · `new .` derives an empty name ·
-        `[declaration]` is validated only by `verify`, not by `check` ·
-        `provenance.json` is written CRLF on Windows · a stale module path in
-        `core/io/abaqus.py` · an old collect command in the conformance
-        document, and `sampling.py`'s docstring still says `sweep.toml` · a
-        missing scipy raises an ImportError instead of an install hint, and
-        exit codes 2 and 3 are used inconsistently across stages · the
-        private dataset's `problem.py` still carries literal keyword text for
-        probe splits.
+  - [x] ~~Minors deferred from part one's whole-branch review: re-checked
+        and fixed (`check`'s nesting, QoI names, `fine_cases`,
+        `accepted_gaps` and `[declaration]`; `new .`; LF records; the scipy
+        hint; a missing solver exits 3); the stale module path and the old
+        collect command were already gone; the item about a dataset's own
+        `problem.py` lies outside this repository.~~ (2026-11-18)
 - **Validation against experiments** (ADR-0072, Accepted 2026-10-01) — built
   2026-09-27: `structbench.validation`, `structbench-validate`, and the first
   reference set, `taylor_copper`. Reports deviations, never a verdict.

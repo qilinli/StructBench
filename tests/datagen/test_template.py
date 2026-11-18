@@ -169,6 +169,49 @@ def test_check_reports_qoi_keys_that_differ_from_the_declaration(tmp_path):
     assert any("qoi" in p and "span" in p for p in template.check_definition(ds))
 
 
+def test_check_takes_qoi_names_in_any_order(tmp_path):
+    # every reader looks a quantity up by name; the order of the dict is not a fault
+    toml = MINIMAL_TOML.replace(
+        'names = ["length"]\nunits = ["m"]',
+        'names = ["length", "width"]\nunits = ["m", "m"]',
+    )
+    assert 'names = ["length", "width"]' in toml
+    reversed_ = MINIMAL_PROBLEM.replace(
+        'return {"length":', 'return {"width": 1.0, "length":'
+    )
+    ds = write_definition(tmp_path / "d", toml=toml, problem=reversed_)
+    assert template.check_definition(ds) == []
+
+
+def test_check_nests_each_level_in_the_next_finer_one(tmp_path):
+    """Levels 2 and 3 both nest level 1 and not each other: checking against
+    the first level alone passed a ladder converge cannot compare."""
+    toml = MINIMAL_TOML.replace('pilot = ["1", "2"]', 'pilot = ["1", "2", "3"]')
+    problems = template.check_definition(write_definition(tmp_path / "d", toml=toml))
+    assert problems == ["problem.mesh: level 3 does not nest level 2"]
+
+
+def test_check_validates_the_declaration_verify_would_refuse(tmp_path):
+    toml = MINIMAL_TOML.replace('discretisation = "FEM"', 'discretisation = "FEA"')
+    problems = template.check_definition(write_definition(tmp_path / "d", toml=toml))
+    assert len(problems) == 1 and problems[0].startswith("declaration:")
+    assert "FEA" in problems[0]
+
+
+def test_check_names_a_fine_case_that_is_not_a_pilot(tmp_path):
+    toml = MINIMAL_TOML.replace("TOY-pilot-0000", "TOY-pilot-0009")
+    problems = template.check_definition(write_definition(tmp_path / "d", toml=toml))
+    assert len(problems) == 1 and "pilot.fine_cases" in problems[0]
+    assert "TOY-pilot-0009" in problems[0] and "TOY-pilot-0000" in problems[0]
+
+
+def test_check_names_an_accepted_gap_that_is_no_catalogue_row(tmp_path):
+    toml = MINIMAL_TOML.replace("solver_identity_complete", "solver_identity")
+    problems = template.check_definition(write_definition(tmp_path / "d", toml=toml))
+    assert len(problems) == 1 and "pilot.accepted_gaps" in problems[0]
+    assert "'solver_identity'" in problems[0]
+
+
 def test_the_check_command_exits_one_on_problems_and_zero_when_clean(tmp_path, capsys):
     template.scaffold(tmp_path / "ok", "ok")
     assert template.main_check([str(tmp_path / "ok")]) == 0

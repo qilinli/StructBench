@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     records = collect_sweep(args.sweep, splits=args.split)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(dump_run_evidence(records), encoding="utf-8")
+    args.out.write_bytes(dump_run_evidence(records).encode("utf-8"))  # LF everywhere
     with_ledger = sum(r.ledger is not None for r in records.values())
     print(f"runs={len(records)} with_ledger={with_ledger} -> {args.out}")
     return 0
