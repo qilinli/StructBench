@@ -3,7 +3,9 @@
 *How an Abaqus job supplies the run evidence E1–E10 of ADR-0066, so that the
 reference-data verification instrument can measure it. Every generated Abaqus
 input in this repository carries this block. A contributed dataset is measured
-against the same requirement; this file tells a contributor what to switch on.*
+against the same requirement; this file tells a contributor what to switch on.
+The requirement itself, stated for any solver, is
+[`solver-requirements.md`](solver-requirements.md).*
 
 **Status: partial, and deliberately so.** Its sibling
 [`lsdyna-conformance.md`](lsdyna-conformance.md) cites
