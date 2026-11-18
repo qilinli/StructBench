@@ -1,6 +1,6 @@
 # 0079 — How a further solver is admitted to data generation
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-11-18)
 **Type**: Ephemeral
 **Date**: 2026-11-18
 **Amends**: 0068 (clause 1's admission of one solver becomes a rule for any; clause 2 stands), 0071 (`check`'s solver list gains a second state)
@@ -30,7 +30,7 @@ ADR-0068 admitted Abaqus as the second solver by name and answered the abstracti
 4. **What experimental withholds.** A dataset generated with an experimental solver is not offered as a benchmark's reference data until its solver is admitted. Its cases can still be converted, measured and judged.
 5. **Where the code lives** is ADR-0068's pattern, unchanged: readers in `core/io/`, the deck writer and any exporter in `structbench.datagen.<solver>`. The package imports no solver. A result database that only the solver's own interpreter opens is read through a neutral intermediate (ADR-0068 clauses 5 and 6). A library a reader needs is a dependency, with its own record.
 6. **No abstraction.** ADR-0068 clause 2 stands with three solvers: the neutral record types are the interface, and a further reader is one more entry in the lookup.
-7. **Not decided here: how the stages after `check` choose a solver's code.** They are Abaqus's today. Until that is decided, each of them refuses a definition whose solver is not Abaqus, naming the solver, with exit code 2. An experimental solver's conformance run is therefore launched by the contributor outside the stages and converted by its reader.
+7. **Not decided here: how the stages after `check` choose a solver's code.** They are Abaqus's today. Until that is decided, each stage that reads a definition (`preflight`, `generate`, `converge`, `archive`) refuses one whose solver is not Abaqus, naming the solver, with exit code 2; the others act only on a sweep `preflight` or `generate` wrote. An experimental solver's conformance run is therefore launched by the contributor outside the stages and converted by its reader.
 
 ## Alternatives considered
 
@@ -43,6 +43,6 @@ ADR-0068 admitted Abaqus as the second solver by name and answered the abstracti
 ## Consequences
 
 - A contributor can open a pull request for a solver without asking first; `CONTRIBUTING.md` gains a section stating clauses 2 and 3.
-- To build on acceptance: the experimental tuple, the notice in `check` and the card, the refusal in the later stages. No solver is added by this record.
+- To build on acceptance: the experimental tuple, the notice in `check` and the card, the refusal in the stages that read a definition. No solver is added by this record.
 - The maintainer holds private conformance files for each admitted solver, as the raw archives are held (ADR-0040).
 - LS-DYNA has readers and a conformance page but no deck writer; it is not a data-generation solver and this record does not make it one.

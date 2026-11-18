@@ -28,7 +28,14 @@ from structbench.datagen import sampling
 
 DEFINITION_FILE = "dataset.toml"
 PROBLEM_FILE = "problem.py"
+#: The admitted solvers (ADR-0068, ADR-0079).
 SOLVERS = ("abaqus",)
+#: Solvers whose code is merged and whose admission is pending (ADR-0079): a
+#: definition may name one, and its data is not a benchmark's reference data.
+EXPERIMENTAL_SOLVERS: tuple[str, ...] = ()
+#: The solvers the stages after ``check`` have code for. How those stages come
+#: to choose a solver's code is not decided (ADR-0079 clause 7).
+STAGE_SOLVERS = ("abaqus",)
 #: The volume weights the convergence engine restricts element fields with.
 SYMMETRIES = ("axisymmetric", "planar")
 REQUIRED_HOOKS = ("input_deck", "mesh", "qoi")
@@ -387,8 +394,10 @@ def load_definition(dataset_dir: Path) -> Definition:
     except ValueError as exc:
         raise DefinitionError(f"dataset.units: {exc}") from exc
     solver = _field(dataset, "dataset", "solver", str)
-    if solver not in SOLVERS:
-        raise DefinitionError(f"dataset.solver: {solver!r} is not one of {SOLVERS}")
+    if solver not in SOLVERS + EXPERIMENTAL_SOLVERS:
+        raise DefinitionError(
+            f"dataset.solver: {solver!r} is not one of {SOLVERS + EXPERIMENTAL_SOLVERS}"
+        )
     _table(raw, "declaration")  # its contents are validated by declared_from_toml
 
     fixed = dict(_table(raw, "fixed")) if "fixed" in raw else {}
@@ -555,3 +564,29 @@ def siblings_sha256(dataset_dir: Path, problem: ModuleType) -> str:
         digest.update((dataset_dir / relative).read_bytes().replace(b"\r\n", b"\n"))
         digest.update(b"\n")
     return digest.hexdigest()
+
+
+def experimental_notice(solver: str) -> str | None:
+    """One line saying a solver is experimental, or None when it is admitted."""
+    if solver not in EXPERIMENTAL_SOLVERS:
+        return None
+    return (
+        f"solver {solver!r} is experimental (ADR-0079): data generated with it "
+        "is not a benchmark's reference data until the solver is admitted"
+    )
+
+
+def require_stage_solver(solver: str, stage: str) -> None:
+    """Refuse a definition whose solver the stages after ``check`` cannot run.
+
+    Raises
+    ------
+    DefinitionError
+        When ``stage`` has no code for ``solver``.
+    """
+    if solver not in STAGE_SOLVERS:
+        raise DefinitionError(
+            f"dataset.solver: {stage} has no code for {solver!r} (it runs "
+            f"{', '.join(STAGE_SOLVERS)}); a run of another solver is launched "
+            "outside the stages and converted by its reader (ADR-0079)"
+        )

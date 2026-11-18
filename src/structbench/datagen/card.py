@@ -47,6 +47,7 @@ from structbench.datagen import generate
 from structbench.datagen.definition import (
     Definition,
     DefinitionError,
+    experimental_notice,
     load_definition,
     load_problem,
     problem_sha256,
@@ -868,6 +869,9 @@ def part_provenance(r: Records) -> str:
         ],
     )
     out.append("")
+    notice = experimental_notice(r.defn.solver)
+    if notice:
+        out += [f"**The {notice}.**", ""]
     if not r.provenance:
         out.append(_absent("generated case", r, "generate"))
     else:

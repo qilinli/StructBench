@@ -182,6 +182,38 @@ moves `main`.
 `dev` installs Ruff, mypy and pytest; `datagen` installs scipy, which
 `structbench-datagen` and its tests need (without it those tests skip).
 
+### Contributing a solver
+
+A solver enters data generation in two steps (ADR-0079), and neither needs you
+to ask first.
+
+**Experimental.** One pull request, which the suite tests with no solver
+installed:
+
+- the reader pair, `src/structbench/core/io/<solver>.py` and
+  `<solver>_run.py`, producing the neutral records (`Case`, `InputFacts`,
+  `RunEvidence`) and registered in the input-reader lookup. The three reader
+  rules are in `docs/datagen/solver-requirements.md`;
+- tests on files the solver wrote, with licence text removed (below);
+- a draft conformance page, `docs/datagen/<solver>-conformance.md`, on the
+  template at the end of `solver-requirements.md`, with what is not
+  established listed as open;
+- an example definition under `src/structbench/datagen/examples/` that passes
+  `structbench-datagen check`, and the solver's name in
+  `datagen.definition.EXPERIMENTAL_SOLVERS`;
+- a deck writer or an exporter, if the solver has one, in
+  `structbench.datagen.<solver>`. The package imports no solver.
+
+`check` then accepts a definition that names the solver and says it is
+experimental; a dataset generated with it is not offered as a benchmark's
+reference data. The stages after `check` run Abaqus only for now, so the runs
+are launched by you and converted by your reader.
+
+**Admitted.** You give the maintainer, privately, the files of one conformance
+run of the example definition. The maintainer produces its verification record
+from those files and ratifies the conformance page; the solver's name then
+moves to `SOLVERS`. The maintainer does not need the solver.
+
 ### Before you open a pull request
 
     ruff format .
