@@ -1820,10 +1820,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--timeout", type=float)
     parser.add_argument(
-        "--solver-args", nargs="*", default=None, help=argparse.SUPPRESS
+        "--solver-args",
+        nargs="*",
+        default=None,
+        help="arguments placed after the executable on the solver's command "
+        "line, so that a stand-in script can take the solver's place (the "
+        "tests, and the guide's walkthrough); its output is synthetic",
     )
     parser.add_argument(
-        "--exporter-args", nargs="*", default=None, help=argparse.SUPPRESS
+        "--exporter-args",
+        nargs="*",
+        default=None,
+        help="arguments that replace 'python <exporter>' on the exporter's "
+        "command line, for the same stand-in",
     )
     parser.add_argument(
         "--rejudge",

@@ -65,7 +65,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cases", nargs="+")
     parser.add_argument("--abaqus", default="abaqus")
     parser.add_argument(
-        "--exporter-args", nargs="*", default=None, help=argparse.SUPPRESS
+        "--exporter-args",
+        nargs="*",
+        default=None,
+        help="arguments that replace 'python <exporter>' on the exporter's "
+        "command line, so that a stand-in script can take its place (the "
+        "tests, and the guide's walkthrough)",
     )
     args = parser.parse_args(argv)
     return export_cases(

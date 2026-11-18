@@ -77,9 +77,34 @@ def test_no_living_document_or_code_still_says_datagen_validate():
     assert hits == [], hits
 
 
-def test_the_guide_stub_exists():
+def test_the_guide_covers_every_stage_and_its_links_resolve():
+    import pytest
+
+    pytest.importorskip("scipy")
+    from structbench.datagen import cli
+
     text = (ROOT / "docs" / "DATA_GENERATION.md").read_text(encoding="utf-8")
     assert "structbench-datagen" in text and "dataset.toml" in text
+    missing = [s for s in cli.STAGES if f"structbench-datagen {s}" not in text]
+    assert missing == [], missing
+    # every in-page link names a heading (GitHub's anchor rule, near enough)
+    anchors = {
+        re.sub(r"[^a-z0-9 -]", "", h.lower()).strip().replace(" ", "-")
+        for h in re.findall(r"^#{1,4} (.+)$", text, flags=re.M)
+    }
+    broken = [a for a in re.findall(r"\]\(#([^)]+)\)", text) if a not in anchors]
+    assert broken == [], broken
+    # and every file the guide points at exists
+    link = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
+    gone = [
+        t
+        for t in link.findall(text)
+        if "://" not in t and not (ROOT / "docs" / t).exists()
+    ]
+    assert gone == [], gone
+    # the walkthrough's stand-in is where the guide says it is
+    assert (ROOT / "tests" / "datagen" / "fake_solver.py").is_file()
+    assert "tests/datagen/fake_solver.py" in text
 
 
 def test_architecture_names_the_convergence_engine_and_the_adapter_names_its_exporter():

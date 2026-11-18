@@ -63,6 +63,18 @@ def test_completed_runs_record_and_skip_on_rerun(tmp_path, abaqus):
     assert run_jobs.run_sweep(sweep, abaqus, echo=lambda s: None) == []
 
 
+def test_the_command_takes_a_stand_in_and_the_run_record_names_it(tmp_path, abaqus):
+    """The guide's walkthrough: --solver-args puts a script in the solver's
+    place, and the run record's command says so."""
+    sweep = tmp_path / "sweep"
+    _case(sweep, "C-ok-0")
+    exe, script = abaqus
+    args = ["--sweep", str(sweep), "--abaqus", exe, "--solver-args", script]
+    assert run_jobs.main([*args, "--workers", "1"]) == 0
+    record = json.loads((sweep / "C-ok-0/run.json").read_text())
+    assert record["status"] == "completed" and script in record["command"]
+
+
 def test_rejected_job_is_error_and_retried_only_on_request(tmp_path, abaqus):
     sweep = tmp_path / "sweep"
     _case(sweep, "C-reject-0")

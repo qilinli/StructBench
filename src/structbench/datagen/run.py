@@ -3,7 +3,7 @@
     structbench-datagen run --sweep <work-root>/<name>
         [--split NAME ...] [--cases ID ...] [--limit N] [--workers 6]
         [--timeout S] [--retry-failed] [--abaqus EXE] [--dry-run]
-        [--min-free-gb GB]
+        [--min-free-gb GB] [--solver-args ARG ...]
 
 Solver-generic: it knows only the case-folder layout the generator writes. A
 case is done once its ``run.json`` exists; nothing is deleted -- an interrupted
@@ -410,6 +410,15 @@ def main(argv: list[str] | None = None) -> int:
         help="launch nothing more below this free space (default: the preflight "
         "stamp's margin, when the sweep has one)",
     )
+    parser.add_argument(
+        "--solver-args",
+        nargs="*",
+        default=None,
+        help="arguments placed after the executable on the solver's command "
+        "line, so that a stand-in script can take the solver's place "
+        "(--abaqus python --solver-args <script>): the tests, and the guide's "
+        "walkthrough without a licence. Its output is synthetic.",
+    )
     args = parser.parse_args(argv)
     exe = shutil.which(args.abaqus)
     if exe is None:
@@ -423,7 +432,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         results = run_sweep(
             args.sweep,
-            [exe],
+            [exe, *(args.solver_args or [])],
             cases=args.cases,
             splits=args.split,
             limit=args.limit,
