@@ -136,6 +136,13 @@ class GradientFamily:
         ``(trajectory, value_from, value_to, seed_frames) -> trajectory``
         with the seed frames rebuilt at ``value_to``. ``None`` means the
         family has no construction and the surrogate side cannot run.
+    parameter_is_loading_scalar : bool
+        Whether the parameter is the benchmark's scalar loading parameter
+        (``BenchmarkSpec.loading_scalar``). When it is, a model that takes
+        that scalar as an input is given the perturbed value with the
+        perturbed seed: a model conditioned on the scalar would otherwise be
+        queried at the case's nominal value on both sides of the difference,
+        and its sensitivity would read zero whatever it has learned.
     """
 
     parameter: str
@@ -144,6 +151,7 @@ class GradientFamily:
     noise: Mapping[str, QoiNoise]
     deltas: tuple[float, float] = (1.0, 2.0)
     perturb_seed: SeedConstructor | None = None
+    parameter_is_loading_scalar: bool = False
 
     def __post_init__(self) -> None:
         if len(self.deltas) != 2 or self.deltas[0] <= 0 or self.deltas[1] <= 0:

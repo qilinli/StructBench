@@ -583,6 +583,7 @@ GRADIENT_FAMILY = GradientFamily(
     },
     deltas=(1.0, 2.0),
     perturb_seed=_free_flight_at,
+    parameter_is_loading_scalar=True,
 )
 
 

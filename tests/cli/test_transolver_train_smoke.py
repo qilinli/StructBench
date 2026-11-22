@@ -750,3 +750,56 @@ def test_a_run_is_evaluated_at_its_own_time_reference(
     record["run"]["time_ref_frames"] = 16
     config.write_text(json.dumps(record), encoding="utf-8")
     assert score() != recorded
+
+
+def test_gradient_family_perturbs_the_loading_scalar_of_a_conditioned_model(
+    tmp_path, monkeypatch
+):
+    """ADR-0076 on a model that takes the swept parameter as its scalar
+    loading input: the perturbed value reaches the model with the perturbed
+    seed. A time-conditioned model reads no seed, so without it both sides
+    of the difference are the same query and every sensitivity is exactly
+    zero; with it they differ.
+    """
+    import structbench.cli.train as cli_train
+    from structbench.eval.sensitivity import GradientFamily, QoiNoise
+
+    spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
+        tmp_path, time_conditioned=True, impact_velocity_feature=True
+    )
+    cases = ids["train"] + ids["val"]
+    value_of = {cid: 100.0 + i for i, cid in enumerate(cases)}  # a uniform line
+
+    def family(as_loading_scalar: bool) -> GradientFamily:
+        return GradientFamily(
+            parameter="load",
+            parameter_of=value_of.__getitem__,
+            line_of=lambda cid: "L",
+            noise={name: QoiNoise() for name in spec.qois},
+            perturb_seed=lambda traj, v_from, v_to, seed_frames: traj,
+            parameter_is_loading_scalar=as_loading_scalar,
+        )
+
+    def sensitivities(as_loading_scalar: bool):
+        gspec = replace(
+            spec,
+            loading_scalar=value_of.__getitem__,
+            gradient_family=family(as_loading_scalar),
+        )
+        monkeypatch.setattr(cli_train, "get_benchmark", lambda name: gspec)
+        report = cli_train.evaluate_gradient(
+            data_root, out, "cpu", case_ids=cases, save_artifacts=False
+        )
+        assert report["loading_scalar_perturbed"] is as_loading_scalar
+        model = report["lines"]["L"]["model"]
+        return np.array([model[name] for name in spec.qois], dtype=float)
+
+    nominal = sensitivities(False)
+    perturbed = sensitivities(True)
+    assert np.all(nominal == 0.0)
+    assert np.all(np.isfinite(perturbed)) and np.any(perturbed != 0.0)
+
+    # a family may declare the parameter as the loading scalar only on a
+    # benchmark that has one
+    with pytest.raises(ValueError, match="has no loading_scalar"):
+        replace(spec, loading_scalar=None, gradient_family=family(True))

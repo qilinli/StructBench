@@ -4595,7 +4595,12 @@ def _rebuild_run_simulator(
 
 
 def _predict_case(
-    run: _RunSimulator, trajectory: CaseTrajectory, case_id: str, device: str
+    run: _RunSimulator,
+    trajectory: CaseTrajectory,
+    case_id: str,
+    device: str,
+    *,
+    loading_value: float | None = None,
 ) -> RolloutResult:
     """The run's canonical prediction of one case under the benchmark's
     protocol: the self-fed rollout, or the time-conditioned query, or the
@@ -4607,6 +4612,8 @@ def _predict_case(
     gradient task family (ADR-0076). ``trajectory`` is the case as the model
     sees it (mesh-transformed where the family needs it); the stored frames
     past the seed are not scored here, so a perturbed seed is legitimate.
+    ``loading_value`` replaces the case's scalar loading parameter for a
+    model that takes one (``None``: the case's own value).
     """
     spec, model_cfg, simulator = run.spec, run.model_cfg, run.simulator
     mesh_sim = simulator if isinstance(simulator, CaseBoundSimulator) else None
@@ -4633,7 +4640,11 @@ def _predict_case(
             torch.from_numpy(trajectory.particle_type).to(device),
             torch.from_numpy(trajectory.positions).to(device),
             loading_scalar=(
-                spec.loading_scalar(case_id)
+                (
+                    spec.loading_scalar(case_id)
+                    if loading_value is None
+                    else float(loading_value)
+                )
                 if getattr(model_cfg, "impact_velocity_feature", False)
                 and spec.loading_scalar
                 else None
@@ -4986,7 +4997,9 @@ def evaluate_gradient(
 
     For every case on the benchmark's sweep (``case_ids`` narrows it, for a
     smoke or a line), the model is rolled out from seeds the family
-    constructs at ``v ± δ`` for both declared deltas, its quantities of
+    constructs at ``v ± δ`` for both declared deltas (a model that takes the
+    parameter as its scalar loading input is given ``v ± δ`` there too, when
+    the family declares the parameter as that scalar), its quantities of
     interest are differenced (:func:`~structbench.eval.sensitivity.model_sensitivity`),
     and the disagreement of the two deltas is its floor. The reference
     sensitivities are recomputed here from the stored cases with the same
@@ -4998,7 +5011,8 @@ def evaluate_gradient(
     Returns
     -------
     dict
-        ``{"benchmark", "parameter", "deltas", "checkpoint", "lines": {line:
+        ``{"benchmark", "parameter", "deltas", "checkpoint",
+        "loading_scalar_perturbed", "lines": {line:
         {"values", "cases", "sets", "reference": {qoi: [...]}, "model": {qoi:
         [...]}, "floor": {qoi: [...]}}}, "metrics": {...}, "metrics_all":
         {...}}``; written to ``out_dir/metrics-gradient.json`` when
@@ -5058,7 +5072,15 @@ def evaluate_gradient(
                 )
                 if mesh_sim and spec.mesh_transform is not None:
                     seed = spec.mesh_transform(seed)
-                result = _predict_case(run, seed, case_id, device)
+                result = _predict_case(
+                    run,
+                    seed,
+                    case_id,
+                    device,
+                    loading_value=(
+                        value + signed if family.parameter_is_loading_scalar else None
+                    ),
+                )
                 q_at[signed] = {
                     name: float(result.qoi_pred[name]) for name in qoi_names
                 }
@@ -5165,6 +5187,11 @@ def evaluate_gradient(
         "checkpoint": run.ckpt_path.name,
         "checkpoint_path": str(run.ckpt_path),
         "scored_sets": sorted(scored_sets),
+        "loading_scalar_perturbed": bool(
+            family.parameter_is_loading_scalar
+            and getattr(model_cfg, "impact_velocity_feature", False)
+            and spec.loading_scalar is not None
+        ),
         "lines": lines_out,
         "metrics": _metrics(""),
         "metrics_all": _metrics("_all"),
