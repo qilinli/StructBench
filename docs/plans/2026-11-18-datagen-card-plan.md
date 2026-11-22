@@ -122,7 +122,7 @@ examples' READMEs for the maintainer to edit.
 
 ## 4. Tests
 
-`tests/datagen/test_card.py`, no solver: each renderer on a hand-built
+`tests/datagen/test_datagen_card.py`, no solver: each renderer on a hand-built
 record; an absent record renders its absence; author text outside the
 markers survives two renders byte for byte; an old-template card is refused;
 `--check` detects drift; no absolute path or host name in a render of the
