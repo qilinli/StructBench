@@ -147,7 +147,9 @@ Where a benchmark declares a scored span (ADR-0078), training draws from that
 span by default (`[train] training_span = "scored"`; `"full"` uses the whole
 stored record) and a rollout stops at the span's end; add `--tail` to
 `valid`/`rollout` to roll on to the last stored frame and report the frames
-beyond the span under `unscored_tail`.
+beyond the span under `unscored_tail`. Add `--deterministic` to any
+evaluation mode to run it with torch's deterministic kernels; the report
+records it.
 
 Configs are grouped per benchmark (ADR-0032): swap
 `configs/taylor_impact_2d/cgn.toml` for `configs/wave_propagation_1d/cgn.toml`
@@ -330,8 +332,9 @@ a release's criteria become its checklist here when it is picked up.*
       not found, so that row is marked unverified.
 - [ ] GPU rollouts of the graph-network families (CGN, MGN) are not bitwise
       repeatable (CUDA scatter-add): two evaluations of one checkpoint differ
-      by up to about 1.5% in rollout relative L2. Deterministic kernels in
-      the evaluation path are untested.
+      by up to about 1.5% in rollout relative L2. Since 2026-11-22 an
+      evaluation takes `--deterministic` (torch's deterministic kernels);
+      whether two GPU evaluations then agree is not measured yet.
 - [ ] Two rows carry no per-case values (2026-11-12). The notch-impact
       CGN row: its run is not in the local archive with per-case relative
       L2 (the Taylor CGN row was filled the same day from a CPU
