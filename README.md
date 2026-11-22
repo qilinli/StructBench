@@ -195,7 +195,7 @@ assets/            # figures embedded in the docs + landing pages
      docs/decisions/, not here. Platform work only: the maintainer's research
      plans stay outside the repository (ADR-0065). -->
 
-*Last revised: 2026-11-11.*
+*Last revised: 2026-11-22.*
 
 ### Shipped
 
@@ -255,10 +255,28 @@ a release's criteria become its checklist here when it is picked up.*
   - [ ] The kinetic-energy closure's tolerance and the remaining
         sampling-clock rows; E6, E7 and the remaining E9 rows, which wait on
         a run that writes their files.
-- **Data generation platform** (ADR-0068/0069/0071, Accepted) —
+- **Data generation platform** (ADR-0068/0069/0071/0079, Accepted) —
   `structbench-datagen`: the Abaqus pipeline as a package capability, with a
   preflight gate before production. Guide:
-  [`docs/DATA_GENERATION.md`](docs/DATA_GENERATION.md).
+  [`docs/DATA_GENERATION.md`](docs/DATA_GENERATION.md). Every stage
+  ADR-0071 names is built; nothing is open here.
+  - [x] ~~Combined hardening from the deck to the canonical file: an
+        initial backstress, the backstress as a state channel, a
+        combined-hardening law per case and the yield property read about
+        the backstress, with a cyclic one-element example.~~ (2026-11-15)
+  - [x] ~~A rigid body's point mass, single-surface contact and friction
+        in the deck, with a drop-mass example; an export with a point mass
+        converts, and the mass is read from the case's stored input.~~
+        (2026-11-16)
+  - [x] ~~The preflight's space step judges a three-level ladder whose two
+        ratios differ, and field errors are read between levels that nest
+        by index whatever the quads' shape; a dataset may accept an
+        increment change with a stated reason.~~ (2026-11-17)
+  - [x] ~~How a further solver is admitted (ADR-0079): it enters as
+        experimental and is admitted on a conformance run the maintainer
+        reads; what the instrument requires of any solver is
+        [`docs/datagen/solver-requirements.md`](docs/datagen/solver-requirements.md).~~
+        (2026-11-18)
   - [x] ~~The card generator: `structbench-datagen card` renders the
         generated parts of `DATA_CARD.md` from records, with a survivor log;
         the three examples' cards are its renders (the energy-gain indicator
@@ -298,8 +316,10 @@ a release's criteria become its checklist here when it is picked up.*
 <!-- Completed inbox items are removed at each release; their record lives in
      git history and the ADRs they cite. -->
 
-- [ ] ADR-0075, the two-site state — owed: the AR scheme and the
-      pushforward chains under the two-site decoder; the final form of the
+- [ ] ADR-0075, the two-site state — owed: the AR scheme under the
+      two-site decoder, and a chain deeper than two hops (the two-hop chain
+      is built for `corner_mean`, `admissible_coords` and `projected_trial`,
+      ADR-0075 note 2026-11-11; `return_map` has none); the final form of the
       admissible arm (`admissible_coords` or `projected_trial`, chosen by
       their results; the `return_map` decoder does not train on a metal, ADR-0075
       note 2026-11-08); the first restart declaration, with the first
@@ -312,10 +332,6 @@ a release's criteria become its checklist here when it is picked up.*
       repeatable (CUDA scatter-add): two evaluations of one checkpoint differ
       by up to about 1.5% in rollout relative L2. Deterministic kernels in
       the evaluation path are untested.
-- [x] ~~The gradient family has one registered model (Taylor CGN); a second
-      family's rows would show whether it separates models (2026-11-11: it
-      does — the Taylor autoregressive Transolver reads relative L2 0.38 and
-      0.47 with every sign right, against CGN's 2.5 and 2.4).~~
 - [ ] Two rows carry no per-case values (2026-11-12). The notch-impact
       CGN row: its run is not in the local archive with per-case relative
       L2 (the Taylor CGN row was filled the same day from a CPU
@@ -402,7 +418,8 @@ a release's criteria become its checklist here when it is picked up.*
   convergence check · cross-benchmark utilities
 - Data & scale: second aux target (plastic
   strain) · cell-list `radius_graph` when any
-  ≥10⁶-node dataset lands · other solvers (Kratos, OpenSees, OpenRadioss) ·
+  ≥10⁶-node dataset lands · other solvers (Kratos, OpenSees, OpenRadioss; each admitted as ADR-0079
+  says) ·
   SHM expansion · deployment tools · packaging extras · PhysicsNeMo interop
 
 Rationale for every item lives in [`docs/decisions/`](docs/decisions/).
