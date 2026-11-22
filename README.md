@@ -197,7 +197,7 @@ assets/            # figures embedded in the docs + landing pages
      docs/decisions/, not here. Platform work only: the maintainer's research
      plans stay outside the repository (ADR-0065). -->
 
-*Last revised: 2026-11-22.*
+*Last revised: 2026-11-23.*
 
 ### Shipped
 
@@ -361,10 +361,14 @@ a release's criteria become its checklist here when it is picked up.*
       the model is then given the perturbed value with the perturbed seed
       (Taylor declares it). Owed: the measurement on the registered
       time-conditioned and flow-map checkpoints, and their rows.
-- [ ] Time-conditioned evaluation takes its time reference from each case's
-      own length and training from the shortest training trajectory; they
-      differ on trajectories of unequal length unless the run records its
-      reference.
+- [x] ~~Time-conditioned evaluation took its time reference from each
+      case's own length and training from the shortest training trajectory,
+      which differ on trajectories of unequal length. Since ADR-0078 a run
+      records its reference and evaluation reads it back. A record from
+      before that is evaluated by the old rule, and no registered row is
+      affected: the nine time-conditioned rows sit on the four shipped
+      benchmarks, each of which declares one frame count for every case
+      (notch-impact also a fixed scored bound).~~ (2026-11-23)
 - [ ] Registry upkeep: `run_commit` of the Taylor Transolver and GeoFLARE
       autoregressive rows (registered `7ef3bf2`, run records `6d65193`); the
       five-decimal table format on property values of very different
