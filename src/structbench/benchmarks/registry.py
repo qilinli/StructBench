@@ -405,6 +405,14 @@ class BenchmarkSpec:
                     f"gradient_family names quantities {unknown} that are not "
                     f"among this benchmark's qois {sorted(self.qois)}"
                 )
+            if (
+                self.gradient_family.parameter_is_loading_scalar
+                and self.loading_scalar is None
+            ):
+                raise ValueError(
+                    "gradient_family declares its parameter as the loading "
+                    "scalar, and this benchmark has no loading_scalar"
+                )
         # ADR-0064: a malformed hardening curve must fail at spec
         # construction, not inside torch.bucketize (which returns wrong
         # intervals SILENTLY on unsorted knots — review finding).

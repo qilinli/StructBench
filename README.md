@@ -349,14 +349,15 @@ a release's criteria become its checklist here when it is picked up.*
       by the rollout. The repeatability statement names four figures for
       this family; whether it joins the graph-network families at 2% on
       particle benchmarks is the maintainer's.
-- [ ] The gradient family does not reach a time-conditioned model
-      (2026-11-11): the protocol perturbs the seed frames, and a
-      time-conditioned model takes its loading scalar from the case's nominal
-      value, so its sensitivity reads exactly zero (relative L2 1, sign
-      agreement 0) whatever the model has learned. Measured on the registered
-      Taylor time-conditioned Transolver; the row is not registered. The
-      protocol has to perturb the loading scalar with the seed (ADR-0076
-      clause 2).
+- [ ] The gradient family's rows for models that take the loading scalar.
+      The protocol perturbed only the seed frames, so a time-conditioned
+      model, which reads its loading scalar and no seed, had a sensitivity of
+      exactly zero whatever it had learned (measured 2026-11-11 on the
+      registered Taylor time-conditioned Transolver). Since 2026-11-22 a
+      family may declare its parameter as the benchmark's loading scalar, and
+      the model is then given the perturbed value with the perturbed seed
+      (Taylor declares it). Owed: the measurement on the registered
+      time-conditioned and flow-map checkpoints, and their rows.
 - [ ] Time-conditioned evaluation takes its time reference from each case's
       own length and training from the shortest training trajectory; they
       differ on trajectories of unequal length unless the run records its
