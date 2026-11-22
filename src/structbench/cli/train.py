@@ -4956,6 +4956,7 @@ def evaluate_restart(
         "split": split_name,
         "checkpoint": run.ckpt_path.name,
         "checkpoint_path": str(run.ckpt_path),
+        "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
         "input_frames": input_frames,
         "restart_kind": restart_kind,
         "horizons": list(horizons),
@@ -5186,6 +5187,7 @@ def evaluate_gradient(
         "deltas": list(family.deltas),
         "checkpoint": run.ckpt_path.name,
         "checkpoint_path": str(run.ckpt_path),
+        "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
         "scored_sets": sorted(scored_sets),
         "loading_scalar_perturbed": bool(
             family.parameter_is_loading_scalar
@@ -5805,6 +5807,7 @@ def evaluate(
         # Full resolved path so an explicitly scored checkpoint (possibly from
         # outside out_dir, via an absolute --checkpoint) stays traceable.
         "checkpoint_path": str(ckpt_path),
+        "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
         "input_frames": model_cfg.input_frames,
         # Metric definition (ADR-0039): rollout/one-step means and QoIs cover
         # frames [input_frames, scored_frames); null means scored to the end,
@@ -5908,6 +5911,19 @@ def evaluate(
     return metrics
 
 
+def _enable_deterministic_algorithms() -> None:
+    """Ask torch for deterministic kernels for the rest of the process.
+
+    On a GPU the scatter-adds a graph network aggregates with are otherwise
+    not repeatable between two runs. cuBLAS needs its workspace configured
+    before its first call, so the variable is set here when the caller has
+    not set it. An operation with no deterministic kernel then raises a
+    ``RuntimeError`` naming itself instead of running.
+    """
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    torch.use_deterministic_algorithms(True)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Parse arguments and run training, validation, or rollout.
 
@@ -5959,6 +5975,15 @@ def main(argv: list[str] | None = None) -> int:
         "under 'unscored_tail' (ADR-0078). By default a rollout stops at the "
         "bound; the scored numbers are the same either way.",
     )
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="valid/rollout/gradient/restart only: evaluate with torch's "
+        "deterministic kernels, so two evaluations of one checkpoint on one "
+        "machine agree bit for bit where every operation has such a kernel "
+        "(slower on a GPU; an operation without one stops the run and is "
+        "named). The report records it under 'deterministic_algorithms'.",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -5974,6 +5999,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.tail and args.mode not in ("valid", "rollout"):
         print("error: --tail applies to valid/rollout modes only")
         return 2
+    if args.deterministic and args.mode == "train":
+        print("error: --deterministic applies to the evaluation modes only")
+        return 2
+    if args.deterministic:
+        _enable_deterministic_algorithms()
     run_config = load_run_config(args.config) if args.config is not None else None
 
     if args.data_root is None:

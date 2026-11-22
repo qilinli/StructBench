@@ -1004,6 +1004,68 @@ def test_main_valid_mode_passes_absolute_checkpoint_through(tmp_path, monkeypatc
     assert not (out_dir / "metrics-val.json").exists()
 
 
+def test_main_deterministic_flag_is_for_evaluation_and_is_recorded(
+    tmp_path, monkeypatch, capsys
+):
+    """--deterministic turns torch's deterministic kernels on for an
+    evaluation and the report says so; on a CPU the numbers are the same
+    with and without it; training refuses the flag.
+    """
+    import structbench.cli.train as train_mod
+
+    rc = main(
+        [
+            "--mode",
+            "train",
+            "--config",
+            "does-not-matter.toml",
+            "--data-root",
+            str(tmp_path),
+            "--deterministic",
+        ]
+    )
+    assert rc == 2
+    assert "--deterministic" in capsys.readouterr().out
+    assert not torch.are_deterministic_algorithms_enabled()
+
+    data_root = tmp_path / "data"
+    data_root.mkdir()
+    for cid in ("S-1", "S-2"):
+        _write_tiny_case(data_root, cid)
+    out_dir = tmp_path / "run"
+    spec = _local_spec()
+    train(
+        spec,
+        CGNConfig(**SMALL_CGN),
+        TrainConfig(
+            benchmark="seed-test-local",
+            batch_size=2,
+            training_steps=2,
+            val_every=2,
+            seed=1,
+        ),
+        data_root,
+        out_dir,
+        "cpu",
+    )
+    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    monkeypatch.delenv("CUBLAS_WORKSPACE_CONFIG", raising=False)
+    argv = ["--mode", "valid", "--data-root", str(data_root), "--out", str(out_dir)]
+    written = out_dir / "metrics-val.json"
+    assert main(argv) == 0
+    plain = json.loads(written.read_text(encoding="utf-8"))
+    assert plain["deterministic_algorithms"] is False
+    try:
+        assert main([*argv, "--deterministic"]) == 0
+        assert torch.are_deterministic_algorithms_enabled()
+        assert os.environ["CUBLAS_WORKSPACE_CONFIG"] == ":4096:8"
+    finally:
+        torch.use_deterministic_algorithms(False)
+    pinned = json.loads(written.read_text(encoding="utf-8"))
+    assert pinned["deterministic_algorithms"] is True
+    assert pinned["mean"] == plain["mean"]
+
+
 # --- aux target transform + tail weight (strain-channel study, 2026-07-15) ---
 
 
