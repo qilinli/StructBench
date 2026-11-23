@@ -43,3 +43,28 @@ later release is not designed from scratch, and it changes by dated notes.*
   model error means.
 - **v0.8 and v1.0 depend on others,** which is why they are criteria and not
   work items.
+
+## Notes
+
+**2026-11-23 — v0.6 waits on its dataset; the interim ships as v0.5.x.**
+v0.6 closes on the first contract dataset, and that dataset is not released
+yet. Its release date is set outside the repository, so v0.6 has no date and
+is not picked up. The order of the arc and every release's criteria stand
+(rule 1: a release closes by its criteria, not by a schedule).
+
+Until then, work that needs no new dataset ships as patch releases of v0.5,
+each one making v0.5's own claims more complete and adding no criterion of a
+later release:
+
+- the gradient family's rows for the models that take the loading scalar
+  (time-conditioned, flow map), now that the protocol reaches them;
+- the repeatability of a GPU evaluation measured with deterministic kernels,
+  and the landing pages' statement revised by what is found;
+- the registered rows that report no properties or no per-case values.
+
+What also waits with v0.6, because it comes with the first admitted
+dataset: the first blind set and the first external result (ADR-0074), the
+first restart declaration (ADR-0075), and the card field and landing-page
+link of a public validation record (ADR-0072 clause 6). The reference-data
+verification items that need solver runs (the LS-DYNA conformance run, the
+two-grid difference) are independent of it and are v0.7's, as before.

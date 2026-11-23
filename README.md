@@ -241,7 +241,9 @@ assets/            # figures embedded in the docs + landing pages
 *Not picked up yet. The arc from here to v1.0, with each release's closing
 criteria, is
 [`docs/plans/2026-11-11-release-outline-to-v1.md`](docs/plans/2026-11-11-release-outline-to-v1.md);
-a release's criteria become its checklist here when it is picked up.*
+a release's criteria become its checklist here when it is picked up. v0.6
+waits on the release of its dataset, and work that needs no new dataset
+ships as v0.5.x until then (the outline's note of 2026-11-23).*
 
 ### In progress
 
