@@ -107,6 +107,23 @@ A dependency is a long-term commitment, not a convenience. The bar to add one is
 
 ---
 
+## Design
+
+*(Promoted from `CORRECTIONS.md`, 2026-11-23.)*
+
+- **Design for the future, not for the legacy LS-DYNA runs.** The three shipped LS-DYNA sweeps are small, pre-date the repository and are test beds, not design inputs. No module structure, record shape, schema or card field, protocol or check is shaped around what those archives contain or lack, or around who holds their files. When verification needs evidence the legacy data does not carry, the need is stated as a requirement on future data generation and the legacy gap is reported as it is (`not_assessable`, a visible compliance row): no fallback, tier or second definition is added to make legacy data assessable. Specify from requirements, and implement a piece only when a dataset first exercises it (ADR-0010).
+- **An absence is a claim about the data.** In `verification/`, and in any measure that reports what it could not do, a `not_applicable` verdict and the reason on a `not_assessable` both assert something about the data and are checked like any other result. `unsupported` blames the platform; it is wrong whenever the input is what is lacking, and it exempts the data from its own gap.
+
+---
+
+## What the repository holds
+
+*(Promoted from `CORRECTIONS.md`, 2026-11-23.)*
+
+- **Research strategy never enters the public repository.** Hypotheses, pre-registrations, study designs and conference or journal plans are kept out of it, by name as well as by content. `docs/plans/` is for platform implementation plans only; durable strategy lives in the maintainer's private research notes, and dated operational plans and session records in the gitignored `scratch/`.
+
+---
+
 ## Git conventions
 
 - **Branches** never receive direct commits to `main`; work happens on feature branches. Branch names follow `type/short-description` (e.g. `init/foundation`, `feat/hdf5-io`, `fix/connectivity-indexing`).
