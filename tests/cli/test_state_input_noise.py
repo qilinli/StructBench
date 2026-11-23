@@ -2,7 +2,7 @@
 
 import torch
 
-from structbench.cli.train import _state_input_noise
+from structbench.cli.training.common import _state_input_noise
 
 
 def _free(n: int) -> torch.Tensor:

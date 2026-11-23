@@ -13,6 +13,9 @@ from typing import Any
 
 import numpy as np
 import pytest
+from _cli_modules import patch_cli
+
+from structbench.cli.training import common as training_common
 
 
 def _short_bound(case_id: str) -> int:
@@ -58,7 +61,7 @@ def scored_span_check(tmp_path, monkeypatch):
     import structbench.cli.train as cli_train
 
     calls: list[tuple[Any, ...]] = []
-    original = cli_train._record_training_pool
+    original = training_common._record_training_pool
 
     def spy(out_dir, spec, train_cfg, train_trajs, make_dataset, n_samples, **kw):
         calls.append((list(train_trajs), make_dataset, n_samples, kw.get("time_ref")))
@@ -66,7 +69,7 @@ def scored_span_check(tmp_path, monkeypatch):
             out_dir, spec, train_cfg, train_trajs, make_dataset, n_samples, **kw
         )
 
-    monkeypatch.setattr(cli_train, "_record_training_pool", spy)
+    patch_cli(monkeypatch, "_record_training_pool", spy)
 
     def check(run, *, timed: bool) -> dict[str, Any]:
         scored_dir = tmp_path / "scored"
@@ -107,7 +110,7 @@ def scored_span_check(tmp_path, monkeypatch):
 
         # 3. The evaluator stops at the bound, and its scored numbers do not
         #    change when it rolls on.
-        monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+        patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
         stop = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
         saved = {
             cid: dict(np.load(out / "rollouts" / f"val-{cid}.npz"))

@@ -13,11 +13,13 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
+from _cli_modules import patch_cli
 
 from structbench.benchmarks import ConstitutiveLaw
 from structbench.benchmarks.card import BenchmarkCard
 from structbench.benchmarks.registry import BenchmarkSpec
 from structbench.cli.train import train
+from structbench.cli.training.transolver_fm import _fm_two_site_chain
 from structbench.config import TrainConfig, TransolverConfig
 from structbench.core import (
     Case,
@@ -28,7 +30,8 @@ from structbench.core import (
     Response,
     write_case,
 )
-from structbench.eval import terminal_peak_displacement
+from structbench.eval import flow_map_rollout, terminal_peak_displacement
+from structbench.eval.restart import semigroup_error
 from structbench.models.common.two_site import (
     LAW_DECODERS,
     TWO_SITE_DECODERS,
@@ -207,7 +210,7 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
     assert record["model"]["two_site_decoder"] == decoder
     assert any(p.name.startswith("model-best-") for p in out.glob("model-*.pt"))
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     case = metrics["cases"][ids["val"][0]]
     labels = ("s_rr", "s_zz", "s_tt", "s_rz", "effective_plastic_strain")
@@ -261,7 +264,7 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
     # evaluate and training do) and the true anchor through frame_offset,
     # not the window's length.
     seen: list[tuple[int, int, int]] = []
-    real_fm_rollout = cli_train.flow_map_rollout
+    real_fm_rollout = flow_map_rollout
 
     def _recording(sim, window, input_frames, time_ref, interval, mode, *a, **kw):
         seen.append((time_ref, kw["frame_offset"], interval))
@@ -269,18 +272,18 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
             sim, window, input_frames, time_ref, interval, mode, *a, **kw
         )
 
-    monkeypatch.setattr(cli_train, "flow_map_rollout", _recording)
+    patch_cli(monkeypatch, "flow_map_rollout", _recording)
     # The semigroup error pools the frames AFTER the first re-anchor only:
     # the first T/2 queries of the k = 2 map share the anchor and the Δt of
     # the direct map and are identical by construction (design §6).
     spans: list[int] = []
-    real_semigroup = cli_train.semigroup_error
+    real_semigroup = semigroup_error
 
     def _recording_semigroup(direct, composed, **kw):
         spans.append(np.asarray(direct).shape[0])
         return real_semigroup(direct, composed, **kw)
 
-    monkeypatch.setattr(cli_train, "semigroup_error", _recording_semigroup)
+    patch_cli(monkeypatch, "semigroup_error", _recording_semigroup)
     restart = cli_train.evaluate_restart(
         ids["val"], data_root, out, "cpu", split_name="val"
     )
@@ -341,11 +344,10 @@ def test_by_path_arm_dies_at_its_first_validation_when_not_training(
     """The guard (TrainingDiverged): a benchmark loaded by path whose first
     validation exceeds the domain scale exits there; the same run against a
     registered benchmark (no source) is left to run, as before."""
-    import structbench.cli.train as cli_train
     from structbench.benchmarks.registry import BenchmarkSource
     from structbench.cli.train import TrainingDiverged
 
-    monkeypatch.setattr(cli_train, "flow_map_rollout", _huge_rollout)
+    patch_cli(monkeypatch, "flow_map_rollout", _huge_rollout)
     ids = {"train": [f"train_{i:04d}" for i in range(3)], "val": ["val_0000"]}
     data_root = tmp_path / "data"
     data_root.mkdir()
@@ -412,14 +414,14 @@ def test_two_site_pushforward_train_and_evaluate_smoke(tmp_path, monkeypatch, de
     import structbench.cli.train as cli_train
 
     calls = []
-    chain_step = cli_train._fm_two_site_chain
+    chain_step = _fm_two_site_chain
 
     def spy(*args, **kwargs):
         out = chain_step(*args, **kwargs)
         calls.append((out[0].shape, out[2].shape, kwargs["accumulate"]))
         return out
 
-    monkeypatch.setattr(cli_train, "_fm_two_site_chain", spy)
+    patch_cli(monkeypatch, "_fm_two_site_chain", spy)
     spec, data_root, out, ids = _run(tmp_path, decoder, pushforward=True)
     # Every step ran the chain: three queries per sample, nodal and element.
     assert len(calls) == 20
@@ -430,7 +432,7 @@ def test_two_site_pushforward_train_and_evaluate_smoke(tmp_path, monkeypatch, de
     assert record["model"]["flow_map_pushforward"] is True
     assert record["model"]["two_site_decoder"] == decoder
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     case = metrics["cases"][ids["val"][0]]
     assert np.isfinite(case["rollout_rel_l2_displacement"])
@@ -466,12 +468,11 @@ def test_without_the_knob_no_chain_code_runs(tmp_path, monkeypatch, decoder):
     """With ``flow_map_pushforward`` off a two-site run never reaches the
     chain step or the chain dataset: it trains on (anchor, query) pairs
     through the single-query forward, as before the chain existed."""
-    import structbench.cli.train as cli_train
 
     def forbidden(*args, **kwargs):
         raise AssertionError("chain code ran with flow_map_pushforward off")
 
-    monkeypatch.setattr(cli_train, "_fm_two_site_chain", forbidden)
-    monkeypatch.setattr(cli_train, "FlowMapChainDataset", forbidden)
+    patch_cli(monkeypatch, "_fm_two_site_chain", forbidden)
+    patch_cli(monkeypatch, "FlowMapChainDataset", forbidden)
     _spec_, _root, out, _ids = _run(tmp_path, decoder)
     assert list(out.glob("model-best-*.pt"))

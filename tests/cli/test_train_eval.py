@@ -16,17 +16,19 @@ from dataclasses import asdict, replace
 import numpy as np
 import pytest
 import torch
+from _cli_modules import patch_cli
 
 from structbench.benchmarks import get_benchmark
 from structbench.benchmarks.card import BenchmarkCard
 from structbench.benchmarks.registry import BenchmarkSpec
+from structbench.cli.evaluation.run import (
+    _find_checkpoint,
+    _json_safe,
+    _model_config_from_record,
+)
 from structbench.cli.train import (
     CGNConfig,
     TrainConfig,
-    _find_checkpoint,
-    _json_safe,
-    _lr_at_cosine,
-    _model_config_from_record,
     build_geoflare_simulator,
     build_mgn_simulator,
     build_simulator,
@@ -36,6 +38,10 @@ from structbench.cli.train import (
     main,
     train,
 )
+from structbench.cli.training import common as training_common
+from structbench.cli.training.common import _lr_at_cosine
+from structbench.cli.training.geoflare import _train_geoflare
+from structbench.cli.training.transolver import _train_transolver
 from structbench.config import (
     LR_SCHEDULE_FLOOR,
     GeoFlareConfig,
@@ -205,7 +211,6 @@ def test_evaluate_reports_the_two_nodal_properties(tmp_path):
 
 
 def test_evaluate_reports_state_sufficiency_for_a_declared_pair(tmp_path, monkeypatch):
-    import structbench.cli.train as train_mod
 
     case_ids = ["S-1", "S-2", "S-3"]
     data_root, out_dir = _prepared_run(tmp_path, case_ids)
@@ -218,7 +223,7 @@ def test_evaluate_reports_state_sufficiency_for_a_declared_pair(tmp_path, monkey
         # the run was saved with one boundary feature (_prepared_run)
         boundary_feature_fn=get_benchmark("taylor_impact_2d").boundary_feature_fn,
     )
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = evaluate(["S-2", "S-3"], data_root, out_dir, "cpu", split_name="val")
     a, b = metrics["cases"]["S-2"], metrics["cases"]["S-3"]
     # The same tiny case written twice does not diverge: the property is
@@ -631,9 +636,7 @@ def test_training_validation_equals_the_evaluator(tmp_path, monkeypatch, caplog)
     """
     import logging
 
-    import structbench.cli.train as train_mod
-
-    caplog.set_level(logging.INFO, logger="structbench.cli.train")
+    caplog.set_level(logging.INFO, logger="structbench.cli")
     data_root = tmp_path / "data"
     data_root.mkdir()
     for cid in ("S-1", "S-2", "S-3"):
@@ -664,12 +667,12 @@ def test_training_validation_equals_the_evaluator(tmp_path, monkeypatch, caplog)
     ((val_rel, val_pos),) = [
         (float(r.args[3]), float(r.args[4]))
         for r in caplog.records
-        if r.name == "structbench.cli.train" and "val_rel_l2" in str(r.msg)
+        if r.name.startswith("structbench.cli.") and "val_rel_l2" in str(r.msg)
     ]
     # One validation pass, so the one checkpoint is the one it scored.
     assert [p.name for p in out_dir.glob("model-*.pt")] == ["model-best-000002.pt"]
 
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = evaluate(["S-2", "S-3"], data_root, out_dir, "cpu", split_name="val")
     mean = metrics["mean"]
     assert mean["rollout_rel_l2_displacement"] == pytest.approx(val_rel, rel=1e-6)
@@ -762,10 +765,9 @@ def test_train_frames_cuts_below_the_scored_span(tmp_path, monkeypatch, short_bo
     """``train_frames`` stays an explicit fixed cut (ADR-0078): with a
     per-case bound of 5 to 7 and ``train_frames = 6`` every case keeps
     ``min(bound, 6)`` frames, under ``full`` exactly 6."""
-    import structbench.cli.train as train_mod
 
     seen = {}
-    original = train_mod._record_training_pool
+    original = training_common._record_training_pool
 
     def spy(out_dir, spec, train_cfg, train_trajs, make_dataset, n_samples, **kw):
         seen[train_cfg.training_span] = {tr.case_id: len(tr.time) for tr in train_trajs}
@@ -773,7 +775,7 @@ def test_train_frames_cuts_below_the_scored_span(tmp_path, monkeypatch, short_bo
             out_dir, spec, train_cfg, train_trajs, make_dataset, n_samples, **kw
         )
 
-    monkeypatch.setattr(train_mod, "_record_training_pool", spy)
+    patch_cli(monkeypatch, "_record_training_pool", spy)
     for span in ("scored", "full"):
         directory = tmp_path / span
         directory.mkdir()
@@ -837,9 +839,8 @@ def test_train_writes_periodic_checkpoints_outside_selection_glob(
 ):
     """Periodic ckpt-<step>.pt snapshots land on cadence and never shadow the
     selected model-*.pt checkpoint (ADR-0028, 2026-07-10 note)."""
-    import structbench.cli.train as train_mod
 
-    monkeypatch.setattr(train_mod, "PERIODIC_CKPT_EVERY", 2)
+    patch_cli(monkeypatch, "PERIODIC_CKPT_EVERY", 2)
     data_root = tmp_path / "data"
     data_root.mkdir()
     for cid in ("S-1", "S-2"):
@@ -954,7 +955,6 @@ def test_main_valid_mode_passes_absolute_checkpoint_through(tmp_path, monkeypatc
     Guards the CLI wiring: dropping checkpoint=args.checkpoint from the eval
     branches must fail this test (review 2026-07-10).
     """
-    import structbench.cli.train as train_mod
 
     data_root = tmp_path / "data"
     data_root.mkdir()
@@ -982,7 +982,7 @@ def test_main_valid_mode_passes_absolute_checkpoint_through(tmp_path, monkeypatc
     shutil.copy(selected, snapshot)
     # config.json records the unregistered "seed-test-local" benchmark; route
     # main()'s spec resolution back to the local spec.
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     rc = main(
         [
             "--mode",
@@ -1011,7 +1011,6 @@ def test_main_deterministic_flag_is_for_evaluation_and_is_recorded(
     evaluation and the report says so; on a CPU the numbers are the same
     with and without it; training refuses the flag.
     """
-    import structbench.cli.train as train_mod
 
     rc = main(
         [
@@ -1048,7 +1047,7 @@ def test_main_deterministic_flag_is_for_evaluation_and_is_recorded(
         out_dir,
         "cpu",
     )
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     monkeypatch.delenv("CUBLAS_WORKSPACE_CONFIG", raising=False)
     argv = ["--mode", "valid", "--data-root", str(data_root), "--out", str(out_dir)]
     written = out_dir / "metrics-val.json"
@@ -1446,14 +1445,13 @@ def test_evaluate_mgn_family_needs_no_stats_file(tmp_path, monkeypatch):
     the state_dict, loaded by simulator.load() -- unlike cgn, no separate
     stats file is ever read.
     """
-    import structbench.cli.train as train_mod
 
     spec = _mesh_local_spec("dp-0", n_frames=5)
     data_root, out_dir, case_id = _prepared_mgn_run(
         tmp_path, lambda root: _mesh_case_file(root, "dp-0", n_frames=5), spec
     )
     assert not (out_dir / "normalization_stats.npz").exists()
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
 
     metrics = evaluate([case_id], data_root, out_dir, "cpu", save_artifacts=False)
 
@@ -1474,11 +1472,10 @@ def _sph_case_file(data_root, case_id="C-1"):
 def test_evaluate_mgn_family_rejects_non_mesh_benchmark(tmp_path, monkeypatch):
     """An mgn-family run over an SPH (non-mesh) case raises ValueError,
     naming the benchmark, rather than crashing deep inside bind_case."""
-    import structbench.cli.train as train_mod
 
     spec = _mesh_local_spec("C-1", n_frames=6)  # card allows it; data won't
     data_root, out_dir, case_id = _prepared_mgn_run(tmp_path, _sph_case_file, spec)
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
 
     with pytest.raises(ValueError, match="mesh connectivity"):
         evaluate([case_id], data_root, out_dir, "cpu", save_artifacts=False)
@@ -1615,7 +1612,7 @@ def test_train_transolver_wiring_adamw_cosine_clip(tmp_path, monkeypatch):
         captured_sim["sim"] = sim
         return sim
 
-    monkeypatch.setattr(train_mod, "build_transolver_simulator", _spy_build)
+    patch_cli(monkeypatch, "build_transolver_simulator", _spy_build)
 
     captured_optimizers: list = []
     real_adamw = torch.optim.AdamW
@@ -1637,7 +1634,7 @@ def test_train_transolver_wiring_adamw_cosine_clip(tmp_path, monkeypatch):
     monkeypatch.setattr(torch.nn.utils, "clip_grad_norm_", _spy_clip)
 
     torch.manual_seed(0)
-    ckpt = train_mod._train_transolver(
+    ckpt = _train_transolver(
         spec, cfg, train_cfg, train_trajs, val_trajs, out_dir, "cpu", data_root
     )
 
@@ -1739,14 +1736,13 @@ def test_evaluate_transolver_family_needs_no_stats_file(tmp_path, monkeypatch):
     live in the state_dict, loaded by simulator.load() -- like mgn, no
     separate stats file is ever read.
     """
-    import structbench.cli.train as train_mod
 
     spec = _mesh_local_spec("dp-0", n_frames=5)
     data_root, out_dir, case_id = _prepared_transolver_run(
         tmp_path, lambda root: _mesh_case_file(root, "dp-0", n_frames=5), spec
     )
     assert not (out_dir / "normalization_stats.npz").exists()
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
 
     metrics = evaluate([case_id], data_root, out_dir, "cpu", save_artifacts=False)
 
@@ -1881,14 +1877,13 @@ def test_evaluate_geoflare_family_needs_no_stats_file(tmp_path, monkeypatch):
     live in the state_dict, loaded by simulator.load() -- like mgn/
     transolver, no separate stats file is ever read.
     """
-    import structbench.cli.train as train_mod
 
     spec = _mesh_local_spec("dp-0", n_frames=5)
     data_root, out_dir, case_id = _prepared_geoflare_run(
         tmp_path, lambda root: _mesh_case_file(root, "dp-0", n_frames=5), spec
     )
     assert not (out_dir / "normalization_stats.npz").exists()
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
 
     metrics = evaluate([case_id], data_root, out_dir, "cpu", save_artifacts=False)
 
@@ -2003,7 +1998,7 @@ def test_train_geoflare_wiring_adamw_cosine_clip(
         captured_sim["sim"] = sim
         return sim
 
-    monkeypatch.setattr(train_mod, "build_geoflare_simulator", _spy_build)
+    patch_cli(monkeypatch, "build_geoflare_simulator", _spy_build)
 
     captured_optimizers: list = []
     real_adamw = torch.optim.AdamW
@@ -2025,7 +2020,7 @@ def test_train_geoflare_wiring_adamw_cosine_clip(
     monkeypatch.setattr(torch.nn.utils, "clip_grad_norm_", _spy_clip)
 
     torch.manual_seed(0)
-    ckpt = train_mod._train_geoflare(
+    ckpt = _train_geoflare(
         spec, cfg, train_cfg, train_trajs, val_trajs, out_dir, "cpu", data_root
     )
 
@@ -2067,7 +2062,6 @@ def test_train_geoflare_wiring_adamw_cosine_clip(
 def test_restart_mode_rolls_a_kinematic_scheme_out_from_each_anchor(
     tmp_path, monkeypatch
 ):
-    import structbench.cli.train as train_mod
 
     case_ids = ["S-1", "S-2"]
     data_root, out_dir = _prepared_run(tmp_path, case_ids)
@@ -2078,7 +2072,7 @@ def test_restart_mode_rolls_a_kinematic_scheme_out_from_each_anchor(
         restart_anchors=(2, 3),  # input_frames 3, n_frames 6: anchors in [2, 4)
         restart_horizons=(2,),
     )
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     report = evaluate_restart(["S-2"], data_root, out_dir, "cpu", split_name="val")
     assert report["restart_kind"] == "kinematic"
     assert report["horizons"] == [2] and report["anchors"] == {"S-2": [2, 3]}
@@ -2134,7 +2128,6 @@ def test_evaluate_per_case_keys_are_exactly_the_registry_contract(tmp_path):
 def test_restart_mode_names_the_case_when_the_stored_trajectory_is_short(
     tmp_path, monkeypatch
 ):
-    import structbench.cli.train as train_mod
 
     case_ids = ["S-1", "S-2"]
     data_root, out_dir = _prepared_run(tmp_path, case_ids)  # 6 stored frames
@@ -2146,13 +2139,12 @@ def test_restart_mode_names_the_case_when_the_stored_trajectory_is_short(
         restart_anchors=(5,),
         restart_horizons=(2,),
     )
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     with pytest.raises(ValueError, match="S-2"):
         evaluate_restart(["S-2"], data_root, out_dir, "cpu", split_name="val")
 
 
 def test_restart_report_counts_the_cases_behind_each_mean(tmp_path, monkeypatch):
-    import structbench.cli.train as train_mod
 
     case_ids = ["S-1", "S-2", "S-3"]
     data_root, out_dir = _prepared_run(tmp_path, case_ids)
@@ -2165,7 +2157,7 @@ def test_restart_report_counts_the_cases_behind_each_mean(tmp_path, monkeypatch)
         restart_anchors=lambda cid: (2, 3) if cid == "S-2" else (3,),
         restart_horizons=(2,),
     )
-    monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     report = evaluate_restart(
         ["S-2", "S-3"], data_root, out_dir, "cpu", split_name="val"
     )

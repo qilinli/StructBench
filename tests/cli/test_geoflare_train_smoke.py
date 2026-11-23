@@ -16,6 +16,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 import torch
+from _cli_modules import patch_cli
 
 from structbench.benchmarks.card import BenchmarkCard
 from structbench.benchmarks.registry import BenchmarkSpec
@@ -195,12 +196,12 @@ def test_geoflare_evaluate_smoke(tmp_path, monkeypatch):
     test's own tmp_path), then monkeypatches the registry lookup so
     evaluate() resolves the synthetic spec (precedent:
     tests/cli/test_train_eval.py's unregistered-benchmark monkeypatch,
-    ``monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)``).
+    ``patch_cli(monkeypatch, "get_benchmark", lambda name: spec)``).
     """
     import structbench.cli.train as cli_train
 
     spec, data_root, out, _cfg, _tcfg, ids = _run_geoflare_smoke(tmp_path)
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
 
     assert not (out / "normalization_stats.npz").exists()
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
@@ -253,7 +254,7 @@ def test_training_validation_equals_the_evaluator(
     """
     import structbench.cli.train as cli_train
 
-    caplog.set_level(logging.INFO, logger="structbench.cli.train")
+    caplog.set_level(logging.INFO, logger="structbench.cli")
     spec, data_root, out, _cfg, _tcfg, ids = _run_geoflare_smoke(
         tmp_path,
         time_conditioned=time_conditioned,
@@ -265,11 +266,11 @@ def test_training_validation_equals_the_evaluator(
     ((val_rel, val_pos),) = [
         (float(r.args[2]), float(r.args[3]))
         for r in caplog.records
-        if r.name == "structbench.cli.train" and "val_rel_l2" in str(r.msg)
+        if r.name.startswith("structbench.cli.") and "val_rel_l2" in str(r.msg)
     ]
     assert [p.name for p in out.glob("model-*.pt")] == ["model-best-000025.pt"]
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     mean = metrics["mean"]
     assert mean["rollout_rel_l2_displacement"] == pytest.approx(val_rel, rel=1e-6)

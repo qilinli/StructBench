@@ -25,7 +25,9 @@ from structbench.benchmarks import (  # noqa: E402
     available_benchmarks,
     get_benchmark,
 )
-from structbench.cli.train import _state_constraint_properties  # noqa: E402
+from structbench.cli.evaluation.rollout import (
+    _state_constraint_properties,  # noqa: E402
+)
 from structbench.core.io import write_case  # noqa: E402
 from structbench.core.io.abaqus import (  # noqa: E402
     ABAQUS_NPZ_FORMAT,

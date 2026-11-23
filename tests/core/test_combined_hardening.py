@@ -22,11 +22,9 @@ from structbench.benchmarks import (  # noqa: E402
     CombinedHardeningLaw,
     ConstitutiveLaw,
 )
-from structbench.cli.train import (  # noqa: E402
-    _case_law_rows,
-    _law_tuple,
-    _state_constraint_properties,
-)
+from structbench.cli.evaluation.rollout import _state_constraint_properties
+from structbench.cli.training.common import _case_law_rows
+from structbench.cli.training.transolver_fm import _law_tuple
 from structbench.core.io.abaqus import abaqus_export_to_case  # noqa: E402
 from structbench.core.io.abaqus_run import read_abaqus_input_facts  # noqa: E402
 from structbench.datagen import definition, sampling  # noqa: E402
