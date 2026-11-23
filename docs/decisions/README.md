@@ -22,6 +22,8 @@ The test is: *would a future session, without this record, make a choice the mai
 | a small correction to how the agent works | `docs/CORRECTIONS.md` |
 | a change to a decision already recorded | a dated note on that record |
 
+Before proposing a record, the agent runs both tests out loud and, if the decision fails either, names the home it goes to instead *(promoted from `CORRECTIONS.md`, 2026-11-23)*.
+
 Why the bar is where it is: the log was reviewed in full on 2026-09-29 (ADR-0073). It held 71 records and 86,000 words, most of them accepted unread because they were long, and several contradicted each other or the shipped code. Every record added is a constraint future work must honour and a chance for two constraints to clash; fewer, shorter records are easier to keep true *(maintainer, 2026-10-01)*.
 
 ## Shape
