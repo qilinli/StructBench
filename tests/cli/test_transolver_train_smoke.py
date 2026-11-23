@@ -16,6 +16,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 import torch
+from _cli_modules import patch_cli
 
 from structbench.benchmarks.card import BenchmarkCard
 from structbench.benchmarks.registry import BenchmarkSpec
@@ -205,12 +206,12 @@ def test_transolver_evaluate_smoke(tmp_path, monkeypatch):
     test's own tmp_path), then monkeypatches the registry lookup so
     evaluate() resolves the synthetic spec (precedent:
     tests/cli/test_train_eval.py's unregistered-benchmark monkeypatch,
-    ``monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)``).
+    ``patch_cli(monkeypatch, "get_benchmark", lambda name: spec)``).
     """
     import structbench.cli.train as cli_train
 
     spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(tmp_path)
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
 
     assert not (out / "normalization_stats.npz").exists()
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
@@ -268,7 +269,7 @@ def test_transolver_oneshot_kT_train_and_evaluate_smoke(tmp_path, monkeypatch):
 
     # evaluate() rebuilds the k-head from config.json (no spec re-resolution)
     # and runs the one-shot rollout + teacher-forced one-step.
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     per_case = metrics["cases"][ids["val"][0]]
     assert np.isfinite(per_case["one_step_position_rmse"])
@@ -288,7 +289,7 @@ def test_transolver_pushforward_bundling_train_and_evaluate_smoke(
     """
     import structbench.cli.train as cli_train
 
-    caplog.set_level(logging.WARNING, logger="structbench.cli.train")
+    caplog.set_level(logging.WARNING, logger="structbench.cli")
     spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
         tmp_path, frames_per_call=2
     )
@@ -304,7 +305,7 @@ def test_transolver_pushforward_bundling_train_and_evaluate_smoke(
     ckpts = list(out.glob("model-*.pt"))
     assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     per_case = metrics["cases"][ids["val"][0]]
     assert np.isfinite(per_case["one_step_position_rmse"])
@@ -334,7 +335,7 @@ def test_transolver_time_conditioned_train_and_evaluate_smoke(tmp_path, monkeypa
     ckpts = list(out.glob("model-*.pt"))
     assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     per_case = metrics["cases"][ids["val"][0]]
     # rollout metrics are finite; one_step_* is undefined for TC -> null.
@@ -352,7 +353,7 @@ def test_transolver_time_conditioned_train_and_evaluate_smoke(tmp_path, monkeypa
     # ADR-0075 clause 5 (plan 3b): a time-conditioned run carries nothing
     # between frames, so there is nothing to restart; the mode refuses.
     restart_spec = replace(spec, restart_anchors=(3,), restart_horizons=(2,))
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: restart_spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: restart_spec)
     with pytest.raises(ValueError, match="time-conditioned"):
         cli_train.evaluate_restart(ids["val"], data_root, out, "cpu", split_name="val")
     # QoIs still computed and finite.
@@ -375,7 +376,7 @@ def _logged_validation(caplog) -> list[tuple[float, float]]:
     return [
         (float(r.args[2]), float(r.args[3]))
         for r in caplog.records
-        if r.name == "structbench.cli.train" and "val_rel_l2" in str(r.msg)
+        if r.name.startswith("structbench.cli.") and "val_rel_l2" in str(r.msg)
     ]
 
 
@@ -411,7 +412,7 @@ def test_training_validation_equals_the_evaluator(
     """
     import structbench.cli.train as cli_train
 
-    caplog.set_level(logging.INFO, logger="structbench.cli.train")
+    caplog.set_level(logging.INFO, logger="structbench.cli")
     spec, data_root, out, _cfg, _tcfg, ids = _run_transolver_smoke(
         tmp_path,
         scored_frames=_per_case_bound,
@@ -424,7 +425,7 @@ def test_training_validation_equals_the_evaluator(
     # One validation pass, so the one checkpoint is the one it scored.
     assert [p.name for p in out.glob("model-*.pt")] == ["model-best-000025.pt"]
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     mean = metrics["mean"]
     assert mean["rollout_rel_l2_displacement"] == pytest.approx(val_rel, rel=1e-6)
@@ -436,7 +437,7 @@ def test_training_validation_equals_the_evaluator(
 def test_transolver_pushforward_helper_shapes_and_grad_through_bundle2():
     """The pushforward helper: warmup and seam branches, k-frame shapes, and
     gradient that flows through bundle2 (the second, with-grad forward)."""
-    from structbench.cli.train import _transolver_pushforward
+    from structbench.cli.training.transolver import _transolver_pushforward
     from structbench.models.transolver import TransolverSimulator
 
     torch.manual_seed(0)
@@ -503,7 +504,7 @@ def test_transolver_aux_input_pushforward_train_and_evaluate_smoke(
     ckpts = list(out.glob("model-*.pt"))
     assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     per_case = metrics["cases"][ids["val"][0]]
     assert np.isfinite(per_case["one_step_position_rmse"])
@@ -546,7 +547,7 @@ def test_transolver_impact_velocity_feature_train_and_evaluate_smoke(
     sim.load(sorted(out.glob("model-*.pt"))[-1])
     assert sim._node_normalizer._sum.shape[0] == sim._node_type_size + 3 * 3 + 1
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     per_case = metrics["cases"][ids["val"][0]]
     assert np.isfinite(per_case["one_step_position_rmse"])
@@ -577,7 +578,7 @@ def test_transolver_flow_map_train_and_evaluate_smoke(tmp_path, monkeypatch):
     ckpts = list(out.glob("model-*.pt"))
     assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     per_case = metrics["cases"][ids["val"][0]]
     # TC convention: one-step undefined.
@@ -635,7 +636,7 @@ def test_transolver_flow_map_chain_train_and_evaluate_smoke(tmp_path, monkeypatc
     ckpts = list(out.glob("model-*.pt"))
     assert any(p.name.startswith("model-best-") for p in ckpts), "no val pass ran"
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     per_case = metrics["cases"][ids["val"][0]]
     assert per_case["one_step_position_rmse"] is None
@@ -728,7 +729,7 @@ def test_a_run_is_evaluated_at_its_own_time_reference(
         training_steps=10,
         val_every=10,
     )
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
 
     def score() -> float:
         metrics = cli_train.evaluate(
@@ -786,7 +787,7 @@ def test_gradient_family_perturbs_the_loading_scalar_of_a_conditioned_model(
             loading_scalar=value_of.__getitem__,
             gradient_family=family(as_loading_scalar),
         )
-        monkeypatch.setattr(cli_train, "get_benchmark", lambda name: gspec)
+        patch_cli(monkeypatch, "get_benchmark", lambda name: gspec)
         report = cli_train.evaluate_gradient(
             data_root, out, "cpu", case_ids=cases, save_artifacts=False
         )

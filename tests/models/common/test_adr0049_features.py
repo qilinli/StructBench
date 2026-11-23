@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import torch
 
-from structbench.cli.train import _mesh_family_noise
+from structbench.cli.training.common import _mesh_family_noise
 from structbench.models.geoflare import GeoFlareSimulator
 from structbench.models.mgn import MeshSimulator
 from structbench.models.transolver import TransolverSimulator

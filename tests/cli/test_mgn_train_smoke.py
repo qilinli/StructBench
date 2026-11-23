@@ -15,6 +15,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 import torch
+from _cli_modules import patch_cli
 
 from structbench.benchmarks.card import BenchmarkCard
 from structbench.benchmarks.registry import BenchmarkSpec
@@ -134,9 +135,8 @@ def test_mgn_train_smoke(tmp_path, monkeypatch):
     # PERIODIC_CKPT_EVERY defaults to 10_000 -- far beyond this smoke's
     # 12-step budget, so it's patched down here to make the periodic-ckpt
     # assertion below reachable without slowing the smoke (still 12 steps).
-    import structbench.cli.train as cli_train
 
-    monkeypatch.setattr(cli_train, "PERIODIC_CKPT_EVERY", 5)
+    patch_cli(monkeypatch, "PERIODIC_CKPT_EVERY", 5)
 
     _spec, _data_root, out, _mgn, _tcfg, _ids = _run_mgn_smoke(tmp_path)
 
@@ -167,12 +167,12 @@ def test_mgn_evaluate_smoke(tmp_path, monkeypatch):
     test's own tmp_path), then monkeypatches the registry lookup so
     evaluate() resolves the synthetic spec (precedent:
     tests/cli/test_train_eval.py's unregistered-benchmark monkeypatch,
-    ``monkeypatch.setattr(train_mod, "get_benchmark", lambda name: spec)``).
+    ``patch_cli(monkeypatch, "get_benchmark", lambda name: spec)``).
     """
     import structbench.cli.train as cli_train
 
     spec, data_root, out, _mgn, _tcfg, ids = _run_mgn_smoke(tmp_path)
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
 
     assert not (out / "normalization_stats.npz").exists()
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
@@ -219,7 +219,7 @@ def test_training_validation_equals_the_evaluator(tmp_path, monkeypatch, caplog)
     """
     import structbench.cli.train as cli_train
 
-    caplog.set_level(logging.INFO, logger="structbench.cli.train")
+    caplog.set_level(logging.INFO, logger="structbench.cli")
     spec, data_root, out, _mgn, _tcfg, ids = _run_mgn_smoke(
         tmp_path,
         scored_frames=_per_case_bound,
@@ -230,12 +230,12 @@ def test_training_validation_equals_the_evaluator(tmp_path, monkeypatch, caplog)
     ((val_rel, val_pos),) = [
         (float(r.args[2]), float(r.args[3]))
         for r in caplog.records
-        if r.name == "structbench.cli.train" and "val_rel_l2" in str(r.msg)
+        if r.name.startswith("structbench.cli.") and "val_rel_l2" in str(r.msg)
     ]
     # One validation pass, so the one checkpoint is the one it scored.
     assert [p.name for p in out.glob("model-*.pt")] == ["model-best-000006.pt"]
 
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: spec)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
     metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
     mean = metrics["mean"]
     assert mean["rollout_rel_l2_displacement"] == pytest.approx(val_rel, rel=1e-6)

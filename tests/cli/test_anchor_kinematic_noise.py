@@ -2,7 +2,7 @@
 
 import torch
 
-from structbench.cli.train import _anchor_kinematic_noise
+from structbench.cli.training.transolver_fm import _anchor_kinematic_noise
 
 P, DIM = 5, 2
 

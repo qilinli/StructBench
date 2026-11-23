@@ -7,11 +7,12 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from _cli_modules import patch_cli
 
 import structbench.cli.train as cli_train
-from structbench.cli.train import (
+from structbench.cli.train import TrainingDiverged
+from structbench.cli.training.common import (
     DIVERGENCE_LOSS_CEILING,
-    TrainingDiverged,
     _domain_scale,
     _early_divergence,
 )
@@ -57,15 +58,15 @@ def test_main_exits_3_with_the_one_line_message(monkeypatch, tmp_path, capsys):
     run_config = SimpleNamespace(
         train=SimpleNamespace(benchmark="x"), model=None, family="transolver"
     )
-    monkeypatch.setattr(cli_train, "load_run_config", lambda path: run_config)
-    monkeypatch.setattr(cli_train, "get_benchmark", lambda name: object())
+    patch_cli(monkeypatch, "load_run_config", lambda path: run_config)
+    patch_cli(monkeypatch, "get_benchmark", lambda name: object())
 
     def diverge(*args, **kwargs):
         raise TrainingDiverged(
             "step 2000: first validation shows the run is not training"
         )
 
-    monkeypatch.setattr(cli_train, "train", diverge)
+    patch_cli(monkeypatch, "train", diverge)
     code = cli_train.main(
         [
             "--mode",

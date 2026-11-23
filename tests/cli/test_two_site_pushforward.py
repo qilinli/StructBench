@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from structbench.cli.train import _fm_two_site_chain
+from structbench.cli.training.transolver_fm import _fm_two_site_chain
 from structbench.models.common.two_site import (
     LAW_DECODERS,
     law_rows,

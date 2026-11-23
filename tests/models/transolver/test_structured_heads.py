@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import torch
 
-from structbench.cli.train import _fm_admissibility_hinge
+from structbench.cli.training.transolver_fm import _fm_admissibility_hinge
 from structbench.models.transolver import (
     TransolverSimulator,
     hardening_sigma_y,
