@@ -36,7 +36,6 @@ from ..core import (
 )
 from ..core.io import load_run_evidence
 from ..verification.criteria import judge
-from ..verification.dataset import _INPUT_READERS as _INPUT_READERS
 from ..verification.dataset import UNIT_SYSTEM_PATTERN as _UNIT_SYSTEM
 from ..verification.dataset import declared_from_toml as declared_from_toml
 from ..verification.dataset import input_facts_for as input_facts_for
