@@ -1,9 +1,9 @@
-# Taylor 2D CGN COMPLETE-STATE baseline (paper tier-2 control): the blessed CGN
+# Taylor 2D CGN COMPLETE-STATE baseline: the blessed CGN
 # recipe verbatim with train.aux_fields flipped to the ADR-0059 state block, so
 # the model predicts the full per-particle state (deviator + peeq + energy +
 # density) instead of the direct von Mises channel — the CGN analogue of the
-# Transolver TC-state paper baseline (claims-map 2026-09-14). Research runs for
-# the paper, not leaderboard rows.
+# time-conditioned Transolver state arm (transolver-timecond-state). A
+# comparison arm, not a leaderboard row.
 
 [run]
 benchmark = "taylor_impact_2d"
