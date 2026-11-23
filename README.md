@@ -197,7 +197,7 @@ assets/            # figures embedded in the docs + landing pages
      docs/decisions/, not here. Platform work only: the maintainer's research
      plans stay outside the repository (ADR-0065). -->
 
-*Last revised: 2026-11-22.*
+*Last revised: 2026-11-23.*
 
 ### Shipped
 
@@ -241,7 +241,9 @@ assets/            # figures embedded in the docs + landing pages
 *Not picked up yet. The arc from here to v1.0, with each release's closing
 criteria, is
 [`docs/plans/2026-11-11-release-outline-to-v1.md`](docs/plans/2026-11-11-release-outline-to-v1.md);
-a release's criteria become its checklist here when it is picked up.*
+a release's criteria become its checklist here when it is picked up. v0.6
+waits on the release of its dataset, and work that needs no new dataset
+ships as v0.5.x until then (the outline's note of 2026-11-23).*
 
 ### In progress
 
@@ -361,10 +363,14 @@ a release's criteria become its checklist here when it is picked up.*
       the model is then given the perturbed value with the perturbed seed
       (Taylor declares it). Owed: the measurement on the registered
       time-conditioned and flow-map checkpoints, and their rows.
-- [ ] Time-conditioned evaluation takes its time reference from each case's
-      own length and training from the shortest training trajectory; they
-      differ on trajectories of unequal length unless the run records its
-      reference.
+- [x] ~~Time-conditioned evaluation took its time reference from each
+      case's own length and training from the shortest training trajectory,
+      which differ on trajectories of unequal length. Since ADR-0078 a run
+      records its reference and evaluation reads it back. A record from
+      before that is evaluated by the old rule, and no registered row is
+      affected: the nine time-conditioned rows sit on the four shipped
+      benchmarks, each of which declares one frame count for every case
+      (notch-impact also a fixed scored bound).~~ (2026-11-23)
 - [ ] Registry upkeep: `run_commit` of the Taylor Transolver and GeoFLARE
       autoregressive rows (registered `7ef3bf2`, run records `6d65193`); the
       five-decimal table format on property values of very different
