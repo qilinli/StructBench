@@ -146,8 +146,8 @@ def test_an_unreadable_input_puts_a_platform_reason_on_an_e1_gated_row() -> None
 
 def test_each_reader_stamps_the_solver_name_it_is_dispatched_on() -> None:
     """Misspelling it silently degraded the conformance row for every case."""
-    from structbench.cli.datacheck import _INPUT_READERS
+    from structbench.verification.dataset import INPUT_READERS
 
-    for key, reader in _INPUT_READERS.items():
+    for key, reader in INPUT_READERS.items():
         deck = _LSDYNA_DECK if key == "lsdyna" else _ABAQUS_DECK
         assert reader(deck, source_units="g-mm-ms").solver == key, key

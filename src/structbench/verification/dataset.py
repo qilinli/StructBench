@@ -93,7 +93,7 @@ def declared_from_toml(path: Path) -> tuple[str, DeclaredFacts]:
 #: Solver input readers by normalised solver name (``Provenance.solver_name``).
 #: A deck whose solver is absent or unlisted is NOT parsed: guessing is how a
 #: foreign deck gets reported as a defective one (ADR-0068).
-_INPUT_READERS = {"lsdyna": read_input_facts, "abaqus": read_abaqus_input_facts}
+INPUT_READERS = {"lsdyna": read_input_facts, "abaqus": read_abaqus_input_facts}
 
 
 def _normalise_solver(name: str | None) -> str:
@@ -120,7 +120,7 @@ def input_facts_for(case: Case) -> tuple[InputFacts | None, AbsenceReason | None
     if not deck or not units:
         return None, None
     provenance = case.metadata.provenance
-    reader = _INPUT_READERS.get(
+    reader = INPUT_READERS.get(
         _normalise_solver(provenance.solver_name if provenance else None)
     )
     if reader is None:
