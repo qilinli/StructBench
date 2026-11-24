@@ -29,10 +29,13 @@ from ..datasets.canonical import CaseTrajectory
 from .metrics import relative_l2_pooled
 
 __all__ = [
+    "RESTART_CHANNEL_METRICS",
     "RESTART_FIELD_METRICS",
     "RESTART_KINDS",
+    "RESTART_STATE_CHANNEL_METRICS",
     "RESTART_STATE_METRICS",
     "compose_keys",
+    "displacement_rel_l2",
     "restart_keys",
     "restart_window",
     "semigroup_error",
@@ -47,6 +50,20 @@ RESTART_FIELD_METRICS: tuple[str, ...] = (
     "aux_rmse",
 )
 RESTART_STATE_METRICS: tuple[str, ...] = ("rel_l2_state", "state_rmse")
+
+#: The per-channel companions a row carries where the rollout has them
+#: (``RolloutResult.mean_<name>``, one value per channel): the auxiliary block
+#: of more than one channel, and the element-site state of a two-site run. A
+#: row reports each as ``<key>: {channel label: value}``, as an ordinary
+#: rollout's ``rollout_rel_l2_aux_channels`` does.
+RESTART_CHANNEL_METRICS: tuple[str, ...] = (
+    "rel_l2_aux_channels",
+    "aux_rmse_channels",
+)
+RESTART_STATE_CHANNEL_METRICS: tuple[str, ...] = (
+    "rel_l2_state_channels",
+    "state_rmse_channels",
+)
 
 #: What a result restarted from: nothing declared, the stored two-site state,
 #: or the kinematic anchor alone (ADR-0075 clause 5).
@@ -115,10 +132,50 @@ def restart_keys(anchor: int, horizon: int, metrics: Sequence[str]) -> tuple[str
     return tuple(f"restart_a{anchor}_h{horizon}_{m}" for m in metrics)
 
 
-def compose_keys(horizon: int, k: int, metrics: Sequence[str]) -> tuple[str, ...]:
-    """``compose_T{horizon}_k{k}_<metric>``: the interval ``horizon`` reached in
-    ``k`` compositions."""
-    return tuple(f"compose_T{horizon}_k{k}_{m}" for m in metrics)
+def compose_keys(
+    anchor: int, horizon: int, k: int, metrics: Sequence[str]
+) -> tuple[str, ...]:
+    """``compose_a{anchor}_T{horizon}_k{k}_<metric>``: the interval ``horizon``
+    after ``anchor`` reached in ``k`` compositions."""
+    return tuple(f"compose_a{anchor}_T{horizon}_k{k}_{m}" for m in metrics)
+
+
+def displacement_rel_l2(
+    predicted: ArrayLike,
+    truth: ArrayLike,
+    reference: ArrayLike,
+    keep: ArrayLike | None = None,
+) -> float:
+    """Pooled relative L2 of a window's displacement from the CASE's frame 0.
+
+    A rollout reads displacement from the first frame of the trajectory it is
+    given (ADR-0055), which for a restart is the window's first frame: late in
+    a case, where the body has nearly stopped, that displacement vanishes and
+    the ratio grows without the error growing. A restart row reads it from
+    the case's frame 0 instead, the reference every other row uses.
+
+    Parameters
+    ----------
+    predicted, truth : array_like, shape (n, P, dim)
+        Predicted and stored positions over the scored frames of the window.
+    reference : array_like, shape (P, dim)
+        The case's frame-0 positions.
+    keep : array_like of bool, shape (P,), optional
+        Particles scored (the rollout's kinematic mask); all when ``None``.
+
+    Returns
+    -------
+    float
+    """
+    ref = np.asarray(reference, dtype=np.float64)[None]
+    mask = None if keep is None else np.asarray(keep, dtype=bool)
+    return float(
+        relative_l2_pooled(
+            np.asarray(predicted, dtype=np.float64) - ref,
+            np.asarray(truth, dtype=np.float64) - ref,
+            mask=mask,
+        )
+    )
 
 
 def semigroup_error(

@@ -145,6 +145,14 @@ def main(argv: list[str] | None = None) -> int:
         "bound; the scored numbers are the same either way.",
     )
     parser.add_argument(
+        "--save-restarts",
+        action="store_true",
+        help="restart only: save every predicted window under "
+        "<out-dir>/restarts/, one .npz per anchor and horizon (and per "
+        "composition for a flow map), so a row can be recomputed from the "
+        "prediction.",
+    )
+    parser.add_argument(
         "--deterministic",
         action="store_true",
         help="valid/rollout/gradient/restart only: evaluate with torch's "
@@ -164,6 +172,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.mode == "train" and args.checkpoint is not None:
         print("error: --checkpoint applies to valid/rollout modes only")
+        return 2
+    if args.save_restarts and args.mode != "restart":
+        print("error: --save-restarts applies to restart mode only")
         return 2
     if args.tail and args.mode not in ("valid", "rollout"):
         print("error: --tail applies to valid/rollout modes only")
@@ -243,6 +254,7 @@ def main(argv: list[str] | None = None) -> int:
                         device,
                         split_name=split_name,
                         checkpoint=args.checkpoint,
+                        save_windows=args.save_restarts,
                     )
                 except ValueError as exc:
                     # A benchmark without restarts or a scheme that cannot
@@ -250,7 +262,10 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"error: {exc}")
                     return 2
                 for key, value in report["mean"].items():
-                    shown = "null" if value is None else f"{value:.4f}"
+                    if isinstance(value, dict):  # a per-channel row
+                        shown = " ".join(f"{c}={v:.4f}" for c, v in value.items())
+                    else:
+                        shown = "null" if value is None else f"{value:.4f}"
                     print(f"[restart:{split_name}] {key} {shown}")
         else:  # rollout: every eval split except val, in spec order
             for split_name in spec.eval_splits:

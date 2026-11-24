@@ -124,3 +124,25 @@ Full suite green. `flow_map_rollout` at `frame_offset = 0` and every
 decoder's restart rows are finite, `prop_semigroup_err` is finite, and the
 `k = 1` composition of horizon 2 equals the single-anchor flow map on the
 window. The four landing pages do not change.
+
+## Note, 2026-11-24: four changes to the rows after their first use
+
+The first restart evaluation with several anchors per case found four
+faults in the rows as built. No shipped benchmark declares restarts and no
+restart row is registered, so no published number changes.
+
+1. `restart_*_rel_l2_displacement` and `compose_*_rel_l2_displacement` were
+   relative to the displacement from the window's first frame, because the
+   rollout reads its reference from the trajectory it is given. Late in a
+   case that displacement vanishes and the ratio grows without the error
+   growing. They are now measured from the case's frame 0 (ADR-0055), as
+   the semigroup error already was.
+2. The composition keys carried no anchor, so each anchor overwrote the
+   last. They are now `compose_a{a}_T{T}_k{k}_<metric>`.
+3. Every row also carries its per-channel companions where the rollout has
+   them: `…_rel_l2_aux_channels` and `…_aux_rmse_channels` (an auxiliary
+   block of more than one channel), `…_rel_l2_state_channels` and
+   `…_state_rmse_channels` (a two-site run), each a mapping from channel
+   label to value; the report's mean is per channel.
+4. `--save-restarts` (`evaluate_restart(save_windows=True)`) saves every
+   predicted window under `<out-dir>/restarts/`.

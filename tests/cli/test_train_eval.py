@@ -1004,6 +1004,12 @@ def test_main_valid_mode_passes_absolute_checkpoint_through(tmp_path, monkeypatc
     assert not (out_dir / "metrics-val.json").exists()
 
 
+def test_main_save_restarts_is_for_restart_mode(tmp_path, capsys):
+    rc = main(["--mode", "rollout", "--data-root", str(tmp_path), "--save-restarts"])
+    assert rc == 2
+    assert "--save-restarts" in capsys.readouterr().out
+
+
 def test_main_deterministic_flag_is_for_evaluation_and_is_recorded(
     tmp_path, monkeypatch, capsys
 ):

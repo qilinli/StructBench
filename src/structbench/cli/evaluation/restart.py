@@ -15,6 +15,7 @@ from ...config import (
 )
 from ...datasets import (
     CaseTrajectory,
+    aux_channel_labels,
     load_case_trajectory,
 )
 from ...eval import (
@@ -23,9 +24,12 @@ from ...eval import (
     rollout,
 )
 from ...eval.restart import (
+    RESTART_CHANNEL_METRICS,
     RESTART_FIELD_METRICS,
+    RESTART_STATE_CHANNEL_METRICS,
     RESTART_STATE_METRICS,
     compose_keys,
+    displacement_rel_l2,
     restart_keys,
     restart_window,
     semigroup_error,
@@ -54,6 +58,7 @@ def evaluate_restart(
     split_name: str = "eval",
     save_artifacts: bool = True,
     checkpoint: str | Path | None = None,
+    save_windows: bool = False,
 ) -> dict[str, Any]:
     """The restart task family (ADR-0075 clause 5; plan 3b) of a run.
 
@@ -62,14 +67,23 @@ def evaluate_restart(
     rollout on the window of the trajectory from the anchor's history to the
     end of the horizon (:func:`~structbench.eval.restart.restart_window`),
     re-bound to the simulator, scored over every predicted frame and keyed
-    ``restart_a{a}_h{h}_<metric>``. A two-site run restarts from the stored
+    ``restart_a{a}_h{h}_<metric>``. The displacement's relative L2 is read
+    from the CASE's frame 0, the reference of every other row (ADR-0055), and
+    not from the window's first frame. A two-site run restarts from the stored
     element state the window carries (``restart_kind = "state"``); every
     other scheme restarts from the kinematic anchor alone (``"kinematic"``).
     A flow-map run also runs the composition sweep, each horizon ``T``
     reached self-anchored in ``k`` steps of ``T / k`` frames for every
-    declared ``k`` that divides ``T`` (``compose_T{T}_k{k}_<metric>``), and
-    reports the semigroup error between the two-step composition and the
+    declared ``k`` that divides ``T`` (``compose_a{a}_T{T}_k{k}_<metric>``),
+    and reports the semigroup error between the two-step composition and the
     direct map as ``prop_semigroup_err``, a property of the block.
+
+    Beside the pooled rows a row carries the per-channel ones where the
+    rollout has them, as ``<key>_channels: {channel label: value}``: the
+    auxiliary block of more than one channel (``rel_l2_aux_channels``,
+    ``aux_rmse_channels``) and the element-site state of a two-site run
+    (``rel_l2_state_channels``, ``state_rmse_channels``). Their means are
+    taken per channel.
 
     The report records ``train_max_dt``, the longest interval the run trained
     on (the flow map's ``flow_map_max_dt``; ``None`` when uncapped, every
@@ -78,6 +92,17 @@ def evaluate_restart(
     are held out.
     Written to ``out_dir/metrics-restart-<split_name>.json`` when
     ``save_artifacts`` (checkpoint-suffixed like :func:`evaluate`).
+
+    With ``save_windows`` every predicted window is saved under
+    ``out_dir/restarts/``, one file per rollout:
+    ``<split_name>-<case>-a{a}-h{h}.npz`` for a restart and
+    ``<split_name>-<case>-a{a}-T{T}-k{k}.npz`` for a composition
+    (checkpoint-suffixed split name as the report). Each holds
+    ``predicted_positions`` and ``predicted_aux`` over the window's frames
+    (``predicted_state`` too on a two-site run; the seed frames carry the
+    stored values), with ``first_frame`` (the case frame of the window's
+    frame 0), ``anchor``, ``horizon``, ``input_frames`` and, for a flow map,
+    ``interval``.
 
     Parameters
     ----------
@@ -95,6 +120,8 @@ def evaluate_restart(
         Write the report JSON.
     checkpoint : str, pathlib.Path or None
         Explicit checkpoint to evaluate, as in :func:`evaluate`.
+    save_windows : bool
+        Save every predicted window (independent of ``save_artifacts``).
 
     Returns
     -------
@@ -145,6 +172,55 @@ def evaluate_restart(
     )
     input_frames = model_cfg.input_frames
     horizons = spec.restart_horizons
+    state_labels = aux_channel_labels(spec.state_channels) if two_site_run else ()
+    tag = split_name if checkpoint is None else f"{split_name}@{run.ckpt_path.stem}"
+    windows_dir = out_dir / "restarts"
+    if save_windows:
+        windows_dir.mkdir(parents=True, exist_ok=True)
+
+    def _values(
+        result: RolloutResult, window: CaseTrajectory, reference: np.ndarray
+    ) -> dict[str, Any]:
+        """One row's metrics by name: the rollout's means, the displacement
+        re-read from the case's frame 0, and the per-channel companions."""
+        values: dict[str, Any] = {
+            name: getattr(result, f"mean_{name}") for name in metric_names
+        }
+        kinematic = np.isin(window.particle_type, np.asarray(spec.kinematic_types))
+        values["rel_l2_displacement"] = displacement_rel_l2(
+            result.predicted_positions[input_frames:],
+            window.positions[input_frames:],
+            reference,
+            keep=~kinematic if kinematic.any() else None,
+        )
+        for names, labels in (
+            (RESTART_CHANNEL_METRICS, run.aux_labels),
+            (RESTART_STATE_CHANNEL_METRICS, state_labels),
+        ):
+            for name in names:
+                per_channel = getattr(result, f"mean_{name}", None)
+                if per_channel is not None:
+                    values[name] = dict(zip(labels, per_channel, strict=True))
+        return values
+
+    def _save(
+        result: RolloutResult, stem: str, anchor: int, horizon: int, interval: int
+    ) -> None:
+        if not save_windows:
+            return
+        arrays: dict[str, Any] = {
+            "predicted_positions": result.predicted_positions,
+            "predicted_aux": result.predicted_aux,
+            "first_frame": np.int64(anchor - input_frames + 1),
+            "anchor": np.int64(anchor),
+            "horizon": np.int64(horizon),
+            "input_frames": np.int64(input_frames),
+        }
+        if result.predicted_state is not None:
+            arrays["predicted_state"] = result.predicted_state
+        if fm:
+            arrays["interval"] = np.int64(interval)
+        np.savez(windows_dir / f"{tag}-{stem}.npz", **arrays)
 
     def _bind(window: CaseTrajectory) -> None:
         """Bind a case-bound simulator to the window (its frame indices are
@@ -241,13 +317,20 @@ def evaluate_restart(
                         f"card n_frames {spec.card.n_frames}): {exc}"
                     ) from exc
                 offset = anchor - input_frames + 1
-                direct = _roll(window, offset, fm_canonical if fm else 1, n_case_frames)
-                for name, key in zip(
-                    metric_names,
-                    restart_keys(anchor, horizon, metric_names),
-                    strict=True,
-                ):
-                    row[key] = getattr(direct, f"mean_{name}")
+                reference = trajectory.positions[0]
+                interval = fm_canonical if fm else 1
+                direct = _roll(window, offset, interval, n_case_frames)
+                values = _values(direct, window, reference)
+                row.update(
+                    zip(
+                        restart_keys(anchor, horizon, list(values)),
+                        values.values(),
+                        strict=True,
+                    )
+                )
+                _save(
+                    direct, f"{case_id}-a{anchor}-h{horizon}", anchor, horizon, interval
+                )
                 if not fm:
                     continue
                 by_k: dict[int, RolloutResult] = {}
@@ -255,12 +338,21 @@ def evaluate_restart(
                     if horizon % k:
                         continue
                     by_k[k] = _roll(window, offset, horizon // k, n_case_frames)
-                    for name, key in zip(
-                        metric_names,
-                        compose_keys(horizon, k, metric_names),
-                        strict=True,
-                    ):
-                        row[key] = getattr(by_k[k], f"mean_{name}")
+                    values = _values(by_k[k], window, reference)
+                    row.update(
+                        zip(
+                            compose_keys(anchor, horizon, k, list(values)),
+                            values.values(),
+                            strict=True,
+                        )
+                    )
+                    _save(
+                        by_k[k],
+                        f"{case_id}-a{anchor}-T{horizon}-k{k}",
+                        anchor,
+                        horizon,
+                        horizon // k,
+                    )
                 if 1 in by_k and 2 in by_k:
                     # The two maps share the anchor and the first T/2 queries,
                     # which are identical by construction: compare the frames
@@ -271,7 +363,7 @@ def evaluate_restart(
                         semigroup_error(
                             by_k[1].predicted_positions[composed_from:],
                             by_k[2].predicted_positions[composed_from:],
-                            reference=trajectory.positions[0],
+                            reference=reference,
                         )
                     )
         if fm:
@@ -295,7 +387,15 @@ def evaluate_restart(
     values_by_key = {
         k: [r[k] for r in cases.values() if r.get(k) is not None] for k in keys
     }
-    mean = {k: float(np.mean(v)) if v else None for k, v in values_by_key.items()}
+
+    def _mean(values: list[Any]) -> Any:
+        if not values:
+            return None
+        if isinstance(values[0], dict):  # a per-channel row: the mean per channel
+            return {c: float(np.mean([v[c] for v in values])) for c in values[0]}
+        return float(np.mean(values))
+
+    mean = {k: _mean(v) for k, v in values_by_key.items()}
     mean_n = {k: len(v) for k, v in values_by_key.items()}
     report: dict[str, Any] = {
         "split": split_name,
@@ -321,7 +421,6 @@ def evaluate_restart(
         "mean_n": mean_n,
     }
     if save_artifacts:
-        tag = split_name if checkpoint is None else f"{split_name}@{run.ckpt_path.stem}"
         (out_dir / f"metrics-restart-{tag}.json").write_text(
             json.dumps(_json_safe(report), indent=2, allow_nan=False),
             encoding="utf-8",

@@ -7,6 +7,7 @@ import pytest
 from structbench.datasets import CaseTrajectory
 from structbench.eval import (
     compose_keys,
+    displacement_rel_l2,
     restart_keys,
     restart_window,
     semigroup_error,
@@ -71,7 +72,32 @@ def test_keys_name_the_anchor_the_horizon_and_the_composition():
         "restart_a10_h20_rel_l2_displacement",
         "restart_a10_h20_aux_rmse",
     )
-    assert compose_keys(20, 2, ("position_rmse",)) == ("compose_T20_k2_position_rmse",)
+    assert compose_keys(10, 20, 2, ("position_rmse",)) == (
+        "compose_a10_T20_k2_position_rmse",
+    )
+
+
+def test_displacement_is_read_from_the_reference_given_not_the_window():
+    """A body that has nearly stopped: from the window's own first frame the
+    displacement vanishes and the ratio is large; from the case's frame 0 it
+    is the small number the position error says."""
+    rng = np.random.default_rng(2)
+    case_frame0 = rng.random((P, DIM))
+    truth = case_frame0[None] + 5.0 + 1e-4 * rng.random((3, P, DIM))
+    predicted = truth + 1e-3
+    from_case = displacement_rel_l2(predicted, truth, case_frame0)
+    from_window = displacement_rel_l2(predicted, truth, truth[0])
+    expected = np.linalg.norm(predicted - truth) / np.linalg.norm(truth - case_frame0)
+    assert from_case == pytest.approx(expected, rel=1e-12)
+    assert from_case < 1e-3 and from_window > 1.0
+    # the mask drops particles from both norms
+    keep = np.array([True, False, True, True])
+    kept = displacement_rel_l2(predicted, truth, case_frame0, keep=keep)
+    assert kept == pytest.approx(
+        np.linalg.norm((predicted - truth)[:, keep])
+        / np.linalg.norm((truth - case_frame0)[:, keep]),
+        rel=1e-12,
+    )
 
 
 def test_semigroup_error_is_zero_for_identical_maps_and_pooled_otherwise():
