@@ -388,10 +388,12 @@ def _col_label(split: str, key: str) -> str:
         return f"{s}·{_PROPERTY_LABELS.get(key, key.removeprefix('prop_'))}"
     if _is_restart_key(key):
         # restart_a10_h20_rel_l2_displacement -> a10 h20 disp;
-        # compose_T20_k2_position_rmse -> T20 k2 pos RMSE (mm). The relative
+        # compose_a10_T20_k2_position_rmse -> a10 T20 k2 pos RMSE (mm). The relative
         # L2 forms read as the quantity alone, the RMSEs say so (restart keys
         # carry no unit suffix; positions are mm in the working frame).
-        _, first, second, metric = key.split("_", 3)
+        parts = key.split("_")
+        n_index = 3 if parts[0] == "compose" else 2  # a, T, k | a, h
+        index, metric = " ".join(parts[1 : 1 + n_index]), "_".join(parts[1 + n_index :])
         quantity = {
             "rel_l2_displacement": "disp",
             "rel_l2_aux": "aux",
@@ -400,7 +402,7 @@ def _col_label(split: str, key: str) -> str:
             "aux_rmse": "aux RMSE",
             "state_rmse": "state RMSE",
         }.get(metric, metric)
-        return f"{s}·{first} {second} {quantity}"
+        return f"{s}·{index} {quantity}"
     k = (
         key.replace("rollout_", "")
         .replace("one_step_", "1s·")

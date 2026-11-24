@@ -300,15 +300,15 @@ def test_two_site_train_and_evaluate_smoke(tmp_path, monkeypatch, decoder):
         "state_rmse",
     ):
         assert np.isfinite(rcase[f"restart_a3_h2_{metric}"]), metric
-        assert np.isfinite(rcase[f"compose_T2_k1_{metric}"]), metric
-        assert np.isfinite(rcase[f"compose_T2_k2_{metric}"]), metric
+        assert np.isfinite(rcase[f"compose_a3_T2_k1_{metric}"]), metric
+        assert np.isfinite(rcase[f"compose_a3_T2_k2_{metric}"]), metric
     assert np.isfinite(rcase["prop_semigroup_err"])
     assert np.isfinite(restart["mean"]["prop_semigroup_err"])
     # The k = 1 composition IS the single-anchor map on the window: with the
     # canonical interval 3 >= horizon 2, the restart row equals it bit for bit
     # (plan 3b gate), which also shows no state leaks between rollouts.
     for metric in ("rel_l2_displacement", "position_rmse", "rel_l2_state"):
-        assert rcase[f"restart_a3_h2_{metric}"] == rcase[f"compose_T2_k1_{metric}"]
+        assert rcase[f"restart_a3_h2_{metric}"] == rcase[f"compose_a3_T2_k1_{metric}"]
     assert restart["train_max_dt"] is None  # flow_map_max_dt 0: uncapped
     assert spans == [2 - 2 // 2]  # horizon 2: one composed frame
     assert (out / "metrics-restart-val.json").exists()
@@ -336,6 +336,76 @@ def _huge_rollout(*args, **kwargs):
     return SimpleNamespace(
         position_rmse=np.full((T - 2,), 1e6), mean_rel_l2_displacement=1e6
     )
+
+
+def test_restart_rows_of_several_anchors(tmp_path, monkeypatch):
+    """Two anchors on one case: every anchor keeps its own composition rows,
+    the displacement is read from the case's frame 0, the state and the
+    auxiliary block are reported per channel, and the saved windows give the
+    rows back."""
+    import structbench.cli.train as cli_train
+    from structbench.datasets import load_case_trajectory
+    from structbench.eval import displacement_rel_l2
+
+    spec, data_root, out, ids = _run(tmp_path, "corner_mean", n_val=2)
+    spec = replace(spec, restart_anchors=(3, 5))
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
+    report = cli_train.evaluate_restart(
+        ids["val"], data_root, out, "cpu", split_name="val", save_artifacts=False
+    )
+    assert not (out / "restarts").exists()  # saved on request only
+    report = cli_train.evaluate_restart(
+        ids["val"], data_root, out, "cpu", split_name="val", save_windows=True
+    )
+    labels = ("s_rr", "s_zz", "s_tt", "s_rz", "effective_plastic_strain")
+    case_id = ids["val"][0]
+    row = report["cases"][case_id]
+    stored = load_case_trajectory(data_root / f"{case_id}.h5")
+    truth = stored.positions
+    keep = ~np.isin(stored.particle_type, spec.kinematic_types)
+    assert not keep.all()
+    for anchor in (3, 5):
+        for stem in (f"restart_a{anchor}_h2", f"compose_a{anchor}_T2_k2"):
+            assert np.isfinite(row[f"{stem}_rel_l2_displacement"]), stem
+            for metric in ("rel_l2_state_channels", "state_rmse_channels"):
+                assert tuple(row[f"{stem}_{metric}"]) == labels, (stem, metric)
+                assert all(np.isfinite(v) for v in row[f"{stem}_{metric}"].values())
+            assert tuple(row[f"{stem}_rel_l2_aux_channels"]) == labels
+        # the saved window gives the row back, from the case's frame 0
+        saved = np.load(out / "restarts" / f"val-{case_id}-a{anchor}-h2.npz")
+        first = int(saved["first_frame"])
+        assert (first, int(saved["anchor"]), int(saved["horizon"])) == (
+            anchor - 1,
+            anchor,
+            2,
+        )
+        assert int(saved["input_frames"]) == 2 and int(saved["interval"]) == 3
+        assert saved["predicted_state"].shape[0] == 4
+        predicted = saved["predicted_positions"]
+        window_truth = truth[first : first + 4]
+        np.testing.assert_array_equal(predicted[:2], window_truth[:2])  # the seed
+        from_case = displacement_rel_l2(
+            predicted[2:], window_truth[2:], truth[0], keep=keep
+        )
+        assert row[f"restart_a{anchor}_h2_rel_l2_displacement"] == from_case
+        from_window = displacement_rel_l2(
+            predicted[2:], window_truth[2:], window_truth[0], keep=keep
+        )
+        assert from_window != from_case
+        assert (out / "restarts" / f"val-{case_id}-a{anchor}-T2-k2.npz").exists()
+    # the two anchors' composition rows are separate rows
+    assert (
+        row["compose_a3_T2_k2_position_rmse"] != row["compose_a5_T2_k2_position_rmse"]
+    )
+    # a per-channel mean is the mean per channel over the cases
+    key = "restart_a5_h2_rel_l2_state_channels"
+    assert report["mean_n"][key] == 2
+    for label in labels:
+        assert report["mean"][key][label] == pytest.approx(
+            np.mean([report["cases"][c][key][label] for c in ids["val"]])
+        )
+    # cases x anchors x (the restart and the two compositions)
+    assert len(list((out / "restarts").glob("*.npz"))) == 2 * 2 * 3
 
 
 def test_by_path_arm_dies_at_its_first_validation_when_not_training(
