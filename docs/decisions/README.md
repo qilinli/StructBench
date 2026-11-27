@@ -179,6 +179,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0077 | Checkpoint selection on the reported metric: validation relative L2 of displacement (supersedes the selection clause of 0028 and the selection sentence of 0062) | Ephemeral | Accepted (2026-11-10) |
 | 0078 | One declared scored span, read by every stage: training pool, statistics, time reference, evaluation, figures, records (amends 0039, 0054, 0032) | Durable | Accepted (2026-11-11) |
 | 0079 | How a further solver is admitted to data generation: experimental then admitted, on a conformance run the maintainer reads (amends 0068, 0071) | Ephemeral | Accepted (2026-11-18) |
+| 0080 | Force is read from the predicted state | Durable | Proposed |
 
 ---
 
