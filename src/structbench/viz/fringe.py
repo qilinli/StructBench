@@ -790,6 +790,286 @@ def animate_comparison(
 
 
 @dataclass(frozen=True)
+class PlaneTrack:
+    """A rigid plane as one panel draws it: where it is at every frame.
+
+    Parameters
+    ----------
+    normal:
+        Unit normal in the drawn (x, y) plane, pointing out of the body.
+    offset:
+        ``normal . x`` on the plane in mm: one number for a fixed plane, or
+        one per frame ``(T,)`` for a plane that moves.
+    label:
+        Written on the body's band; empty for none.
+    """
+
+    normal: tuple[float, float]
+    offset: float | NDArray[np.floating]
+    label: str = ""
+
+    def at(self, frame: int) -> float:
+        """The offset at ``frame``."""
+        offsets = np.asarray(self.offset, dtype=np.float64)
+        return float(offsets if offsets.ndim == 0 else offsets[frame])
+
+
+@dataclass(frozen=True)
+class Panel:
+    """One trajectory of a several-panel comparison.
+
+    Parameters
+    ----------
+    title:
+        The panel's title.
+    positions:
+        ``(T, N, dim)`` in mm, drawn as x-y.
+    values:
+        ``(T, E)``, one value per element, when the comparison is drawn by
+        element; ``(T, N)``, one per node, when it is drawn as points.
+    planes:
+        The rigid planes of this panel, each where this panel's own
+        trajectory puts it.
+    """
+
+    title: str
+    positions: NDArray[np.floating]
+    values: NDArray[np.floating]
+    planes: tuple[PlaneTrack, ...] = ()
+
+
+def _plane_band(
+    track: PlaneTrack, frame: int, reach: float, width: float
+) -> NDArray[np.float64]:
+    """The four corners of the body's band behind the plane at ``frame``."""
+    n = np.asarray(track.normal, dtype=np.float64)
+    t = np.array([-n[1], n[0]])
+    p = track.at(frame) * n
+    return np.array(
+        [
+            p - reach * t,
+            p + reach * t,
+            p + reach * t - width * n,
+            p - reach * t - width * n,
+        ]
+    )
+
+
+def _time_stamp(times_us: NDArray[np.floating] | None, frame: int) -> str:
+    """The frame's time, in ms once the record is a millisecond long."""
+    if times_us is None:
+        return ""
+    if float(np.max(times_us)) >= 1000.0:
+        return f"t = {times_us[frame] / 1000.0:.2f} ms"
+    return f"t = {times_us[frame]:.1f} µs"
+
+
+def compare_panels(
+    panels: Sequence[Panel],
+    out_path: str | Path,
+    *,
+    cells: NDArray[np.integer] | None = None,
+    field: str | FieldSpec = "von_mises_stress",
+    times_us: NDArray[np.floating] | None = None,
+    title: str = "",
+    vmin: float | None = None,
+    vmax: float | None = None,
+    bands: int | None = None,
+    final_path: str | Path | None = None,
+    max_frames: int | None = None,
+    axis_labels: tuple[str, str] = ("x (mm)", "y (mm)"),
+    plane_width: float = 1.5,
+    size: float = 2.0,
+    fps: int = 15,
+    dpi: int = 100,
+) -> Path:
+    """Write a fringe animation of several trajectories of one case, side by side.
+
+    The first panel is the reference: it sets the fringe scale (FEM
+    convention, as in :func:`animate_comparison`). Every panel shares that
+    scale and one spatial extent. With ``cells`` the panels are drawn by
+    element, as :func:`fringe_elements` does, and a node that belongs to no
+    element (the reference node of a rigid body) is not drawn as part of
+    the mesh; without, as points. Each panel's rigid planes are drawn as
+    grey bands behind their plane, a moving one where that panel's own
+    trajectory puts it.
+
+    Parameters
+    ----------
+    panels:
+        The trajectories, the reference first. All are animated over the
+        shortest frame count.
+    out_path:
+        The animation; ``.gif`` uses the pillow writer.
+    cells:
+        Element connectivity ``(E, k)``, 0-based; ``None`` draws points.
+    field, vmin, vmax, bands, size:
+        As in :func:`fringe_scatter`; the range defaults to the reference's
+        over the frames shown.
+    times_us:
+        Per-frame times in microseconds, for the stamp.
+    title:
+        Written before the time stamp.
+    final_path:
+        When given, the last frame is also written there as a figure.
+    max_frames:
+        Show at most about this many frames, evenly spaced, the last always
+        included; ``None`` shows every frame.
+    axis_labels:
+        The two axes' captions.
+    plane_width:
+        Thickness of a rigid body's band in mm.
+    fps, dpi:
+        Animation frame rate and raster resolution.
+
+    Returns
+    -------
+    pathlib.Path
+        The written animation.
+
+    Raises
+    ------
+    ValueError
+        If there is no panel, or a panel's values do not fit the drawing
+        (one per element with ``cells``, one per node without).
+    """
+    plt = _plt()
+    from matplotlib.animation import FuncAnimation, PillowWriter
+    from matplotlib.patches import Polygon
+
+    if not panels:
+        raise ValueError("compare_panels needs at least one panel")
+    spec = _resolve(field)
+    n_frames = min(int(p.positions.shape[0]) for p in panels)
+    n_frames = min(n_frames, *(int(p.values.shape[0]) for p in panels))
+    conn = None if cells is None else np.asarray(cells)
+    for p in panels:
+        expected = conn.shape[0] if conn is not None else p.positions.shape[1]
+        if p.values.shape[1] != expected:
+            what = "element" if conn is not None else "node"
+            raise ValueError(
+                f"panel {p.title!r}: need one value per {what} ({expected}), "
+                f"values shape {p.values.shape}"
+            )
+    reference = panels[0]
+    vmin, vmax = _limits(np.asarray(reference.values[:n_frames]), vmin, vmax)
+
+    drawn = slice(None) if conn is None else np.unique(conn)
+    shown = np.concatenate(
+        [
+            np.asarray(p.positions[:n_frames, drawn, :2], np.float64).reshape(-1, 2)
+            for p in panels
+        ]
+    )
+    lo, hi = shown.min(axis=0), shown.max(axis=0)
+    for p in panels:  # a plane across an axis belongs in that axis's extent
+        for track in p.planes:
+            n = np.asarray(track.normal, dtype=np.float64)
+            offsets = np.atleast_1d(np.asarray(track.offset, np.float64))[:n_frames]
+            for axis in (0, 1):
+                if abs(n[axis]) > 0.5:
+                    lo[axis] = min(lo[axis], float((offsets * n[axis]).min()))
+                    hi[axis] = max(hi[axis], float((offsets * n[axis]).max()))
+    (x0, y0), (x1, y1) = lo - 2.0, hi + 2.0
+    reach = 4.0 * float(np.hypot(x1 - x0, y1 - y0))
+
+    height = 3.6
+    width = max(1.2, height * (x1 - x0) / (y1 - y0))
+    fig, axes_ = plt.subplots(
+        1,
+        len(panels),
+        figsize=(min(len(panels) * width, 24.0) + 1.3, height + 0.9),
+        sharey=True,
+        constrained_layout=True,
+        squeeze=False,
+    )
+    axes = list(axes_[0])
+    marks: list[Any] = []
+    bodies: list[list[Any]] = []
+    for ax, p in zip(axes, panels, strict=True):
+        if conn is not None:
+            mark: Any = fringe_elements(
+                ax,
+                p.positions[0],
+                conn,
+                p.values[0],
+                field=spec,
+                vmin=vmin,
+                vmax=vmax,
+                bands=bands,
+            )
+        else:
+            mark = fringe_scatter(
+                ax,
+                p.positions[0],
+                p.values[0],
+                field=spec,
+                vmin=vmin,
+                vmax=vmax,
+                bands=bands,
+                size=size,
+            )
+        marks.append(mark)
+        patches = []
+        for track in p.planes:
+            patch = Polygon(
+                _plane_band(track, 0, reach, plane_width),
+                closed=True,
+                facecolor="0.45",
+                edgecolor="k",
+                linewidth=0.6,
+                zorder=0,
+            )
+            ax.add_patch(patch)
+            patches.append(patch)
+        bodies.append(patches)
+        ax.set_xlim(x0, x1)
+        ax.set_ylim(y0, y1)
+        ax.set_aspect("equal")
+        ax.set_xlabel(axis_labels[0])
+        ax.set_title(p.title, fontsize=9)
+    axes[0].set_ylabel(axis_labels[1])
+    _fringe_bar(fig, marks[0], spec, axes=axes)
+
+    def _stamp(frame: int) -> str:
+        return "   ".join(
+            part for part in (title, _time_stamp(times_us, frame)) if part
+        )
+
+    text = fig.suptitle(_stamp(0), fontsize=11)
+
+    def _update(frame: int) -> tuple[Any, ...]:
+        for mark, patches, p in zip(marks, bodies, panels, strict=True):
+            if conn is not None:
+                polys, vals = _element_polygons(
+                    p.positions[frame], conn, p.values[frame], False
+                )
+                mark.set_verts(list(polys))
+                mark.set_array(np.clip(vals, vmin, vmax))
+            else:
+                mark.set_offsets(np.asarray(p.positions[frame])[:, :2])
+                mark.set_array(np.clip(p.values[frame], vmin, vmax))
+            for patch, track in zip(patches, p.planes, strict=True):
+                patch.set_xy(_plane_band(track, frame, reach, plane_width))
+        text.set_text(_stamp(frame))
+        return (*marks, text)
+
+    step = 1 if not max_frames else max(1, int(np.ceil(n_frames / max_frames)))
+    frames = list(range(0, n_frames, step))
+    if frames[-1] != n_frames - 1:
+        frames.append(n_frames - 1)
+    out = Path(out_path)
+    FuncAnimation(fig, _update, frames=frames, blit=False).save(
+        out, writer=PillowWriter(fps=fps), dpi=dpi
+    )
+    if final_path is not None:
+        _update(n_frames - 1)
+        fig.savefig(Path(final_path), dpi=max(dpi, 120))
+    plt.close(fig)
+    return out
+
+
+@dataclass(frozen=True)
 class CaseField:
     """One case's trajectory of a single physics field (working frame)."""
 

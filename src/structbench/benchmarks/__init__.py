@@ -22,6 +22,7 @@ from .constitutive import (
 from .registry import (
     BenchmarkSource,
     BenchmarkSpec,
+    RigidPlane,
     available_benchmarks,
     get_benchmark,
     is_benchmark_definition,
@@ -47,6 +48,7 @@ __all__ = [
     "ConstitutiveLaw",
     "GroundTruth",
     "ParameterSpace",
+    "RigidPlane",
     "available_benchmarks",
     "get_benchmark",
     "is_benchmark_definition",

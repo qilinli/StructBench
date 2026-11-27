@@ -313,6 +313,7 @@ def _finalize_rollout(
         aux=qoi_aux_pred,
         particle_type=trajectory.particle_type,
         init=input_frames,
+        case_id=trajectory.case_id,
     )
     true_inputs = QoiInputs(
         time=trajectory.time[:scored_end],
@@ -320,6 +321,7 @@ def _finalize_rollout(
         aux=qoi_aux_true,
         particle_type=trajectory.particle_type,
         init=input_frames,
+        case_id=trajectory.case_id,
     )
     qoi_pred = {name: float(fn(pred_inputs)) for name, fn in (qois or {}).items()}
     qoi_true = {name: float(fn(true_inputs)) for name, fn in (qois or {}).items()}

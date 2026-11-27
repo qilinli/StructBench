@@ -9,12 +9,23 @@ predicted rollout) to ``<run>/plots/``::
 
 The benchmark (and therefore the auxiliary field compared) is resolved from
 ``<run>/config.json``; the default is ``taylor_impact_2d`` (von Mises stress).
+
+Given several runs, or a case, it instead draws the reference and every
+run's stored rollout of the same case side by side, by element where the
+case has a mesh, with the benchmark's rigid bodies, to ``--out``::
+
+    python -m structbench.viz --run runs/a --run runs/b --label A --label B \
+        --data-root /path/to/data --out figures/round-3 \
+        --split test --case T-20-60-100 [--channel effective_plastic_strain]
+
+Without ``--case`` the case of each ``--split`` is the one at ``--quantile``
+(default the median) of the runs' mean displacement error; ``--pick-only``
+prints that choice and draws nothing, so a study can fix its cases once.
 """
 
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +33,10 @@ import numpy as np
 
 from ..benchmarks import BenchmarkSpec, get_benchmark
 from ..config import read_run_record
+from .compare import compare_runs, figure_span, open_runs, pick_cases
 from .fringe import animate_rollout, compare_rollout, load_case_field
+
+__all__ = ["figure_span", "main", "snapshot_frames", "split_and_case"]
 
 
 def _resolve_run_spec(out_dir: Path) -> tuple[BenchmarkSpec, dict[str, Any]]:
@@ -83,32 +97,50 @@ def snapshot_frames(n_frames: int, input_frames: int, columns: int) -> list[int]
     return [input_frames + (span * i) // (columns - 1) for i in range(columns)]
 
 
-def figure_span(
-    pred: Mapping[str, np.ndarray], declared_bound: int | None, full: bool
-) -> tuple[int, int]:
-    """``(input_frames, end)``: the frames ``[input_frames, end)`` of a saved
-    rollout a figure shows (ADR-0078).
-
-    By default ``end`` is the case's scored bound, so panels are spaced over
-    the scored span and an animation ends at the bound; ``full`` shows every
-    saved frame (a rollout evaluated with the tail). The bound is the one
-    the rollout file carries (``scored_frames``, -1 for none), so a
-    benchmark loaded by path needs nothing extra; a file from before the
-    field falls back to ``declared_bound``, the benchmark's own.
-    """
-    n_saved = int(pred["predicted_positions"].shape[0])
-    input_frames = (
-        int(pred["input_frames"])
-        if "input_frames" in pred
-        else n_saved - len(pred["position_rmse"])
-    )
-    if "scored_frames" in pred:
-        carried = int(pred["scored_frames"])
-        bound = None if carried < 0 else carried
+def _compare(args: argparse.Namespace) -> None:
+    """The several-run comparison of the command line."""
+    splits = list(args.split or ())
+    if args.case:
+        if len(splits) == 1:
+            splits = splits * len(args.case)
+        if len(splits) != len(args.case):
+            raise SystemExit(
+                "--case needs its --split: one --split for all, or one per --case"
+            )
+        cases = list(zip(splits, args.case, strict=True))
     else:
-        bound = declared_bound
-    end = n_saved if full or bound is None else min(bound, n_saved)
-    return input_frames, end
+        if not splits:
+            raise SystemExit("give --case with --split, or --split to pick a case")
+        cases = pick_cases(args.run, splits, args.quantile)
+        for split, case in cases:
+            print(f"picked {split}: {case}")
+    if args.pick_only:
+        return
+    if args.out is None:
+        raise SystemExit("a comparison needs --out")
+    try:
+        views = open_runs(args.run, args.label)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from None
+    import matplotlib
+
+    matplotlib.use("Agg")
+    for split, case in cases:
+        gif, final = compare_runs(
+            views,
+            split,
+            case,
+            args.data_root,
+            args.out,
+            channel=args.channel,
+            full=args.full,
+            bands=args.bands,
+            vmax=args.vmax,
+            vmax_percentile=args.vmax_percentile,
+            axis_labels=(f"{args.axis_names[0]} (mm)", f"{args.axis_names[1]} (mm)"),
+        )
+        print(f"wrote {gif}")
+        print(f"wrote {final}")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -116,7 +148,57 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="python -m structbench.viz", description=__doc__
     )
-    parser.add_argument("--run", type=Path, required=True, help="run directory")
+    parser.add_argument(
+        "--run",
+        type=Path,
+        required=True,
+        action="append",
+        help="run directory; give it several times to compare runs on one case",
+    )
+    compare = parser.add_argument_group("comparing several runs on one case")
+    compare.add_argument(
+        "--out", type=Path, help="directory the comparison is written to"
+    )
+    compare.add_argument(
+        "--label", action="append", help="a panel title per --run, in order"
+    )
+    compare.add_argument(
+        "--split", action="append", help="scored set of the case(s); repeatable"
+    )
+    compare.add_argument(
+        "--case",
+        action="append",
+        help="case id in the --split given at the same position (or in the "
+        "one --split); repeatable. Default: picked per split, see --quantile",
+    )
+    compare.add_argument(
+        "--quantile",
+        type=float,
+        default=0.5,
+        help="without --case: the rank of the picked case in the runs' mean "
+        "displacement error (0 best, 1 worst; default the median)",
+    )
+    compare.add_argument(
+        "--pick-only", action="store_true", help="print the picked cases and stop"
+    )
+    compare.add_argument(
+        "--channel",
+        help="channel label to draw (default the benchmark's headline field)",
+    )
+    compare.add_argument("--vmax", type=float, help="top of the fringe scale")
+    compare.add_argument(
+        "--vmax-percentile",
+        type=float,
+        help="top of the fringe scale as a percentile of the reference at "
+        "the last frame shown",
+    )
+    compare.add_argument(
+        "--axis-names",
+        nargs=2,
+        default=("x", "y"),
+        metavar=("X", "Y"),
+        help="names of the two drawn axes (e.g. r z for an axisymmetric case)",
+    )
     parser.add_argument(
         "--data-root", type=Path, required=True, help="directory of canonical .h5 cases"
     )
@@ -149,6 +231,14 @@ def main(argv: list[str] | None = None) -> None:
         "channel; ignored for single-channel runs)",
     )
     args = parser.parse_args(argv)
+
+    comparing = (
+        len(args.run) > 1 or args.case or args.split or args.out or args.pick_only
+    )
+    if comparing:
+        _compare(args)
+        return
+    args.run = args.run[0]
 
     spec, record = _resolve_run_spec(args.run)
     # ADR-0059: a variant run's rollouts carry (T, P, C) aux; fringe rendering

@@ -87,6 +87,54 @@ _MODULES: dict[str, str] = {
 
 
 @dataclass(frozen=True)
+class RigidPlane:
+    """A rigid body of a problem, declared as a plane (a line in 2D).
+
+    A definition lists its rigid bodies so that every reader of a case
+    draws them, and may use them, alike: a floor or a wall is a plane fixed
+    in space, a plate or an impactor stored as one reference node is a plane
+    that moves with that node.
+
+    Parameters
+    ----------
+    normal:
+        The plane's unit normal in the working frame, pointing out of the
+        body, towards the material it bears on.
+    offset:
+        A fixed plane: the points ``x`` with ``normal . x = offset`` (mm).
+    node_type:
+        A moving plane: it passes through the one node of this type code
+        (after the definition's transform has named the types) and moves
+        with it.
+    label:
+        What a figure calls the body.
+
+    Exactly one of ``offset`` and ``node_type`` is given.
+    """
+
+    normal: tuple[float, ...]
+    offset: float | None = None
+    node_type: int | None = None
+    label: str = "rigid body"
+
+    def __post_init__(self) -> None:
+        vector = tuple(float(v) for v in self.normal)
+        if abs(sum(v * v for v in vector) - 1.0) > 1e-9:
+            raise ValueError(f"RigidPlane: normal {vector} must be a unit vector")
+        object.__setattr__(self, "normal", vector)
+        if (self.offset is None) == (self.node_type is None):
+            raise ValueError(
+                "RigidPlane: give exactly one of offset (a fixed plane) and "
+                "node_type (a plane that moves with that node)"
+            )
+        if self.node_type is not None and (
+            isinstance(self.node_type, bool)
+            or not isinstance(self.node_type, numbers.Integral)
+        ):
+            raise ValueError(f"RigidPlane: node_type {self.node_type!r} must be an int")
+
+
+@dataclass(frozen=True)
 class BenchmarkSpec:
     """The runtime contract of one benchmark.
 
@@ -156,6 +204,11 @@ class BenchmarkSpec:
     never applies it — its data path stays byte-identical. ``None`` for
     benchmarks whose cases already carry a mesh (or that no mesh-native
     family runs on)."""
+    rigid_planes: tuple[RigidPlane, ...] = ()
+    """The problem's rigid bodies, each a :class:`RigidPlane`: a plane fixed
+    in space or one that moves with a named node. The visualiser draws them
+    in every panel, a moving one at that panel's own node, so a predicted
+    body shows its predicted travel. Empty (default) declares none."""
     scripted_types: tuple[int, ...] | None = None
     """Node-type codes the mesh-native simulators feed the ground-truth
     next-step velocity as an input feature (ADR-0043: OBSTACLE is scripted,
@@ -582,6 +635,15 @@ class BenchmarkSpec:
             "property_tolerances",
             MappingProxyType(dict(self.property_tolerances)),
         )
+        planes = tuple(self.rigid_planes)
+        if any(not isinstance(p, RigidPlane) for p in planes):
+            raise ValueError("rigid_planes must hold RigidPlane declarations")
+        if len({len(p.normal) for p in planes}) > 1:
+            raise ValueError("rigid_planes: the normals must share one dimension")
+        moving = [p.node_type for p in planes if p.node_type is not None]
+        if len(set(moving)) != len(moving):
+            raise ValueError("rigid_planes: one moving plane per node type")
+        object.__setattr__(self, "rigid_planes", planes)
         split_of = {c: s for s, cs in self.splits.items() for c in cs}
         for p in self.matched_initial_state_pairs:
             if isinstance(p, str) or not isinstance(p, (tuple, list)):

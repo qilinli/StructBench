@@ -105,6 +105,7 @@ def evaluate_gradient(
             aux=trajectory.aux[..., run.qoi_aux_channel or 0],
             particle_type=trajectory.particle_type,
             init=model_cfg.input_frames,
+            case_id=case_id,
         )
         ref_q[case_id] = {name: float(spec.qois[name](gt)) for name in qoi_names}
         model_s[case_id] = {name: {} for name in qoi_names}
@@ -171,6 +172,7 @@ def evaluate_gradient(
                     aux=traj.aux[..., run.qoi_aux_channel or 0],
                     particle_type=traj.particle_type,
                     init=model_cfg.input_frames,
+                    case_id=c,
                 )
                 line_ref[c] = {name: float(spec.qois[name](gt)) for name in qoi_names}
         entry: dict[str, Any] = {
