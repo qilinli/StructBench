@@ -438,6 +438,8 @@ _PROPERTY_LABELS: Mapping[str, str] = {
     "prop_peeq_decrease_rate": "peeq decreases",
     "prop_state_sufficiency": "state sufficiency",
     "prop_semigroup_err": "semigroup error",
+    "prop_force_balance_residual": "force imbalance",
+    "prop_plane_penetration": "body penetration (mm)",
 }
 
 _PROPERTIES_NOTE = (

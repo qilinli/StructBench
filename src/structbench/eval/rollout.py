@@ -11,9 +11,11 @@ import torch
 from numpy.typing import NDArray
 
 from ..datasets.canonical import CaseTrajectory
+from .force import element_mean
 from .metrics import (
     QoiFn,
     QoiInputs,
+    SeriesFn,
     field_rmse,
     position_rmse,
     relative_l2_pooled,
@@ -38,6 +40,39 @@ class _SimulatorLike(Protocol):
         accepts a ``teacher_forced`` keyword the one-step sweeps pass it.
         """
         ...
+
+
+@dataclass(frozen=True)
+class QoiState:
+    """What a caller hands a rollout so its quantities can read the state.
+
+    Built per case by the evaluation for a benchmark that declares an
+    element formulation; a rollout given none computes its quantities from
+    positions and the one aux channel, as before.
+
+    Attributes
+    ----------
+    formulation:
+        The benchmark's ``element_formulation``.
+    pred_stress:
+        Where the run's four stress components are: ``("state", indices)``
+        into the predicted element state of a two-site run, ``("aux",
+        indices)`` into the nodal channels of any other (averaged to the
+        elements), or ``None`` when the run does not carry them.
+    true_stress:
+        ``(T, E, 4)`` stored element stress of the case, or ``None``.
+    node_sets:
+        The definition's named node sets for this case.
+    series:
+        The benchmark's series quantities, evaluated on both sides and kept
+        on the result.
+    """
+
+    formulation: str
+    pred_stress: tuple[str, tuple[int, ...]] | None = None
+    true_stress: NDArray[np.float32] | None = None
+    node_sets: Mapping[str, NDArray[np.bool_]] = field(default_factory=dict)
+    series: Mapping[str, SeriesFn] = field(default_factory=dict)
 
 
 @dataclass
@@ -90,6 +125,15 @@ class RolloutResult:
     mean_rel_l2_state: float = float("nan")
     mean_state_rmse_channels: tuple[float, ...] | None = None
     mean_rel_l2_state_channels: tuple[float, ...] | None = None
+    # The series quantities of a benchmark that declares them, one value per
+    # frame of the scored span's arrays (frames [0, scored_end)), predicted
+    # and reference; and the element stress the quantities read with the
+    # site it came from ("element" or "node_mean"), None when the run does
+    # not carry the stress.
+    series_pred: dict[str, NDArray[np.float64]] = field(default_factory=dict)
+    series_true: dict[str, NDArray[np.float64]] = field(default_factory=dict)
+    element_stress: NDArray[np.float32] | None = None  # (scored_end, E, 4)
+    stress_site: str | None = None
 
 
 def rollout(
@@ -101,6 +145,7 @@ def rollout(
     kinematic_types: tuple[int, ...] = (),
     scored_frames: int | None = None,
     qoi_aux_channel: int | None = 0,
+    qoi_state: QoiState | None = None,
 ) -> RolloutResult:
     """Seed with the observed prefix, then autoregress to the end.
 
@@ -227,6 +272,7 @@ def rollout(
         scored_frames,
         qois,
         qoi_aux_channel,
+        qoi_state=qoi_state,
     )
 
 
@@ -241,6 +287,7 @@ def _finalize_rollout(
     qois: Mapping[str, QoiFn] | None,
     qoi_aux_channel: int | None = 0,
     state_pred: list[torch.Tensor] | None = None,
+    qoi_state: QoiState | None = None,
 ) -> RolloutResult:
     """Assemble per-frame arrays into a :class:`RolloutResult` (shared tail).
 
@@ -307,6 +354,42 @@ def _finalize_rollout(
     else:
         qoi_aux_pred = pred_aux[:scored_end, :, qoi_aux_channel]
         qoi_aux_true = trajectory.aux[:scored_end, :, qoi_aux_channel]
+    pred_state_np = (
+        None
+        if state_pred is None
+        else torch.stack(state_pred, dim=0).cpu().numpy().astype(np.float32)
+    )
+    # The state a quantity may read: the element stress of each side, the
+    # mesh and the definition's node sets. The prediction's stress is its
+    # own element state when it has one, else its nodal stress averaged to
+    # the elements; the reference's is the stored element stress.
+    state_inputs: dict[str, Any] = {}
+    pred_stress: NDArray[np.float32] | None = None
+    true_stress: NDArray[np.float32] | None = None
+    stress_site: str | None = None
+    if qoi_state is not None and trajectory.cells is not None:
+        if qoi_state.pred_stress is not None:
+            where, channels = qoi_state.pred_stress
+            if where == "state":
+                if pred_state_np is None:
+                    raise ValueError(
+                        "qoi_state reads the stress from the element state, "
+                        "and this rollout predicted none"
+                    )
+                pred_stress = pred_state_np[:scored_end][..., list(channels)]
+                stress_site = "element"
+            else:
+                pred_stress = element_mean(
+                    pred_aux[:scored_end][..., list(channels)], trajectory.cells
+                ).astype(np.float32)
+                stress_site = "node_mean"
+        if qoi_state.true_stress is not None:
+            true_stress = qoi_state.true_stress[:scored_end]
+        state_inputs = {
+            "cells": trajectory.cells,
+            "element_formulation": qoi_state.formulation,
+            "node_sets": qoi_state.node_sets,
+        }
     pred_inputs = QoiInputs(
         time=trajectory.time[:scored_end],
         positions=pred_pos[:scored_end],
@@ -314,6 +397,9 @@ def _finalize_rollout(
         particle_type=trajectory.particle_type,
         init=input_frames,
         case_id=trajectory.case_id,
+        element_stress=pred_stress,
+        stress_site=stress_site,
+        **state_inputs,
     )
     true_inputs = QoiInputs(
         time=trajectory.time[:scored_end],
@@ -322,9 +408,21 @@ def _finalize_rollout(
         particle_type=trajectory.particle_type,
         init=input_frames,
         case_id=trajectory.case_id,
+        element_stress=true_stress,
+        stress_site=None if true_stress is None else "element",
+        **state_inputs,
     )
     qoi_pred = {name: float(fn(pred_inputs)) for name, fn in (qois or {}).items()}
     qoi_true = {name: float(fn(true_inputs)) for name, fn in (qois or {}).items()}
+    series = {} if qoi_state is None or qois is None else qoi_state.series
+    series_pred = {
+        name: np.asarray(fn(pred_inputs), dtype=np.float64)
+        for name, fn in series.items()
+    }
+    series_true = {
+        name: np.asarray(fn(true_inputs), dtype=np.float64)
+        for name, fn in series.items()
+    }
     n_channels = pred_aux.shape[-1]
     aux_rmse_ch = rel_l2_ch = None
     if n_channels > 1:
@@ -357,7 +455,8 @@ def _finalize_rollout(
                 f"trajectory {trajectory.case_id!r} carries no element-site "
                 "state block to score the predicted state against (ADR-0075)"
             )
-        pred_state = torch.stack(state_pred, dim=0).cpu().numpy().astype(np.float32)
+        assert pred_state_np is not None
+        pred_state = pred_state_np
         true_state = trajectory.state
         st_rmse = field_rmse(pred_state[input_frames:], true_state[input_frames:])
         n_state_ch = pred_state.shape[-1]
@@ -402,6 +501,10 @@ def _finalize_rollout(
         qoi_pred=qoi_pred,
         qoi_true=qoi_true,
         qoi_error={name: qoi_pred[name] - qoi_true[name] for name in qoi_pred},
+        series_pred=series_pred,
+        series_true=series_true,
+        element_stress=pred_stress,
+        stress_site=stress_site,
         **state_kwargs,
     )
 
@@ -426,6 +529,7 @@ def time_conditioned_rollout(
     kinematic_types: tuple[int, ...] = (),
     scored_frames: int | None = None,
     qoi_aux_channel: int | None = 0,
+    qoi_state: QoiState | None = None,
 ) -> RolloutResult:
     """Independent-query trajectory assembly for the time-conditioned scheme.
 
@@ -503,6 +607,7 @@ def time_conditioned_rollout(
         scored_frames,
         qois,
         qoi_aux_channel,
+        qoi_state=qoi_state,
     )
 
 
@@ -540,6 +645,7 @@ def flow_map_rollout(
     scored_frames: int | None = None,
     qoi_aux_channel: int | None = 0,
     frame_offset: int = 0,
+    qoi_state: QoiState | None = None,
 ) -> RolloutResult:
     """Re-anchoring rollout for the anchored flow map (ADR-0062).
 
@@ -679,6 +785,7 @@ def flow_map_rollout(
         qois,
         qoi_aux_channel,
         state_pred=state_pred if two_site else None,
+        qoi_state=qoi_state,
     )
 
 

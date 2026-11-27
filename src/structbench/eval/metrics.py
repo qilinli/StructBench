@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -37,6 +37,24 @@ class QoiInputs:
         declared input of the case (a mass, a speed, a dimension) looks it
         up by this id in the definition's own table; ``None`` from a caller
         that has no case, and a quantity that needs one must say so.
+    element_stress:
+        ``(T, E, 4)`` stress per element, ``(s11, s22, s33, s12)`` in the
+        working unit, when the benchmark declares an element formulation and
+        the run carries the four components; ``None`` otherwise, and a
+        quantity that reads it then returns ``nan``. The reference side is
+        always the stored element stress.
+    stress_site:
+        Where ``element_stress`` came from: ``"element"`` (stored, or a
+        two-site run's own element state) or ``"node_mean"`` (a nodal run's
+        stress averaged over each element's nodes).
+    cells:
+        ``(E, nodes_per_cell)`` connectivity of the case, when it has a mesh.
+    element_formulation:
+        The benchmark's declared formulation (``"axisymmetric"``,
+        ``"plane_strain"``): how :mod:`structbench.eval.force` integrates.
+    node_sets:
+        The definition's named node sets for this case, each a boolean mask
+        ``(P,)`` (``BenchmarkSpec.node_sets``); empty when it declares none.
     """
 
     time: NDArray[np.float64]
@@ -45,10 +63,20 @@ class QoiInputs:
     particle_type: NDArray[np.int64] | None = None
     init: int = 0
     case_id: str | None = None
+    element_stress: NDArray[np.float32] | None = None
+    stress_site: str | None = None
+    cells: NDArray[np.int64] | None = None
+    element_formulation: str | None = None
+    node_sets: Mapping[str, NDArray[np.bool_]] | None = None
 
 
 #: A quantity of interest maps rollout arrays to one scalar.
 QoiFn = Callable[[QoiInputs], float]
+
+#: A series quantity maps rollout arrays to one value per frame, ``(T,)``;
+#: it is stored with the rollout and reduced afterwards
+#: (:mod:`structbench.eval.force`).
+SeriesFn = Callable[[QoiInputs], NDArray[np.float64]]
 
 
 def position_rmse(

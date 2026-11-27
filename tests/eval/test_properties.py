@@ -30,6 +30,8 @@ def test_property_keys_are_the_block_in_render_order():
         "prop_yield_violation_rate",
         "prop_peeq_decrease_rate",
         "prop_state_sufficiency",
+        "prop_force_balance_residual",
+        "prop_plane_penetration",
     )
 
 

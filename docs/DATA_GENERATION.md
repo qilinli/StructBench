@@ -588,6 +588,29 @@ Abaqus dataset taught, written as rules with the reason behind each and what
 the pipeline now does about it, and it ends in a pre-production checklist.
 Read it before the first run of a new model.
 
+## What a dataset stores so that forces can be read from it
+
+A model that predicts positions and stress has predicted every force, and
+the evaluation reads it with the operation a finite-element code uses
+(`structbench.eval.force`). For a benchmark to register a force, or to
+report the balance of a quasi-static problem, its dataset stores:
+
+- **the element stress where the solver integrates it**, all in-plane and
+  out-of-plane components, with the element formulation declared in the
+  benchmark definition (`element_formulation`). A stress extrapolated to the
+  nodes is not enough: the operator integrates the element's own value;
+- **the mass of every rigid body**, so that a force on a body can be checked
+  against the body's own motion. A point mass on a reference node is read
+  from the deck (`abaqus_point_masses`), and a definition that needs it per
+  case declares it among the case's parameters;
+- **where the solver writes them, the reaction or contact force histories**
+  (the global `reaction_force_<k>_…` series of an Abaqus case), as a second
+  reference beside the stress.
+
+The check to make before a force is registered is that the internal force of
+the stored stress, summed over the loaded nodes, reproduces that second
+reference or the body's mass times its stored acceleration.
+
 ## Training on a dataset before admission
 
 A dataset that has passed `verify` and `archive` can be trained on with
