@@ -31,6 +31,12 @@ class QoiInputs:
         Frames before it are the ground-truth-observed prefix; QoIs that scan
         over time should read ``[init:]``, while frame-0 geometry (gauge
         positions, reference spans) remains available.
+    case_id:
+        The case the arrays belong to, when the caller knows it (every
+        rollout and the gradient family give it). A quantity that needs a
+        declared input of the case (a mass, a speed, a dimension) looks it
+        up by this id in the definition's own table; ``None`` from a caller
+        that has no case, and a quantity that needs one must say so.
     """
 
     time: NDArray[np.float64]
@@ -38,6 +44,7 @@ class QoiInputs:
     aux: NDArray[np.float32]
     particle_type: NDArray[np.int64] | None = None
     init: int = 0
+    case_id: str | None = None
 
 
 #: A quantity of interest maps rollout arrays to one scalar.

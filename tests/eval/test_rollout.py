@@ -124,6 +124,22 @@ def test_rollout_computes_qois_when_given():
     np.testing.assert_allclose(res.qoi_error["mushroom_width"], 0.0, atol=1e-5)
 
 
+def test_a_quantity_may_read_the_case_it_is_scored_on():
+    """A quantity that needs a declared input of the case (a mass, a speed)
+    is given the case's id on the predicted and the reference inputs alike."""
+    traj = _const_vel_traj()
+    table = {traj.case_id: 2.5}
+    seen = []
+
+    def scaled_travel(inputs):
+        seen.append(inputs.case_id)
+        return table[inputs.case_id] * float(inputs.positions[-1, 0, 0])
+
+    res = rollout(_ConstVelSim(), traj, input_frames=3, qois={"q": scaled_travel})
+    assert seen == [traj.case_id, traj.case_id]
+    assert res.qoi_true["q"] == pytest.approx(2.5 * float(traj.positions[-1, 0, 0]))
+
+
 def test_rollout_qois_default_to_empty():
     res = rollout(_ConstVelSim(), _const_vel_traj(), input_frames=3)
     assert res.qoi_pred == {} and res.qoi_true == {} and res.qoi_error == {}
