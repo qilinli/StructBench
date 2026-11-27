@@ -1,6 +1,6 @@
 # 0080 — Force is read from the predicted state
 
-**Status**: Proposed
+**Status**: Accepted (maintainer, in-session 2026-11-27)
 **Type**: Durable
 **Date**: 2026-11-27
 **Amends**: 0075 (clause 6 gains two properties; the element site of clause 1 is what a quantity of interest may now read), 0032 (what a benchmark's quantity of interest is given)
