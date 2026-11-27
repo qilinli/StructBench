@@ -546,3 +546,101 @@ def test_without_the_knob_no_chain_code_runs(tmp_path, monkeypatch, decoder):
     patch_cli(monkeypatch, "FlowMapChainDataset", forbidden)
     _spec_, _root, out, _ids = _run(tmp_path, decoder)
     assert list(out.glob("model-best-*.pt"))
+
+
+@pytest.mark.parametrize("decoder", ("corner_mean", "off"))
+def test_quantities_read_the_state_and_the_two_force_properties(
+    tmp_path, monkeypatch, decoder
+):
+    """A definition's force quantities are given the stress, the mesh and its
+    node sets: a two-site run's own element state, a nodal run's stress
+    averaged to the elements, the stored element stress as the reference of
+    both. The series are saved with the rollout; the balance and the
+    penetration are reported where the definition declares them."""
+    import structbench.cli.train as cli_train
+    from structbench.benchmarks import RigidPlane
+    from structbench.datasets import load_case_trajectory
+    from structbench.eval.force import (
+        internal_force,
+        reaction_force,
+        series_peak,
+    )
+
+    spec, data_root, out, ids = _run(tmp_path, decoder)
+    base = reaction_force("base", (0.0, 1.0))
+    spec = replace(
+        spec,
+        qois={**spec.qois, "peak_base_force": series_peak(base)},
+        qoi_series={"base_force": base},
+        node_sets=lambda trajectory: {"base": trajectory.particle_type == 1},
+        rigid_planes=(RigidPlane((0.0, 1.0), offset=0.0, label="floor"),),
+        quasi_static=True,
+    )
+    assert spec.defined_properties[-2:] == (
+        "prop_force_balance_residual",
+        "prop_plane_penetration",
+    )
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    cid = ids["val"][0]
+    case = metrics["cases"][cid]
+    assert metrics["qoi_stress_site"] == (
+        "node_mean" if decoder == "off" else "element"
+    )
+    # the reference: the stored element stress through the operator
+    stored = load_case_trajectory(
+        data_root / f"{cid}.h5", aux_field=STATE_CHANNELS, state_fields=STATE_CHANNELS
+    )
+    force = internal_force(
+        stored.positions, stored.state[..., :4], stored.cells, "plane_strain"
+    )
+    series = force[:, stored.particle_type == 1, 1].sum(axis=1)
+    saved = np.load(out / "rollouts" / f"val-{cid}.npz")
+    np.testing.assert_allclose(saved["series_true_base_force"], series, rtol=1e-5)
+    assert saved["series_base_force"].shape == series.shape
+    assert np.isfinite(saved["series_base_force"]).all()
+    assert case["qoi_true"]["peak_base_force"] == pytest.approx(
+        np.abs(series[2:]).max(), rel=1e-5
+    )
+    assert np.isfinite(case["qoi_pred"]["peak_base_force"])
+    # a random stress field is far from balance; the floor's nodes are held
+    assert 0.0 < case["prop_force_balance_residual"] < 2.0
+    assert case["prop_plane_penetration"] >= 0.0
+    assert metrics["mean"]["prop_plane_penetration"] == case["prop_plane_penetration"]
+
+
+def test_a_definition_without_them_reports_no_force_property(tmp_path, monkeypatch):
+    import structbench.cli.train as cli_train
+
+    spec, data_root, out, ids = _run(tmp_path, "corner_mean")
+    patch_cli(monkeypatch, "get_benchmark", lambda name: spec)
+    metrics = cli_train.evaluate(ids["val"], data_root, out, "cpu", split_name="val")
+    case = metrics["cases"][ids["val"][0]]
+    assert not {"prop_force_balance_residual", "prop_plane_penetration"} & set(case)
+    saved = np.load(out / "rollouts" / f"val-{ids['val'][0]}.npz")
+    assert not [k for k in saved.files if k.startswith("series_")]
+
+
+def test_the_force_declarations_are_checked_at_construction():
+    from structbench.eval.force import reaction_force, series_peak
+
+    spec = _spec({"train": ["a"], "val": ["b"]})
+    base = reaction_force("base", (0.0, 1.0))
+    with pytest.raises(ValueError, match="share the names"):
+        replace(
+            spec,
+            qois={**spec.qois, "base_force": series_peak(base)},
+            qoi_series={"base_force": base},
+        )
+    with pytest.raises(ValueError, match="quasi_static"):
+        replace(
+            spec,
+            state_site="node",
+            state_channels=(),
+            element_formulation=None,
+            constitutive_law=None,
+            property_tolerances={},
+            restart_anchors=None,
+            restart_horizons=(),
+            quasi_static=True,
+        )

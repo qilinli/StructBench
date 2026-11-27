@@ -38,7 +38,9 @@ from ...eval import (
     yield_violation_rate,
     yield_violation_rate_about_backstress,
 )
+from ...eval.force import force_balance_residual, plane_penetration
 from ...eval.properties import von_mises4
+from ...eval.rollout import QoiState
 from ...models.common import CaseBoundSimulator
 from ...models.geoflare import GeoFlareSimulator
 from ...models.transolver import (
@@ -150,6 +152,118 @@ def _state_constraint_properties(
     return out
 
 
+def _qoi_state(
+    spec: BenchmarkSpec,
+    trajectory: CaseTrajectory,
+    case_path: Path,
+    run_aux_fields: tuple[str, ...],
+    run_aux_labels: tuple[str, ...],
+    state_labels: tuple[str, ...],
+) -> QoiState | None:
+    """What this case's quantities may read of the state, or ``None`` for a
+    benchmark without an element site or a case without a mesh.
+
+    The reference stress is the stored element stress: the loaded state of a
+    two-site run, a second read of the file for any other. The run's own is
+    its element state when it has one, else its nodal stress channels (they
+    are averaged to the elements where they are read), else nothing.
+    """
+    if spec.state_site != "element" or trajectory.cells is None:
+        return None
+    assert spec.element_formulation is not None
+    stress = _STATE_STRESS_LABELS
+    pred: tuple[str, tuple[int, ...]] | None = None
+    true_stress: np.ndarray | None = None
+    if trajectory.state is not None and all(n in state_labels for n in stress):
+        index = tuple(state_labels.index(n) for n in stress)
+        pred = ("state", index)
+        true_stress = trajectory.state[..., list(index)]
+    else:
+        if all(n in run_aux_labels for n in stress):
+            pred = ("aux", tuple(run_aux_labels.index(n) for n in stress))
+        labels = aux_channel_labels(spec.state_channels)
+        if all(n in labels for n in stress):
+            stored = load_case_trajectory(
+                case_path, aux_field=run_aux_fields, state_fields=spec.state_channels
+            )
+            if stored.state is not None:
+                true_stress = stored.state[: len(trajectory.time)][
+                    ..., [labels.index(n) for n in stress]
+                ]
+    node_sets: dict[str, np.ndarray] = {}
+    if spec.node_sets is not None:
+        for name, mask in spec.node_sets(trajectory).items():
+            array = np.asarray(mask, dtype=bool)
+            if array.shape != trajectory.particle_type.shape:
+                raise ValueError(
+                    f"node set {name!r} of {trajectory.case_id!r} has shape "
+                    f"{array.shape}; a mask over the case's "
+                    f"{trajectory.particle_type.shape[0]} nodes is needed"
+                )
+            node_sets[name] = array
+    return QoiState(
+        formulation=spec.element_formulation,
+        pred_stress=pred,
+        true_stress=true_stress,
+        node_sets=node_sets,
+        series=spec.qoi_series,
+    )
+
+
+def _force_properties(
+    spec: BenchmarkSpec,
+    trajectory: CaseTrajectory,
+    result: RolloutResult,
+    qoi_state: QoiState | None,
+    input_frames: int,
+    bound: int | None,
+) -> dict[str, float | None]:
+    """The two properties read from forces and bodies, each only where the
+    benchmark declares it: the out-of-balance force of a quasi-static
+    benchmark's predicted stress at its free nodes (the declared ``"free"``
+    set, else every node that is not prescribed), ``None`` when the run
+    carries no stress; and the largest depth by which a node of an element
+    (any node, on a case without a mesh) passes a declared rigid plane.
+    Both over the scored span's predicted frames."""
+    out: dict[str, float | None] = {}
+    n_frames = result.predicted_positions.shape[0]
+    stop = n_frames if bound is None else min(bound, n_frames)
+    positions = result.predicted_positions[input_frames:stop]
+    if spec.quasi_static:
+        value: float | None = None
+        if (
+            qoi_state is not None
+            and result.element_stress is not None
+            and trajectory.cells is not None
+        ):
+            free = qoi_state.node_sets.get("free")
+            if free is None:
+                free = ~np.isin(trajectory.particle_type, spec.kinematic_types)
+            value = _defined(
+                force_balance_residual(
+                    positions,
+                    result.element_stress[input_frames:stop],
+                    trajectory.cells,
+                    qoi_state.formulation,
+                    free,
+                )
+            )
+        out["prop_force_balance_residual"] = value
+    if spec.rigid_planes:
+        nodes = None
+        if trajectory.cells is not None:
+            nodes = np.zeros(trajectory.particle_type.shape[0], dtype=bool)
+            nodes[np.asarray(trajectory.cells).ravel()] = True
+        depths = [
+            plane_penetration(plane, positions, trajectory.particle_type, nodes)
+            for plane in spec.rigid_planes
+        ]
+        out["prop_plane_penetration"] = _defined(
+            float("nan") if any(math.isnan(d) for d in depths) else max(depths)
+        )
+    return out
+
+
 def _case_properties(
     spec: BenchmarkSpec,
     result: RolloutResult,
@@ -159,6 +273,8 @@ def _case_properties(
     case_id: str,
     input_frames: int,
     bound: int | None,
+    trajectory: CaseTrajectory | None = None,
+    qoi_state: QoiState | None = None,
 ) -> dict[str, float | None]:
     """The properties block of one case (ADR-0075 clause 6; plan 3c): every
     key the benchmark defines, ``None`` where it is undefined on this run
@@ -187,6 +303,10 @@ def _case_properties(
         )
     if spec.matched_initial_state_pairs:
         props["prop_state_sufficiency"] = None
+    if trajectory is not None:
+        props.update(
+            _force_properties(spec, trajectory, result, qoi_state, input_frames, bound)
+        )
     return props
 
 
@@ -419,6 +539,9 @@ def evaluate(
     # member of a declared matched pair, paired after the loop.
     pair_members = {c for pair in spec.matched_initial_state_pairs for c in pair}
     kept_positions: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    # Where the stress a quantity reads came from, over the cases: a run's
+    # own element state, its nodal stress averaged to the elements, or none.
+    stress_sites: set[str] = set()
     for case_id in case_ids:
         trajectory = load_case_trajectory(
             data_root / f"{case_id}.h5",
@@ -472,6 +595,20 @@ def evaluate(
                 **two_site_bind,
             )
             mesh_sim.reset_rollout()
+        qoi_state = _qoi_state(
+            spec,
+            trajectory,
+            data_root / f"{case_id}.h5",
+            run_aux_fields,
+            run_aux_labels,
+            state_labels,
+        )
+        if qoi_state is not None:
+            stress_sites.add(
+                "none"
+                if qoi_state.pred_stress is None
+                else {"state": "element", "aux": "node_mean"}[qoi_state.pred_stress[0]]
+            )
         one_step: np.ndarray | None
         one_step_aux: np.ndarray | None
         result_oracle = None  # ADR-0060 oracle-state rollout (aux_input only)
@@ -513,6 +650,7 @@ def evaluate(
                             kinematic_types=spec.kinematic_types,
                             scored_frames=spec.scored_frames_for(trajectory.case_id),
                             qoi_aux_channel=qoi_aux_channel,
+                            qoi_state=qoi_state,
                         )
                         prefixes = [
                             f"rollout_m{m}"
@@ -563,6 +701,7 @@ def evaluate(
                     kinematic_types=spec.kinematic_types,
                     scored_frames=spec.scored_frames_for(trajectory.case_id),
                     qoi_aux_channel=qoi_aux_channel,
+                    qoi_state=qoi_state,
                 )
             one_step = None
             one_step_aux = None
@@ -583,6 +722,7 @@ def evaluate(
                 kinematic_types=spec.kinematic_types,
                 scored_frames=spec.scored_frames_for(trajectory.case_id),
                 qoi_aux_channel=qoi_aux_channel,
+                qoi_state=qoi_state,
             )
             result_oracle = None
             if aux_in_run:
@@ -729,6 +869,8 @@ def evaluate(
                 case_id,
                 model_cfg.input_frames,
                 case_bound,
+                trajectory,
+                qoi_state,
             ),
             # Full-horizon diagnostic (ADR-0039 §3): mean over every predicted
             # frame to the last stored one. Not a registry metric; equals the
@@ -800,6 +942,12 @@ def evaluate(
             # (the figures) needs no benchmark to find the bound. The arrays
             # hold frames [0, saved); the scored span is
             # [input_frames, scored_frames). -1 = no bound, scored to the end.
+            # The series quantities, predicted and reference, over the frames
+            # the quantities were given ([0, scored bound)); the peak, mean
+            # and impulse of each are read from these afterwards.
+            for name, values in result.series_pred.items():
+                state_arrays[f"series_{name}"] = values
+                state_arrays[f"series_true_{name}"] = result.series_true[name]
             span_arrays: dict[str, Any] = {
                 "input_frames": np.int64(model_cfg.input_frames),
                 "scored_frames": np.int64(-1 if case_bound is None else case_bound),
@@ -884,6 +1032,18 @@ def evaluate(
         # Whether the rollouts ran past the scored bound (the unscored_tail
         # blocks). The scored numbers do not depend on it.
         "tail": bool(tail),
+        # An element-site benchmark: where the stress its quantities read
+        # came from ("element": the run's own element state; "node_mean":
+        # its nodal stress averaged to the elements; "none": the run carries
+        # no stress and such a quantity is null). The reference is always
+        # the stored element stress.
+        **(
+            {"qoi_stress_site": sorted(stress_sites)[0]}
+            if len(stress_sites) == 1
+            else {"qoi_stress_site": sorted(stress_sites)}
+            if stress_sites
+            else {}
+        ),
         # Card-conforming by construction: a checkpoint's input_frames is
         # validated equal to the card's at config load and train (ADR-0035),
         # so a standard run stays standard on re-eval. Legacy off-card records

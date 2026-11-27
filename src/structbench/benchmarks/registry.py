@@ -34,6 +34,7 @@ from ..datasets import available_aux_fields
 from ..datasets.canonical import CaseTrajectory
 from ..eval import QoiFn
 from ..eval.coverage import Coverage, coverage
+from ..eval.metrics import SeriesFn
 from ..eval.sensitivity import GradientFamily
 from .card import BenchmarkCard
 from .constitutive import (
@@ -208,7 +209,28 @@ class BenchmarkSpec:
     """The problem's rigid bodies, each a :class:`RigidPlane`: a plane fixed
     in space or one that moves with a named node. The visualiser draws them
     in every panel, a moving one at that panel's own node, so a predicted
-    body shows its predicted travel. Empty (default) declares none."""
+    body shows its predicted travel. Every result reports, per case, the
+    largest depth by which a node passes one (``prop_plane_penetration``).
+    Empty (default) declares none."""
+    node_sets: Callable[[CaseTrajectory], Mapping[str, object]] | None = None
+    """The definition's named node sets: given a loaded case, a mapping from
+    a name to a boolean mask over its nodes (a clamped base, a loaded face).
+    A quantity of interest reads them as ``QoiInputs.node_sets``
+    (:func:`~structbench.eval.force.reaction_force`); the set named
+    ``"free"``, when declared, is where the force balance of a quasi-static
+    benchmark is measured. ``None`` declares none."""
+    qoi_series: Mapping[str, SeriesFn] = field(default_factory=dict)
+    """Series quantities: each maps the rollout arrays to one value per
+    frame (a force history). The evaluation computes them for the prediction
+    and the reference and stores both with the saved rollout, so a peak, a
+    mean or an impulse can be read afterwards; a scalar that is registered
+    is declared in ``qois`` from the same function
+    (:func:`~structbench.eval.force.series_peak` and its companions)."""
+    quasi_static: bool = False
+    """Declares that inertia is negligible in the reference solution, so
+    the internal force vanishes at every unloaded node. Every result then
+    reports the normalised out-of-balance force of its predicted stress
+    (``prop_force_balance_residual``). Requires an element site."""
     scripted_types: tuple[int, ...] | None = None
     """Node-type codes the mesh-native simulators feed the ground-truth
     next-step velocity as an input feature (ADR-0043: OBSTACLE is scripted,
@@ -374,13 +396,19 @@ class BenchmarkSpec:
         """The properties-block keys this benchmark defines (ADR-0075 clause
         6), in render order: closure and error growth always; the yield and
         plastic-strain rates with an element site; state sufficiency with
-        declared matched pairs. The renderer shows these columns whether or
-        not a result has reported them; ``evaluate`` writes them."""
+        declared matched pairs; the force balance of a quasi-static
+        benchmark; the penetration of a declared rigid plane. The renderer
+        shows these columns whether or not a result has reported them;
+        ``evaluate`` writes them."""
         keys = ["prop_closure_ratio", "prop_error_growth"]
         if self.state_site == "element":
             keys += ["prop_yield_violation_rate", "prop_peeq_decrease_rate"]
         if self.matched_initial_state_pairs:
             keys.append("prop_state_sufficiency")
+        if self.quasi_static:
+            keys.append("prop_force_balance_residual")
+        if self.rigid_planes:
+            keys.append("prop_plane_penetration")
         return tuple(keys)
 
     @property
@@ -644,6 +672,18 @@ class BenchmarkSpec:
         if len(set(moving)) != len(moving):
             raise ValueError("rigid_planes: one moving plane per node type")
         object.__setattr__(self, "rigid_planes", planes)
+        if self.quasi_static and self.state_site != "element":
+            raise ValueError(
+                "quasi_static declares a force balance to report, which needs "
+                "the stress of an element site (state_site='element')"
+            )
+        clash = set(self.qoi_series) & set(self.qois)
+        if clash:
+            raise ValueError(
+                f"qoi_series and qois share the names {sorted(clash)}; a "
+                "series and the scalar read from it need different names"
+            )
+        object.__setattr__(self, "qoi_series", MappingProxyType(dict(self.qoi_series)))
         split_of = {c: s for s, cs in self.splits.items() for c in cs}
         for p in self.matched_initial_state_pairs:
             if isinstance(p, str) or not isinstance(p, (tuple, list)):

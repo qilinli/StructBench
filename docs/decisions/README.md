@@ -132,7 +132,7 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0029 | Notch-beam aux is max principal strain, not K&C damage (amends 0026) | Durable | Accepted (amended in place 2026-08-06: 0.01 threshold declared, provisional flag resolved) |
 | 0030 | Concrete-Beam decks are kg-mm-ms; canonical data patched in place | Durable | Accepted |
 | 0031 | Data archive layout: canonical/raw mirrors named by benchmark | Ephemeral | Accepted (amended by 0037; the bend archive removed by 0056) |
-| 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted (amended by 0035, 0074, 0075; note 2026-11-06: the benchmark field accepts a definition directory) |
+| 0032 | Grouped run configuration and benchmark-protocol governance (amends 0019, 0027) | Durable | Accepted (amended by 0035, 0074, 0075, 0080; note 2026-11-06: the benchmark field accepts a definition directory) |
 | 0033 | Official baseline results live in per-benchmark results registries | Durable | Accepted (amended by 0037, 0074, 0075; extended by 0046) |
 | 0034 | The reference baseline is CGN (Concrete Graph Network, Li et al. 2023) | Durable | Accepted |
 | 0035 | The model input window is the rollout init; no history backfill (amends 0019, 0032) | Durable | Accepted (amended by 0053; confirmed by 0073) |
@@ -174,11 +174,12 @@ At each release, or every fifteen records, the whole log is triaged: index rows 
 | 0072 | Validation against experiments: `structbench.validation`, reference-experiment sets with provenance, measures shared by experiment and simulation, a record that reports deviations and never judges; the datagen stage `validate` renamed `verify` | Durable | Accepted (0073) |
 | 0073 | Decisions from the maintainer's review of the decision log (amends 0010, 0012, 0026, 0035, 0043, 0046, 0055, 0064, 0065, 0066, 0067, 0068, 0071, 0072; accepts 0057, 0071, 0072) | Durable | Accepted |
 | 0074 | Open evaluation: blind sets, computed coverage, a results registry for external results (amends 0019, 0025, 0026, 0032, 0033, 0036, 0040, 0043, 0046, 0065, 0071, 0075) | Durable | Accepted (2026-11-08) |
-| 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted (amended by 0074; a second task family by 0076; note 2026-11-11: monotone admissible forms, two-site pushforward) |
+| 0075 | The two-site state, the restart task family and the properties block (ADR-0065 follow-ups 1 and 3; amends 0043, 0059, 0060, 0062, 0064, 0032, 0033, 0055) | Durable | Accepted (amended by 0074, 0080; a second task family by 0076; note 2026-11-11: monotone admissible forms, two-site pushforward) |
 | 0076 | The gradient task family: a surrogate's sensitivities scored against the sweep's own differences (amends 0019, 0032, 0033, 0055, 0075; constrains 0074) | Durable | Accepted (2026-11-08) |
 | 0077 | Checkpoint selection on the reported metric: validation relative L2 of displacement (supersedes the selection clause of 0028 and the selection sentence of 0062) | Ephemeral | Accepted (2026-11-10) |
 | 0078 | One declared scored span, read by every stage: training pool, statistics, time reference, evaluation, figures, records (amends 0039, 0054, 0032) | Durable | Accepted (2026-11-11) |
 | 0079 | How a further solver is admitted to data generation: experimental then admitted, on a conformance run the maintainer reads (amends 0068, 0071) | Ephemeral | Accepted (2026-11-18) |
+| 0080 | Force is read from the predicted state | Durable | Accepted |
 
 ---
 

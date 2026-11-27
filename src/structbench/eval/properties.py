@@ -39,14 +39,17 @@ __all__ = [
 ]
 
 #: The block's metric keys in render order (the design's §7 table, minus the
-#: deferred deviator trace and part 3b's semigroup row). ``prop_`` marks a key
-#: as a property wherever metrics are partitioned.
+#: deferred deviator trace and part 3b's semigroup row; then the two read
+#: from forces and bodies, whose kernels are in :mod:`structbench.eval.force`).
+#: ``prop_`` marks a key as a property wherever metrics are partitioned.
 PROPERTY_KEYS: tuple[str, ...] = (
     "prop_closure_ratio",
     "prop_error_growth",
     "prop_yield_violation_rate",
     "prop_peeq_decrease_rate",
     "prop_state_sufficiency",
+    "prop_force_balance_residual",
+    "prop_plane_penetration",
 )
 
 

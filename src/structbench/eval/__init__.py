@@ -4,6 +4,7 @@ from .coverage import Coverage, coverage, coverage_bin
 from .metrics import (
     QoiFn,
     QoiInputs,
+    SeriesFn,
     arrival_time,
     cracked_fraction,
     field_rmse,
@@ -40,6 +41,7 @@ from .restart import (
     semigroup_error,
 )
 from .rollout import (
+    QoiState,
     RolloutResult,
     flow_map_rollout,
     one_step_aux_rmse,
@@ -93,6 +95,7 @@ __all__ = [
     "QoiFn",
     "QoiInputs",
     "QoiNoise",
+    "QoiState",
     "reference_record",
     "reference_sensitivities",
     "relative_l2",
@@ -106,6 +109,7 @@ __all__ = [
     "rollout",
     "RolloutResult",
     "semigroup_error",
+    "SeriesFn",
     "sensitivities_from_record",
     "SensitivityPoint",
     "state_sufficiency",
